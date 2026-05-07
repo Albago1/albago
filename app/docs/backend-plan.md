@@ -1,8 +1,9 @@
 # AlbaGo Backend Plan
 
-Public API-Key . sb_publishable_zuSrbhl6TQEPznAgISCPKQ_IAgny_zy
+Supabase credentials are stored as environment variables — never commit real keys to the repository.
 
-pROJECT url . https://stvjpcqcpmhngihfjhga.supabase.co
+- Project URL: NEXT_PUBLIC_SUPABASE_URL (set in .env.local or Vercel dashboard)
+- Anon key:    NEXT_PUBLIC_SUPABASE_ANON_KEY (set in .env.local or Vercel dashboard)
 
 ## Goal
 
