@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { X } from 'lucide-react'
 import { Event } from '@/types/event'
 import { Place } from '@/types/place'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { getTodayDateString } from '@/lib/dateFilters'
 
 type PlacePanelProps = {
   place: Place | null
@@ -11,25 +14,7 @@ type PlacePanelProps = {
   onClose: () => void
 }
 
-const TODAY = '2026-04-03'
 const CLOSE_DRAG_THRESHOLD = 120
-
-function formatEventDateLabel(dateString: string) {
-  const eventDate = new Date(`${dateString}T12:00:00`)
-  const today = new Date(`${TODAY}T12:00:00`)
-
-  const diffInMs = eventDate.getTime() - today.getTime()
-  const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24))
-
-  if (diffInDays === 0) return 'Tonight'
-  if (diffInDays === 1) return 'Tomorrow'
-
-  return eventDate.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 function sortEvents(events: Event[]) {
   return [...events].sort((a, b) => {
@@ -50,11 +35,14 @@ export default function PlacePanel({
   isMobile,
   onClose,
 }: PlacePanelProps) {
+  const { t, language } = useLanguage()
   const [dragStartY, setDragStartY] = useState<number | null>(null)
   const [dragOffsetY, setDragOffsetY] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
 
-  const sortedEvents = useMemo(() => sortEvents(events), [events])
+  const safeEvents = Array.isArray(events) ? events : []
+  const sortedEvents = useMemo(() => sortEvents(safeEvents), [safeEvents])
+  const highlightedEventsCount = sortedEvents.filter((event) => event.highlight).length
 
   useEffect(() => {
     setDragStartY(null)
@@ -64,20 +52,40 @@ export default function PlacePanel({
 
   if (!place) return null
 
+  const formatEventDateLabel = (dateString: string) => {
+    const eventDate = new Date(`${dateString}T12:00:00`)
+    const today = new Date(`${getTodayDateString()}T12:00:00`)
+
+    const diffInMs = eventDate.getTime() - today.getTime()
+    const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24))
+
+    if (diffInDays === 0) return t('tonight')
+    if (diffInDays === 1) return t('tomorrow')
+
+    const localeMap = {
+      en: 'en-GB',
+      de: 'de-DE',
+      es: 'es-ES',
+      al: 'sq-AL',
+    } as const
+
+    return eventDate.toLocaleDateString(localeMap[language], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (!isMobile) return
-
     setDragStartY(event.touches[0].clientY)
     setIsDragging(true)
   }
 
   const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
     if (!isMobile || dragStartY === null) return
-
     const currentY = event.touches[0].clientY
-    const nextOffset = Math.max(0, currentY - dragStartY)
-
-    setDragOffsetY(nextOffset)
+    setDragOffsetY(Math.max(0, currentY - dragStartY))
   }
 
   const handleTouchEnd = () => {
@@ -96,10 +104,10 @@ export default function PlacePanel({
   return (
     <aside
       className={[
-        'z-30 overflow-hidden bg-white shadow-2xl',
+        'z-30 overflow-hidden border border-white/10 bg-[#070b14]/94 text-white shadow-2xl backdrop-blur-xl',
         isMobile
-          ? 'absolute inset-x-0 bottom-0 h-[72vh] rounded-t-3xl'
-          : 'absolute right-4 top-4 h-[calc(100vh-2rem)] w-[380px] rounded-2xl',
+          ? 'absolute inset-x-0 bottom-0 h-[76vh] rounded-t-[32px]'
+          : 'absolute right-4 top-4 h-[calc(100vh-2rem)] w-[390px] rounded-[32px]',
       ].join(' ')}
       style={
         isMobile
@@ -118,50 +126,59 @@ export default function PlacePanel({
           onTouchEnd={handleTouchEnd}
         >
           <div className="flex justify-center">
-            <div className="h-1.5 w-12 rounded-full bg-gray-300" />
+            <div className="h-1.5 w-12 rounded-full bg-white/20" />
           </div>
         </div>
       )}
 
-      {place.imageUrl && (
-        <div
-          className={
-            isMobile
-              ? 'h-44 w-full bg-cover bg-center'
-              : 'h-52 w-full bg-cover bg-center'
-          }
-          style={{ backgroundImage: `url(${place.imageUrl})` }}
-        />
-      )}
-
       <div className="flex h-full min-h-0 flex-col">
-        <div
-          className="flex items-start justify-between gap-4 px-5 pb-4 pt-5"
-          onTouchStart={isMobile ? handleTouchStart : undefined}
-          onTouchMove={isMobile ? handleTouchMove : undefined}
-          onTouchEnd={isMobile ? handleTouchEnd : undefined}
-        >
-          <div className="min-w-0">
-            <p className="text-sm capitalize text-gray-500">{place.category}</p>
-            <h2 className="text-2xl font-bold text-gray-900">{place.name}</h2>
-          </div>
+        <div className="relative">
+          {place.imageUrl ? (
+            <div
+              className={isMobile ? 'h-44 bg-cover bg-center' : 'h-52 bg-cover bg-center'}
+              style={{ backgroundImage: `url(${place.imageUrl})` }}
+            />
+          ) : (
+            <div className={isMobile ? 'h-36 bg-gradient-to-br from-blue-600/25 to-violet-600/20' : 'h-44 bg-gradient-to-br from-blue-600/25 to-violet-600/20'} />
+          )}
+
+          <div className="absolute inset-0 bg-gradient-to-t from-[#070b14] via-[#070b14]/45 to-transparent" />
 
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-full border px-3 py-1 text-sm text-gray-600 transition hover:bg-gray-50"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white/80 backdrop-blur-md transition hover:bg-white/10 hover:text-white"
+            aria-label={t('close')}
           >
-            Close
+            <X className="h-4 w-4" />
           </button>
+
+          <div className="absolute bottom-4 left-5 right-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-xs font-semibold capitalize text-white/80 backdrop-blur">
+                {place.category}
+              </span>
+
+              {highlightedEventsCount > 0 && (
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-black">
+                  {highlightedEventsCount} HOT
+                </span>
+              )}
+            </div>
+
+            <h2 className="mt-3 text-2xl font-bold leading-tight text-white">
+              {place.name}
+            </h2>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-5">
           {place.options.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {place.options.map(option => (
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {place.options.map((option) => (
                 <span
                   key={option}
-                  className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
+                  className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/70"
                 >
                   {option}
                 </span>
@@ -171,68 +188,88 @@ export default function PlacePanel({
 
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                Upcoming events
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                {t('upcoming_events')}
               </h3>
 
-              <span className="rounded-full bg-black px-2.5 py-1 text-xs font-semibold text-white">
-                {sortedEvents.length} {sortedEvents.length === 1 ? 'event' : 'events'}
+              <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs font-semibold text-white">
+                {sortedEvents.length}{' '}
+                {sortedEvents.length === 1 ? t('event_singular') : t('event_plural')}
               </span>
             </div>
 
             <div className="space-y-3">
               {sortedEvents.length > 0 ? (
-                sortedEvents.map(event => (
+                sortedEvents.map((event) => (
                   <div
                     key={event.id}
-                    className="rounded-xl border border-gray-200 p-4"
+                    className={[
+                      'rounded-2xl border p-4 backdrop-blur-md transition hover:bg-white/[0.06]',
+                      event.highlight
+                        ? 'border-white/15 bg-white/[0.06] shadow-[0_0_24px_rgba(255,255,255,0.04)]'
+                        : 'border-white/10 bg-white/[0.035]',
+                    ].join(' ')}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className="font-semibold text-gray-900">{event.title}</p>
+                      <p className="min-w-0 font-semibold leading-snug text-white">
+                        {event.title}
+                      </p>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         {event.highlight && (
-                          <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white">
-                            HOT
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+                            {t('hot')}
                           </span>
                         )}
 
-                        <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-white/70">
                           {formatEventDateLabel(event.date)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      <span>🕒 {event.time}</span>
-                      {event.category && <span>🎧 {event.category}</span>}
-                      {event.price && <span>💰 {event.price}</span>}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                        🕒 {event.time}
+                      </span>
+
+                      {event.category && (
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                          🎧 {event.category}
+                        </span>
+                      )}
+
+                      {event.price && (
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                          💰 {event.price}
+                        </span>
+                      )}
                     </div>
 
-                    <p className="mt-2 text-sm leading-6 text-gray-700">
+                    <p className="mt-3 text-sm leading-6 text-white/68">
                       {event.description}
                     </p>
                   </div>
                 ))
               ) : (
-                <div className="rounded-xl border border-dashed border-gray-200 p-4">
-                  <p className="text-sm font-medium text-gray-700">
-                    No upcoming events yet
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 backdrop-blur-md">
+                  <p className="text-sm font-medium text-white">
+                    {t('no_upcoming_events')}
                   </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    This place is visible, but there are no matching events for
-                    the current filters.
+                  <p className="mt-1 text-sm text-white/55">
+                    {t('no_upcoming_events_hint')}
                   </p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="mt-6 border-t border-gray-200 pt-6">
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              About this place
+          <div className="mt-6 border-t border-white/10 pt-6">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+              {t('about_this_place')}
             </h3>
-            <p className="text-sm leading-6 text-gray-700">{place.description}</p>
+
+            <p className="text-sm leading-6 text-white/68">{place.description}</p>
           </div>
         </div>
       </div>

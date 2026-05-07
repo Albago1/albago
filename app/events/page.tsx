@@ -20,6 +20,8 @@ import { useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
+const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food'] as const
+
 type PublicEvent = {
   id: string
   title: string
@@ -142,6 +144,7 @@ function EventsContent() {
   const initialSearchQuery = searchParams.get('q') || ''
 
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>('all')
+  const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocation.slug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [events, setEvents] = useState<PublicEvent[]>([])
@@ -183,20 +186,25 @@ const filteredEvents = useMemo(() => {
       (activeTimeFilter === 'tonight' && isToday(event.date)) ||
       (activeTimeFilter === 'weekend' && isThisWeekend(event.date))
 
+    const categoryMatches =
+      activeCategory === 'all' ||
+      event.category.toLowerCase() === activeCategory.toLowerCase()
+
     const searchMatches =
       normalizedSearch.length === 0 ||
       event.title.toLowerCase().includes(normalizedSearch) ||
       event.description.toLowerCase().includes(normalizedSearch) ||
       event.category.toLowerCase().includes(normalizedSearch)
 
-    return timeMatches && searchMatches
+    return timeMatches && categoryMatches && searchMatches
   })
-}, [activeTimeFilter, events, searchQuery])
+}, [activeTimeFilter, activeCategory, events, searchQuery])
 
   const sortedEvents = useMemo(
     () => sortEventsByPriority(filteredEvents),
     [filteredEvents]
   )
+
 
   return (
     <main className="min-h-screen bg-[#070b14] text-white">
@@ -299,6 +307,27 @@ const filteredEvents = useMemo(() => {
                   ].join(' ')}
                 >
                   {getTimeFilterLabel(filter)}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {categories.map((cat) => {
+              const isActive = activeCategory === cat
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setActiveCategory(cat)}
+                  className={[
+                    'rounded-full px-4 py-2 text-sm font-medium capitalize transition',
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
+                  ].join(' ')}
+                >
+                  {cat === 'all' ? 'All categories' : cat}
                 </button>
               )
             })}

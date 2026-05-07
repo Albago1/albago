@@ -4,6 +4,9 @@ export type MapMarkerInput = {
   lat: number
   lng: number
   isSelected: boolean
+  eventCount?: number
+  hasHighlight?: boolean
+  category?: string
   onClick: () => void
 }
 
@@ -15,6 +18,8 @@ export type FlyToPlaceInput = {
 
 export type CreateMapAdapterParams = {
   container: HTMLDivElement
+  center: [number, number]
+  zoom: number
   onMapClick: () => void
   getMarkerClassName: (isSelected: boolean) => string
 }
@@ -22,5 +27,6 @@ export type CreateMapAdapterParams = {
 export type MapAdapter = {
   setMarkers: (markers: MapMarkerInput[]) => void
   flyToPlace: (input: FlyToPlaceInput) => void
+  flyToLocation: (center: [number, number], zoom: number) => void
   destroy: () => void
 }

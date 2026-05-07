@@ -6,19 +6,20 @@ import type {
   MapMarkerInput,
 } from './map.types'
 
-const TIRANA_CENTER: [number, number] = [19.8187, 41.3275]
 const MAPLIBRE_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
 
 export function createMaplibreAdapter({
   container,
+  center,
+  zoom,
   onMapClick,
   getMarkerClassName,
 }: CreateMapAdapterParams): MapAdapter {
   const map = new maplibregl.Map({
     container,
     style: MAPLIBRE_STYLE_URL,
-    center: TIRANA_CENTER,
-    zoom: 12.5,
+    center,
+    zoom,
   })
 
   const markers: maplibregl.Marker[] = []
@@ -38,19 +39,36 @@ export function createMaplibreAdapter({
     markers.length = 0
   }
 
-  const createMarkerElement = (marker: MapMarkerInput) => {
-    const element = document.createElement('button')
-    element.type = 'button'
-    element.className = getMarkerClassName(marker.isSelected)
-    element.textContent = marker.name
+const createMarkerElement = (marker: MapMarkerInput) => {
+  const element = document.createElement('button')
+  element.type = 'button'
+  element.className = getMarkerClassName(marker.isSelected)
 
-    element.addEventListener('click', event => {
-      event.stopPropagation()
-      marker.onClick()
-    })
+  element.innerHTML = `
+    <span class="flex items-center gap-1.5">
+      ${
+        marker.hasHighlight
+          ? '<span class="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]"></span>'
+          : '<span class="h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.8)]"></span>'
+      }
 
-    return element
-  }
+      <span class="max-w-[120px] truncate">${marker.name}</span>
+
+      ${
+        marker.eventCount && marker.eventCount > 0
+          ? `<span class="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-bold">${marker.eventCount}</span>`
+          : ''
+      }
+    </span>
+  `
+
+  element.addEventListener('click', event => {
+    event.stopPropagation()
+    marker.onClick()
+  })
+
+  return element
+}
 
   return {
     setMarkers(markerInputs) {
@@ -79,6 +97,10 @@ export function createMaplibreAdapter({
           : { top: 40, bottom: 40, left: 40, right: 420 },
         essential: true,
       })
+    },
+
+    flyToLocation(center, zoom) {
+      map.flyTo({ center, zoom, essential: true })
     },
 
     destroy() {

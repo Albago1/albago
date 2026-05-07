@@ -7,4 +7,7 @@ export type Place = {
   description: string
   options: string[]
   imageUrl?: string
+  city?: string
+  address?: string
+  verified?: boolean
 }

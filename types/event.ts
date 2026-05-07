@@ -5,7 +5,7 @@ export type Event = {
   time: string
   placeId: string
   description: string
-  category?: string
+  category: string
   price?: string
   highlight?: boolean
 }
