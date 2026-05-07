@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Clock3, Music2, Banknote } from 'lucide-react'
 import { Event } from '@/types/event'
 import { Place } from '@/types/place'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -229,19 +229,19 @@ export default function PlacePanel({
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/60">
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                        🕒 {event.time}
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                        <Clock3 className="h-3.5 w-3.5" /> {event.time}
                       </span>
 
                       {event.category && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                          🎧 {event.category}
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                          <Music2 className="h-3.5 w-3.5" /> {event.category}
                         </span>
                       )}
 
                       {event.price && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                          💰 {event.price}
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                          <Banknote className="h-3.5 w-3.5" /> {event.price}
                         </span>
                       )}
                     </div>

@@ -190,7 +190,7 @@ export default function MapView() {
   }, [visiblePlaces])
 
   const visibleEventsCount = useMemo(() => {
-    return filteredEvents.filter((event) => visiblePlaceIds.has(event.placeId)).length
+    return filteredEvents.filter((event) => event.placeId != null && visiblePlaceIds.has(event.placeId)).length
   }, [filteredEvents, visiblePlaceIds])
 
   const selectedPlace = useMemo<Place | null>(() => {

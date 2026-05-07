@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   LayoutDashboard,
+  Calendar,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -66,6 +67,7 @@ export default function LandingNavbar() {
 
   const navItems = [
     { href: '/', label: t('nav_home'), icon: Home, active: pathname === '/' },
+    { href: '/events', label: t('nav_events'), icon: Calendar, active: pathname === '/events' },
     { href: '/map', label: t('nav_map'), icon: Map, active: pathname === '/map' },
     {
       href: '/submit-event',

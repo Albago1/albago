@@ -63,10 +63,11 @@ function getPlaceCategoryTone(category?: string) {
   return 'bg-white/10 text-white/80'
 }
 
-function getEventMapHref(placeId: string, date: string) {
-  if (isToday(date)) return `/map?place=${placeId}&time=tonight`
-  if (isThisWeekend(date)) return `/map?place=${placeId}&time=weekend`
-  return `/map?place=${placeId}`
+function getEventMapHref(placeId: string | null, date: string) {
+  const placeParam = placeId ? `place=${placeId}&` : ''
+  if (isToday(date)) return `/map?${placeParam}time=tonight`
+  if (isThisWeekend(date)) return `/map?${placeParam}time=weekend`
+  return placeId ? `/map?place=${placeId}` : '/map'
 }
 
 function resolveLocationSlug(value: string) {
@@ -114,6 +115,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLocationOpen, setIsLocationOpen] = useState(false)
   const [activeLocationSlug, setActiveLocationSlug] = useState('tirana')
+  const [isLocating, setIsLocating] = useState(false)
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [featuredPlaces, setFeaturedPlaces] = useState<Place[]>([])
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
@@ -177,6 +179,34 @@ export default function HomePage() {
 
     fetchFeatured()
   }, [activeLocationSlug])
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) return
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        let nearest = locations[0]
+        let minDist = Infinity
+        for (const loc of locations) {
+          const dist = Math.sqrt(
+            Math.pow(loc.center[0] - longitude, 2) +
+            Math.pow(loc.center[1] - latitude, 2)
+          )
+          if (dist < minDist) { minDist = dist; nearest = loc }
+        }
+        setLocationInput(nearest.label)
+        setActiveLocationSlug(nearest.slug)
+        setIsLocating(false)
+        setIsLocationOpen(false)
+      },
+      () => {
+        setIsLocating(false)
+        setIsLocationOpen(false)
+      },
+      { timeout: 6000 }
+    )
+  }
 
   const matchingLocations = locations.filter((location) => {
   const search = locationInput.toLowerCase()
@@ -246,15 +276,12 @@ export default function HomePage() {
                 <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-[#0b1020] text-left shadow-2xl">
                   <button
                     type="button"
-                    onClick={() => {
-                      setLocationInput('Tirana')
-                      setActiveLocationSlug('tirana')
-                      setIsLocationOpen(false)
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-4 text-sm text-white/80 transition hover:bg-white/[0.06]"
+                    onClick={handleDetectLocation}
+                    disabled={isLocating}
+                    className="flex w-full items-center gap-3 px-4 py-4 text-sm text-white/80 transition hover:bg-white/[0.06] disabled:opacity-60"
                   >
                     <MapPin className="h-5 w-5 text-blue-400" />
-                    <span>Use my current location</span>
+                    <span>{isLocating ? 'Detecting...' : 'Use my current location'}</span>
                   </button>
 
                   <div className="border-t border-white/10" />
@@ -382,14 +409,14 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-6xl items-center justify-around px-4">
           <div className="text-center">
             <div className="text-5xl font-bold text-blue-500">
-              {Math.max(totalPlacesCount, 20)}+
+              {totalPlacesCount}
             </div>
             <div className="mt-2 text-xl text-white/65">{t('venues')}</div>
           </div>
 
           <div className="text-center">
             <div className="text-5xl font-bold text-blue-500">
-              {Math.max(totalEventsCount, 50)}+
+              {totalEventsCount}
             </div>
             <div className="mt-2 text-xl text-white/65">{t('events')}</div>
           </div>

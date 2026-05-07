@@ -54,11 +54,11 @@ export const translations: Record<Language, Record<string, string>> = {
       "Tell people what makes this event worth attending...",
 
     submit_note:
-      "For launch, this form shows a confirmation only. Next step later: connect it to database and moderation.",
+      "All submissions are reviewed by our team before appearing on the map. We'll be in touch if we need more details.",
 
     event_submitted_title: "Event submitted",
     event_submitted_message:
-      "Thanks. This is saved locally for now. Later it will go through approval.",
+      "Thanks! Your event has been received and is pending review. We'll publish it once approved.",
     submit_another: "Submit another",
     sign_in: "Sign In",
     close: "Close",
@@ -130,11 +130,11 @@ export const translations: Record<Language, Record<string, string>> = {
       "Erzähl den Leuten, warum sich dieses Event lohnt...",
 
     submit_note:
-      "Für den Start zeigt dieses Formular nur eine Bestätigung. Nächster Schritt: Verbindung zur Datenbank und Moderation.",
+      "Alle Einreichungen werden von unserem Team geprüft, bevor sie auf der Karte erscheinen.",
 
     event_submitted_title: "Event eingereicht",
     event_submitted_message:
-      "Danke! Das Event wurde lokal gespeichert. Später wird es geprüft und veröffentlicht.",
+      "Danke! Dein Event wurde empfangen und wird geprüft. Wir veröffentlichen es nach der Genehmigung.",
     submit_another: "Weiteres Event einreichen",
     sign_in: "Anmelden",
     close: "Schließen",
@@ -205,11 +205,11 @@ export const translations: Record<Language, Record<string, string>> = {
       "Cuenta por qué vale la pena asistir a este evento...",
 
     submit_note:
-      "Por ahora este formulario solo muestra una confirmación. Próximo paso: conectar con base de datos y moderación.",
+      "Todas las propuestas son revisadas por nuestro equipo antes de aparecer en el mapa.",
 
     event_submitted_title: "Evento enviado",
     event_submitted_message:
-      "Gracias. Esto se guarda localmente por ahora. Luego pasará por aprobación.",
+      "¡Gracias! Tu evento ha sido recibido y está pendiente de revisión. Lo publicaremos una vez aprobado.",
     submit_another: "Enviar otro evento",
     sign_in: "Iniciar sesión",
     close: "Cerrar",
@@ -280,11 +280,11 @@ export const translations: Record<Language, Record<string, string>> = {
       "Trego pse ky event vlen të ndiqet...",
 
     submit_note:
-      "Për momentin kjo formë jep vetëm konfirmim. Hapi tjetër: lidhje me databazë dhe moderim.",
+      "Të gjitha dërgesat rishikohen nga ekipi ynë para se të shfaqen në hartë.",
 
     event_submitted_title: "Eventi u dërgua",
     event_submitted_message:
-      "Faleminderit! Eventi është ruajtur lokalisht për tani. Më vonë do kalojë në verifikim.",
+      "Faleminderit! Eventi juaj është marrë dhe është në pritje të shqyrtimit. Do ta publikojmë pas aprovimit.",
     submit_another: "Shto një tjetër",
     sign_in: "Hyr",
     close: "Mbyll",

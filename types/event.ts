@@ -3,7 +3,7 @@ export type Event = {
   title: string
   date: string
   time: string
-  placeId: string
+  placeId: string | null
   description: string
   category: string
   price?: string

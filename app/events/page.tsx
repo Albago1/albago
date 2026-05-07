@@ -16,7 +16,7 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { isThisWeekend, isToday, getTodayDateString } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
@@ -137,8 +137,9 @@ export default function EventsPage() {
 
 function EventsContent() {
   const { t } = useLanguage()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   const initialLocation = getLocationBySlug(searchParams.get('location'))
   const initialSearchQuery = searchParams.get('q') || ''
@@ -148,6 +149,7 @@ function EventsContent() {
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocation.slug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [events, setEvents] = useState<PublicEvent[]>([])
+  const [placeNames, setPlaceNames] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -156,26 +158,43 @@ function EventsContent() {
       setIsLoading(true)
       setErrorMessage(null)
 
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('status', 'published')
-        .eq('location_slug', activeLocationSlug)
-        .order('date', { ascending: true })
-        .order('time', { ascending: true })
+      const [eventsRes, placesRes] = await Promise.all([
+        supabase
+          .from('events')
+          .select('*')
+          .eq('status', 'published')
+          .eq('location_slug', activeLocationSlug)
+          .order('date', { ascending: true })
+          .order('time', { ascending: true }),
+        supabase
+          .from('places')
+          .select('id, name')
+          .eq('location_slug', activeLocationSlug),
+      ])
 
       setIsLoading(false)
 
-      if (error) {
-        setErrorMessage(error.message)
+      if (eventsRes.error) {
+        setErrorMessage(eventsRes.error.message)
         return
       }
 
-      setEvents(data || [])
+      setEvents(eventsRes.data || [])
+
+      if (placesRes.data) {
+        setPlaceNames(new Map(placesRes.data.map((p) => [p.id, p.name])))
+      }
     }
 
     fetchEvents()
   }, [supabase, activeLocationSlug])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    params.set('location', activeLocationSlug)
+    if (activeCategory !== 'all') params.set('category', activeCategory)
+    router.replace(`/events?${params.toString()}`)
+  }, [activeLocationSlug])
 
 const filteredEvents = useMemo(() => {
   const normalizedSearch = searchQuery.trim().toLowerCase()
@@ -408,15 +427,17 @@ const filteredEvents = useMemo(() => {
                   {event.title}
                 </h2>
 
-                <div className="mt-2 flex items-center gap-2 text-sm text-white/55">
-                  <MapPin className="h-4 w-4" />
-                  <span>{event.place_id ? 'Linked venue' : 'Venue pending'}</span>
-                </div>
+                {event.place_id && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-white/55">
+                    <MapPin className="h-4 w-4" />
+                    <span>{placeNames.get(event.place_id) ?? 'Unknown venue'}</span>
+                  </div>
+                )}
 
                 <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/60">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    <span>{event.date}</span>
+                    <span>{formatEventDateLabel(event.date)}</span>
                   </div>
 
                   <div className="flex items-center gap-2">

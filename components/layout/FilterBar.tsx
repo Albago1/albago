@@ -41,7 +41,7 @@ type FilterBarProps = {
   onReset: () => void
 }
 
-const categories = ['all', 'nightlife', 'sports', 'culture', 'food']
+const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food']
 const timeFilters: TimeFilter[] = ['tonight', 'weekend', 'all']
 
 function getTimeFilterLabel(filter: TimeFilter) {
