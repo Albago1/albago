@@ -51,3 +51,36 @@ export function getLocationBySlug(slug?: string | null) {
     locations.find((location) => location.slug === defaultLocationSlug)!
   )
 }
+
+export async function fetchLocations(): Promise<LocationOption[]> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) return locations
+
+    const res = await fetch(
+      `${url}/rest/v1/cities?select=*&order=is_featured.desc,name.asc`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+    )
+    if (!res.ok) return locations
+
+    const data: Array<{
+      slug: string
+      name: string
+      country: string
+      lat: number
+      lng: number
+      zoom?: number
+    }> = await res.json()
+
+    return data.map((row) => ({
+      label: row.name,
+      slug: row.slug,
+      country: row.country,
+      center: [row.lng, row.lat] as [number, number],
+      zoom: row.zoom ?? 12.5,
+    }))
+  } catch {
+    return locations
+  }
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, Clock3, Music2, Banknote } from 'lucide-react'
+import { X, Clock3, Music2, Banknote, MapPin, Navigation, Globe } from 'lucide-react'
 import { Event } from '@/types/event'
 import { Place } from '@/types/place'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -169,6 +169,13 @@ export default function PlacePanel({
             <h2 className="mt-3 text-2xl font-bold leading-tight text-white">
               {place.name}
             </h2>
+
+            {place.address && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-sm text-white/60">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {place.address}
+              </p>
+            )}
           </div>
         </div>
 
@@ -185,6 +192,56 @@ export default function PlacePanel({
               ))}
             </div>
           )}
+
+          {(place.lat != null && place.lng != null) || place.websiteUrl ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {place.lat != null && place.lng != null && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                      const url = isIOS
+                        ? `maps://maps.apple.com/?daddr=${place.lat},${place.lng}`
+                        : `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
+                      window.open(url, '_blank', 'noopener,noreferrer')
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/[0.09] hover:text-white"
+                  >
+                    <Navigation className="h-3.5 w-3.5" />
+                    Get Directions
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                      const url = isIOS
+                        ? `maps://maps.apple.com/?q=${place.lat},${place.lng}`
+                        : `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`
+                      window.open(url, '_blank', 'noopener,noreferrer')
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/[0.09] hover:text-white"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    Open in Maps
+                  </button>
+                </>
+              )}
+
+              {place.websiteUrl && (
+                <a
+                  href={place.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/[0.09] hover:text-white"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  Website
+                </a>
+              )}
+            </div>
+          ) : null}
 
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between gap-3">

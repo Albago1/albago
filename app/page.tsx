@@ -153,6 +153,9 @@ export default function HomePage() {
             options: Array.isArray(p.options) ? p.options : [],
             imageUrl: p.image_url ?? undefined,
             city: loc ? `${loc.city ?? loc.label}, ${loc.country}` : p.country,
+            address: p.address ?? undefined,
+            websiteUrl: p.website_url ?? undefined,
+            status: p.status ?? undefined,
           }
         })
         setAllPlaces(mapped)

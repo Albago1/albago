@@ -101,6 +101,9 @@ export default function MapView() {
           description: p.description,
           options: Array.isArray(p.options) ? p.options : [],
           imageUrl: p.image_url ?? undefined,
+          address: p.address ?? undefined,
+          websiteUrl: p.website_url ?? undefined,
+          status: p.status ?? undefined,
         })))
       }
 

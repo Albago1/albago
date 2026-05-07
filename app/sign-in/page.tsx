@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/browser'
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? '/'
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -31,7 +33,7 @@ export default function SignInPage() {
       return
     }
 
-    router.push('/')
+    router.push(next.startsWith('/') ? next : '/')
     router.refresh()
   }
 
@@ -84,5 +86,13 @@ export default function SignInPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
   )
 }

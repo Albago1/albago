@@ -1,43 +1,120 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Clock3, MapPin, Send } from 'lucide-react'
+import {
+  ArrowLeft,
+  Banknote,
+  Calendar,
+  Check,
+  Clock3,
+  MapPin,
+  Send,
+  X,
+} from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
+import type { User } from '@supabase/supabase-js'
 
 const categories = ['nightlife', 'music', 'sports', 'culture', 'food']
 
+type VenueOption = {
+  id: string
+  name: string
+  category: string
+}
+
 export default function SubmitEventPage() {
   const { t } = useLanguage()
-  const supabase = createClient()
+  const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
+
+  const [user, setUser] = useState<User | null>(null)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const [locationSlug, setLocationSlug] = useState('tirana')
+  const [venues, setVenues] = useState<VenueOption[]>([])
+  const [venueQuery, setVenueQuery] = useState('')
+  const [selectedVenue, setSelectedVenue] = useState<VenueOption | null>(null)
+  const [isVenueOpen, setIsVenueOpen] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.replace('/sign-in?next=/submit-event')
+        return
+      }
+      setUser(user)
+      setIsAuthLoading(false)
+    })
+  }, [supabase, router])
+
+  useEffect(() => {
+    setSelectedVenue(null)
+    setVenueQuery('')
+    supabase
+      .from('places')
+      .select('id, name, category')
+      .eq('location_slug', locationSlug)
+      .order('name', { ascending: true })
+      .then(({ data }) => setVenues(data ?? []))
+  }, [locationSlug, supabase])
+
+  const matchingVenues = useMemo(() => {
+    const q = venueQuery.trim().toLowerCase()
+    if (!q) return venues.slice(0, 6)
+    return venues.filter((v) => v.name.toLowerCase().includes(q)).slice(0, 6)
+  }, [venues, venueQuery])
+
+  const handleVenueSelect = (venue: VenueOption) => {
+    setSelectedVenue(venue)
+    setVenueQuery(venue.name)
+    setIsVenueOpen(false)
+  }
+
+  const handleVenueClear = () => {
+    setSelectedVenue(null)
+    setVenueQuery('')
+    setIsVenueOpen(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!user) return
+
+    const venueName = selectedVenue ? selectedVenue.name : venueQuery.trim()
+    if (!venueName) {
+      setSubmitError('Please enter or select a venue name.')
+      return
+    }
+
     setIsSubmitting(true)
     setSubmitError(null)
 
-    const formData = new FormData(event.currentTarget)
-    const locationSlug = String(formData.get('locationSlug'))
+    const formData = new FormData(e.currentTarget)
     const selectedLocation = getLocationBySlug(locationSlug)
 
     const submission = {
       title: String(formData.get('title')),
-      venue_name: String(formData.get('venueName')),
+      venue_name: venueName,
+      place_id: selectedVenue?.id ?? null,
       date: String(formData.get('date')),
       time: String(formData.get('time')),
       category: String(formData.get('category')),
+      price: String(formData.get('price')) || null,
       contact_email: String(formData.get('contactEmail')),
       description: String(formData.get('description')),
       country: selectedLocation.country,
       region: selectedLocation.region ?? null,
       location_slug: selectedLocation.slug,
       status: 'pending',
+      submitted_by_user_id: user.id,
     }
 
     const { error } = await supabase.from('event_submissions').insert(submission)
@@ -50,6 +127,14 @@ export default function SubmitEventPage() {
     }
 
     setIsSubmitted(true)
+  }
+
+  if (isAuthLoading) {
+    return (
+      <main className="min-h-screen bg-[#070b14] text-white">
+        <LandingNavbar />
+      </main>
+    )
   }
 
   return (
@@ -98,6 +183,8 @@ export default function SubmitEventPage() {
                     onClick={() => {
                       setIsSubmitted(false)
                       setSubmitError(null)
+                      setVenueQuery('')
+                      setSelectedVenue(null)
                     }}
                     className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
                   >
@@ -105,10 +192,10 @@ export default function SubmitEventPage() {
                   </button>
 
                   <Link
-                    href="/map"
+                    href="/dashboard"
                     className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
                   >
-                    {t('open_map')}
+                    View my submissions
                   </Link>
                 </div>
               </div>
@@ -121,8 +208,8 @@ export default function SubmitEventPage() {
 
                   <select
                     required
-                    name="locationSlug"
-                    defaultValue="tirana"
+                    value={locationSlug}
+                    onChange={(e) => setLocationSlug(e.target.value)}
                     className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-sm text-white outline-none focus:border-white/20"
                   >
                     {locations.map((location) => (
@@ -150,16 +237,72 @@ export default function SubmitEventPage() {
                   <label className="text-sm font-medium text-white/75">
                     {t('venue_label')}
                   </label>
+
                   <div className="relative mt-2">
                     <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+
                     <input
-                      required
-                      name="venueName"
                       type="text"
+                      value={venueQuery}
+                      onChange={(e) => {
+                        setVenueQuery(e.target.value)
+                        setSelectedVenue(null)
+                        setIsVenueOpen(true)
+                      }}
+                      onFocus={() => setIsVenueOpen(true)}
                       placeholder={t('venue_placeholder')}
-                      className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
+                      className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-10 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
                     />
+
+                    {venueQuery && (
+                      <button
+                        type="button"
+                        onClick={handleVenueClear}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-white/40 transition hover:text-white/70"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    {isVenueOpen && matchingVenues.length > 0 && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1020] shadow-2xl">
+                        {matchingVenues.map((venue) => (
+                          <button
+                            key={venue.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleVenueSelect(venue)}
+                            className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/[0.06]"
+                          >
+                            <MapPin className="h-4 w-4 shrink-0 text-white/35" />
+                            <span>
+                              <span className="block font-medium text-white">
+                                {venue.name}
+                              </span>
+                              <span className="block text-xs capitalize text-white/45">
+                                {venue.category}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+
+                        {venueQuery.trim() && matchingVenues.every(
+                          (v) => v.name.toLowerCase() !== venueQuery.trim().toLowerCase()
+                        ) && (
+                          <div className="border-t border-white/10 px-4 py-3 text-xs text-white/40">
+                            No exact match — this will be submitted as a new venue
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {selectedVenue && (
+                    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs font-medium text-green-400">
+                      <Check className="h-3.5 w-3.5" />
+                      Linked to existing venue
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -210,6 +353,21 @@ export default function SubmitEventPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-white/75">
+                    Price <span className="text-white/35">(optional)</span>
+                  </label>
+                  <div className="relative mt-2">
+                    <Banknote className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                    <input
+                      name="price"
+                      type="text"
+                      placeholder='e.g. Free · 500 ALL · €10'
+                      className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
+                    />
+                  </div>
                 </div>
 
                 <div>

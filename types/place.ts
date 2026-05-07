@@ -10,4 +10,7 @@ export type Place = {
   city?: string
   address?: string
   verified?: boolean
+  websiteUrl?: string
+  phone?: string
+  status?: string
 }
