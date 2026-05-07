@@ -15,7 +15,8 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { isThisWeekend, isToday, getTodayDateString } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
-import { getLocationBySlug, locations } from '@/lib/locations'
+import { getLocationBySlug } from '@/lib/locations'
+import { useLocations } from '@/lib/useLocations'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
@@ -91,21 +92,6 @@ function sortEventsByPriority(list: PublicEvent[]) {
   })
 }
 
-function getEventMapHref(event: PublicEvent) {
-  const timeParam = isToday(event.date)
-    ? 'time=tonight'
-    : isThisWeekend(event.date)
-      ? 'time=weekend'
-      : ''
-
-  if (event.place_id) {
-    return timeParam
-      ? `/map?place=${event.place_id}&${timeParam}`
-      : `/map?place=${event.place_id}`
-  }
-
-  return timeParam ? `/map?${timeParam}` : '/map'
-}
 function buildMapHref(event: PublicEvent, query: string) {
   const params = new URLSearchParams()
 
@@ -127,6 +113,7 @@ function buildMapHref(event: PublicEvent, query: string) {
 
   return `/map?${params.toString()}`
 }
+
 export default function EventsPage() {
   return (
     <Suspense>
@@ -140,6 +127,7 @@ function EventsContent() {
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
   const router = useRouter()
+  const locationOptions = useLocations()
 
   const initialLocation = getLocationBySlug(searchParams.get('location'))
   const initialSearchQuery = searchParams.get('q') || ''
@@ -148,85 +136,113 @@ function EventsContent() {
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocation.slug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [placeNames, setPlaceNames] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 350)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const isSearchMode = debouncedSearch.trim().length > 0
+
+  useEffect(() => {
     const fetchEvents = async () => {
       setIsLoading(true)
       setErrorMessage(null)
 
-      const [eventsRes, placesRes] = await Promise.all([
-        supabase
+      if (debouncedSearch.trim()) {
+        const { data, error } = await supabase
           .from('events')
           .select('*')
           .eq('status', 'published')
-          .eq('location_slug', activeLocationSlug)
+          .textSearch('search_vector', debouncedSearch.trim(), { type: 'plain', config: 'simple' })
           .order('date', { ascending: true })
-          .order('time', { ascending: true }),
-        supabase
-          .from('places')
-          .select('id, name')
-          .eq('location_slug', activeLocationSlug),
-      ])
+          .limit(60)
 
-      setIsLoading(false)
+        setIsLoading(false)
 
-      if (eventsRes.error) {
-        setErrorMessage(eventsRes.error.message)
-        return
-      }
+        if (error) {
+          setErrorMessage(error.message)
+          return
+        }
 
-      setEvents(eventsRes.data || [])
+        const results = data ?? []
+        setEvents(results)
 
-      if (placesRes.data) {
-        setPlaceNames(new Map(placesRes.data.map((p) => [p.id, p.name])))
+        const placeIds = [...new Set(results.flatMap((e) => (e.place_id ? [e.place_id] : [])))]
+
+        if (placeIds.length > 0) {
+          const { data: placesData } = await supabase
+            .from('places')
+            .select('id, name')
+            .in('id', placeIds)
+          setPlaceNames(new Map((placesData ?? []).map((p) => [p.id, p.name])))
+        } else {
+          setPlaceNames(new Map())
+        }
+      } else {
+        const [eventsRes, placesRes] = await Promise.all([
+          supabase
+            .from('events')
+            .select('*')
+            .eq('status', 'published')
+            .eq('location_slug', activeLocationSlug)
+            .order('date', { ascending: true })
+            .order('time', { ascending: true }),
+          supabase
+            .from('places')
+            .select('id, name')
+            .eq('location_slug', activeLocationSlug),
+        ])
+
+        setIsLoading(false)
+
+        if (eventsRes.error) {
+          setErrorMessage(eventsRes.error.message)
+          return
+        }
+
+        setEvents(eventsRes.data ?? [])
+
+        if (placesRes.data) {
+          setPlaceNames(new Map(placesRes.data.map((p) => [p.id, p.name])))
+        }
       }
     }
 
     fetchEvents()
-  }, [supabase, activeLocationSlug])
+  }, [supabase, activeLocationSlug, debouncedSearch])
 
   useEffect(() => {
     const params = new URLSearchParams()
     params.set('location', activeLocationSlug)
     if (activeCategory !== 'all') params.set('category', activeCategory)
+    if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
     router.replace(`/events?${params.toString()}`)
-  }, [activeLocationSlug, activeCategory])
+  }, [activeLocationSlug, activeCategory, debouncedSearch, router])
 
-const filteredEvents = useMemo(() => {
-  const normalizedSearch = searchQuery.trim().toLowerCase()
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      const timeMatches =
+        activeTimeFilter === 'all' ||
+        (activeTimeFilter === 'tonight' && isToday(event.date)) ||
+        (activeTimeFilter === 'weekend' && isThisWeekend(event.date))
 
-  return events.filter((event) => {
-    const timeMatches =
-      activeTimeFilter === 'all' ||
-      (activeTimeFilter === 'tonight' && isToday(event.date)) ||
-      (activeTimeFilter === 'weekend' && isThisWeekend(event.date))
+      const categoryMatches =
+        activeCategory === 'all' ||
+        event.category.toLowerCase() === activeCategory.toLowerCase()
 
-    const categoryMatches =
-      activeCategory === 'all' ||
-      event.category.toLowerCase() === activeCategory.toLowerCase()
+      return timeMatches && categoryMatches
+    })
+  }, [activeTimeFilter, activeCategory, events])
 
-    const venueName = event.place_id ? placeNames.get(event.place_id) : undefined
+  const sortedEvents = useMemo(() => sortEventsByPriority(filteredEvents), [filteredEvents])
 
-    const searchMatches =
-      normalizedSearch.length === 0 ||
-      event.title.toLowerCase().includes(normalizedSearch) ||
-      event.description.toLowerCase().includes(normalizedSearch) ||
-      event.category.toLowerCase().includes(normalizedSearch) ||
-      (venueName?.toLowerCase().includes(normalizedSearch) ?? false)
-
-    return timeMatches && categoryMatches && searchMatches
-  })
-}, [activeTimeFilter, activeCategory, events, searchQuery, placeNames])
-
-  const sortedEvents = useMemo(
-    () => sortEventsByPriority(filteredEvents),
-    [filteredEvents]
-  )
-
+  const activeLocation = getLocationBySlug(activeLocationSlug)
 
   return (
     <main className="min-h-screen bg-[#070b14] text-white">
@@ -249,16 +265,17 @@ const filteredEvents = useMemo(() => {
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-sm text-blue-400">
             <MapPin className="h-4 w-4" />
-            {getLocationBySlug(activeLocationSlug).label},{' '}
-            {getLocationBySlug(activeLocationSlug).country}
+            {isSearchMode ? 'All cities' : `${activeLocation.label}, ${activeLocation.country}`}
           </div>
 
           <h1 className="mt-6 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            All events in {getLocationBySlug(activeLocationSlug).label}
+            {isSearchMode
+              ? `Results for "${debouncedSearch}"`
+              : `All events in ${activeLocation.label}`}
           </h1>
 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
-            Browse what’s happening now, then jump straight into the map when
+            Browse what's happening now, then jump straight into the map when
             you want location context.
           </p>
 
@@ -279,23 +296,27 @@ const filteredEvents = useMemo(() => {
               {t('tonight')}
             </Link>
           </div>
-          <div className="mt-6">
-            <label className="text-sm font-medium text-white/60">
-              Location
-            </label>
 
-            <select
-              value={activeLocationSlug}
-              onChange={(event) => setActiveLocationSlug(event.target.value)}
-              className="mt-2 h-12 w-full max-w-sm rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-sm text-white outline-none"
-            >
-              {locations.map((location) => (
-                <option key={location.slug} value={location.slug}>
-                  {location.label} · {location.country}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!isSearchMode && (
+            <div className="mt-6">
+              <label className="text-sm font-medium text-white/60">
+                Location
+              </label>
+
+              <select
+                value={activeLocationSlug}
+                onChange={(event) => setActiveLocationSlug(event.target.value)}
+                className="mt-2 h-12 w-full max-w-sm rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-sm text-white outline-none"
+              >
+                {locationOptions.map((location) => (
+                  <option key={location.slug} value={location.slug}>
+                    {location.label} · {location.country}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="mt-4 max-w-sm">
             <label className="text-sm font-medium text-white/60">
               Search
@@ -311,7 +332,12 @@ const filteredEvents = useMemo(() => {
                 className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35"
               />
             </div>
+
+            {isSearchMode && (
+              <p className="mt-2 text-xs text-white/40">Showing results across all cities</p>
+            )}
           </div>
+
           <div className="mt-8 flex flex-wrap gap-2">
             {timeFilters.map((filter) => {
               const isActive = activeTimeFilter === filter
@@ -434,6 +460,13 @@ const filteredEvents = useMemo(() => {
                   <div className="mt-2 flex items-center gap-2 text-sm text-white/55">
                     <MapPin className="h-4 w-4" />
                     <span>{placeNames.get(event.place_id) ?? 'Unknown venue'}</span>
+                  </div>
+                )}
+
+                {isSearchMode && (
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-white/35">
+                    <MapPin className="h-3 w-3" />
+                    {getLocationBySlug(event.location_slug).label}
                   </div>
                 )}
 

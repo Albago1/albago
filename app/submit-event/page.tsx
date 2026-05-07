@@ -16,7 +16,8 @@ import {
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
-import { getLocationBySlug, locations } from '@/lib/locations'
+import { getLocationBySlug } from '@/lib/locations'
+import { useLocations } from '@/lib/useLocations'
 import type { User } from '@supabase/supabase-js'
 
 const categories = ['nightlife', 'music', 'sports', 'culture', 'food']
@@ -31,6 +32,7 @@ export default function SubmitEventPage() {
   const { t } = useLanguage()
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
+  const locationOptions = useLocations()
 
   const [user, setUser] = useState<User | null>(null)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
@@ -212,7 +214,7 @@ export default function SubmitEventPage() {
                     onChange={(e) => setLocationSlug(e.target.value)}
                     className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-sm text-white outline-none focus:border-white/20"
                   >
-                    {locations.map((location) => (
+                    {locationOptions.map((location) => (
                       <option key={location.slug} value={location.slug}>
                         {location.label} · {location.country}
                       </option>

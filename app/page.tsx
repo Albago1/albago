@@ -21,6 +21,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { isThisWeekend, isToday } from '@/lib/dateFilters'
 import { getLocationBySlug, locations } from '@/lib/locations'
+import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
 import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
@@ -111,6 +112,7 @@ function buildSearchUrl(
 
 export default function HomePage() {
   const { t } = useLanguage()
+  const locationOptions = useLocations()
   const [locationInput, setLocationInput] = useState('Tirana')
   const [searchQuery, setSearchQuery] = useState('')
   const [isLocationOpen, setIsLocationOpen] = useState(false)
@@ -189,9 +191,9 @@ export default function HomePage() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords
-        let nearest = locations[0]
+        let nearest = locationOptions[0] ?? locations[0]
         let minDist = Infinity
-        for (const loc of locations) {
+        for (const loc of locationOptions) {
           const dist = Math.sqrt(
             Math.pow(loc.center[0] - longitude, 2) +
             Math.pow(loc.center[1] - latitude, 2)
@@ -211,7 +213,7 @@ export default function HomePage() {
     )
   }
 
-  const matchingLocations = locations.filter((location) => {
+  const matchingLocations = locationOptions.filter((location) => {
   const search = locationInput.toLowerCase()
 
   return (
@@ -386,7 +388,7 @@ export default function HomePage() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <span className="text-sm text-white/45">Quick locations:</span>
 
-            {locations.map((location) => (
+            {locationOptions.map((location) => (
               <button
                 key={location.slug}
                 type="button"
@@ -426,7 +428,7 @@ export default function HomePage() {
 
           <div className="text-center">
             <div className="text-5xl font-bold text-blue-500">
-              {locations.length}
+              {locationOptions.length}
             </div>
             <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
           </div>

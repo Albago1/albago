@@ -13,6 +13,7 @@ import type { MapAdapter, MapMarkerInput } from '@/components/map/map.types'
 import { isToday, isThisWeekend } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
+import { useLocations } from '@/lib/useLocations'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
@@ -45,6 +46,7 @@ function getValidTimeFilter(value: string | null): TimeFilter {
 export default function MapView() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const locationOptions = useLocations()
 
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapAdapterRef = useRef<MapAdapter | null>(null)
@@ -306,7 +308,7 @@ export default function MapView() {
         searchQuery={searchQuery}
         optionFilter={optionFilter}
         activeLocationSlug={locationSlug}
-        locationOptions={locations}
+        locationOptions={locationOptions}
         visiblePlacesCount={visiblePlaces.length}
         visibleEventsCount={visibleEventsCount}
         availableOptionChips={availableOptionChips}
