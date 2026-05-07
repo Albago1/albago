@@ -75,7 +75,7 @@ export default function LandingNavbar() {
       icon: Plus,
       active: pathname === '/submit-event',
     },
-    ...(isAdmin
+    ...(userEmail
       ? [
           {
             href: '/dashboard',

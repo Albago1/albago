@@ -194,7 +194,7 @@ function EventsContent() {
     params.set('location', activeLocationSlug)
     if (activeCategory !== 'all') params.set('category', activeCategory)
     router.replace(`/events?${params.toString()}`)
-  }, [activeLocationSlug])
+  }, [activeLocationSlug, activeCategory])
 
 const filteredEvents = useMemo(() => {
   const normalizedSearch = searchQuery.trim().toLowerCase()
@@ -209,15 +209,18 @@ const filteredEvents = useMemo(() => {
       activeCategory === 'all' ||
       event.category.toLowerCase() === activeCategory.toLowerCase()
 
+    const venueName = event.place_id ? placeNames.get(event.place_id) : undefined
+
     const searchMatches =
       normalizedSearch.length === 0 ||
       event.title.toLowerCase().includes(normalizedSearch) ||
       event.description.toLowerCase().includes(normalizedSearch) ||
-      event.category.toLowerCase().includes(normalizedSearch)
+      event.category.toLowerCase().includes(normalizedSearch) ||
+      (venueName?.toLowerCase().includes(normalizedSearch) ?? false)
 
     return timeMatches && categoryMatches && searchMatches
   })
-}, [activeTimeFilter, activeCategory, events, searchQuery])
+}, [activeTimeFilter, activeCategory, events, searchQuery, placeNames])
 
   const sortedEvents = useMemo(
     () => sortEventsByPriority(filteredEvents),
