@@ -8,9 +8,57 @@ import {
   Clock,
   ArrowRight,
   Send,
+  Heart,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import SavedEventsList, { type SavedEventCard } from '@/components/SavedEventsList'
+import { getLocationBySlug } from '@/lib/locations'
+
+type SavedEventRow = {
+  saved_at: string
+  events: {
+    id: string
+    slug: string
+    title: string
+    date: string
+    time: string
+    category: string
+    highlight: boolean | null
+    price: string | null
+    location_slug: string
+    places: { name: string } | null
+  } | null
+}
+
+async function fetchSavedEventCards(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<SavedEventCard[]> {
+  const { data } = await supabase
+    .from('saved_events')
+    .select(
+      'saved_at, events ( id, slug, title, date, time, category, highlight, price, location_slug, places ( name ) )'
+    )
+    .eq('user_id', userId)
+    .order('saved_at', { ascending: false })
+
+  const rows = (data as SavedEventRow[] | null) ?? []
+  return rows
+    .filter((row): row is SavedEventRow & { events: NonNullable<SavedEventRow['events']> } => row.events !== null)
+    .map((row) => ({
+      id: row.events.id,
+      slug: row.events.slug,
+      title: row.events.title,
+      date: row.events.date,
+      time: row.events.time,
+      category: row.events.category,
+      highlight: row.events.highlight,
+      price: row.events.price,
+      location_label: getLocationBySlug(row.events.location_slug).label,
+      venue_name: row.events.places?.name ?? null,
+    }))
+}
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -51,7 +99,7 @@ export default async function DashboardPage() {
 
   // — Admin view —
   if (profile?.role === 'admin') {
-    const [eventsRes, pendingRes, placesRes] = await Promise.all([
+    const [eventsRes, pendingRes, placesRes, savedEvents] = await Promise.all([
       supabase
         .from('events')
         .select('*', { count: 'exact', head: true })
@@ -61,6 +109,7 @@ export default async function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending'),
       supabase.from('places').select('*', { count: 'exact', head: true }),
+      fetchSavedEventCards(supabase, user.id),
     ])
 
     const stats = [
@@ -152,6 +201,14 @@ export default async function DashboardPage() {
               <ArrowRight className="h-5 w-5 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
             </Link>
           </div>
+
+          <div className="mt-10">
+            <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+              <Heart className="h-3.5 w-3.5" />
+              Saved events
+            </h2>
+            <SavedEventsList initialEvents={savedEvents} />
+          </div>
         </div>
       </main>
       </>
@@ -159,13 +216,16 @@ export default async function DashboardPage() {
   }
 
   // — Regular user view —
-  const { data: submissions } = await supabase
-    .from('event_submissions')
-    .select('id, title, venue_name, date, status, admin_note, created_at')
-    .eq('submitted_by_user_id', user.id)
-    .order('created_at', { ascending: false })
+  const [submissionsRes, savedEvents] = await Promise.all([
+    supabase
+      .from('event_submissions')
+      .select('id, title, venue_name, date, status, admin_note, created_at')
+      .eq('submitted_by_user_id', user.id)
+      .order('created_at', { ascending: false }),
+    fetchSavedEventCards(supabase, user.id),
+  ])
 
-  const userSubmissions: Submission[] = submissions ?? []
+  const userSubmissions: Submission[] = submissionsRes.data ?? []
 
   return (
     <>
@@ -193,6 +253,14 @@ export default async function DashboardPage() {
         </div>
 
         <div className="mt-8">
+          <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+            <Heart className="h-3.5 w-3.5" />
+            Saved events
+          </h2>
+          <SavedEventsList initialEvents={savedEvents} />
+        </div>
+
+        <div className="mt-10">
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
             My submissions
           </h2>

@@ -3,66 +3,68 @@
 **Last updated:** 2026-05-10
 **Branch:** main
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · TailwindCSS v4 · Supabase · MapLibre GL
-**Build status:** ✓ `next build` passes — 0 TypeScript errors. Route `/events/[slug]` registered as dynamic.
+**Build status:** ✓ `next build` passes — 0 TypeScript errors. All 10 routes intact.
 **Phase 3 status:** ✓ Verified end-to-end on 2026-05-09.
-**Phase 4 status:** ✓ Browser-verified and committed on 2026-05-10.
+**Phase 4 status:** ✓ Verified and committed on 2026-05-10.
+**Phase 5 status:** ✓ Browser-verified and committed on 2026-05-10.
 
 ---
 
 ## Session summary (2026-05-10)
 
-This session implemented and shipped Phase 4 (event detail pages) per `docs/phase-4-plan.md`. No scope creep.
+This session shipped Phase 4 (event detail pages) and Phase 5 (saved events) per their respective plan docs. No scope creep.
 
-The 14-test browser checklist passed. Phase 4 is fully landed.
+Phase 5 was implemented end-to-end:
+- `saved_events` table created in Supabase with RLS (3 policies: SELECT/INSERT/DELETE — all `user_id = auth.uid()`)
+- 4 SQL verification queries passed
+- 18-test browser checklist passed
 
 ---
 
 ## What was completed this session
 
-### Phase 4 — Event detail pages
+### Phase 5 — Saved Events
 
-**1. New route `/events/[slug]`** — server-rendered detail page.
-- Server component using `lib/supabase/server.ts`
-- Single Supabase query joins `events` to `places` for venue info
-- `notFound()` triggers default Next.js 404 if slug doesn't exist or `status ≠ 'published'`
-- Page layout: back link, category/Hot/price badges, title, date/time/city row, three CTAs, Venue card, About section
-- `Get Directions` only renders when venue has `lat` and `lng`
-- `Website` only renders when venue has `website_url`
-- `About` section omitted when description is empty
-- Uses existing dark/glass visual language; no new design tokens
+**1. `saved_events` table** in Supabase.
+- `id`, `user_id` (FK profiles ON DELETE CASCADE), `event_id` (FK events ON DELETE CASCADE), `saved_at`
+- `UNIQUE(user_id, event_id)` prevents double-saves at the DB level
+- Index on `user_id` for fast dashboard queries
+- RLS enabled with three policies: users can SELECT, INSERT, DELETE only their own rows. No UPDATE policy (saves are immutable — toggle = delete + insert).
 
-**2. SEO metadata** — `generateMetadata` exported from the route.
-- Title: `${event.title} — AlbaGo`
-- Description: first 160 chars of event description
-- OpenGraph: title, description, type=`article` (image deferred — out of scope)
-- Title for missing slugs: `Event not found — AlbaGo`
+**2. Heart button on three card surfaces.**
+- Homepage Featured Events cards
+- Events page list cards
+- Event detail page (CTA row, size='md' with label)
+- Anonymous users → `router.push('/sign-in?next=' + currentPath)`
+- Logged-in users → optimistic toggle, in-flight lock prevents double-clicks, revert on error
+- Card-link bubbling prevented via `e.stopPropagation()` + `e.preventDefault()`
 
-**3. Card href migration** — three callers now point at `/events/[slug]`.
-- Homepage Featured Events card
-- Homepage search-suggestion event item (was `/events?q=...`)
-- Events page event card
-- "Open in map" label relabeled to "View event" on event cards. Trending Places cards on the homepage still say "Open in map" (those still go to the map).
+**3. Dashboard "Saved events" section** on both admin and regular-user views.
+- Server-fetched joined query (`saved_events → events → places.name`)
+- Cascade-deleted events filtered out at the mapping layer
+- Client wrapper (`SavedEventsList`) holds the list in state so unsaving a card removes it immediately
+- Empty state with "Browse events" CTA when list is empty
 
-**4. Shared link helpers extracted** — `lib/eventLinks.ts`.
-- `buildMapHref({ location_slug, place_id, date }, query?)` — moved from `app/events/page.tsx`
-- `buildDirectionsHref(lat, lng)` — generates Google Maps URL from coordinates (per `docs/platform-architecture.md` §6: never store external map URLs in DB)
+**4. Three new shared modules.**
+- `lib/savedEvents.ts` — `fetchSavedEventIds`, `saveEvent`, `unsaveEvent` (all accept a `SupabaseClient`, work in server and browser)
+- `components/SaveEventButton.tsx` — two size variants (`sm` icon-only for cards, `md` with label for detail page)
+- `components/SavedEventsList.tsx` — dashboard list wrapper with optimistic remove-on-unsave
 
 ---
 
-## Files changed and committed this session
+## Files changed and committed in Phase 5
 
 | File | Action | What |
 |---|---|---|
-| `app/events/[slug]/page.tsx` | NEW | Server component, fetches event + venue, `generateMetadata`, three CTAs, About section, 404 on miss |
-| `lib/eventLinks.ts` | NEW | `buildMapHref` (moved) + `buildDirectionsHref` (new) |
-| `types/event.ts` | Modify | Added `slug: string` to `Event` type |
-| `app/page.tsx` | Modify | Removed `getEventMapHref` and unused date filter imports; `SuggestionEvent` type and ilike query include `slug`; featured-events mapping includes `slug`; suggestion link → `/events/${slug}`; featured event card href → `/events/${slug}`; "Open in map" → "View event" on event cards (place cards untouched) |
-| `app/events/page.tsx` | Modify | `buildMapHref` removed (now in `lib/eventLinks.ts`); event card href → `/events/${event.slug}`; "Open in map" → "View event" |
-| `components/map/MapView.tsx` | Modify | One-liner: `slug: e.slug` in the event mapping (compile fix from the `Event` type widening; no behavior change) |
-| `docs/phase-4-plan.md` | NEW | Plan written before implementation |
+| `lib/savedEvents.ts` | NEW | Three async helpers (fetch ids, save, unsave) |
+| `components/SaveEventButton.tsx` | NEW | Client component, two sizes, anonymous redirect, optimistic toggle |
+| `components/SavedEventsList.tsx` | NEW | Dashboard wrapper, removes cards on unsave, empty-state CTA |
+| `app/page.tsx` | Modify | Added `isAuth` + `savedIds` state and load effect; heart in Featured Events card top-right |
+| `app/events/page.tsx` | Modify | Same auth/savedIds pattern; heart in card right-side cluster |
+| `app/events/[slug]/page.tsx` | Modify | Server-side checks saved_events for this event + user; `<SaveEventButton size="md">` next to Open in Map |
+| `app/dashboard/page.tsx` | Modify | `fetchSavedEventCards` helper; "Saved events" section in both admin and regular-user views |
+| `docs/phase-5-plan.md` | NEW | The plan |
 | `docs/next-session.md` | Modify | This document |
-
-**Eight files total: three new, five modified.**
 
 ---
 
@@ -75,8 +77,9 @@ The 14-test browser checklist passed. Phase 4 is fully landed.
 | Stabilization pass | Complete |
 | Phase 3 — Global full-text search + DB-driven locations | Complete and verified |
 | UX polish batch (May 9) | Complete |
-| Phase 4 — Event detail pages | **Complete and verified** |
-| Phase 5 | Not started — recommendations below |
+| Phase 4 — Event detail pages | Complete and verified |
+| Phase 5 — Saved events | **Complete and verified** |
+| Phase 6 | Not started — recommendations below |
 
 ---
 
@@ -86,14 +89,14 @@ The 14-test browser checklist passed. Phase 4 is fully landed.
 
 | Route | Auth | Component type | Notes |
 |---|---|---|---|
-| `/` | Public | Client | Home: search, location, featured events/places. Featured events link to detail pages. |
-| `/events` | Public | Client (Suspense) | Event list + cross-location search. Cards link to detail pages. |
-| `/events/[slug]` | Public | **Server** | Phase 4: event detail page with SEO metadata. |
-| `/map` | Public | Client | MapLibre map — LandingNavbar returns null here |
+| `/` | Public | Client | Featured events have heart button (logged-in users) |
+| `/events` | Public | Client (Suspense) | Heart button on every card |
+| `/events/[slug]` | Public | **Server** | Heart button (size md) in CTA row alongside Open in Map / Get Directions / Website |
+| `/map` | Public | Client | MapLibre map — LandingNavbar returns null |
 | `/submit-event` | Required | Client | Auth-gated form with venue search |
-| `/dashboard` | Required | Server | Admin stats + actions OR user submissions list |
+| `/dashboard` | Required | Server | "Saved events" section above existing content for both admin and regular users |
 | `/admin` | Admin only | Client | Approve/reject submissions |
-| `/sign-in` | Public | Client | Supabase auth, supports `?next=` redirect |
+| `/sign-in` | Public | Client | Supabase auth, supports `?next=` redirect (used by heart-button anonymous flow) |
 | `/sign-up` | Public | Client | Supabase auth |
 
 ### Key lib files
@@ -104,48 +107,53 @@ lib/
   useLocations.ts      'use client' hook — instant fallback array + DB update
   dateFilters.ts       isToday(), isThisWeekend(), getTodayDateString()
   eventLinks.ts        Phase 4 — buildMapHref(), buildDirectionsHref()
+  savedEvents.ts       Phase 5 — fetchSavedEventIds(), saveEvent(), unsaveEvent()
   supabase/
     browser.ts         createClient() for client components
     server.ts          createClient() for server components
     client.ts          legacy re-export shim → browser.ts (safe to keep)
     middleware.ts      session refresh helper
-proxy.ts               Next.js 16 middleware (named proxy, not middleware)
+proxy.ts               Next.js 16 middleware
 ```
 
 ### Supabase tables
 
-| Table | Key columns | Notes |
-|---|---|---|
-| `events` | `status`, `slug`, `location_slug`, `place_id`, `search_vector` | `slug` confirmed populated and unique. Public detail-page key. |
-| `places` | `location_slug`, `search_vector`, `address`, `website_url`, `lat`, `lng` | Joined into the detail-page query |
-| `event_submissions` | `status`, `submitted_by_user_id`, `place_id`, `admin_note` | |
-| `cities` | `slug`, `name`, `country`, `region`, `lat`, `lng` | |
-| `profiles` | `id`, `role` ('user'\|'admin') | |
+| Table | Key columns | RLS | Notes |
+|---|---|---|---|
+| `events` | `status`, `slug`, `location_slug`, `place_id`, `search_vector` | Public read where `status='published'` | |
+| `places` | `location_slug`, `search_vector`, `address`, `website_url`, `lat`, `lng` | Public read | |
+| `event_submissions` | `status`, `submitted_by_user_id`, `place_id`, `admin_note` | Submitter + admin | |
+| `cities` | `slug`, `name`, `country`, `region`, `lat`, `lng` | Public read | |
+| `profiles` | `id`, `role` ('user'\|'admin') | Self read | |
+| `saved_events` | `user_id`, `event_id`, `saved_at`, UNIQUE(user_id, event_id) | **Self only** (SELECT/INSERT/DELETE all `user_id = auth.uid()`) | New in Phase 5 |
 
 ---
 
-## Recommended next: Phase 5 options
+## Recommended next: Phase 6 options
 
-Choose one. All build cleanly on top of Phase 4.
+Choose one. All build cleanly on top of Phase 5.
 
-**Option A — Saved events (recommended)**
-Now that events have URLs, saving is meaningful. Small migration: `saved_events(user_id, event_id, saved_at)` table, RLS policies, heart button on cards, Saved tab on dashboard. One focused session.
+**Option A — Venue detail pages `/places/[id]` (recommended)**
+Mirror of Phase 4 for venues. Reuses the detail-page pattern. A user can open a venue page showing all upcoming events at that venue + address + map embed link. The "Open in Map" buttons across the platform get a sibling: "View Venue."
 
-**Option B — Venue detail pages `/places/[id]`**
-Mirror of Phase 4 for venues. Reuses the detail-page template. Lets a user open a venue page showing all upcoming events at that venue + address + map embed.
+**Option B — Saved-events email digest**
+Weekly email of upcoming saved events. Needs cron + email infra (Resend / Supabase Edge Function). Bigger lift than B/C, but high engagement payoff.
 
 **Option C — Custom 404 for `/events/[slug]/not-found.tsx`**
-Smaller polish. Friendly empty state with "Browse all events" CTA instead of the default Next.js 404.
+Smaller polish. Friendly empty state with "Browse all events" CTA.
 
 **Option D — OpenGraph images for event pages**
-Once event covers exist (or a generated banner per category), wire them into the `openGraph.images` field for richer social sharing previews.
+Once event covers are uploadable (or generated banners per category), wire into `openGraph.images`.
+
+**Option E — Map clustering**
+Independent of everything else. MapLibre cluster source. Quality-of-life as the venue count grows.
 
 ---
 
 ## Exact next steps for next session
 
-1. Pick a Phase 5 direction.
-2. Plan-first via `docs/phase-5-plan.md`.
+1. Pick a Phase 6 direction.
+2. Plan-first via `docs/phase-6-plan.md`.
 3. Get approval, then implement.
 
 ---
@@ -156,15 +164,15 @@ Once event covers exist (or a generated banner per category), wire them into the
 Read docs/next-session.md and CLAUDE.md before starting.
 
 Context:
-- Phases 1, 2, 3, 4 are complete, verified, and committed.
-- main is clean and matches origin/main.
+- Phases 1, 2, 3, 4, 5 are complete, verified, and committed.
+- main is clean.
 - Build passes.
 
-I want to start Phase 5: [Option A — saved events / B — venue detail pages /
-C — custom 404 / D — OG images].
+I want to start Phase 6: [A — venue detail pages / B — email digest /
+C — custom 404 / D — OG images / E — map clustering].
 
-Propose docs/phase-5-plan.md covering scope, files to touch, test checklist,
-risks, and rollback. Wait for approval before implementing.
+Propose docs/phase-6-plan.md covering scope, files, tests, risks, rollback.
+Wait for approval before implementing.
 
 Same rules: plan first, get approval, implement.
 ```

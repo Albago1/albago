@@ -12,11 +12,13 @@ import {
   Search,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { isThisWeekend, isToday, getTodayDateString } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
+import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
@@ -121,7 +123,23 @@ function EventsContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; category: string; location_slug: string }>>([])
   const [isSuggestOpen, setIsSuggestOpen] = useState(false)
+  const [isAuth, setIsAuth] = useState(false)
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const searchWrapperRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (cancelled) return
+      setIsAuth(!!user)
+      if (user) {
+        const ids = await fetchSavedEventIds(supabase)
+        if (!cancelled) setSavedIds(ids)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [supabase])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 350)
@@ -522,6 +540,12 @@ function EventsContent() {
                         Hot
                       </span>
                     )}
+
+                    <SaveEventButton
+                      eventId={event.id}
+                      initialSaved={savedIds.has(event.id)}
+                      isAuthenticated={isAuth}
+                    />
 
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-white/70">
                       {formatEventDateLabel(event.date)}

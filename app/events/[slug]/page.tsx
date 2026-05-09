@@ -11,6 +11,7 @@ import {
   Navigation,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import SaveEventButton from '@/components/SaveEventButton'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
@@ -118,6 +119,19 @@ export default async function EventDetailPage(
       ? buildDirectionsHref(venue.lat, venue.lng)
       : null
 
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let initialSaved = false
+  if (user) {
+    const { data: savedRow } = await supabase
+      .from('saved_events')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('event_id', event.id)
+      .maybeSingle()
+    initialSaved = !!savedRow
+  }
+
   return (
     <main className="min-h-screen bg-[#070b14] text-white">
       <LandingNavbar />
@@ -189,6 +203,13 @@ export default async function EventDetailPage(
               <MapPin className="h-4 w-4" />
               Open in Map
             </Link>
+
+            <SaveEventButton
+              eventId={event.id}
+              initialSaved={initialSaved}
+              isAuthenticated={!!user}
+              size="md"
+            />
 
             {directionsHref && (
               <a

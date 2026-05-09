@@ -19,10 +19,12 @@ import {
   Search,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
+import { fetchSavedEventIds } from '@/lib/savedEvents'
 import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
 
@@ -111,6 +113,8 @@ export default function HomePage() {
   const [totalPlacesCount, setTotalPlacesCount] = useState(0)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchSuggestionEvents, setSearchSuggestionEvents] = useState<SuggestionEvent[]>([])
+  const [isAuth, setIsAuth] = useState(false)
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
 
   const prevLocationLabel = useRef<string>('')
   const locationInputValue = useRef<string>('Tirana')
@@ -121,6 +125,20 @@ export default function HomePage() {
   useEffect(() => {
     locationOptionsRef.current = locationOptions
   }, [locationOptions])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (cancelled) return
+      setIsAuth(!!user)
+      if (user) {
+        const ids = await fetchSavedEventIds(supabase)
+        if (!cancelled) setSavedIds(ids)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [supabase])
 
   useEffect(() => {
     async function fetchFeatured() {
@@ -712,11 +730,19 @@ export default function HomePage() {
                       )}
                     </div>
 
-                    {event.highlight && (
-                      <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                        Hot
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {event.highlight && (
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                          Hot
+                        </span>
+                      )}
+
+                      <SaveEventButton
+                        eventId={event.id}
+                        initialSaved={savedIds.has(event.id)}
+                        isAuthenticated={isAuth}
+                      />
+                    </div>
                   </div>
 
                   <h3 className="mt-4 text-xl font-semibold leading-tight text-white">
