@@ -96,6 +96,7 @@ export default function MapView() {
       if (placesRes.data) {
         setPlaces(placesRes.data.map((p) => ({
           id: p.id,
+          slug: p.slug,
           name: p.name,
           category: p.category,
           lat: p.lat,

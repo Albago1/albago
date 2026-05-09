@@ -161,6 +161,7 @@ export default function HomePage() {
           const loc = getLocationBySlug(p.location_slug)
           return {
             id: p.id,
+            slug: p.slug,
             name: p.name,
             category: p.category,
             lat: p.lat,
@@ -816,7 +817,7 @@ export default function HomePage() {
             {featuredPlaces.map((place) => (
               <Link
                 key={place.id}
-                href={`/map?place=${place.id}&category=${place.category}`}
+                href={`/places/${place.slug}`}
                 className="group block overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]"
               >
                 <div className="relative h-56 w-full overflow-hidden">
@@ -870,7 +871,7 @@ export default function HomePage() {
 
                   <div className="mt-5">
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
-                      Open in map
+                      View venue
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
                   </div>

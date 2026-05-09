@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, Clock3, Music2, Banknote, MapPin, Navigation, Globe } from 'lucide-react'
+import Link from 'next/link'
+import { X, Clock3, Music2, Banknote, MapPin, Navigation, Globe, ArrowRight } from 'lucide-react'
 import { Event } from '@/types/event'
 import { Place } from '@/types/place'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -193,8 +194,18 @@ export default function PlacePanel({
             </div>
           )}
 
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href={`/places/${place.slug}`}
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+            >
+              View details
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
           {(place.lat != null && place.lng != null) || place.websiteUrl ? (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {place.lat != null && place.lng != null && (
                 <>
                   <button
