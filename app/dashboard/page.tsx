@@ -10,6 +10,7 @@ import {
   Send,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import LandingNavbar from '@/components/layout/LandingNavbar'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -90,7 +91,9 @@ export default async function DashboardPage() {
     ]
 
     return (
-      <main className="min-h-screen bg-[#070b14] p-6 text-white">
+      <>
+        <LandingNavbar />
+        <main className="min-h-screen bg-[#070b14] px-6 pb-6 pt-24 text-white">
         <div className="mx-auto max-w-5xl">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
@@ -151,6 +154,7 @@ export default async function DashboardPage() {
           </div>
         </div>
       </main>
+      </>
     )
   }
 
@@ -164,7 +168,9 @@ export default async function DashboardPage() {
   const userSubmissions: Submission[] = submissions ?? []
 
   return (
-    <main className="min-h-screen bg-[#070b14] p-6 text-white">
+    <>
+      <LandingNavbar />
+      <main className="min-h-screen bg-[#070b14] px-6 pb-6 pt-24 text-white">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -244,5 +250,6 @@ export default async function DashboardPage() {
         </div>
       </div>
     </main>
+    </>
   )
 }

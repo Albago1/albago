@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -26,6 +26,8 @@ export default function LandingNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -53,6 +55,16 @@ export default function LandingNavbar() {
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const handleSignOut = async () => {
@@ -130,14 +142,42 @@ export default function LandingNavbar() {
           <LanguageSwitcher />
 
           {userEmail ? (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:bg-white/[0.08]"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                  {userEmail[0].toUpperCase()}
+                </span>
+                <span className="hidden max-w-[120px] truncate text-xs text-white/60 lg:block">
+                  {userEmail}
+                </span>
+              </button>
+
+              {isUserMenuOpen && (
+                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[160px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1020] shadow-2xl">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Dashboard
+                  </Link>
+                  <div className="border-t border-white/[0.06]" />
+                  <button
+                    type="button"
+                    onClick={() => { setIsUserMenuOpen(false); handleSignOut() }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-400/80 transition hover:bg-white/[0.06] hover:text-red-300"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link
               href="/sign-in"
@@ -151,14 +191,15 @@ export default function LandingNavbar() {
 
         <div className="flex items-center gap-2 md:hidden">
           {userEmail ? (
-            <button
-              type="button"
-              aria-label="Sign out"
-              onClick={handleSignOut}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white/80 transition hover:bg-white/5 hover:text-white"
+            <Link
+              href="/dashboard"
+              aria-label="My dashboard"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/20 transition hover:bg-blue-600/30"
             >
-              <LogOut className="h-5 w-5" />
-            </button>
+              <span className="text-sm font-bold text-blue-400">
+                {userEmail[0].toUpperCase()}
+              </span>
+            </Link>
           ) : (
             <Link
               href="/sign-in"
@@ -209,6 +250,20 @@ export default function LandingNavbar() {
                 </Link>
               )
             })}
+
+            {userEmail && (
+              <>
+                <div className="border-t border-white/[0.06]" />
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-base font-medium text-red-400/80 transition hover:bg-white/5 hover:text-red-300"
+                >
+                  <LogOut className="h-5 w-5" />
+                  Sign out
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

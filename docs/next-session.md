@@ -1,178 +1,259 @@
-# AlbaGo — AI Engineering Handoff
+# AlbaGo — Next Session Handoff
 
-**Last updated:** 2026-05-07  
-**Stack:** Next.js 16 (App Router) · React 19 · TailwindCSS v4 · Supabase · MapLibre GL · TypeScript
-
----
-
-## Current Project State
-
-AlbaGo is a nightlife/events discovery platform for Albania and the Balkans. It is a working full-stack app — not a prototype. All major systems are live and connected to a real Supabase backend.
-
-**What is working end-to-end:**
-- Interactive map (`/map`) with live Supabase data, MapLibre GL markers, multi-filter system, place panel (desktop sidebar + mobile bottom sheet), location switcher
-- Events page (`/events`) with live Supabase data, time/category/search/location filters
-- Home page (`/`) with live Supabase data — trending places, events, real stats
-- Auth — sign in/up (`/sign-in`, `/sign-up`), session persistence via `@supabase/ssr` middleware, sign-out
-- Admin protection — `/admin` and `/dashboard` are server-side protected via `app/admin/layout.tsx` and `app/dashboard/page.tsx` (both redirect if not `role = 'admin'`)
-- Admin dashboard (`/dashboard`) with live stats (published events, pending submissions, total places)
-- Admin review page (`/admin`) — approve/reject event submissions, auto-publishes to events table on approve
-- Event submission form (`/submit-event`) — stores to `event_submissions` table with status `pending`
-- i18n — 4 languages (en, de, es, al) via `LanguageProvider` React context + `LanguageSwitcher` component
-- SEO metadata — all pages have correct titles (`%s | AlbaGo` template), descriptions, OpenGraph
-
-**Database tables in use:** `places`, `events`, `event_submissions`, `profiles`  
-**RLS:** Enabled on all tables. `is_admin()` SQL helper (SECURITY DEFINER) guards admin writes.  
-**Auth trigger:** `on_auth_user_created` → `handle_new_user()` inserts into `profiles` with `role = 'user'` on every new signup.
+**Last updated:** 2026-05-09
+**Branch:** master · last commit: `39ad5fd` (all current work is uncommitted)
+**Stack:** Next.js 16 (App Router) · React 19 · TypeScript · TailwindCSS v4 · Supabase · MapLibre GL
+**Build status:** ✓ `next build` passes — 0 TypeScript errors, 0 compile errors
+**Phase 3 status:** ✓ Verified end-to-end in browser. Cross-location full-text search works. DB-driven city dropdowns confirmed.
 
 ---
 
-## Completed Today
+## Session summary (2026-05-09)
 
-### Step 1 — Metadata, cleanup, navbar admin gate
-- `app/layout.tsx` — Updated root metadata: title template `%s | AlbaGo`, description, OpenGraph
-- `app/map/page.tsx`, `app/dashboard/page.tsx` — Added `export const metadata` (server components)
-- Created `app/events/layout.tsx`, `app/submit-event/layout.tsx`, `app/sign-in/layout.tsx`, `app/sign-up/layout.tsx` — thin server layouts that export page-specific metadata for client component pages
-- Deleted `app/supabase-test/` — debug route removed entirely
-- `components/layout/LandingNavbar.tsx` — Added `isAdmin` state; queries `profiles.role` on auth state change; Dashboard nav item conditionally rendered only when `isAdmin === true`
+This session covered Phase 3 browser verification and a small, high-impact UX polish batch. No new Phase was started. All changes are uncommitted.
 
-### Step 2 — Supabase auth verification (database only, no code)
-- Confirmed `on_auth_user_created` trigger exists and is correct
-- Confirmed `handle_new_user()` function has `SECURITY DEFINER` and correct `search_path`
-- Confirmed admin user profile row exists with `role = 'admin'`
-
-### Step 3 — Location switcher on the map
-- `components/map/map.types.ts` — Added `flyToLocation(center, zoom)` to `MapAdapter` type
-- `components/map/maplibreAdapter.ts` — Implemented `flyToLocation` using `map.flyTo()`
-- `components/layout/FilterBar.tsx` — Added `activeLocationSlug`, `locationOptions`, `onLocationChange` props; desktop: location `<select>` pill in bottom row with MapPin icon; mobile sheet: location chip buttons as first section
-- `components/map/MapView.tsx` — Added `useRouter`; `handleLocationChange(slug)` updates URL with `router.replace` (preserves time/category filters); new `useEffect` on `[locationSlug]` flies map to new city; fixed two silent bugs: `filteredEvents` missing `events` dep, `selectedPlace` missing `places` dep
+The 5-item polish batch focused on bugs that would block Phase 4 from feeling clean:
+- a silent location-input/active-slug desync on the homepage
+- no Enter-to-search on either search input
+- generic empty-state copy that didn't differentiate filter-miss from genuinely-empty cities
+- a stats row that mixed global numbers with location-scoped page content
 
 ---
 
-## Current Build/Test Status
+## What was completed this session
 
-**Last clean build:** Commit `1343a52` — "Fix build: consolidate Supabase clients and add Suspense boundaries"
+### 1. Phase 3 browser verification — passed
 
-**Changes since last build (not yet committed):** All three steps above. No new build errors expected — all changes follow existing patterns. The two useMemo dep fixes were bugs that would have caused runtime issues but not build failures.
+Cross-location full-text search activates on a typed query, city badges appear on result cards, the "Showing results across all cities" note renders, and clearing the query returns to browse mode. Location dropdowns on `/`, `/events`, `/submit-event`, and `/map` all read from the `cities` table via `useLocations()` with the hardcoded array as instant fallback.
 
-**Known issues:**
-- `react-map-gl` is in `package.json` but not used anywhere — dead dependency, can be removed
-- No test suite exists — zero coverage
-- `proxy.ts` at root (Next.js 16 middleware convention) — if someone accidentally adds `middleware.ts` it will conflict
+SQL spot-checks (`search_vector IS NULL` queries, `cities` SELECT) returned the expected results.
 
-**Env vars required (must be set in Vercel when deploying):**
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-```
+**Phase 3 is done.** No remaining tasks before Phase 4.
 
----
+### 2. UX polish batch — five fixes
 
-## Important Architecture Notes
+**Homepage location input desync — fixed**
+The previous behavior allowed the visible location label to drift from `activeLocationSlug`. A user who typed "Ber" and clicked outside (or pressed Search) silently slugified to `ber` and produced an empty events page.
 
-### Auth Flow
-```
-User request → proxy.ts (updateSession) → refreshes cookie → page renders
-Client pages → createClient() from lib/supabase/browser.ts (createBrowserClient)
-Server pages → createClient() from lib/supabase/server.ts (createServerClient + cookies())
-Admin gate → app/admin/layout.tsx (server component, redirects before page renders)
-```
-`lib/supabase/client.ts` is a legacy re-export shim pointing to `browser.ts` — do not remove, some pages still import from it.
+Changes in `app/page.tsx`:
+- Removed `resolveLocationSlug()` entirely — it was the source of the slugify-garbage path.
+- `buildSearchUrl()` now takes a slug directly. All four call sites (Search button, Browse Events CTA, View-all Events, View-all Map) pass `activeLocationSlug`.
+- Click-outside on the location dropdown now commits or reverts: if the typed text exactly matches a known city label (case-insensitive), it activates that city; otherwise it restores `prevLocationLabel.current`.
+- Pressing **Enter** on the location input applies the same commit-or-revert rule and closes the dropdown.
+- Added `locationOptionsRef` so the click-outside handler can read the latest options without rebinding.
+- Category-pill links and the Tonight CTA now use `activeLocationSlug` instead of resolving from the typed input.
 
-### Supabase Integration
-- All data is live from Supabase — no static seed data files (they were deleted)
-- Places and events are fetched by `location_slug` — every location-aware fetch must include `.eq('location_slug', slug)`
-- Events have `status` field — always filter `.eq('status', 'published')` on public pages
-- `event_submissions` table is for user submissions, `events` is the published table
+**Enter-to-search — added**
+- Homepage search input: `Enter` → `router.push(buildSearchUrl('/events', activeLocationSlug, searchQuery))`. Imports `useRouter` from `next/navigation`.
+- Events page search input: `Enter` → `setDebouncedSearch(searchQuery)` immediately, bypassing the 350ms debounce.
 
-### Map Integration
-- MapLibre GL via custom adapter pattern: `createMaplibreAdapter()` → `MapAdapter` interface
-- Map initializes once (guarded by `if (mapAdapterRef.current) return`) — never re-initialized
-- Location changes use `flyToLocation()` (smooth camera animation, no re-init)
-- Place selection uses `flyToPlace()` (tighter zoom, accounts for panel overlay padding)
-- `proxy.ts` at root uses `export async function proxy` (not `middleware`) — Next.js 16 requirement
+**Events page empty state — three variants**
+The previous single message ("No events match this filter yet") covered three different situations confusingly. Replaced with conditional copy:
+1. Search mode + zero results → `No events match "query"` + "Try a different keyword, or clear the search to browse a city."
+2. Browse mode + active slug not in `locationOptions` (GPS-resolved unknown city) → `No upcoming events near you yet` + featured-cities chips that switch the active location on click.
+3. Browse mode + known location → original copy preserved.
 
-### Routing & State
-- URL is the source of truth for: `location`, `place`, `time`, `category`, `q`
-- Local component state mirrors URL params via `useEffect([searchParams])` sync
-- `useSearchParams()` always requires a `<Suspense>` boundary — every page using it is wrapped
-- No global state library — all `useState` + `useMemo` in individual components
-
-### Locations System
-`lib/locations.ts` — 4 locations: Tirana, Durrës, Albanian Coast, Prishtina. Each has `slug`, `label`, `country`, `center: [lng, lat]`, `zoom`. Add new locations here and seed matching data in Supabase.
+**Homepage stats row — labeled scope**
+Added a small uppercase caption "Across the platform" above the three counters so users understand the numbers are global, not scoped to the active city.
 
 ---
 
-## Technical Debt
+## Files changed this session (all uncommitted)
 
-- `lib/supabase/client.ts` is a re-export shim — should eventually consolidate all imports to `browser.ts` directly
-- `react-map-gl` unused dependency in `package.json` — remove it
-- `app/admin/page.tsx` has its own client-side auth check duplicating what `app/admin/layout.tsx` does server-side — client check can be removed, layout is the real guard
-- `PlacePanel.tsx` uses emoji literals (`🕒`, `🎧`, `💰`) in JSX — should use Lucide icons for consistency
-- `Event.placeId` in `types/event.ts` is typed as `string` but can be `null` in the DB (`place_id` is nullable) — this is a type lie that could cause runtime issues
-- FilterBar `DesktopFilterBar` and `MobileFilterBar` share almost all logic but are duplicated — eventual candidate for a shared hook
-- No loading skeleton UI — pages show "Loading..." text during Supabase fetches
-- `hero_badge` translation hardcodes "Tirana, Albania" — should be dynamic
+| File | What changed |
+|---|---|
+| `docs/next-session.md` | This document |
+| `app/page.tsx` | Removed `resolveLocationSlug`; `buildSearchUrl` now takes slug; click-outside + Enter commit-or-revert on location input; Enter-to-search on search input; stats row "Across the platform" caption; imports `useRouter` |
+| `app/events/page.tsx` | Enter-to-search bypasses debounce; empty state has 3 variants (search-miss / unknown-city with featured-cities chips / filter-miss) |
 
----
+Plus the 7 files modified in the prior session (still uncommitted):
+- `app/sign-in/page.tsx`, `app/sign-up/page.tsx` — back link
+- `app/admin/page.tsx`, `app/dashboard/page.tsx` — LandingNavbar + `pt-24`
+- `components/layout/LandingNavbar.tsx` — user avatar pill + dropdown, mobile sign-out moved to hamburger
 
-## Recommended Next Phase
-
-### Step 4 — Git Remote + Vercel Deployment
-
-**Why now:** The platform is feature-complete enough to deploy. Testing on a real URL on a real mobile device will surface any remaining issues. Everything else (GPS, user profiles, analytics) depends on having a live URL.
-
-**What to do:**
-1. Create GitHub repo, push code: `git remote add origin <url>` → `git push -u origin master`
-2. Import to Vercel, set env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
-3. Set Supabase Auth "Site URL" and "Redirect URLs" to the Vercel domain
-4. Verify auth works on the deployed URL (sign in, check admin gate)
-
-**Files likely needing changes:** None for basic deployment. If redirect issues arise: `lib/supabase/middleware.ts` (session handling) and Supabase Auth dashboard settings.
-
-### After Step 4 — Suggested P1 Features
-1. **Place images** — `places.image_url` is stored but only 2–3 places have it set; add images for more places
-2. **Fix `Event.placeId` nullable type** — `types/event.ts` line 6: change `placeId: string` to `placeId: string | null`
-3. **User profile page** — currently users can sign up but have no profile page; basic `/profile` page showing email + account info
-4. **Remove `react-map-gl`** from package.json
+Untracked: `docs/phase-3-plan.md`, `docs/phase-3-verification.md`.
 
 ---
 
-## Important Warnings
+## Current Phase status
 
-**DO NOT break:**
-- The `proxy.ts` export name — it must be `export async function proxy`, not `middleware`. Next.js 16 specific.
-- The `<Suspense>` wrappers on `/map/page.tsx` and `/events/page.tsx` — removing them breaks the build
-- The `app/admin/layout.tsx` server-side auth gate — this is the real security, not the client-side check in `admin/page.tsx`
-- The `.eq('status', 'published')` filter on event queries — removing it exposes draft/rejected events publicly
-- The `SECURITY DEFINER` on `handle_new_user()` SQL function — removing it breaks new user signup (function loses permission to write to profiles)
-
-**Risky areas:**
-- `maplibreAdapter.ts` — MapLibre map instance is stateful and held in a `useRef`. Any change that causes re-initialization (e.g. key prop on the container div) will break the map
-- `LandingNavbar.tsx` — The `isAdmin` check makes an extra Supabase query on every page load; if `profiles` table RLS blocks reads, the Dashboard link silently disappears for all users including admins
-- `lib/supabase/server.ts` — The `try/catch` in `setAll` silently swallows cookie-setting errors in Server Components. This is intentional (middleware handles it) — do not remove
+| Phase | Status |
+|---|---|
+| Phase 1 — Venue foundation | Complete |
+| Phase 2 — Auth + submissions + moderation | Complete |
+| Stabilization pass | Complete |
+| Phase 3 — Global full-text search + DB-driven locations | **Complete and verified** |
+| UX polish batch (May 9) | Complete |
+| Phase 4 | Not started — recommendation below |
 
 ---
 
-## Suggested First Prompt For Tomorrow
+## Current architecture state
+
+### Pages
+
+| Route | Auth | Component type | Notes |
+|---|---|---|---|
+| `/` | Public | Client | Home: search, location, featured events/places. Stats row labeled "Across the platform". |
+| `/events` | Public | Client (inside Suspense) | Full event list + cross-location full-text search. Empty state has 3 variants. |
+| `/map` | Public | Client | MapLibre map — LandingNavbar returns null here |
+| `/submit-event` | Required | Client | Auth-gated form with venue search |
+| `/dashboard` | Required | Server | Admin stats + actions OR user submissions list |
+| `/admin` | Admin only | Client | Approve/reject submissions |
+| `/sign-in` | Public | Client | Supabase auth, supports `?next=` redirect |
+| `/sign-up` | Public | Client | Supabase auth |
+
+### Key lib files
 
 ```
-Read docs/next-session.md first. Then read CLAUDE.md.
+lib/
+  locations.ts         LocationOption[], getLocationBySlug(), fetchLocations()
+                       DB column is 'name'; code maps to 'label' in LocationOption
+  useLocations.ts      'use client' hook — instant fallback array + DB update
+  dateFilters.ts       isToday(), isThisWeekend(), getTodayDateString()
+  supabase/
+    browser.ts         createClient() for client components
+    server.ts          createClient() for server components
+    client.ts          legacy re-export shim → browser.ts (safe to keep)
+    middleware.ts      session refresh helper
+proxy.ts               Next.js 16 middleware (named proxy, not middleware)
+```
 
-We are deploying AlbaGo to Vercel. The app is at C:\Users\papi\Desktop\Albago\albago.
+### Supabase tables
 
-Step 1: Help me set up the GitHub remote. I need to push the current master branch.
-The last commit is 1343a52. There are uncommitted changes from today's session (Steps 1-3 of the handoff doc) that need to be committed first.
+| Table | Key columns | Notes |
+|---|---|---|
+| `events` | `status`, `slug`, `location_slug`, `place_id`, `search_vector` | Full-text via tsvector. **`slug` already exists** — needed for Phase 4. |
+| `places` | `location_slug`, `search_vector`, `address`, `website_url` | Full-text via tsvector |
+| `event_submissions` | `status`, `submitted_by_user_id`, `place_id`, `admin_note` | |
+| `cities` | `slug`, `name`, `country`, `region`, `lat`, `lng` | Column is `name` not `label`. Anon SELECT policy confirmed. |
+| `profiles` | `id`, `role` ('user'\|'admin') | Auto-created by trigger on auth.users INSERT |
 
-Step 2: After pushing, I will import to Vercel. The required env vars are:
-  NEXT_PUBLIC_SUPABASE_URL
-  NEXT_PUBLIC_SUPABASE_ANON_KEY
+---
 
-Step 3: After deployment, verify that:
-- Supabase Auth "Site URL" is set to the Vercel domain
-- "Redirect URLs" includes the Vercel domain + /auth/callback
-- Sign in works on the live URL
-- The admin gate on /dashboard works correctly
+## Recommended next: Phase 4 — Event detail pages `/events/[slug]`
 
-Do not make any code changes until the git situation is resolved. Ask me for the GitHub repo URL before running any git commands.
+This is the highest-value next step and unblocks several downstream features.
+
+### Why this phase
+
+Today, every event card on `/` and `/events` links to `/map?place=...&time=...`. The map opens with a marker. There is no place where an event has its own URL, no description page, no shareable link, no SEO surface. For a discovery platform this is the single biggest content gap. Saving events, social sharing, ticketing, and venue detail pages all become more valuable once events have proper homes.
+
+### Scope (smallest viable cut)
+
+**1. New route: `app/events/[slug]/page.tsx`**
+Server component (good for SEO and initial render speed). Fetches:
+- The event by slug from `events` where `status = 'published'`
+- The associated venue from `places` (left join via `place_id`) for name, address, lat/lng, website
+- The location label via `getLocationBySlug(event.location_slug)`
+
+If the slug isn't found or the event isn't published → `notFound()` → Next.js 404.
+
+**2. Page content (above the fold)**
+- Category badge + Hot badge (if highlighted)
+- Title (large)
+- Date · Time · City label
+- Venue name (linked to `/map?place=ID` for now)
+- Address (if present)
+- Description (full text, no truncation)
+- Two CTAs: "Open in Map" (existing map URL) and "Get Directions" (Google Maps URL generated from venue lat/lng — pattern from `docs/platform-architecture.md` § 6)
+- Optional: external website link (if venue has `website_url`)
+
+**3. Metadata (for SEO and sharing)**
+`generateMetadata({ params })` returning title, description, OG image (placeholder until images are real). This is the SEO win.
+
+**4. Wire up event card hrefs**
+Update three callers to point at `/events/[slug]` instead of `/map?place=...`:
+- `app/page.tsx` Featured Events card (currently `getEventMapHref(...)`)
+- `app/events/page.tsx` event card (currently `buildMapHref(...)`)
+- Homepage search suggestion event item (currently `/events?q=...`) — change to `/events/[slug]` so suggestion-click goes straight to the event
+
+Keep "Open in Map" as a secondary CTA on the detail page so users can still see the venue context.
+
+**5. Slug uniqueness sanity check**
+Before shipping, run a SQL check:
+```sql
+SELECT slug, COUNT(*) FROM events GROUP BY slug HAVING COUNT(*) > 1;
+```
+If duplicates exist, fix them in DB before deploying. Going forward, slug should be set on insert (already happens — verify the submit-event path).
+
+### What Phase 4 deliberately does NOT do
+
+- No saved events / favorites (that's a separate phase, depends on event detail being shareable)
+- No comments, ratings, or social signals
+- No image uploads (event covers stay aspirational until image storage is wired)
+- No edit-event UI for organizers (separate phase)
+- No `/places/[id]` venue detail pages (sibling phase)
+- No restructuring of the `events` table schema
+
+### Estimated work
+
+One session if scoped tight. The route file is the main work; metadata and href updates are mechanical.
+
+### Risks
+
+- **Slug collisions** if any exist. Fix in DB first.
+- **Server-rendered Supabase query** — needs `lib/supabase/server.ts` (already exists). Confirm RLS allows server-side reads of `events` where `status = 'published'`.
+- **Card link visual regression** — the existing "Open in map" arrow on cards should be relabeled or kept consistent with the new primary navigation.
+
+### Pre-Phase-4 SQL check (run before starting)
+
+```sql
+-- 1. Confirm all published events have slugs
+SELECT id, title FROM events WHERE status = 'published' AND (slug IS NULL OR slug = '');
+-- Expected: 0 rows
+
+-- 2. Confirm no slug collisions
+SELECT slug, COUNT(*) FROM events GROUP BY slug HAVING COUNT(*) > 1;
+-- Expected: 0 rows
+
+-- 3. Confirm anon role can SELECT events
+SELECT id, title, slug FROM events WHERE status = 'published' LIMIT 1;
+-- Expected: 1 row, no permission error
+```
+
+If any of these fail, fix the data before writing the route.
+
+---
+
+## Other future options (not recommended for next session)
+
+- **Venue detail pages `/places/[id]`** — natural sibling of event pages, but lower discovery impact. Do after event pages.
+- **Saved events** — small migration + UI; depends on event pages existing.
+- **Map clustering** — quality-of-life for the map page; independent of everything else.
+- **"Tonight" / "This weekend" rails on the homepage** — surfaces existing filters more prominently. Pure UX, no schema change.
+
+---
+
+## Exact next steps for next session
+
+1. Decide whether to commit the current 10 uncommitted files first (recommended — clean slate before Phase 4).
+2. Run the three pre-Phase-4 SQL checks above.
+3. If checks pass: design the route file, get plan approval, implement.
+
+---
+
+## Next Session First Prompt
+
+```
+Read docs/next-session.md and CLAUDE.md before starting.
+
+Context:
+- Phases 1, 2, 3, stabilization, and a UX polish pass are all complete and verified.
+- 10 files uncommitted on master.
+- Build passes. Phase 3 browser-tested.
+
+I want to proceed with Phase 4: event detail pages /events/[slug].
+
+Before writing code:
+1. Run the three pre-Phase-4 SQL checks from next-session.md and report results.
+2. Propose docs/phase-4-plan.md covering:
+   - Route file structure (server component, server-side Supabase query, notFound handling)
+   - generateMetadata for SEO
+   - Page layout: title, date/time, venue, address, description, primary CTAs (Map / Directions)
+   - Card href migration plan (homepage, events page, search suggestions)
+   - Slug uniqueness handling
+3. Wait for approval before implementing.
+
+Same rules: plan first, get approval, then implement. Small, reversible commits.
 ```

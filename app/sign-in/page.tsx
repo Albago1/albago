@@ -40,6 +40,9 @@ function SignInForm() {
   return (
     <main className="min-h-screen bg-[#070b14] px-4 py-24 text-white">
       <div className="mx-auto max-w-md rounded-[32px] border border-white/10 bg-white/[0.03] p-6">
+        <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-white/90">
+          ← AlbaGo
+        </Link>
         <h1 className="text-3xl font-bold">Sign in</h1>
         <p className="mt-2 text-sm text-white/55">
           Access your AlbaGo account.

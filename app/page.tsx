@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Flame,
   MapPin,
@@ -71,33 +72,22 @@ function getEventMapHref(placeId: string | null, date: string) {
   return placeId ? `/map?place=${placeId}` : '/map'
 }
 
-function resolveLocationSlug(value: string) {
-  if (value === 'current-location') return 'tirana'
-
-  const normalized = value.trim().toLowerCase()
-
-  const match = locations.find((location) => {
-    return (
-      location.slug.toLowerCase() === normalized ||
-      location.label.toLowerCase() === normalized ||
-      location.city?.toLowerCase() === normalized ||
-      location.country.toLowerCase() === normalized
-    )
-  })
-
-  return (
-    match?.slug ??
-    normalized.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-  )
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 function buildSearchUrl(
   path: '/events' | '/map',
-  locationInput: string,
+  locationSlug: string,
   query: string
 ) {
   const params = new URLSearchParams()
-  const locationSlug = resolveLocationSlug(locationInput)
 
   if (locationSlug) {
     params.set('location', locationSlug)
@@ -110,8 +100,12 @@ function buildSearchUrl(
   return `${path}?${params.toString()}`
 }
 
+type SuggestionEvent = { id: string; title: string; category: string; location_slug: string }
+
 export default function HomePage() {
   const { t } = useLanguage()
+  const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const locationOptions = useLocations()
   const [locationInput, setLocationInput] = useState('Tirana')
   const [searchQuery, setSearchQuery] = useState('')
@@ -123,10 +117,20 @@ export default function HomePage() {
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
   const [totalEventsCount, setTotalEventsCount] = useState(0)
   const [totalPlacesCount, setTotalPlacesCount] = useState(0)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchSuggestionEvents, setSearchSuggestionEvents] = useState<SuggestionEvent[]>([])
+
+  const prevLocationLabel = useRef<string>('')
+  const locationInputValue = useRef<string>('Tirana')
+  const locationDropdownRef = useRef<HTMLDivElement>(null)
+  const searchContainerRef = useRef<HTMLDivElement>(null)
+  const locationOptionsRef = useRef(locationOptions)
 
   useEffect(() => {
-    const supabase = createClient()
+    locationOptionsRef.current = locationOptions
+  }, [locationOptions])
 
+  useEffect(() => {
     async function fetchFeatured() {
       const [placesRes, eventsRes, eventsCountRes, placesCountRes] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
@@ -183,25 +187,103 @@ export default function HomePage() {
     }
 
     fetchFeatured()
-  }, [activeLocationSlug])
+  }, [activeLocationSlug, supabase])
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchSuggestionEvents([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('events')
+        .select('id, title, category, location_slug')
+        .eq('status', 'published')
+        .ilike('title', `%${searchQuery.trim()}%`)
+        .limit(4)
+      setSearchSuggestionEvents(data ?? [])
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [searchQuery, supabase])
+
+  useEffect(() => {
+    locationInputValue.current = locationInput
+  }, [locationInput])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(e.target as Node)) {
+        setIsLocationOpen(false)
+        const typed = locationInputValue.current.trim()
+        if (typed === '') {
+          setLocationInput(prevLocationLabel.current)
+          return
+        }
+        const exact = locationOptionsRef.current.find(
+          (l) => l.label.toLowerCase() === typed.toLowerCase()
+        )
+        if (exact) {
+          setLocationInput(exact.label)
+          setActiveLocationSlug(exact.slug)
+        } else {
+          setLocationInput(prevLocationLabel.current)
+        }
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleDetectLocation = () => {
     if (!navigator.geolocation) return
     setIsLocating(true)
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords
+
         let nearest = locationOptions[0] ?? locations[0]
-        let minDist = Infinity
+        let nearestKm = Infinity
         for (const loc of locationOptions) {
-          const dist = Math.sqrt(
-            Math.pow(loc.center[0] - longitude, 2) +
-            Math.pow(loc.center[1] - latitude, 2)
-          )
-          if (dist < minDist) { minDist = dist; nearest = loc }
+          const km = distanceKm(latitude, longitude, loc.center[1], loc.center[0])
+          if (km < nearestKm) { nearestKm = km; nearest = loc }
         }
-        setLocationInput(nearest.label)
-        setActiveLocationSlug(nearest.slug)
+
+        if (nearestKm <= 150) {
+          setLocationInput(nearest.label)
+          setActiveLocationSlug(nearest.slug)
+          setIsLocating(false)
+          setIsLocationOpen(false)
+          return
+        }
+
+        // User is far from all known cities — try reverse geocoding
+        let cityLabel = 'Your current location'
+        try {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 4000)
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { 'User-Agent': 'AlbaGo/1.0' }, signal: controller.signal }
+          )
+          clearTimeout(timer)
+          if (res.ok) {
+            const data = await res.json()
+            const city = data.address?.city || data.address?.town || data.address?.village
+            if (city) cityLabel = city
+          }
+        } catch {
+          // silent — fallback label already set
+        }
+
+        setLocationInput(cityLabel)
+        setActiveLocationSlug(
+          cityLabel === 'Your current location'
+            ? 'current-location'
+            : cityLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+        )
         setIsLocating(false)
         setIsLocationOpen(false)
       },
@@ -222,7 +304,29 @@ export default function HomePage() {
     location.region?.toLowerCase().includes(search)
   )
 })
-  const resolvedLocation = getLocationBySlug(resolveLocationSlug(locationInput))
+  const resolvedLocation = getLocationBySlug(activeLocationSlug)
+
+  const searchQ = searchQuery.trim().toLowerCase()
+  const isTyping = searchQ.length > 0
+
+  // Suggestions shown while typing — events from DB, filtered cats, filtered locs
+  const suggestEvents = isTyping ? searchSuggestionEvents : []
+  const suggestCats = isTyping
+    ? categories.filter((c) => c.value.includes(searchQ))
+    : categories
+  const suggestLocs = isTyping
+    ? locationOptions.filter(
+        (l) =>
+          l.label.toLowerCase().includes(searchQ) ||
+          l.country.toLowerCase().includes(searchQ)
+      ).slice(0, 3)
+    : locationOptions.slice(0, 5)
+  // Default (empty focus) events — use already-loaded featured events
+  const defaultEvents = featuredEvents.slice(0, 3)
+  const hasAnySuggestion =
+    isTyping
+      ? suggestEvents.length > 0 || suggestCats.length > 0 || suggestLocs.length > 0
+      : true // default state always has categories
 
   return (
     <main className="min-h-screen bg-[#070b14] text-white">
@@ -250,27 +354,149 @@ export default function HomePage() {
 
           <div className="mt-10 w-full max-w-3xl rounded-[32px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl">
           <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_auto]">
-            <div className="flex h-14 items-center gap-3 rounded-2xl bg-[#0b1020] px-4">
-              <Search className="h-5 w-5 text-white/35" />
+            <div className="relative" ref={searchContainerRef}>
+              <div className="flex h-14 items-center gap-3 rounded-2xl bg-[#0b1020] px-4">
+                <Search className="h-5 w-5 text-white/35" />
 
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search events, clubs, food..."
-                className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none placeholder:text-white/35"
-              />
+                <input
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value)
+                    setIsSearchOpen(true)
+                  }}
+                  onFocus={() => setIsSearchOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      setIsSearchOpen(false)
+                      router.push(buildSearchUrl('/events', activeLocationSlug, searchQuery))
+                    }
+                  }}
+                  placeholder="Search events, clubs, food..."
+                  className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none placeholder:text-white/35"
+                />
+              </div>
+
+              {isSearchOpen && hasAnySuggestion && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 max-h-[420px] overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#0b1020] text-left shadow-2xl">
+
+                  {/* ── Categories ── */}
+                  {suggestCats.length > 0 && (
+                    <>
+                      <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                        {isTyping ? 'Category' : 'Explore'}
+                      </p>
+                      {suggestCats.map((cat) => {
+                        const Icon = cat.icon
+                        return (
+                          <Link
+                            key={cat.value}
+                            href={`/events?location=${activeLocationSlug}&category=${cat.value}`}
+                            onClick={() => setIsSearchOpen(false)}
+                            className="flex w-full items-center gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.06]"
+                          >
+                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${getCategoryTone(cat.value)}`}>
+                              <Icon className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="capitalize font-medium text-white">{cat.value}</span>
+                            <span className="ml-auto text-[10px] uppercase tracking-wide text-white/30">Category</span>
+                          </Link>
+                        )
+                      })}
+                    </>
+                  )}
+
+                  {/* ── Events (default: featured; typing: DB ilike results) ── */}
+                  {(isTyping ? suggestEvents : defaultEvents).length > 0 && (
+                    <>
+                      <div className="mx-4 border-t border-white/[0.06]" />
+                      <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                        {isTyping ? 'Events' : 'Upcoming'}
+                      </p>
+                      {(isTyping ? suggestEvents : defaultEvents).map((ev) => (
+                        <Link
+                          key={ev.id}
+                          href={`/events?q=${encodeURIComponent(ev.title)}`}
+                          onClick={() => setIsSearchOpen(false)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.06]"
+                        >
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${getCategoryTone(ev.category)}`}>
+                            {ev.category}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate font-medium text-white">{ev.title}</span>
+                          {isTyping && 'location_slug' in ev && (
+                            <span className="shrink-0 text-[10px] text-white/30">
+                              {getLocationBySlug((ev as SuggestionEvent).location_slug).label}
+                            </span>
+                          )}
+                          {!isTyping && (
+                            <span className="ml-auto text-[10px] uppercase tracking-wide text-white/30">Event</span>
+                          )}
+                        </Link>
+                      ))}
+                    </>
+                  )}
+
+                  {/* ── Cities ── */}
+                  {suggestLocs.length > 0 && (
+                    <>
+                      <div className="mx-4 border-t border-white/[0.06]" />
+                      <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                        {isTyping ? 'Cities' : 'Browse by city'}
+                      </p>
+                      {suggestLocs.map((loc) => (
+                        <Link
+                          key={loc.slug}
+                          href={`/events?location=${loc.slug}`}
+                          onClick={() => {
+                            setLocationInput(loc.label)
+                            setActiveLocationSlug(loc.slug)
+                            setIsSearchOpen(false)
+                          }}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.06]"
+                        >
+                          <MapPin className="h-4 w-4 shrink-0 text-white/35" />
+                          <span className="font-medium text-white">{loc.label}</span>
+                          <span className="ml-auto text-[10px] text-white/30">{loc.country}</span>
+                        </Link>
+                      ))}
+                    </>
+                  )}
+
+                </div>
+              )}
             </div>
 
-            <div className="relative">
+            <div className="relative" ref={locationDropdownRef}>
               <div className="flex h-14 items-center gap-3 rounded-2xl bg-[#0b1020] px-4">
                 <MapPin className="h-5 w-5 text-white/35" />
 
                 <input
                   value={locationInput}
-                  onFocus={() => setIsLocationOpen(true)}
+                  onFocus={() => {
+                    prevLocationLabel.current = locationInput
+                    setLocationInput('')
+                    setIsLocationOpen(true)
+                  }}
                   onChange={(event) => {
                     setLocationInput(event.target.value)
                     setIsLocationOpen(true)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      const typed = locationInput.trim()
+                      const exact = locationOptions.find(
+                        (l) => l.label.toLowerCase() === typed.toLowerCase()
+                      )
+                      if (exact) {
+                        setLocationInput(exact.label)
+                        setActiveLocationSlug(exact.slug)
+                      } else {
+                        setLocationInput(prevLocationLabel.current)
+                      }
+                      setIsLocationOpen(false)
+                    }
                   }}
                   placeholder="Choose a location"
                   className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/35"
@@ -326,7 +552,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href={buildSearchUrl('/events', locationInput, searchQuery)}
+              href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
               className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-500"
             >
               <Search className="h-5 w-5" />
@@ -342,12 +568,11 @@ export default function HomePage() {
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {categories.map((category) => {
               const Icon = category.icon
-              const locationSlug = resolveLocationSlug(locationInput)
 
               return (
                 <Link
                   key={category.value}
-                  href={`/events?location=${locationSlug}&category=${category.value}`}
+                  href={`/events?location=${activeLocationSlug}&category=${category.value}`}
                   className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-base text-white/80 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
                 >
                   <Icon className="h-4 w-4" />
@@ -359,7 +584,7 @@ export default function HomePage() {
 
           <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
-              href={buildSearchUrl('/events', locationInput, searchQuery)}
+              href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
               className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-10 py-5 text-xl font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-blue-500"
             >
               <Calendar className="h-5 w-5" />
@@ -367,7 +592,7 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href={buildSearchUrl('/map', locationInput, searchQuery)}
+              href={buildSearchUrl('/map', activeLocationSlug, searchQuery)}
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-10 py-5 text-xl font-semibold text-white transition hover:bg-white/[0.04]"
             >
               <MapPin className="h-5 w-5" />
@@ -375,9 +600,7 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href={`/events?location=${resolveLocationSlug(
-                locationInput
-              )}&time=tonight`}
+              href={`/events?location=${activeLocationSlug}&time=tonight`}
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-10 py-5 text-xl font-semibold text-white transition hover:bg-white/[0.04]"
             >
               <Flame className="h-5 w-5" />
@@ -411,26 +634,31 @@ export default function HomePage() {
       </section>
 
       <section className="border-y border-white/10 bg-white/[0.02] py-10">
-        <div className="mx-auto flex max-w-6xl items-center justify-around px-4">
-          <div className="text-center">
-            <div className="text-5xl font-bold text-blue-500">
-              {totalPlacesCount}
+        <div className="mx-auto max-w-6xl px-4">
+          <p className="mb-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+            Across the platform
+          </p>
+          <div className="flex items-center justify-around">
+            <div className="text-center">
+              <div className="text-5xl font-bold text-blue-500">
+                {totalPlacesCount}
+              </div>
+              <div className="mt-2 text-xl text-white/65">{t('venues')}</div>
             </div>
-            <div className="mt-2 text-xl text-white/65">{t('venues')}</div>
-          </div>
 
-          <div className="text-center">
-            <div className="text-5xl font-bold text-blue-500">
-              {totalEventsCount}
+            <div className="text-center">
+              <div className="text-5xl font-bold text-blue-500">
+                {totalEventsCount}
+              </div>
+              <div className="mt-2 text-xl text-white/65">{t('events')}</div>
             </div>
-            <div className="mt-2 text-xl text-white/65">{t('events')}</div>
-          </div>
 
-          <div className="text-center">
-            <div className="text-5xl font-bold text-blue-500">
-              {locationOptions.length}
+            <div className="text-center">
+              <div className="text-5xl font-bold text-blue-500">
+                {locationOptions.length}
+              </div>
+              <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
             </div>
-            <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
           </div>
         </div>
       </section>
@@ -454,7 +682,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href={buildSearchUrl('/events', locationInput, searchQuery)}
+              href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
               className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
             >
               View all
@@ -557,7 +785,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href={buildSearchUrl('/map', locationInput, searchQuery)}
+              href={buildSearchUrl('/map', activeLocationSlug, searchQuery)}
               className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
             >
               View all

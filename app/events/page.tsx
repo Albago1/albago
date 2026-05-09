@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -141,11 +141,41 @@ function EventsContent() {
   const [placeNames, setPlaceNames] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; category: string; location_slug: string }>>([])
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false)
+  const searchWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 350)
     return () => clearTimeout(timer)
   }, [searchQuery])
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSuggestions([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('events')
+        .select('id, title, category, location_slug')
+        .eq('status', 'published')
+        .ilike('title', `%${searchQuery.trim()}%`)
+        .limit(5)
+      setSuggestions(data ?? [])
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [searchQuery, supabase])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
+        setIsSuggestOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const isSearchMode = debouncedSearch.trim().length > 0
 
@@ -322,15 +352,50 @@ function EventsContent() {
               Search
             </label>
 
-            <div className="relative mt-2">
+            <div className="relative mt-2" ref={searchWrapperRef}>
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
 
               <input
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value)
+                  setIsSuggestOpen(true)
+                }}
+                onFocus={() => { if (searchQuery.trim()) setIsSuggestOpen(true) }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    setIsSuggestOpen(false)
+                    setDebouncedSearch(searchQuery)
+                  }
+                }}
                 placeholder="Search events, music, food..."
                 className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35"
               />
+
+              {isSuggestOpen && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-[#0b1020] shadow-2xl">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(s.title)
+                        setIsSuggestOpen(false)
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/[0.06]"
+                    >
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${getCategoryTone(s.category)}`}>
+                        {s.category}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium text-white">{s.title}</span>
+                      <span className="shrink-0 text-xs text-white/35">
+                        {getLocationBySlug(s.location_slug).label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {isSearchMode && (
@@ -406,12 +471,46 @@ function EventsContent() {
 
           {!isLoading && !errorMessage && sortedEvents.length === 0 && (
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-center backdrop-blur-md">
-              <p className="text-base font-semibold text-white">
-                No events match this filter yet
-              </p>
-              <p className="mt-2 text-sm text-white/55">
-                Try another time filter or jump into the map to explore places.
-              </p>
+              {isSearchMode ? (
+                <>
+                  <p className="text-base font-semibold text-white">
+                    No events match &ldquo;{debouncedSearch}&rdquo;
+                  </p>
+                  <p className="mt-2 text-sm text-white/55">
+                    Try a different keyword, or clear the search to browse a city.
+                  </p>
+                </>
+              ) : !locationOptions.some((l) => l.slug === activeLocationSlug) ? (
+                <>
+                  <p className="text-base font-semibold text-white">
+                    No upcoming events near you yet
+                  </p>
+                  <p className="mt-2 text-sm text-white/55">
+                    AlbaGo is just getting started — try one of our featured cities.
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {locationOptions.slice(0, 4).map((loc) => (
+                      <button
+                        key={loc.slug}
+                        type="button"
+                        onClick={() => setActiveLocationSlug(loc.slug)}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/80 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        {loc.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-base font-semibold text-white">
+                    No events match this filter yet
+                  </p>
+                  <p className="mt-2 text-sm text-white/55">
+                    Try another time filter or jump into the map to explore places.
+                  </p>
+                </>
+              )}
             </div>
           )}
 

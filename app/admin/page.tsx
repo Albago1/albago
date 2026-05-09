@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/browser'
+import LandingNavbar from '@/components/layout/LandingNavbar'
 
 type Submission = {
   id: string
@@ -161,7 +163,9 @@ export default function AdminPage() {
   ]
 
   return (
-    <main className="min-h-screen bg-[#070b14] p-6 text-white">
+    <>
+      <LandingNavbar />
+      <main className="min-h-screen bg-[#070b14] px-6 pb-6 pt-24 text-white">
       <div className="mx-auto max-w-5xl">
         <h1 className="text-3xl font-bold">Review Submissions</h1>
         <p className="mt-2 text-sm text-white/50">
@@ -323,5 +327,6 @@ export default function AdminPage() {
         </div>
       </div>
     </main>
+    </>
   )
 }
