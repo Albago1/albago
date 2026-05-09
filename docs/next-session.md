@@ -1,77 +1,68 @@
 # AlbaGo — Next Session Handoff
 
-**Last updated:** 2026-05-09
-**Branch:** master · last commit: `39ad5fd` (all current work is uncommitted)
+**Last updated:** 2026-05-10
+**Branch:** main
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · TailwindCSS v4 · Supabase · MapLibre GL
-**Build status:** ✓ `next build` passes — 0 TypeScript errors, 0 compile errors
-**Phase 3 status:** ✓ Verified end-to-end in browser. Cross-location full-text search works. DB-driven city dropdowns confirmed.
+**Build status:** ✓ `next build` passes — 0 TypeScript errors. Route `/events/[slug]` registered as dynamic.
+**Phase 3 status:** ✓ Verified end-to-end on 2026-05-09.
+**Phase 4 status:** ✓ Browser-verified and committed on 2026-05-10.
 
 ---
 
-## Session summary (2026-05-09)
+## Session summary (2026-05-10)
 
-This session covered Phase 3 browser verification and a small, high-impact UX polish batch. No new Phase was started. All changes are uncommitted.
+This session implemented and shipped Phase 4 (event detail pages) per `docs/phase-4-plan.md`. No scope creep.
 
-The 5-item polish batch focused on bugs that would block Phase 4 from feeling clean:
-- a silent location-input/active-slug desync on the homepage
-- no Enter-to-search on either search input
-- generic empty-state copy that didn't differentiate filter-miss from genuinely-empty cities
-- a stats row that mixed global numbers with location-scoped page content
+The 14-test browser checklist passed. Phase 4 is fully landed.
 
 ---
 
 ## What was completed this session
 
-### 1. Phase 3 browser verification — passed
+### Phase 4 — Event detail pages
 
-Cross-location full-text search activates on a typed query, city badges appear on result cards, the "Showing results across all cities" note renders, and clearing the query returns to browse mode. Location dropdowns on `/`, `/events`, `/submit-event`, and `/map` all read from the `cities` table via `useLocations()` with the hardcoded array as instant fallback.
+**1. New route `/events/[slug]`** — server-rendered detail page.
+- Server component using `lib/supabase/server.ts`
+- Single Supabase query joins `events` to `places` for venue info
+- `notFound()` triggers default Next.js 404 if slug doesn't exist or `status ≠ 'published'`
+- Page layout: back link, category/Hot/price badges, title, date/time/city row, three CTAs, Venue card, About section
+- `Get Directions` only renders when venue has `lat` and `lng`
+- `Website` only renders when venue has `website_url`
+- `About` section omitted when description is empty
+- Uses existing dark/glass visual language; no new design tokens
 
-SQL spot-checks (`search_vector IS NULL` queries, `cities` SELECT) returned the expected results.
+**2. SEO metadata** — `generateMetadata` exported from the route.
+- Title: `${event.title} — AlbaGo`
+- Description: first 160 chars of event description
+- OpenGraph: title, description, type=`article` (image deferred — out of scope)
+- Title for missing slugs: `Event not found — AlbaGo`
 
-**Phase 3 is done.** No remaining tasks before Phase 4.
+**3. Card href migration** — three callers now point at `/events/[slug]`.
+- Homepage Featured Events card
+- Homepage search-suggestion event item (was `/events?q=...`)
+- Events page event card
+- "Open in map" label relabeled to "View event" on event cards. Trending Places cards on the homepage still say "Open in map" (those still go to the map).
 
-### 2. UX polish batch — five fixes
-
-**Homepage location input desync — fixed**
-The previous behavior allowed the visible location label to drift from `activeLocationSlug`. A user who typed "Ber" and clicked outside (or pressed Search) silently slugified to `ber` and produced an empty events page.
-
-Changes in `app/page.tsx`:
-- Removed `resolveLocationSlug()` entirely — it was the source of the slugify-garbage path.
-- `buildSearchUrl()` now takes a slug directly. All four call sites (Search button, Browse Events CTA, View-all Events, View-all Map) pass `activeLocationSlug`.
-- Click-outside on the location dropdown now commits or reverts: if the typed text exactly matches a known city label (case-insensitive), it activates that city; otherwise it restores `prevLocationLabel.current`.
-- Pressing **Enter** on the location input applies the same commit-or-revert rule and closes the dropdown.
-- Added `locationOptionsRef` so the click-outside handler can read the latest options without rebinding.
-- Category-pill links and the Tonight CTA now use `activeLocationSlug` instead of resolving from the typed input.
-
-**Enter-to-search — added**
-- Homepage search input: `Enter` → `router.push(buildSearchUrl('/events', activeLocationSlug, searchQuery))`. Imports `useRouter` from `next/navigation`.
-- Events page search input: `Enter` → `setDebouncedSearch(searchQuery)` immediately, bypassing the 350ms debounce.
-
-**Events page empty state — three variants**
-The previous single message ("No events match this filter yet") covered three different situations confusingly. Replaced with conditional copy:
-1. Search mode + zero results → `No events match "query"` + "Try a different keyword, or clear the search to browse a city."
-2. Browse mode + active slug not in `locationOptions` (GPS-resolved unknown city) → `No upcoming events near you yet` + featured-cities chips that switch the active location on click.
-3. Browse mode + known location → original copy preserved.
-
-**Homepage stats row — labeled scope**
-Added a small uppercase caption "Across the platform" above the three counters so users understand the numbers are global, not scoped to the active city.
+**4. Shared link helpers extracted** — `lib/eventLinks.ts`.
+- `buildMapHref({ location_slug, place_id, date }, query?)` — moved from `app/events/page.tsx`
+- `buildDirectionsHref(lat, lng)` — generates Google Maps URL from coordinates (per `docs/platform-architecture.md` §6: never store external map URLs in DB)
 
 ---
 
-## Files changed this session (all uncommitted)
+## Files changed and committed this session
 
-| File | What changed |
-|---|---|
-| `docs/next-session.md` | This document |
-| `app/page.tsx` | Removed `resolveLocationSlug`; `buildSearchUrl` now takes slug; click-outside + Enter commit-or-revert on location input; Enter-to-search on search input; stats row "Across the platform" caption; imports `useRouter` |
-| `app/events/page.tsx` | Enter-to-search bypasses debounce; empty state has 3 variants (search-miss / unknown-city with featured-cities chips / filter-miss) |
+| File | Action | What |
+|---|---|---|
+| `app/events/[slug]/page.tsx` | NEW | Server component, fetches event + venue, `generateMetadata`, three CTAs, About section, 404 on miss |
+| `lib/eventLinks.ts` | NEW | `buildMapHref` (moved) + `buildDirectionsHref` (new) |
+| `types/event.ts` | Modify | Added `slug: string` to `Event` type |
+| `app/page.tsx` | Modify | Removed `getEventMapHref` and unused date filter imports; `SuggestionEvent` type and ilike query include `slug`; featured-events mapping includes `slug`; suggestion link → `/events/${slug}`; featured event card href → `/events/${slug}`; "Open in map" → "View event" on event cards (place cards untouched) |
+| `app/events/page.tsx` | Modify | `buildMapHref` removed (now in `lib/eventLinks.ts`); event card href → `/events/${event.slug}`; "Open in map" → "View event" |
+| `components/map/MapView.tsx` | Modify | One-liner: `slug: e.slug` in the event mapping (compile fix from the `Event` type widening; no behavior change) |
+| `docs/phase-4-plan.md` | NEW | Plan written before implementation |
+| `docs/next-session.md` | Modify | This document |
 
-Plus the 7 files modified in the prior session (still uncommitted):
-- `app/sign-in/page.tsx`, `app/sign-up/page.tsx` — back link
-- `app/admin/page.tsx`, `app/dashboard/page.tsx` — LandingNavbar + `pt-24`
-- `components/layout/LandingNavbar.tsx` — user avatar pill + dropdown, mobile sign-out moved to hamburger
-
-Untracked: `docs/phase-3-plan.md`, `docs/phase-3-verification.md`.
+**Eight files total: three new, five modified.**
 
 ---
 
@@ -82,9 +73,10 @@ Untracked: `docs/phase-3-plan.md`, `docs/phase-3-verification.md`.
 | Phase 1 — Venue foundation | Complete |
 | Phase 2 — Auth + submissions + moderation | Complete |
 | Stabilization pass | Complete |
-| Phase 3 — Global full-text search + DB-driven locations | **Complete and verified** |
+| Phase 3 — Global full-text search + DB-driven locations | Complete and verified |
 | UX polish batch (May 9) | Complete |
-| Phase 4 | Not started — recommendation below |
+| Phase 4 — Event detail pages | **Complete and verified** |
+| Phase 5 | Not started — recommendations below |
 
 ---
 
@@ -94,8 +86,9 @@ Untracked: `docs/phase-3-plan.md`, `docs/phase-3-verification.md`.
 
 | Route | Auth | Component type | Notes |
 |---|---|---|---|
-| `/` | Public | Client | Home: search, location, featured events/places. Stats row labeled "Across the platform". |
-| `/events` | Public | Client (inside Suspense) | Full event list + cross-location full-text search. Empty state has 3 variants. |
+| `/` | Public | Client | Home: search, location, featured events/places. Featured events link to detail pages. |
+| `/events` | Public | Client (Suspense) | Event list + cross-location search. Cards link to detail pages. |
+| `/events/[slug]` | Public | **Server** | Phase 4: event detail page with SEO metadata. |
 | `/map` | Public | Client | MapLibre map — LandingNavbar returns null here |
 | `/submit-event` | Required | Client | Auth-gated form with venue search |
 | `/dashboard` | Required | Server | Admin stats + actions OR user submissions list |
@@ -108,9 +101,9 @@ Untracked: `docs/phase-3-plan.md`, `docs/phase-3-verification.md`.
 ```
 lib/
   locations.ts         LocationOption[], getLocationBySlug(), fetchLocations()
-                       DB column is 'name'; code maps to 'label' in LocationOption
   useLocations.ts      'use client' hook — instant fallback array + DB update
   dateFilters.ts       isToday(), isThisWeekend(), getTodayDateString()
+  eventLinks.ts        Phase 4 — buildMapHref(), buildDirectionsHref()
   supabase/
     browser.ts         createClient() for client components
     server.ts          createClient() for server components
@@ -123,113 +116,37 @@ proxy.ts               Next.js 16 middleware (named proxy, not middleware)
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `events` | `status`, `slug`, `location_slug`, `place_id`, `search_vector` | Full-text via tsvector. **`slug` already exists** — needed for Phase 4. |
-| `places` | `location_slug`, `search_vector`, `address`, `website_url` | Full-text via tsvector |
+| `events` | `status`, `slug`, `location_slug`, `place_id`, `search_vector` | `slug` confirmed populated and unique. Public detail-page key. |
+| `places` | `location_slug`, `search_vector`, `address`, `website_url`, `lat`, `lng` | Joined into the detail-page query |
 | `event_submissions` | `status`, `submitted_by_user_id`, `place_id`, `admin_note` | |
-| `cities` | `slug`, `name`, `country`, `region`, `lat`, `lng` | Column is `name` not `label`. Anon SELECT policy confirmed. |
-| `profiles` | `id`, `role` ('user'\|'admin') | Auto-created by trigger on auth.users INSERT |
+| `cities` | `slug`, `name`, `country`, `region`, `lat`, `lng` | |
+| `profiles` | `id`, `role` ('user'\|'admin') | |
 
 ---
 
-## Recommended next: Phase 4 — Event detail pages `/events/[slug]`
+## Recommended next: Phase 5 options
 
-This is the highest-value next step and unblocks several downstream features.
+Choose one. All build cleanly on top of Phase 4.
 
-### Why this phase
+**Option A — Saved events (recommended)**
+Now that events have URLs, saving is meaningful. Small migration: `saved_events(user_id, event_id, saved_at)` table, RLS policies, heart button on cards, Saved tab on dashboard. One focused session.
 
-Today, every event card on `/` and `/events` links to `/map?place=...&time=...`. The map opens with a marker. There is no place where an event has its own URL, no description page, no shareable link, no SEO surface. For a discovery platform this is the single biggest content gap. Saving events, social sharing, ticketing, and venue detail pages all become more valuable once events have proper homes.
+**Option B — Venue detail pages `/places/[id]`**
+Mirror of Phase 4 for venues. Reuses the detail-page template. Lets a user open a venue page showing all upcoming events at that venue + address + map embed.
 
-### Scope (smallest viable cut)
+**Option C — Custom 404 for `/events/[slug]/not-found.tsx`**
+Smaller polish. Friendly empty state with "Browse all events" CTA instead of the default Next.js 404.
 
-**1. New route: `app/events/[slug]/page.tsx`**
-Server component (good for SEO and initial render speed). Fetches:
-- The event by slug from `events` where `status = 'published'`
-- The associated venue from `places` (left join via `place_id`) for name, address, lat/lng, website
-- The location label via `getLocationBySlug(event.location_slug)`
-
-If the slug isn't found or the event isn't published → `notFound()` → Next.js 404.
-
-**2. Page content (above the fold)**
-- Category badge + Hot badge (if highlighted)
-- Title (large)
-- Date · Time · City label
-- Venue name (linked to `/map?place=ID` for now)
-- Address (if present)
-- Description (full text, no truncation)
-- Two CTAs: "Open in Map" (existing map URL) and "Get Directions" (Google Maps URL generated from venue lat/lng — pattern from `docs/platform-architecture.md` § 6)
-- Optional: external website link (if venue has `website_url`)
-
-**3. Metadata (for SEO and sharing)**
-`generateMetadata({ params })` returning title, description, OG image (placeholder until images are real). This is the SEO win.
-
-**4. Wire up event card hrefs**
-Update three callers to point at `/events/[slug]` instead of `/map?place=...`:
-- `app/page.tsx` Featured Events card (currently `getEventMapHref(...)`)
-- `app/events/page.tsx` event card (currently `buildMapHref(...)`)
-- Homepage search suggestion event item (currently `/events?q=...`) — change to `/events/[slug]` so suggestion-click goes straight to the event
-
-Keep "Open in Map" as a secondary CTA on the detail page so users can still see the venue context.
-
-**5. Slug uniqueness sanity check**
-Before shipping, run a SQL check:
-```sql
-SELECT slug, COUNT(*) FROM events GROUP BY slug HAVING COUNT(*) > 1;
-```
-If duplicates exist, fix them in DB before deploying. Going forward, slug should be set on insert (already happens — verify the submit-event path).
-
-### What Phase 4 deliberately does NOT do
-
-- No saved events / favorites (that's a separate phase, depends on event detail being shareable)
-- No comments, ratings, or social signals
-- No image uploads (event covers stay aspirational until image storage is wired)
-- No edit-event UI for organizers (separate phase)
-- No `/places/[id]` venue detail pages (sibling phase)
-- No restructuring of the `events` table schema
-
-### Estimated work
-
-One session if scoped tight. The route file is the main work; metadata and href updates are mechanical.
-
-### Risks
-
-- **Slug collisions** if any exist. Fix in DB first.
-- **Server-rendered Supabase query** — needs `lib/supabase/server.ts` (already exists). Confirm RLS allows server-side reads of `events` where `status = 'published'`.
-- **Card link visual regression** — the existing "Open in map" arrow on cards should be relabeled or kept consistent with the new primary navigation.
-
-### Pre-Phase-4 SQL check (run before starting)
-
-```sql
--- 1. Confirm all published events have slugs
-SELECT id, title FROM events WHERE status = 'published' AND (slug IS NULL OR slug = '');
--- Expected: 0 rows
-
--- 2. Confirm no slug collisions
-SELECT slug, COUNT(*) FROM events GROUP BY slug HAVING COUNT(*) > 1;
--- Expected: 0 rows
-
--- 3. Confirm anon role can SELECT events
-SELECT id, title, slug FROM events WHERE status = 'published' LIMIT 1;
--- Expected: 1 row, no permission error
-```
-
-If any of these fail, fix the data before writing the route.
-
----
-
-## Other future options (not recommended for next session)
-
-- **Venue detail pages `/places/[id]`** — natural sibling of event pages, but lower discovery impact. Do after event pages.
-- **Saved events** — small migration + UI; depends on event pages existing.
-- **Map clustering** — quality-of-life for the map page; independent of everything else.
-- **"Tonight" / "This weekend" rails on the homepage** — surfaces existing filters more prominently. Pure UX, no schema change.
+**Option D — OpenGraph images for event pages**
+Once event covers exist (or a generated banner per category), wire them into the `openGraph.images` field for richer social sharing previews.
 
 ---
 
 ## Exact next steps for next session
 
-1. Decide whether to commit the current 10 uncommitted files first (recommended — clean slate before Phase 4).
-2. Run the three pre-Phase-4 SQL checks above.
-3. If checks pass: design the route file, get plan approval, implement.
+1. Pick a Phase 5 direction.
+2. Plan-first via `docs/phase-5-plan.md`.
+3. Get approval, then implement.
 
 ---
 
@@ -239,21 +156,15 @@ If any of these fail, fix the data before writing the route.
 Read docs/next-session.md and CLAUDE.md before starting.
 
 Context:
-- Phases 1, 2, 3, stabilization, and a UX polish pass are all complete and verified.
-- 10 files uncommitted on master.
-- Build passes. Phase 3 browser-tested.
+- Phases 1, 2, 3, 4 are complete, verified, and committed.
+- main is clean and matches origin/main.
+- Build passes.
 
-I want to proceed with Phase 4: event detail pages /events/[slug].
+I want to start Phase 5: [Option A — saved events / B — venue detail pages /
+C — custom 404 / D — OG images].
 
-Before writing code:
-1. Run the three pre-Phase-4 SQL checks from next-session.md and report results.
-2. Propose docs/phase-4-plan.md covering:
-   - Route file structure (server component, server-side Supabase query, notFound handling)
-   - generateMetadata for SEO
-   - Page layout: title, date/time, venue, address, description, primary CTAs (Map / Directions)
-   - Card href migration plan (homepage, events page, search suggestions)
-   - Slug uniqueness handling
-3. Wait for approval before implementing.
+Propose docs/phase-5-plan.md covering scope, files to touch, test checklist,
+risks, and rollback. Wait for approval before implementing.
 
-Same rules: plan first, get approval, then implement. Small, reversible commits.
+Same rules: plan first, get approval, implement.
 ```

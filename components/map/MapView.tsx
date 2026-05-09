@@ -112,6 +112,7 @@ export default function MapView() {
       if (eventsRes.data) {
         setEvents(eventsRes.data.map((e) => ({
           id: e.id,
+          slug: e.slug,
           title: e.title,
           date: e.date,
           time: e.time,

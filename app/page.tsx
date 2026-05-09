@@ -20,7 +20,6 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
-import { isThisWeekend, isToday } from '@/lib/dateFilters'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
@@ -65,13 +64,6 @@ function getPlaceCategoryTone(category?: string) {
   return 'bg-white/10 text-white/80'
 }
 
-function getEventMapHref(placeId: string | null, date: string) {
-  const placeParam = placeId ? `place=${placeId}&` : ''
-  if (isToday(date)) return `/map?${placeParam}time=tonight`
-  if (isThisWeekend(date)) return `/map?${placeParam}time=weekend`
-  return placeId ? `/map?place=${placeId}` : '/map'
-}
-
 function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
   const dLat = ((lat2 - lat1) * Math.PI) / 180
@@ -100,7 +92,7 @@ function buildSearchUrl(
   return `${path}?${params.toString()}`
 }
 
-type SuggestionEvent = { id: string; title: string; category: string; location_slug: string }
+type SuggestionEvent = { id: string; slug: string; title: string; category: string; location_slug: string }
 
 export default function HomePage() {
   const { t } = useLanguage()
@@ -171,6 +163,7 @@ export default function HomePage() {
       if (eventsRes.data) {
         setFeaturedEvents(eventsRes.data.map((e) => ({
           id: e.id,
+          slug: e.slug,
           title: e.title,
           date: e.date,
           time: e.time,
@@ -197,7 +190,7 @@ export default function HomePage() {
     const timer = setTimeout(async () => {
       const { data } = await supabase
         .from('events')
-        .select('id, title, category, location_slug')
+        .select('id, slug, title, category, location_slug')
         .eq('status', 'published')
         .ilike('title', `%${searchQuery.trim()}%`)
         .limit(4)
@@ -416,7 +409,7 @@ export default function HomePage() {
                       {(isTyping ? suggestEvents : defaultEvents).map((ev) => (
                         <Link
                           key={ev.id}
-                          href={`/events?q=${encodeURIComponent(ev.title)}`}
+                          href={`/events/${ev.slug}`}
                           onClick={() => setIsSearchOpen(false)}
                           className="flex w-full items-center gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.06]"
                         >
@@ -697,7 +690,7 @@ export default function HomePage() {
               return (
                 <Link
                   key={event.id}
-                  href={getEventMapHref(event.placeId, event.date)}
+                  href={`/events/${event.slug}`}
                   className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -755,7 +748,7 @@ export default function HomePage() {
 
                   <div className="mt-5">
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
-                      Open in map
+                      View event
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
                   </div>

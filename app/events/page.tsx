@@ -92,28 +92,6 @@ function sortEventsByPriority(list: PublicEvent[]) {
   })
 }
 
-function buildMapHref(event: PublicEvent, query: string) {
-  const params = new URLSearchParams()
-
-  params.set('location', event.location_slug)
-
-  if (event.place_id) {
-    params.set('place', event.place_id)
-  }
-
-  if (query.trim()) {
-    params.set('q', query.trim())
-  }
-
-  if (isToday(event.date)) {
-    params.set('time', 'tonight')
-  } else if (isThisWeekend(event.date)) {
-    params.set('time', 'weekend')
-  }
-
-  return `/map?${params.toString()}`
-}
-
 export default function EventsPage() {
   return (
     <Suspense>
@@ -518,7 +496,7 @@ function EventsContent() {
             {sortedEvents.map((event) => (
               <Link
                 key={event.id}
-                href={buildMapHref(event, searchQuery)}
+                href={`/events/${event.slug}`}
                 className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -587,7 +565,7 @@ function EventsContent() {
 
                 <div className="mt-5">
                   <span className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
-                    Open in map
+                    View event
                     <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                   </span>
                 </div>
