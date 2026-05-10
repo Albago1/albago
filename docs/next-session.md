@@ -1,13 +1,74 @@
 # AlbaGo — Next Session Handoff
 
-**Last updated:** 2026-05-11
-**Branch:** main · last work commit `b22bad1` (audit batch)
-**Push state:** main is up to date with origin/main (audit batch + docs already pushed).
+**Last updated:** 2026-05-11 (end-of-session state save)
+**Branch:** `main` · HEAD `c0e1602` (Map FilterBar: Home button + tighter to navbar)
+**Push state:** `main` fully pushed to `origin/main` at `https://github.com/Albago1/albago.git`. Working tree clean.
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · TailwindCSS v4 · Supabase · MapLibre GL
-**Build status:** ✓ `next build` passes — 0 TypeScript errors. 11 routes intact (last verified 2026-05-10).
+**Build status:** ✓ `next build` passed locally on 2026-05-10. No code changes since that have any TypeScript surface area beyond a new icon import + a `Link` wrapper in `FilterBar.tsx` — safe to re-verify, but expected to still pass.
 **Phases 1–6:** Complete and verified.
-**Audit batch (May 10):** Complete and committed.
+**Audit batch (May 10):** Complete, committed, pushed.
 **C2 RLS hardening (May 11):** Complete and verified — database-only migration, no code change.
+**Map FilterBar polish (May 11):** Home button restored + tightened to navbar. Pushed.
+**🚨 NEXT PRIORITY — DEPLOYMENT IS NOT WORKING.** See deployment section below.
+
+---
+
+## 🚨 Deployment status — UNRESOLVED, next session's first priority
+
+The codebase is solid and the database is locked down. The blocker is shipping it to a public URL.
+
+### What was tried this session
+
+1. **Netlify** — `netlify.toml` was added in commit `14cb324` with:
+   ```toml
+   [build]
+     command = "npm run build"
+     publish = ".next"
+
+   [[plugins]]
+     package = "@netlify/plugin-nextjs"
+   ```
+   Deployment **returns 404** on the deployed URL. Build may complete on Netlify, but routing into the Next.js App Router doesn't serve pages. Root cause not yet diagnosed — likely candidates:
+   - Next.js 16 / App Router compatibility with `@netlify/plugin-nextjs` version pinned by Netlify's auto-install
+   - Environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) not configured in Netlify dashboard → pages render but every Supabase call fails → could surface as 404 if those errors crash the route
+   - `publish = ".next"` may be wrong for the Netlify Next.js plugin — the plugin typically manages its own publish dir
+   - Middleware (`proxy.ts` — Next.js 16's renamed `middleware.ts`) may not be picked up by the Netlify plugin
+
+2. **Vercel** — attempted, but **accidentally pointed at the wrong GitHub repo** the first time. Not retried this session. No `vercel.json` exists in the repo. Vercel is the canonical host for Next.js and should "just work" given a clean repo connection + the correct env vars.
+
+### Why deployment is the next priority
+- The app is feature-complete enough for temporary public testing (see safety assessment).
+- Continuing engineering work without a deployed URL means no one outside this machine can use it.
+- Friends / early testers cannot give feedback.
+
+### Exact deployment steps for next session
+
+**Recommended path: switch to Vercel.** It's the lowest-friction Next.js host. Netlify's Next.js plugin lags behind on App Router edge cases. Steps:
+
+1. **Disconnect or pause the Netlify site** (don't delete it yet — keep as fallback). In Netlify dashboard → Site settings → Build & Deploy → Stop auto-publishing.
+2. **Create a Vercel project, pointing at the *correct* repo:** `https://github.com/Albago1/albago.git`, branch `main`. Double-check the repo name matches before clicking import.
+3. **Configure environment variables in Vercel** (Settings → Environment Variables). Copy from `.env.local`:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - Any `SUPABASE_SERVICE_ROLE_KEY` if it's used server-side (check `lib/supabase/server.ts`)
+4. **Trigger a deploy.** Vercel auto-detects Next.js. No `vercel.json` needed.
+5. **If deploy fails:** read the Vercel build log end-to-end. Most common issues:
+   - Missing env vars → build will surface clearly
+   - Image domain not whitelisted → `next.config` may need `images.remotePatterns`
+   - Middleware file naming — Next.js 16 uses `proxy.ts`; Vercel should accept it but worth confirming
+6. **Configure Supabase Auth redirect URLs** in Supabase dashboard → Authentication → URL Configuration. Add the new Vercel preview + production URLs to the allowlist or sign-in / sign-up redirects will break in prod.
+7. **Smoke test the deployed URL:**
+   - Home page renders
+   - `/events` renders with real data
+   - `/map` renders with markers
+   - `/sign-in` flow works end-to-end (the redirect URL is the trap)
+   - `/submit-event` requires login and submits successfully
+
+### Fallback if Vercel also fails
+
+If Vercel deploys but specific routes 404, that's an App Router / framework issue, not a hosting issue. Re-check `next.config.js`, route file naming, and that `proxy.ts` is at the project root (not in `app/`).
+
+If Netlify must be revived: rebuild the `netlify.toml`, remove the `publish = ".next"` line and let `@netlify/plugin-nextjs` set it. Pin the plugin version in `package.json` rather than relying on auto-install. Last resort.
 
 ---
 
@@ -54,6 +115,8 @@ Final policy set on `event_submissions` (4 policies):
 Verified live via `SET LOCAL ROLE anon` insert test (rejected, 42501) and `SET LOCAL ROLE authenticated` + spoofed `submitted_by_user_id` insert test (also rejected). Legitimate signed-in submit flow unchanged; `/submit-event` still redirects anonymous users at the auth gate.
 
 **No code changes.** App-side submit form (`app/submit-event/page.tsx` line 119) already sets `submitted_by_user_id: user.id`, so the tightened policy was already compatible.
+
+**Note on initial verification attempt:** The first proposed browser-console test used `window.supabase.from(...)` and failed with `Cannot read properties of undefined (reading 'from')` because the AlbaGo runtime does NOT expose a global Supabase client on `window`. This was a problem with the verification snippet, not with RLS. The verification was redone correctly inside the Supabase SQL editor using `SET LOCAL ROLE anon` — that is the cleanest verification path for this architecture and should be used for any future RLS spot-checks.
 
 ### H1 — `/events?time=tonight` activates the time filter
 Events page now reads `?time=` from URL on mount with a `'tonight' | 'weekend'` whitelist. The URL-sync effect writes `time=` when the active filter is non-default. The homepage Tonight CTA now actually filters the events page.
@@ -119,7 +182,9 @@ All filter functionality preserved.
 | Phase 6 — Venue detail pages | Complete and verified |
 | Audit batch (May 10) | Complete and committed |
 | **C2 RLS tightening (May 11)** | **Complete and verified — DB only** |
-| Phase 7 | Not started — recommendations below |
+| **Map FilterBar polish (May 11)** | **Home button restored + tightened to `top-[72px]` (commit `c0e1602`)** |
+| **Deployment** | **🚨 Unresolved — Netlify 404, Vercel mis-pointed. Next session's first priority.** |
+| Phase 7 | Not started — only begin after deployment works |
 
 ---
 
@@ -211,11 +276,39 @@ Independent quality-of-life. MapLibre GeoJSON cluster source.
 
 ## Exact next steps for next session
 
-1. Pick a Phase 7 direction (see options above).
-2. Plan-first via `docs/phase-7-plan.md`.
-3. Get approval, then implement.
+**Deployment first. Engineering work blocked behind it.**
 
-No critical audit items remain. Submissions surface is locked down at the DB level. Code-side follow-ups (M5 atomic admin approve, H6 admin venue-link UI) can be folded into a Phase 7 batch or deferred.
+1. **Resolve deployment.** Follow the "Exact deployment steps" in the deployment section above. Recommended path: switch to Vercel pointing at the correct repo with env vars configured. Smoke test all critical routes after deploy.
+2. **Configure Supabase Auth redirect URLs** for the production domain.
+3. Once a public URL works and smoke tests pass, mark deployment as resolved in this doc and the memory file.
+4. **Then and only then,** pick a Phase 7 engineering direction (recommended batch below) and plan-first via `docs/phase-7-plan.md`.
+
+### Recommended next engineering batch (AFTER deployment is fixed)
+
+A small, focused "Eventbrite/Fever-grade polish" batch that delivers visible quality improvements without architectural risk. In suggested commit order:
+
+1. **M9** — kill the dead "Open in Map" link on event detail when `place_id` is null. Hide the CTA or rename it.
+2. **M6** — mobile-tune the homepage hero CTAs (`px-6 py-3 text-base` below sm breakpoint).
+3. **Friendly date formatting** — single helper in `lib/dateFilters.ts`, used by every card. "Tonight · 21:00", "Fri · 9 PM", "May 14" instead of raw timestamps.
+4. **`loading.tsx`** for `/events/[slug]` and `/places/[slug]` — instant page transitions, ~10 lines each.
+5. **Friendly 404s** — `not-found.tsx` per detail route with a "Browse all events" CTA.
+
+After that, larger items: **map clustering** (one focused commit), **image-forward cards** (visible quality jump), **empty states** for filter results, and **Phase 7A saved venues** (mirrors saved events). Detailed scope in the prior session's recommendation block.
+
+### Remaining medium-priority audit items (deferred)
+
+These are all open and tracked in the "Audit findings still open" table above:
+
+- **H6** (high) — submissions with new venues land with `place_id = null`, never on map. Needs at minimum an admin-side guard refusing approval when `place_id IS NULL`; full fix is an in-app venue linker.
+- **M1** — submit-event location dropdown ignores `?location=` referrer context.
+- **M2** — `getLocationBySlug` silently falls back to Tirana for unknown slugs. Synthesize fallback from the slug instead.
+- **M4** — `SaveEventButton` has no error feedback to the user on save failure.
+- **M5** — admin approve flow has a partial-failure window. Wrap in a Postgres function `approve_submission(submission_id)`.
+- **M7** — no `sitemap.xml` / `robots.txt`. Static `app/robots.ts` + dynamic `app/sitemap.ts` listing event/venue slugs.
+- **M8** — hardcoded category list duplicated in 3+ files. Centralize in `lib/categories.ts`.
+- **L1–L10** — small polish items, see original audit transcript.
+
+No critical audit items remain. Submissions surface is locked down at the DB level.
 
 ---
 
@@ -225,15 +318,21 @@ No critical audit items remain. Submissions surface is locked down at the DB lev
 Read docs/next-session.md and CLAUDE.md before starting.
 
 Context:
-- Phases 1–6 + May 10 audit batch + May 11 C2 RLS hardening are all complete.
-- main is clean. Build passes.
-- No critical audit items remain.
+- Phases 1–6 + May 10 audit batch + May 11 C2 RLS hardening + Map FilterBar polish are all complete.
+- main is clean, c0e1602 is HEAD, pushed.
+- Build passes locally.
+- 🚨 Deployment is NOT working — this is the first priority.
+  - Netlify: deployed but routes 404.
+  - Vercel: was tried but pointed at the wrong repo. Not retried since.
 
-I want to start Phase 7: [A — saved venues / B — close audit M-tier /
-  C — H6 stopgap / D — custom 404 / E — map clustering].
+Step 1: Walk me through deploying AlbaGo to Vercel from scratch,
+pointing at the correct repo (https://github.com/Albago1/albago.git).
+Include env-var setup and Supabase auth redirect-URL configuration.
+Smoke-test the public URL on all key routes before declaring it done.
 
-Propose docs/phase-7-plan.md covering scope, files, tests, risks, rollback.
-Wait for approval before implementing.
+Step 2 (only after deploy works): propose docs/phase-7-plan.md for
+the "Eventbrite-grade polish" batch (M9, M6, friendly dates,
+loading.tsx, friendly 404s). Wait for approval before implementing.
 
 Same rules: plan first, get approval, implement.
 ```
