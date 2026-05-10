@@ -636,6 +636,65 @@ When uncertain:
 
 ---
 
+# Established Patterns
+
+These patterns were committed across Phases 4–6 and the May 10 audit batch. New work should follow them rather than invent alternatives.
+
+## Detail pages
+
+Server-rendered routes at `/events/[slug]` and `/places/[slug]`. Each has:
+
+* `'use client'` not used — server component using `lib/supabase/server.ts`
+* `generateMetadata` returning title (`{Name} — AlbaGo`), description (first 160 chars), and OpenGraph block
+* `notFound()` from `next/navigation` on missed lookup
+* Slug as the public route key (events.slug, places.slug both populated and unique)
+
+Repeat this pattern for any new detail route.
+
+## Admin / staff-only routes
+
+Server component does the auth + role guard, redirects to `/dashboard` (or `/sign-in?next=`) on fail. Client logic lives in a sibling `*Client.tsx` component imported only after the guard passes. See `app/admin/page.tsx` + `app/admin/AdminClient.tsx`.
+
+## Per-user owned data (saves, lists, future RSVPs)
+
+Per-user RLS pattern: `user_id = auth.uid()` on SELECT/INSERT/DELETE policies. No UPDATE policy (mutate via delete + insert). `UNIQUE(user_id, foreign_id)` to prevent duplicates. See `saved_events`. Apply the same shape to `saved_places`, `saved_searches`, etc.
+
+## Shared link helpers
+
+Domain helpers go in `lib/<domain>Links.ts` (e.g. `lib/eventLinks.ts` exports `buildMapHref`, `buildDirectionsHref`). Don't store external map URLs in the DB — generate from `lat`/`lng` at render time per `docs/platform-architecture.md` §6.
+
+## Save / favorite buttons
+
+Reusable `<SaveEventButton>` with two size variants (`sm` icon-only on cards, `md` with label on detail pages). Anonymous click → `router.push('/sign-in?next=' + currentPath)`. Authenticated click → optimistic toggle, in-flight lock, revert UI on error. `e.stopPropagation()` + `e.preventDefault()` so it doesn't fire the surrounding card link.
+
+## Location system
+
+`useLocations()` hook returns the hardcoded fallback array immediately, then replaces with DB result. No flicker. Use this in client components that need the city list. `getLocationBySlug` is the lookup helper; note it currently falls back to Tirana for unknown slugs (known issue, tracked in audit M2).
+
+## Auth-gated routes
+
+* Server component: check `supabase.auth.getUser()`, `redirect('/sign-in?next=' + path)` on miss.
+* Client component: `useEffect` on mount, set state, `router.replace` on miss.
+* `next=` parameter on `/sign-in` is validated against `//` and `/\` prefixes for open-redirect safety.
+
+## File organization
+
+```
+app/                routes only
+components/         shared UI
+components/<domain>/ domain-specific (e.g. components/place/PlacePanel.tsx)
+lib/                cross-cutting helpers
+lib/supabase/       browser.ts + server.ts + middleware.ts
+types/              shared TS types
+docs/               plans, audits, handoffs (next-session.md is the rolling state)
+```
+
+## Commits
+
+Plan-first workflow per user preference. Each phase: write `docs/phase-N-plan.md`, get explicit approval, implement, test, commit. Commit messages are `Phase N: short description`. Manual SQL migrations are presented as copy-paste blocks for the user to run in Supabase — never executed programmatically.
+
+---
+
 # Current Priority
 
 Current active focus:

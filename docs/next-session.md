@@ -1,11 +1,12 @@
 # AlbaGo — Next Session Handoff
 
 **Last updated:** 2026-05-10
-**Branch:** main
+**Branch:** main · last commit `b22bad1` (audit batch)
+**Push state:** main is **1 commit ahead of origin/main** at session end — `b22bad1` not yet pushed
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · TailwindCSS v4 · Supabase · MapLibre GL
 **Build status:** ✓ `next build` passes — 0 TypeScript errors. 11 routes intact.
 **Phases 1–6:** Complete and verified.
-**Audit batch (May 10):** Complete and committed.
+**Audit batch (May 10):** Complete and committed (locally).
 
 ---
 
