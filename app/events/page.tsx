@@ -111,8 +111,11 @@ function EventsContent() {
 
   const initialLocation = getLocationBySlug(searchParams.get('location'))
   const initialSearchQuery = searchParams.get('q') || ''
+  const timeParam = searchParams.get('time')
+  const initialTimeFilter: TimeFilter =
+    timeParam === 'tonight' || timeParam === 'weekend' ? timeParam : 'all'
 
-  const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>('all')
+  const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocation.slug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
@@ -247,9 +250,10 @@ function EventsContent() {
     const params = new URLSearchParams()
     params.set('location', activeLocationSlug)
     if (activeCategory !== 'all') params.set('category', activeCategory)
+    if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
     if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
     router.replace(`/events?${params.toString()}`)
-  }, [activeLocationSlug, activeCategory, debouncedSearch, router])
+  }, [activeLocationSlug, activeCategory, activeTimeFilter, debouncedSearch, router])
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {

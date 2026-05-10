@@ -1,12 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
 import {
-  Home,
   MapPin,
   Search,
   SlidersHorizontal,
+  Tag,
   X,
   CalendarDays,
   Moon,
@@ -88,36 +87,43 @@ function DesktopFilterBar(props: FilterBarProps) {
     optionFilter !== 'all' ||
     searchQuery.trim() !== ''
 
-  return (
-    <div className="absolute left-4 top-4 z-20 w-[720px] max-w-[calc(100%-2rem)]">
-      <div className="rounded-[26px] border border-white/10 bg-[#070b14]/88 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-              aria-label="Go home"
-            >
-              <Home className="h-4 w-4" />
-            </Link>
+  const hasTags = availableOptionChips.length > 0
+  const tagsActive = optionFilter !== 'all'
+  const [showTags, setShowTags] = useState(tagsActive)
 
+  return (
+    <div className="absolute left-4 top-20 z-20 w-[600px] max-w-[calc(100%-2rem)]">
+      <div className="rounded-2xl border border-white/10 bg-[#070b14]/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
                 placeholder="Search places..."
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20 focus:bg-white/[0.06]"
+                className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
               />
             </div>
 
-            <div className="shrink-0">
-              <LanguageSwitcher />
+            <div className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] pl-2.5 pr-1">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-white/50" />
+              <select
+                value={activeLocationSlug}
+                onChange={(e) => onLocationChange(e.target.value)}
+                className="cursor-pointer bg-transparent pr-1 text-sm text-white/85 outline-none"
+              >
+                {locationOptions.map((loc) => (
+                  <option key={loc.slug} value={loc.slug} className="bg-[#0b1020]">
+                    {loc.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {timeFilters.map((filter) => {
               const isActive = activeTimeFilter === filter
               const Icon =
@@ -133,17 +139,19 @@ function DesktopFilterBar(props: FilterBarProps) {
                   type="button"
                   onClick={() => onTimeFilterChange(filter)}
                   className={[
-                    'inline-flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition',
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
                     isActive
                       ? 'border-white/15 bg-white text-black'
                       : 'border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white',
                   ].join(' ')}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                   {getTimeFilterLabel(filter)}
                 </button>
               )
             })}
+
+            <span className="shrink-0 self-center px-1 text-white/15">·</span>
 
             {categories
               .filter((category) => category !== 'all')
@@ -156,7 +164,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                     type="button"
                     onClick={() => onCategoryChange(isActive ? 'all' : category)}
                     className={[
-                      'inline-flex shrink-0 items-center rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition',
+                      'inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition',
                       isActive
                         ? 'border-[#3b82f6]/40 bg-[#3b82f6]/20 text-white'
                         : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
@@ -166,15 +174,32 @@ function DesktopFilterBar(props: FilterBarProps) {
                   </button>
                 )
               })}
+
+            {hasTags && (
+              <button
+                type="button"
+                onClick={() => setShowTags((value) => !value)}
+                aria-expanded={showTags}
+                className={[
+                  'ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                  showTags || tagsActive
+                    ? 'border-white/15 bg-white/[0.08] text-white'
+                    : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
+                ].join(' ')}
+              >
+                <Tag className="h-3.5 w-3.5" />
+                Tags
+              </button>
+            )}
           </div>
 
-          {availableOptionChips.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {hasTags && showTags && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <button
                 type="button"
                 onClick={() => onOptionFilterChange('all')}
                 className={[
-                  'shrink-0 rounded-full border px-3 py-1.5 text-sm transition',
+                  'shrink-0 rounded-full border px-2.5 py-1 text-xs transition',
                   optionFilter === 'all'
                     ? 'border-white/15 bg-white/10 text-white'
                     : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white',
@@ -194,7 +219,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                       onOptionFilterChange(isActive ? 'all' : option)
                     }
                     className={[
-                      'shrink-0 rounded-full border px-3 py-1.5 text-sm transition',
+                      'shrink-0 rounded-full border px-2.5 py-1 text-xs transition',
                       isActive
                         ? 'border-white/15 bg-white text-black'
                         : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white',
@@ -207,39 +232,20 @@ function DesktopFilterBar(props: FilterBarProps) {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] pl-2.5 pr-1 py-1.5">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-white/50" />
-                <select
-                  value={activeLocationSlug}
-                  onChange={(e) => onLocationChange(e.target.value)}
-                  className="bg-transparent text-sm text-white/80 outline-none cursor-pointer pr-1"
-                >
-                  {locationOptions.map((loc) => (
-                    <option key={loc.slug} value={loc.slug} className="bg-[#0b1020]">
-                      {loc.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75">
-                <span className="font-semibold text-white">
-                  {visiblePlacesCount} {visiblePlacesCount === 1 ? 'place' : 'places'}
-                </span>
-                <span className="text-white/20">•</span>
-                <span>
-                  {visibleEventsCount} {visibleEventsCount === 1 ? 'event' : 'events'}
-                </span>
-              </div>
+          <div className="flex items-center justify-between gap-3 px-1 pt-0.5 text-xs text-white/55">
+            <div>
+              <span className="font-semibold text-white/85">{visiblePlacesCount}</span>{' '}
+              {visiblePlacesCount === 1 ? 'place' : 'places'}
+              <span className="mx-1.5 text-white/20">·</span>
+              <span className="font-semibold text-white/85">{visibleEventsCount}</span>{' '}
+              {visibleEventsCount === 1 ? 'event' : 'events'}
             </div>
 
             {hasActiveFilters && (
               <button
                 type="button"
                 onClick={onReset}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-white/75 transition hover:bg-white/[0.08] hover:text-white"
+                className="text-xs font-medium text-white/55 transition hover:text-white"
               >
                 Reset
               </button>
@@ -304,17 +310,9 @@ function MobileFilterBar(props: FilterBarProps) {
 
   return (
     <>
-      <div className="absolute left-3 right-3 top-3 z-20 md:hidden">
-        <div className="rounded-[26px] border border-white/10 bg-[#070b14]/86 p-2.5 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+      <div className="absolute left-3 right-3 top-20 z-20 md:hidden">
+        <div className="rounded-2xl border border-white/10 bg-[#070b14]/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-              aria-label="Go home"
-            >
-              <Home className="h-4 w-4" />
-            </Link>
-
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               <input

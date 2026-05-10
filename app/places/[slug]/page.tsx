@@ -59,6 +59,7 @@ async function fetchVenue(slug: string): Promise<VenueRecord | null> {
       'id, slug, name, category, description, address, city, country, lat, lng, website_url, image_url, location_slug, verified, status'
     )
     .eq('slug', slug)
+    .or('status.eq.active,status.is.null')
     .maybeSingle()
   return (data as VenueRecord | null) ?? null
 }

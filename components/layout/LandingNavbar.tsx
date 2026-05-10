@@ -75,7 +75,7 @@ export default function LandingNavbar() {
     router.refresh()
   }
 
-  if (pathname === '/map') return null
+  const isMapRoute = pathname === '/map'
 
   const navItems = [
     { href: '/', label: t('nav_home'), icon: Home, active: pathname === '/' },
@@ -100,7 +100,7 @@ export default function LandingNavbar() {
   ]
 
   return (
-    <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#070b14]/80 backdrop-blur-xl">
+    <nav className={`fixed inset-x-0 top-0 z-50 backdrop-blur-xl ${isMapRoute ? 'border-b border-white/[0.06] bg-[#070b14]/55' : 'border-b border-white/10 bg-[#070b14]/80'}`}>
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <Link
           href="/"

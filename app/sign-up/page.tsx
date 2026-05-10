@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 
 export default function SignUpPage() {
+  const router = useRouter()
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -19,7 +21,7 @@ export default function SignUpPage() {
     setMessage(null)
     setErrorMessage(null)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     })
@@ -31,7 +33,13 @@ export default function SignUpPage() {
       return
     }
 
-    setMessage('Account created. Check your email if confirmation is required.')
+    if (data.session) {
+      router.push('/')
+      router.refresh()
+      return
+    }
+
+    setMessage('Account created. Check your email to confirm, then sign in.')
   }
 
   return (
@@ -67,7 +75,13 @@ export default function SignUpPage() {
 
           {message && (
             <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-200">
-              {message}
+              <p>{message}</p>
+              <Link
+                href="/sign-in"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/20 px-3 py-1.5 text-xs font-semibold text-green-100 transition hover:bg-green-500/30"
+              >
+                Go to sign in →
+              </Link>
             </div>
           )}
 

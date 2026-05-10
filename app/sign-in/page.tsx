@@ -33,7 +33,13 @@ function SignInForm() {
       return
     }
 
-    router.push(next.startsWith('/') ? next : '/')
+    const safeNext =
+      next.startsWith('/') &&
+      !next.startsWith('//') &&
+      !next.startsWith('/\\')
+        ? next
+        : '/'
+    router.push(safeNext)
     router.refresh()
   }
 

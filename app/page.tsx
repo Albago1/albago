@@ -172,6 +172,7 @@ export default function HomePage() {
             city: loc ? `${loc.city ?? loc.label}, ${loc.country}` : p.country,
             address: p.address ?? undefined,
             websiteUrl: p.website_url ?? undefined,
+            verified: p.verified ?? false,
             status: p.status ?? undefined,
           }
         })
@@ -841,10 +842,12 @@ export default function HomePage() {
                       {place.category}
                     </span>
 
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-400">
-                      <BadgeCheck className="h-3.5 w-3.5" />
-                      Verified
-                    </span>
+                    {place.verified && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-400">
+                        <BadgeCheck className="h-3.5 w-3.5" />
+                        Verified
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="mt-4 text-xl font-semibold text-white">
