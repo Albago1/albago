@@ -1,12 +1,13 @@
 # AlbaGo — Next Session Handoff
 
-**Last updated:** 2026-05-10
+**Last updated:** 2026-05-11
 **Branch:** main · last work commit `b22bad1` (audit batch)
-**Push state:** main is **ahead of origin/main** at session end — audit batch and this state-save commit not yet pushed (run `git status` to see exact delta)
+**Push state:** main is up to date with origin/main (audit batch + docs already pushed).
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · TailwindCSS v4 · Supabase · MapLibre GL
-**Build status:** ✓ `next build` passes — 0 TypeScript errors. 11 routes intact.
+**Build status:** ✓ `next build` passes — 0 TypeScript errors. 11 routes intact (last verified 2026-05-10).
 **Phases 1–6:** Complete and verified.
-**Audit batch (May 10):** Complete and committed (locally).
+**Audit batch (May 10):** Complete and committed.
+**C2 RLS hardening (May 11):** Complete and verified — database-only migration, no code change.
 
 ---
 
@@ -23,17 +24,36 @@ The audit batch landed as a single commit covering 7 fixes plus a FilterBar poli
 ### C1 — Admin role guard on `/admin`
 The admin route now does a server-side check: redirects to `/sign-in?next=/admin` if not authenticated, redirects to `/dashboard` if `profile.role !== 'admin'`. Previously any logged-in user could load the admin UI. The page is split into `app/admin/page.tsx` (server component, the guard) and `app/admin/AdminClient.tsx` (the existing client logic — state, approve/reject, JSX). Mirrors the pattern already used by `/dashboard`.
 
-### C2 — SQL verification for `event_submissions` policies
-**Not yet run.** The verification query was provided but the user committed before reporting results. **Action for next session:** run the query in Supabase and report. If policies are too permissive, send a follow-up SQL tightening.
+### C2 — `event_submissions` RLS tightening (resolved 2026-05-11)
+Verification query exposed three problems on `event_submissions`:
+
+1. **`submissions_public_insert` with `WITH CHECK true`** — wide-open INSERT, any caller (incl. anonymous), bypassed the stricter `submissions_insert`.
+2. **`Anyone can create event submissions` with `WITH CHECK (status = 'pending')`** — also permitted anonymous inserts.
+3. **Duplicate / dead policies:** `Admins can read submissions`, `submissions_admin_select`, `Admins can update submissions`, plus the inert `Users cannot read submissions publicly` (qual=false, contributes nothing under RLS OR semantics).
+
+Database migration applied (manual SQL):
 
 ```sql
-SELECT policyname, cmd, roles, qual, with_check
-FROM pg_policies
-WHERE tablename = 'event_submissions'
-ORDER BY policyname;
+DROP POLICY IF EXISTS "submissions_public_insert" ON event_submissions;
+DROP POLICY IF EXISTS "Anyone can create event submissions" ON event_submissions;
+DROP POLICY IF EXISTS "Users cannot read submissions publicly" ON event_submissions;
+DROP POLICY IF EXISTS "Admins can read submissions" ON event_submissions;
+DROP POLICY IF EXISTS "submissions_admin_select" ON event_submissions;
+DROP POLICY IF EXISTS "Admins can update submissions" ON event_submissions;
 ```
 
-Looking for: SELECT restricted to `submitted_by_user_id = auth.uid()` (or admin); INSERT with `with_check` enforcing same; UPDATE/DELETE admin-only.
+Final policy set on `event_submissions` (4 policies):
+
+| policyname | cmd | rule |
+|---|---|---|
+| `submissions_insert` | INSERT | `auth.uid() IS NOT NULL AND submitted_by_user_id = auth.uid()` |
+| `submissions_select` | SELECT | `submitted_by_user_id = auth.uid() OR is_admin()` |
+| `submissions_admin_update` | UPDATE | `is_admin()` |
+| `submissions_admin_delete` | DELETE | `is_admin()` |
+
+Verified live via `SET LOCAL ROLE anon` insert test (rejected, 42501) and `SET LOCAL ROLE authenticated` + spoofed `submitted_by_user_id` insert test (also rejected). Legitimate signed-in submit flow unchanged; `/submit-event` still redirects anonymous users at the auth gate.
+
+**No code changes.** App-side submit form (`app/submit-event/page.tsx` line 119) already sets `submitted_by_user_id: user.id`, so the tightened policy was already compatible.
 
 ### H1 — `/events?time=tonight` activates the time filter
 Events page now reads `?time=` from URL on mount with a `'tonight' | 'weekend'` whitelist. The URL-sync effect writes `time=` when the active filter is non-default. The homepage Tonight CTA now actually filters the events page.
@@ -97,18 +117,18 @@ All filter functionality preserved.
 | Phase 4 — Event detail pages | Complete and verified |
 | Phase 5 — Saved events | Complete and verified |
 | Phase 6 — Venue detail pages | Complete and verified |
-| **Audit batch (May 10)** | **Complete and committed** |
+| Audit batch (May 10) | Complete and committed |
+| **C2 RLS tightening (May 11)** | **Complete and verified — DB only** |
 | Phase 7 | Not started — recommendations below |
 
 ---
 
-## Audit findings still open (deferred from this session)
+## Audit findings still open
 
-The audit identified more issues than this batch shipped. Open items, in rough priority order:
+C2 is resolved (see section above). Remaining open items, in rough priority order:
 
 | Tag | Issue | Severity | Notes |
 |---|---|---|---|
-| C2 | SQL verification of `event_submissions` policies | critical | Run query above, report. May need policy tightening. |
 | H6 | Submitted events with new venue → `place_id = null` after approval, never on map | high | Architectural gap. Stopgap: refuse approval when `place_id IS NULL`. Full fix: in-app venue linker for admins. |
 | M1 | Submit-event location dropdown ignores referrer context | medium | Read `?location=` from URL on mount; pass through from homepage CTA. |
 | M2 | `getLocationBySlug` silently falls back to Tirana for unknown slugs | medium | Synthesize a fallback `LocationOption` from the slug instead. |
@@ -161,7 +181,7 @@ proxy.ts               Next.js 16 middleware
 |---|---|
 | `events` | `slug` populated and unique. RLS public read where `status='published'`. |
 | `places` | `slug` populated and unique. `verified` boolean — UI now respects it. RLS public read. |
-| `event_submissions` | **C2 verification pending** — run the SQL above. |
+| `event_submissions` | RLS hardened 2026-05-11 — 4 policies (insert-self / select-own-or-admin / update-admin / delete-admin). |
 | `cities` | RLS public read confirmed. |
 | `profiles` | Self read only. `role` ('user'\|'admin'). |
 | `saved_events` | Per-user RLS (SELECT/INSERT/DELETE all `user_id = auth.uid()`). |
@@ -191,10 +211,11 @@ Independent quality-of-life. MapLibre GeoJSON cluster source.
 
 ## Exact next steps for next session
 
-1. **Run the C2 SQL verification** and report results. This is the only remaining critical audit item.
-2. Pick a Phase 7 direction.
-3. Plan-first via `docs/phase-7-plan.md`.
-4. Get approval, then implement.
+1. Pick a Phase 7 direction (see options above).
+2. Plan-first via `docs/phase-7-plan.md`.
+3. Get approval, then implement.
+
+No critical audit items remain. Submissions surface is locked down at the DB level. Code-side follow-ups (M5 atomic admin approve, H6 admin venue-link UI) can be folded into a Phase 7 batch or deferred.
 
 ---
 
@@ -204,13 +225,11 @@ Independent quality-of-life. MapLibre GeoJSON cluster source.
 Read docs/next-session.md and CLAUDE.md before starting.
 
 Context:
-- Phases 1, 2, 3, 4, 5, 6 + audit batch are complete and committed.
+- Phases 1–6 + May 10 audit batch + May 11 C2 RLS hardening are all complete.
 - main is clean. Build passes.
-- C2 SQL verification still pending — please run the query in next-session.md
-  and report the policies on event_submissions.
+- No critical audit items remain.
 
-After C2:
-- I want to start Phase 7: [A — saved venues / B — close audit M-tier /
+I want to start Phase 7: [A — saved venues / B — close audit M-tier /
   C — H6 stopgap / D — custom 404 / E — map clustering].
 
 Propose docs/phase-7-plan.md covering scope, files, tests, risks, rollback.
