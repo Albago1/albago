@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
+  Home,
   MapPin,
   Search,
   SlidersHorizontal,
@@ -92,10 +94,18 @@ function DesktopFilterBar(props: FilterBarProps) {
   const [showTags, setShowTags] = useState(tagsActive)
 
   return (
-    <div className="absolute left-4 top-20 z-20 w-[600px] max-w-[calc(100%-2rem)]">
+    <div className="absolute left-4 top-[72px] z-20 w-[600px] max-w-[calc(100%-2rem)]">
       <div className="rounded-2xl border border-white/10 bg-[#070b14]/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
+            <Link
+              href="/"
+              aria-label="Home"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/75 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              <Home className="h-4 w-4" />
+            </Link>
+
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               <input
@@ -310,9 +320,17 @@ function MobileFilterBar(props: FilterBarProps) {
 
   return (
     <>
-      <div className="absolute left-3 right-3 top-20 z-20 md:hidden">
+      <div className="absolute left-3 right-3 top-[72px] z-20 md:hidden">
         <div className="rounded-2xl border border-white/10 bg-[#070b14]/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              aria-label="Home"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/85 transition hover:bg-white/[0.08]"
+            >
+              <Home className="h-4 w-4" />
+            </Link>
+
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               <input
