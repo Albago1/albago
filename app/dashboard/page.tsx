@@ -9,11 +9,13 @@ import {
   ArrowRight,
   Send,
   Heart,
+  Building2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SavedEventsList, { type SavedEventCard } from '@/components/SavedEventsList'
 import { getLocationBySlug } from '@/lib/locations'
+import { fetchOrganizer } from '@/lib/organizers'
 
 type SavedEventRow = {
   saved_at: string
@@ -216,13 +218,14 @@ export default async function DashboardPage() {
   }
 
   // — Regular user view —
-  const [submissionsRes, savedEvents] = await Promise.all([
+  const [submissionsRes, savedEvents, organizer] = await Promise.all([
     supabase
       .from('event_submissions')
       .select('id, title, venue_name, date, status, admin_note, created_at')
       .eq('submitted_by_user_id', user.id)
       .order('created_at', { ascending: false }),
     fetchSavedEventCards(supabase, user.id),
+    fetchOrganizer(supabase),
   ])
 
   const userSubmissions: Submission[] = submissionsRes.data ?? []
@@ -251,6 +254,28 @@ export default async function DashboardPage() {
             Submit event
           </Link>
         </div>
+
+        <Link
+          href={organizer ? '/organizer' : '/become-organizer'}
+          className="group mt-8 flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/15 hover:bg-white/[0.05]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+              <Building2 className="h-5 w-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-white">
+                {organizer ? 'Organizer dashboard' : 'Organise events on AlbaGo'}
+              </p>
+              {!organizer && (
+                <p className="mt-0.5 text-sm text-white/50">
+                  Apply to become a verified organizer
+                </p>
+              )}
+            </div>
+          </div>
+          <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
+        </Link>
 
         <div className="mt-8">
           <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
