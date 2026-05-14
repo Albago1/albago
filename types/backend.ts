@@ -1,4 +1,4 @@
-export type EventStatus = 'published' | 'draft' | 'archived'
+export type EventStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'cancelled' | 'completed'
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected'
 export type UserRole = 'user' | 'organizer' | 'admin'
 
