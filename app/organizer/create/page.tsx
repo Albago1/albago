@@ -2,26 +2,23 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOrganizer } from '@/lib/organizers'
-import { fetchOrganizerEvents } from '@/lib/events-organizer'
-import OrganizerDashboardClient from './OrganizerDashboardClient'
+import CreateEventClient from './CreateEventClient'
 
 export const metadata: Metadata = {
-  title: 'Organizer Dashboard',
+  title: 'Create Event — AlbaGo',
 }
 
-export default async function OrganizerPage() {
+export default async function CreateEventPage() {
   const supabase = await createClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) redirect('/sign-in?next=/organizer')
+  if (!user) redirect('/sign-in?next=/organizer/create')
 
   const organizer = await fetchOrganizer(supabase)
   if (!organizer) redirect('/onboarding/organizer')
 
-  const events = await fetchOrganizerEvents(supabase)
-
-  return <OrganizerDashboardClient organizer={organizer} events={events} />
+  return <CreateEventClient />
 }
