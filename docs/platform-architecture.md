@@ -1,702 +1,752 @@
 # AlbaGo — Platform Architecture
 
-**Version:** 1.0  
-**Date:** 2026-05-07  
-**Status:** Design reference — not yet implemented
+**Version:** 2.0
+**Date:** 2026-05-14
+**Status:** Canonical reference — supersedes v1.0 (2026-05-07)
+**Applies from:** Phase 7B onwards
+
+This document is the authoritative system reference for AlbaGo. All phase plans, schema migrations, RLS policies, and architectural decisions must be consistent with it. When a decision conflicts with this document, update this document first and record the reason.
 
 ---
 
-## Preface: current state vs. intended state
+## 1. What AlbaGo Is
 
-`app/docs/backend-plan.md` and `types/backend.ts` already contain the right intuitions: `BackendPlace` has `city`, `address`, `verified`; `BackendEventSubmission` has `submitted_by_user_id`, `place_id`, `admin_note`; `UserRole` already defines `organizer`. The intended schema was planned. The gap is that the live Supabase database and application code never fully implemented it — the `location_slug` crutch, missing `city`/`address` data on venues, the anonymous submission form with a text `venue_name` field instead of a venue FK, and the hardcoded `lib/locations.ts` all exist because the foundation was never laid correctly. This document designs that foundation.
+AlbaGo is a **live discovery and event publishing platform** for nightlife, culture, and local experience — initially focused on Albania and the Balkans, designed to scale internationally.
 
-Environment variables required (never hardcode in source files):
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+It is three platforms in one, at different stages of maturity:
 
----
-
-## 1. User types
-
-**Anonymous visitor**  
-Can browse everything: home page, events page, map, individual venue panels. Cannot save events, submit events, or access any write operations. This is the largest user group and every page must be fully usable without an account. Conversion to signed-up should be gentle, not forced.
-
-**Logged-in regular user**  
-Everything anonymous users can do, plus: save events to a personal list, submit event suggestions (goes to moderation queue), view their own submission history and status. No dashboard — just a simple `/profile` page with saved events and submitted events.
-
-**Event organizer**  
-Elevated role above regular user. Organizers run events at real venues regularly. They get: a dedicated `/organizer` dashboard showing all their submitted events, the ability to edit their own pending events, the ability to cancel or postpone events they own, faster moderation (trusted submissions), and an organizer profile page that lists their events publicly. Organizer status is granted by an admin, either on request or automatically after N approved submissions.
-
-**Venue owner / manager**  
-A future role. A venue owner can claim an existing venue in the DB (via a verification flow), after which they can: edit the venue's description and photos, add recurring events, and see attendance stats. One venue can have multiple managers. Venue owners cannot approve their own events — moderation still applies.
-
-**Admin / moderator**  
-Full access. Can approve/reject event submissions, edit any event or venue, mark venues as verified, grant organizer status, merge duplicate venues, view audit logs, manage users. The current `/admin` and `/dashboard` pages serve this role and will need to expand.
-
-**Future ticket buyer**  
-A regular logged-in user who has made a purchase. Has an `/orders` page showing purchase history and QR codes for check-in. No separate user type needed.
-
----
-
-## 2. Event discovery UX
-
-The core discovery question: *"What can I do tonight in [place], and how do I get there?"* Every flow should answer this in as few taps as possible.
-
-**By city / location**  
-The search bar behaves like Airbnb's destination picker. User types a city name → dropdown shows matching cities from the `cities` table plus live geocoding suggestions. Selecting a city sets the active location and refetches events. The URL updates (`/events?city=berlin`). The active city is always visible in the page header.
-
-**By current GPS location**  
-Tap GPS button → browser asks permission → if granted, reverse-geocode coordinates to find the nearest city or the city the user is actually in → set as active location. If denied, fall back gracefully without false defaults. On mobile this is a first-class feature.
-
-**By date**  
-"Tonight", "This Weekend", "Next Week", and a custom date range picker. Time filters should be prominent pills, not buried in a filter sheet. "Tonight" is always first — it's the most common query.
-
-**By category**  
-Category pills: All / Nightlife / Music / Sports / Culture / Food. Mutually exclusive, toggleable. Scroll horizontally on mobile.
-
-**By distance**  
-Only relevant once GPS access is granted. "Events near me" becomes a sort mode: events ordered by distance from user's coordinates, with distance displayed on each card ("0.8 km away"). Requires lat/lng on events (denormalized from venues).
-
-**By venue**  
-Clicking a venue on the map opens the place panel showing all upcoming events. The `/map?place=X` URL pattern already works well. Future: venues get their own pages at `/venues/[slug]`.
-
-**By search query**  
-Free text search across event titles, descriptions, venue names, categories, and city names. Uses Postgres full-text search (`tsvector`) maintained by trigger. Executed server-side, not client-side filter.
-
-**By map area**  
-"Search this area" button appears when the user pans the map. Clicking it queries events within the current viewport bounding box via `map.getBounds()`.
-
-**When no events exist in a searched location**  
-Never show empty state that feels like failure. Show venue markers for that city even if no events exist, show a CTA to submit an event ("Know of something happening here? Submit it"), suggest upcoming events in nearby cities. Message: "Nothing scheduled yet — be the first to add one."
-
----
-
-## 3. Location and venue architecture
-
-**The core problem**  
-The current app conflates three concepts:
-1. A geographic region used for filtering (the `location_slug` system)
-2. A venue/place shown on the map (the `places` table)
-3. A city used for display context
-
-These must be separated.
-
-**Geographic hierarchy**  
-Cities and regions should be stored as data, not as a hardcoded TypeScript file. The `lib/locations.ts` file with 4 entries should be replaced by a `cities` table in Supabase. Each city has: `id`, `slug`, `name`, `country`, `country_code`, `lat`, `lng`, `timezone`, `is_featured` (controls which cities appear in the quick-pick UI).
-
-**Venues table** (rename from `places`)  
-The `places` table should become `venues`. All the right columns already exist in the `BackendPlace` type — they just aren't fully populated in the live DB. Full ideal column set:
-
-```
-id              uuid PK
-name            text NOT NULL
-slug            text UNIQUE NOT NULL
-category        text NOT NULL
-description     text
-address         text
-city            text
-country         text
-country_code    text
-lat             float8
-lng             float8
-google_place_id text UNIQUE         -- deduplication key
-cover_image_url text
-images          text[]
-website_url     text
-phone           text
-options         text[]
-status          text DEFAULT 'active'   -- 'pending', 'active', 'inactive'
-verified        boolean DEFAULT false
-claimed_by      uuid FK profiles(id)
-created_by      uuid FK profiles(id)
-location_slug   text                    -- kept for migration compatibility
-created_at      timestamptz
-updated_at      timestamptz
-```
-
-**Why `google_place_id` is critical**  
-It is a globally unique, stable identifier for any real-world venue. Even without calling the Google Places API, storing this field when available prevents duplicate venue records. Two submissions for "Radio Bar, Tirana" are the same venue if they share a Google Place ID. Without it, you need fuzzy name matching to detect duplicates.
-
-**How events attach to venues**  
-`events.venue_id` (renamed from `place_id`) is a nullable FK to `venues`. Nullable because: (a) some events are outdoor/pop-up with no fixed venue, (b) a submission may reference a venue not yet created. When `venue_id` is null, the event must have `venue_name` (text), `city`, and `country` columns for display. The admin's job during moderation is to link submissions to real venue records.
-
-**Map marker generation**  
-Markers come from the `venues` table, not from events. A venue appears on the map regardless of whether it has upcoming events — it shows an "empty" state when selected. When events exist, the marker gets a count badge. This matches how Google Maps works: the place exists independently of what's happening there.
-
-**Duplicate venue prevention**  
-Three layers:
-1. `google_place_id` UNIQUE constraint — hard deduplication if Google ID is available
-2. Admin review of new venue submissions before going live
-3. In the submission form: fuzzy search against existing venues before allowing "create new", so organizers see and can select an existing match
-
-**What happens if the venue doesn't exist yet**  
-1. Organizer types venue name → search queries `venues` table
-2. Results show matched venues with address/category to help distinguish
-3. If no match → "Can't find your venue? Add it"
-4. Inline venue creation collects: name, address (geocoded to lat/lng), category
-5. New venue created with `status: 'pending'` — visible to admin, not yet on public map
-6. Event submission references the pending venue ID
-7. When admin approves the event, they also review and activate the venue
-
----
-
-## 4. Event submission flow
-
-**Current problem**  
-The submission form captures `venue_name` as free text. This means: the event has no real venue link, the admin has to manually match venue names to DB records, and every approval requires extra work.
-
-**Ideal organizer submission flow**
-
-Step 1 — Venue selection  
-Search bar queries `venues` table. Shows name + address + category of each result. "Not listed → Add new venue" if no match.
-
-Step 2 — Event details (all on one page)  
-- Title (required)
-- Category (required, predefined list)
-- Date (required)
-- Start time (required)
-- End time (optional)
-- Description (required, min 50 chars to enforce quality)
-- Cover image upload (optional, Supabase Storage)
-
-Step 3 — Ticket information  
-- Free event toggle (default on)
-- If not free: price range or single price, external ticket URL
-- Optional: "Tickets available on the platform" (future)
-
-Step 4 — Submitter information  
-- Contact email (pre-filled if logged in)
-- Organizer name / organization (optional)
-- Note to reviewer (optional)
-
-Step 5 — Review and submit  
-Summary before final submit. Clear statement: "Your event will be reviewed before appearing on the map."
-
-**Required vs optional fields**  
-Required: title, venue (can be pending), date, start time, category, description, contact email  
-Optional: end time, price, ticket URL, cover image, organizer name, note to reviewer
-
-**After submission**  
-Success screen with submission ID. If logged in, status viewable at `/profile`. Email notification on admin decision (via Supabase trigger).
-
-**Edit after submission**  
-Allowed while `status = 'pending'`. If already `approved`, editing creates a new draft submission that goes back through moderation — original event remains live.
-
-**Cancellation / postponement**  
-Organizers can mark their own events as `cancelled` or `postponed` from their organizer dashboard. Requires `organizer_id = auth.uid()` ownership check.
-
----
-
-## 5. Map integration
-
-**Marker strategy**  
-Two types:
-1. Venue markers — always present, show venue name
-2. Event count badge — overlaid when upcoming filtered events exist (`1`, `2+`, `Hot`)
-
-Selected state: marker scales up, changes to white background. Place panel opens alongside.
-
-**Clustering**  
-MapLibre GL natively supports clustering via GeoJSON source with `cluster: true`. When zoom is below a threshold, nearby markers cluster into a count bubble. Add when the map has 30+ venues.
-
-**"Search this area" button**  
-Appears after the user pans the map. Clicking takes `map.getBounds()` → `{north, south, east, west}` → queries `venues` and `events` within those bounds:
-```sql
-WHERE lat BETWEEN :south AND :north
-AND lng BETWEEN :west AND :east
-```
-
-**Opening external navigation**  
-Generated from stored `lat`/`lng` at render time. Never store pre-built URLs in the DB.
-
-```
-Google Maps view:       https://maps.google.com/?q={lat},{lng}
-Google Maps directions: https://www.google.com/maps/dir/?api=1&destination={lat},{lng}
-Apple Maps view:        https://maps.apple.com/?ll={lat},{lng}&q={venue_name}
-Apple Maps directions:  https://maps.apple.com/?daddr={lat},{lng}
-```
-
-On iOS, Apple Maps URLs open the Maps app natively. On Android/desktop, Google Maps URLs open the app or browser.
-
-**Handling missing coordinates**  
-Events where `lat`/`lng` is null: show in the events list but not on the map. The place panel can show the address text even without a pin.
-
-**Filter persistence**  
-Map filter state (time, category, location) always lives in the URL via `useSearchParams`. Extend to support viewport coordinates for "search this area".
-
----
-
-## 6. Google Maps / Apple Maps interoperability
-
-**Store coordinates, not external URLs**  
-Never store Google Maps or Apple Maps URLs in the DB. Store `lat`, `lng`, and optionally `google_place_id`. Generate navigation URLs at render time. Reasons:
-- Google has changed URL formats multiple times historically
-- Coordinates are portable — usable for distance calculations, clustering, any future map provider
-- Apple Maps URLs only work on Apple devices
-
-**Google Places API decision**  
-Do not use the Google Places API yet. It is powerful but expensive at scale:
-- Autocomplete: ~$0.0028/request
-- Place Details: ~$0.017/request
-- Nearby Search: ~$0.032/request
-
-For MVP:
-- Use Nominatim (free, OpenStreetMap) for geocoding addresses to lat/lng
-- Store `google_place_id` when it becomes available for deduplication
-- Let organizers paste an address and geocode it with Nominatim
-
-When the platform grows past ~10,000 MAU, introduce Google Places autocomplete in the venue search field only. Cache results in the `venues` table so each venue is fetched only once.
-
-**Platform detection for navigation buttons**  
-iOS: show both Apple Maps and Google Maps buttons (Apple Maps is native).  
-Android / Desktop: show Google Maps button only (Apple Maps is browser-only on these platforms).
-
----
-
-## 7. Database design
-
-### `profiles` (extend existing)
-
-```sql
-id              uuid PK REFERENCES auth.users(id)
-email           text
-display_name    text
-avatar_url      text
-role            text DEFAULT 'user'          -- 'user', 'organizer', 'admin', 'moderator'
-organizer_name  text
-organizer_bio   text
-organizer_verified boolean DEFAULT false
-created_at      timestamptz
-updated_at      timestamptz
-```
-
-Purpose: user identity and role management.  
-RLS: users read/update their own row (non-role fields only). Only admins update `role`.  
-Indexes: `id` (PK), `role`.
-
----
-
-### `venues` (rename from `places`, add missing columns)
-
-```sql
-id              uuid PK DEFAULT gen_random_uuid()
-name            text NOT NULL
-slug            text UNIQUE NOT NULL
-category        text NOT NULL
-description     text
-address         text
-city            text
-country         text
-country_code    text
-lat             float8
-lng             float8
-google_place_id text UNIQUE
-cover_image_url text
-images          text[]
-website_url     text
-phone           text
-options         text[]
-status          text NOT NULL DEFAULT 'active'   -- 'pending', 'active', 'inactive'
-verified        boolean DEFAULT false
-claimed_by      uuid REFERENCES profiles(id)
-created_by      uuid REFERENCES profiles(id)
-location_slug   text                             -- migration compatibility, deprecate in Phase 6
-created_at      timestamptz DEFAULT now()
-updated_at      timestamptz DEFAULT now()
-```
-
-Purpose: real-world venues that appear on the map.  
-RLS: anyone reads `status = 'active'`. Admins insert/update any. Claimed owners update non-critical fields on their own venue.  
-Indexes: `slug`, `google_place_id`, `location_slug`, `status`, `(lat, lng)`, `(city, country)`.
-
----
-
-### `events` (extend existing)
-
-```sql
-id              uuid PK DEFAULT gen_random_uuid()
-title           text NOT NULL
-slug            text UNIQUE NOT NULL
-venue_id        uuid REFERENCES venues(id) ON DELETE SET NULL   -- renamed from place_id
-venue_name      text                    -- display fallback when venue_id is null
-city            text                    -- denormalized for search
-country         text
-country_code    text
-lat             float8                  -- denormalized from venue for bbox queries
-lng             float8
-category        text NOT NULL
-description     text
-cover_image_url text
-date            date NOT NULL
-time            time NOT NULL
-end_time        time
-is_free         boolean DEFAULT true
-price_display   text                    -- e.g. "500 ALL" or "€10–€20"
-ticket_url      text
-highlight       boolean DEFAULT false
-status          text NOT NULL DEFAULT 'pending'  -- 'pending','published','rejected','cancelled','postponed'
-organizer_id    uuid REFERENCES profiles(id)
-search_vector   tsvector               -- maintained by trigger
-location_slug   text                   -- migration compatibility, deprecate in Phase 6
-created_at      timestamptz DEFAULT now()
-updated_at      timestamptz DEFAULT now()
-```
-
-Full-text search trigger:
-```sql
-CREATE OR REPLACE FUNCTION events_search_vector_update()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  NEW.search_vector := to_tsvector('english',
-    coalesce(NEW.title, '')       || ' ' ||
-    coalesce(NEW.description, '') || ' ' ||
-    coalesce(NEW.city, '')        || ' ' ||
-    coalesce(NEW.venue_name, '')
-  );
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER events_search_vector_trigger
-BEFORE INSERT OR UPDATE ON events
-FOR EACH ROW EXECUTE FUNCTION events_search_vector_update();
-
-CREATE INDEX events_search_vector_idx ON events USING gin(search_vector);
-```
-
-RLS: anyone reads `status = 'published'`. Organizers read/update their own. Admins full access.  
-Indexes: `status`, `date`, `venue_id`, `organizer_id`, `location_slug`, `(lat, lng)`, `(city, country)`, GIN on `search_vector`.
-
----
-
-### `event_submissions` (restructure)
-
-```sql
-id              uuid PK DEFAULT gen_random_uuid()
-submitter_id    uuid REFERENCES profiles(id)    -- null = anonymous
-contact_email   text NOT NULL
-title           text NOT NULL
-venue_id        uuid REFERENCES venues(id)       -- set when venue found in DB
-venue_name      text                             -- set when venue_id is null
-city            text
-country         text
-category        text NOT NULL
-description     text
-date            date NOT NULL
-time            time NOT NULL
-end_time        time
-is_free         boolean DEFAULT true
-price_display   text
-ticket_url      text
-cover_image_url text
-note_to_reviewer text
-status          text NOT NULL DEFAULT 'pending'  -- 'pending','approved','rejected','more_info_needed'
-admin_notes     text
-reviewed_by     uuid REFERENCES profiles(id)
-reviewed_at     timestamptz
-event_id        uuid REFERENCES events(id)       -- set after approval
-created_at      timestamptz DEFAULT now()
-updated_at      timestamptz DEFAULT now()
-```
-
-RLS: submitters read their own rows. Admins full access.
-
----
-
-### `cities` (new — replaces `lib/locations.ts`)
-
-```sql
-id              uuid PK DEFAULT gen_random_uuid()
-slug            text UNIQUE NOT NULL
-name            text NOT NULL
-country         text NOT NULL
-country_code    text NOT NULL
-lat             float8 NOT NULL
-lng             float8 NOT NULL
-timezone        text
-zoom            float8 DEFAULT 12.5
-is_featured     boolean DEFAULT false    -- appears in quick-pick UI
-created_at      timestamptz DEFAULT now()
-```
-
-Purpose: curated list of cities for quick-pick UI and map camera defaults. Not a gate on what cities events can exist in.  
-Seed: the 4 current locations from `lib/locations.ts`.
-
----
-
-### `saved_events` (new)
-
-```sql
-id              uuid PK DEFAULT gen_random_uuid()
-user_id         uuid REFERENCES profiles(id) ON DELETE CASCADE
-event_id        uuid REFERENCES events(id) ON DELETE CASCADE
-saved_at        timestamptz DEFAULT now()
-UNIQUE(user_id, event_id)
-```
-
-RLS: users read/write their own rows only.
-
----
-
-### `venue_claims` (new — future Phase 4)
-
-```sql
-id              uuid PK DEFAULT gen_random_uuid()
-venue_id        uuid REFERENCES venues(id)
-claimant_id     uuid REFERENCES profiles(id)
-status          text DEFAULT 'pending'    -- 'pending', 'approved', 'rejected'
-verification_note text
-reviewed_by     uuid REFERENCES profiles(id)
-created_at      timestamptz DEFAULT now()
-reviewed_at     timestamptz
-```
-
----
-
-### Future tables (design now, implement Phase 5–6)
-
-**`tickets`** — ticket tiers per event (name, price, quantity, sale window)  
-**`orders`** — purchase records linking user + event + ticket tier(s), Stripe payment intent ID  
-**`order_items`** — individual tickets within an order, each with a unique QR code  
-**`audit_log`** — append-only log of every status change on events and venues (who, what, old status, new status, timestamp)
-
----
-
-## 8. Ticketing future
-
-**Phase 0 (now):** Store `is_free`, `price_display`, and `ticket_url` on events. Show "Buy Tickets" button that opens external URL. Zero platform infrastructure required.
-
-**Phase 1 (internal):** Add `tickets` table with tiers. Organizers configure tiers when creating events. "Get Tickets" modal on the platform. No payment yet — collect attendee info and send confirmation email.
-
-**Phase 2 (Stripe):**
-- Organizer connects a Stripe account via Stripe Connect
-- User buys a ticket → Stripe PaymentIntent with destination charge to organizer
-- Platform takes a percentage fee via `application_fee_amount`
-- On success: create `order` + `order_items` records, generate unique QR code per item
-- Send QR code to buyer via email
-
-**Phase 3 (check-in):**
-- Organizer opens check-in URL on mobile
-- Scan QR code → verify against `order_items`
-- Mark `checked_in_at`, prevent duplicate scans
-
-**Key decisions:**  
-QR codes must be random tokens (UUID or signed JWT), not sequential IDs — prevents guessing. Refunds are processed via Stripe API, reflected as `status: 'refunded'` on the order. Platform never handles raw card numbers — PCI compliance delegated entirely to Stripe.
-
----
-
-## 9. Moderation and trust
-
-**Current system gaps:**  
-No way to ask for more info without rejecting. No submitter notification. No audit trail. Fully anonymous submissions possible.
-
-**Submission statuses:**  
-`pending` → `under_review` → `approved` | `rejected` | `more_info_needed`
-
-`more_info_needed`: admin adds a note, submitter is notified by email. Submission re-enters queue when updated.
-
-**Submission confidence scoring:**  
-Each submission gets a trust score that guides auto-approval:
-- Verified organizer account: +40
-- Submission links to a verified venue: +20
-- Has cover image: +10
-- Anonymous submission: −20
-- Account < 7 days old: −10
-
-Score ≥ 70 → auto-approve. Everything else → moderation queue. Admins tune the threshold.
-
-**Duplicate venue detection:**  
-1. `google_place_id` UNIQUE constraint (hard)
-2. Fuzzy match: `WHERE similarity(name, :input) > 0.6 AND city = :city` via `pg_trgm`
-3. Show potential duplicates to admin with "Merge" option
-
-**Duplicate event detection:**  
-Same venue + same date + similar title → flag as potential duplicate. Admin must dismiss the flag consciously.
-
-**Reporting:**  
-Logged-in users can report events or venues (wrong info, spam, cancelled). Three reports on the same item surfaces it for review.
-
-**Audit log:**  
-Every status change on events and venues appends a row to `audit_log`: who, what table, what ID, old status, new status, note, timestamp. Read-only for admins.
-
-**Organizer verification:**  
-User submits a request with organization name, social/website link, and description. Admin approves → `profiles.role = 'organizer'`, `organizer_verified = true`. Verified organizer events get a badge.
-
----
-
-## 10. Search architecture
-
-**Layer 1 — City search (geocoding)**  
-User types a city name → query `cities` table first. If not found, call Nominatim:
-```
-https://nominatim.openstreetmap.org/search?q={query}&format=json&limit=5&addressdetails=1
-```
-Free, no API key, rate limit 1 req/sec — acceptable with debouncing. Cache successful lookups in a `geocode_cache` table to avoid repeated calls for the same city.
-
-**Layer 2 — Bounding box query**  
-Once lat/lng is known (from city selection, GPS, or map viewport), query events:
-```sql
-SELECT * FROM events
-WHERE status = 'published'
-  AND lat BETWEEN :south AND :north
-  AND lng BETWEEN :west AND :east
-ORDER BY date ASC, time ASC
-```
-Works without PostGIS. Index on `(lat, lng)` makes it fast.
-
-**Layer 3 — Full-text search**  
-```sql
-SELECT * FROM events
-WHERE status = 'published'
-  AND search_vector @@ plainto_tsquery('english', :query)
-ORDER BY ts_rank(search_vector, plainto_tsquery('english', :query)) DESC
-```
-
-**Layer 4 — PostGIS (future)**  
-When dataset grows large enough that bbox queries slow down, add the PostGIS extension and a `GEOGRAPHY` column. Enables `ST_DWithin` for true radius search and more efficient spatial indexing. Application API stays unchanged — only the SQL changes.
-
-**Combined query pattern:**
-```sql
-SELECT e.*, v.name AS venue_name
-FROM events e
-LEFT JOIN venues v ON e.venue_id = v.id
-WHERE e.status = 'published'
-  AND (:query   IS NULL OR e.search_vector @@ plainto_tsquery('english', :query))
-  AND (:slug    IS NULL OR e.location_slug = :slug)
-  AND (:cat     IS NULL OR :cat = 'all' OR e.category = :cat)
-  AND (:time    IS NULL OR
-        (:time = 'tonight' AND e.date = CURRENT_DATE) OR
-        (:time = 'weekend' AND e.date BETWEEN :fri AND :sun))
-ORDER BY e.highlight DESC, e.date ASC, e.time ASC
-```
-
----
-
-## 11. Migration strategy
-
-Principle: never break working features. Each phase is independently deployable and testable.
-
-### Phase 0 — Baseline (current)
-Working app: Supabase, auth, map, events page, admin. `location_slug` crutch. 4 hardcoded locations. No address/navigation on venues.
-
-### Phase 1 — Venue foundation
-**Goal:** Make venues proper first-class entities with address and navigation links.
-
-DB changes:
-- Add missing columns to `places` table: `address`, `google_place_id`, `website_url`, `status`, `verified` (aligns with what `BackendPlace` already defines)
-- Create `cities` table, seed with 4 current locations
-
-App changes:
-- `lib/locations.ts` → fetches from `cities` table at runtime (hardcoded array stays as fallback)
-- `PlacePanel.tsx` → shows address, "Get Directions" button, website link
-- `types/backend.ts` → verify all fields match the updated table
-
-**Testable when:** 4 locations still work, place panel shows address and directions button.
-
-### Phase 2 — Event submission improvement
-**Goal:** Submissions reference real venue records, not free text.
-
-DB changes:
-- Add `venue_id` (nullable FK) to `event_submissions`
-- Add `note_to_reviewer`, `is_free`, `ticket_url` to `event_submissions`
-
-App changes:
-- `/submit-event` gets venue search step
-- Admin page shows linked venue and allows linking submissions to existing venues
-
-### Phase 3 — Global location search
-**Goal:** Any city in the world, not just 4 preset ones.
-
-DB changes:
-- Add `search_vector` column + trigger to `events`
-- Add `(lat, lng)` index to `events`
-- Add `geocode_cache` table
-
-App changes:
-- Home page location picker becomes real autocomplete (Nominatim)
-- Events page location selector becomes search input
-- "Search this area" button on the map
-- Bounding box query when a geocoded city is used
-
-### Phase 4 — Organizer dashboard
-**Goal:** Organizers manage their own events.
-
-DB changes: `events.organizer_id` column, `organizer` role usage in profiles
-
-App changes: `/organizer` dashboard, edit/cancel/postpone own events, admin grants organizer status
-
-### Phase 5 — Ticketing foundation (external links)
-**Goal:** Events carry ticket information; external purchase links.
-
-DB changes: `is_free`, `price_display`, `ticket_url` on events and submissions
-
-App changes: ticket section in submission form, "Free" / "Buy Tickets" labels on cards, ticket info in place panel
-
-### Phase 6 — Rename places → venues (breaking migration)
-Execute when schema is stable and Phase 5 is complete.
-1. `ALTER TABLE places RENAME TO venues;`
-2. Rename FK columns: `events.place_id` → `events.venue_id`
-3. Update all application code
-4. Drop `location_slug` once city/country is fully populated
-5. Requires maintenance window and tested rollback SQL
-
----
-
-## 12. Product roadmap
-
-| Phase | Focus | Duration |
+| Layer | Description | Status |
 |---|---|---|
-| 1 | Venue & location foundation | Weeks 1–3 |
-| 2 | Submission improvement & moderation | Weeks 4–6 |
-| 3 | Global discovery & search | Weeks 7–10 |
-| 4 | Organizer dashboard | Weeks 11–14 |
-| 5 | Ticketing foundation (external links) | Weeks 15–18 |
-| 6 | Payments, QR codes, check-in | Months 5–8 |
+| **Discovery Platform** | Browse events, venues, maps, search, save | Live |
+| **Organizer Platform** | Onboarding, event creation, moderation, dashboard | Phase 7 |
+| **Commerce Platform** | Checkout, tickets, orders, payouts, analytics | Phase 7E+ |
+
+These three layers must be kept **architecturally separate** as the codebase grows:
+- Discovery must stay **fast, public, and SEO-first**
+- Organizer must stay **authenticated and workflow-oriented**
+- Commerce must become **transactional and highly secure**
+
+Mixing responsibilities between layers is the primary source of long-term technical debt in platforms of this type. Every new feature should be placed in exactly one layer.
 
 ---
 
-## 13. Risks
+## 2. The Three Platform Layers
 
-**Google API cost**  
-Google Places Autocomplete can cost ~$0.0028/request. 10,000 venue searches/day at 5 keystrokes each = $140/day. Use Nominatim as primary geocoder. Reserve Google Places for deduplication only (one call per new venue created, not per keystroke).
+### Layer 1 — Discovery Platform
 
-**Bad location data**  
-Wrong coordinates → wrong map pin → wrong navigation directions. Every venue created by a non-admin must go to `status: 'pending'` and be reviewed before public display. Never trust user-submitted coordinates without review.
+**Goal:** Any visitor anywhere in the world opens AlbaGo and instantly finds what is happening near them tonight.
 
-**Map performance at scale**  
-MapLibre handles 100–200 markers. Above that, mobile frame rate degrades. Enable clustering (built into MapLibre GeoJSON source) and server-side viewport filtering (only fetch venues within map bounds, not entire DB).
+**Access:** Public (no account required). Auth adds features (save events), never blocks discovery.
 
-**Auth and RLS complexity**  
-Multiple roles with different permissions across many tables. A mistake in RLS can expose private data or silently block legitimate access. Write explicit permission tests for each role before deploying policy changes.
+**Surfaces:**
+- `/` — Homepage: featured events, trending venues, search, location picker
+- `/events` — Events discovery: filterable, searchable, location-aware
+- `/events/[slug]` — Event detail: SEO-optimised, server-rendered
+- `/places/[slug]` — Venue detail: SEO-optimised, upcoming events list
+- `/map` — Interactive map: venue markers, event filters, place panel
+- `/dashboard` (saved events section) — Personal bookmarks
 
-**Duplicate venues**  
-Without Google Place ID enforcement, the same real venue will accumulate multiple DB records. Events split across them. The longer this persists, the worse it gets. Mitigation: fuzzy matching in submission form, admin merge tool, and `google_place_id` UNIQUE constraint.
+**Principles:**
+- Every route is fully functional for anonymous users
+- Conversion to auth is gentle, contextual, never forced
+- Performance is a feature — server rendering, no waterfall fetches
+- Public pages generate SEO metadata (`generateMetadata` on every detail route)
 
-**Ticket and payment liability**  
-Processing payments creates legal obligations: PCI compliance (delegated to Stripe), refund policies, potential payments license in some jurisdictions. Do not build payment processing until there is a legal entity, terms of service, and privacy policy. Phase 6 depends on this.
+### Layer 2 — Organizer Platform
 
-**Schema migration mistakes**  
-Renaming `places` to `venues`, removing `location_slug`, restructuring FKs are destructive changes with existing production data. Every migration must have a tested rollback SQL. Use `ADD COLUMN` before `DROP COLUMN` patterns. Never run destructive migrations without a backup.
+**Goal:** Any user can become an organizer instantly and publish events that reach the discovery layer.
 
-**`location_slug` as a hidden dependency**  
-Every event record contains a hardcoded string tied to 4 cities. If slugs change or new cities are added, queries break silently. Phase 3 must replace this with `city`/`country` columns before the event count grows too large to migrate.
+**Access:** Authenticated only. No separate organizer account type — organizer is a **capability extension** of a normal user.
+
+**Surfaces:**
+- `/become-organizer` — Public landing page for organizer discovery
+- `/onboarding/organizer` — Onboarding survey (runs once, auto-triggered before first event)
+- `/organizer` — Organizer dashboard: event list, status counts, actions
+- `/organizer/events/new` — Event creation wizard
+- `/organizer/events/[id]/edit` — Edit draft or rejected event
+- `/organizer/events/[id]/preview` — Preview as-public before submission
+- `/organizer/settings` — Organizer profile management
+- `/admin` (pending events tab) — Admin moderation of organizer-submitted events
+
+**Principles:**
+- "Create Event" is a primary surface — visible at the navbar level for all logged-in users
+- Organizer onboarding is a prerequisite step inside the create-event flow, not a separate registration
+- State transitions are enforced by Postgres functions (RPC), not client logic
+- Organizers can see their own events in any state; public cannot see non-published events
+
+### Layer 3 — Commerce Platform (future)
+
+**Goal:** Organizers sell tickets on-platform; buyers have a seamless purchase and check-in experience.
+
+**Access:** Authenticated for purchase. Organizer account + payment provider verification for selling.
+
+**Surfaces (planned):**
+- Ticket section on `/events/[slug]` — ticket tiers, purchase CTA
+- `/checkout/[event-slug]` — purchase flow (redirect to provider for MVP)
+- `/orders` — buyer order history, QR codes
+- `/organizer/orders` — organizer revenue view per event
+- `/organizer/payouts` — payout history
+
+**Principles:**
+- Commerce never touches Discovery routes directly — ticket CTAs link out from event pages
+- All financial state lives in DB functions and payment provider webhooks, never in client state
+- RLS on financial tables must be written at a higher security standard than content tables
+- Design for provider-agnosticism: `ticket_purchases` is provider-neutral; Stripe is a plugin below it
 
 ---
 
-## 14. Immediate next step
+## 3. Actors
 
-**Phase 1 — Venue foundation.**
+An actor is a user or system agent with a defined permission set. AlbaGo has five actors:
 
-Three concrete actions:
+### Anonymous Visitor
+- Can browse all published content: events, venues, map, detail pages
+- Cannot save events, create events, or perform any write operation
+- Largest user group — every public page must be fully functional for this actor
+- Conversion to auth is encouraged at contextual moments (heart button, "submit event")
 
-1. **Add missing columns to the `places` table**: `address`, `google_place_id`, `website_url`, `status`, `verified`. These are already planned in `BackendPlace` — they just don't exist in the live DB yet.
+### Authenticated User
+- Everything anonymous visitors can do, plus:
+  - Save events to personal list
+  - Submit events via community form (`/submit-event`)
+  - View their own submission history and status on `/dashboard`
+- Can become an organizer at any time without changing account type
+- Identified by: valid Supabase auth session, `profiles.role = 'user'`
 
-2. **Create the `cities` table** with the 4 current locations seeded. Update `lib/locations.ts` to query this table at runtime, with the current hardcoded array as fallback during the transition.
+### Organizer (a capability, not a role)
+- An authenticated user who has a row in the `organizers` table
+- Identified by: auth session + `organizers.id = auth.uid()`
+- **Not** a separate account type. **Not** `profiles.role = 'organizer'`. This distinction matters.
+- Can: create event drafts, manage own events, configure ticket tiers, submit for review
+- Cannot: approve their own events, bypass moderation, modify other organizers' events
 
-3. **Update `PlacePanel.tsx`** to display `address` and show "Get Directions" / "Open in Maps" buttons generated from stored `lat`/`lng`. This is the highest-visibility user-facing improvement and is immediately testable without any other changes.
+### Admin
+- An authenticated user with `profiles.role = 'admin'`
+- Identified by: auth session + `is_admin()` Postgres function returns true
+- Can: approve/reject both moderation queues, edit any event or venue, verify organizers, manage users
+- `is_admin()` is **load-bearing** — all admin RLS depends on it; see §9
 
-Everything else — global search, organizer flow, ticketing — depends on venues being real, addressable, navigable entities. Phase 1 is the prerequisite for all of it.
+### System (future)
+- Automated jobs running with service-role credentials (e.g., set `status = 'completed'` after event date passes)
+- Never exposed via public API
+- Service-role bypasses RLS — use sparingly and only for defined, auditable operations
 
 ---
 
-*See `docs/phase-1-plan.md` for the detailed implementation plan for Phase 1.*
+## 4. System Map
+
+```mermaid
+graph TD
+  subgraph Discovery["Layer 1: Discovery Platform"]
+    Home["/"]
+    Events["/events"]
+    EventDetail["/events/[slug]"]
+    PlaceDetail["/places/[slug]"]
+    Map["/map"]
+    Dashboard_saved["/dashboard (saved events)"]
+  end
+
+  subgraph Organizer["Layer 2: Organizer Platform"]
+    BecomeOrg["/become-organizer"]
+    Onboarding["/onboarding/organizer"]
+    OrgDash["/organizer"]
+    Wizard["/organizer/events/new"]
+    WizardEdit["/organizer/events/[id]/edit"]
+    Admin["/admin"]
+  end
+
+  subgraph Commerce["Layer 3: Commerce (future)"]
+    Checkout["/checkout/[slug]"]
+    Orders["/orders"]
+    OrgOrders["/organizer/orders"]
+  end
+
+  subgraph DB["Database (Supabase)"]
+    EventsTable["events"]
+    PlacesTable["places"]
+    OrganizersTable["organizers"]
+    SubmissionsTable["event_submissions"]
+    TicketsTable["event_tickets (Phase 7C)"]
+    PurchasesTable["ticket_purchases (Phase 7E)"]
+    CitiesTable["cities"]
+    ProfilesTable["profiles"]
+    SavedEventsTable["saved_events"]
+    OnboardingTable["organizer_onboarding_responses"]
+  end
+
+  Home --> EventsTable
+  Home --> PlacesTable
+  Events --> EventsTable
+  EventDetail --> EventsTable
+  PlaceDetail --> PlacesTable
+  Map --> PlacesTable
+  Map --> EventsTable
+
+  Wizard --> EventsTable
+  Wizard --> PlacesTable
+  OrgDash --> EventsTable
+  Admin --> EventsTable
+  Admin --> SubmissionsTable
+
+  EventDetail --> TicketsTable
+  Checkout --> PurchasesTable
+  OrgOrders --> PurchasesTable
+```
+
+---
+
+## 5. Event Lifecycle — Formal Specification
+
+The event lifecycle is a **first-class architecture concern**. RLS policies, dashboard logic, moderation workflows, and future commerce features all depend on correctly understanding and enforcing these states.
+
+### States
+
+| State | Actor Who Sets It | Publicly Visible | Organizer Can Edit |
+|---|---|---|---|
+| `draft` | Organizer (on create) | No | Yes |
+| `pending_review` | Organizer (on submit) | No | No — locked |
+| `published` | Admin (on approve) | Yes | No — contact admin |
+| `rejected` | Admin (on reject) | No | Yes — resubmit |
+| `cancelled` *(future)* | Organizer or Admin | Yes — with label | Organizer (limited) |
+| `completed` *(future)* | System (scheduled job, after date passes) | Yes — archived | No |
+
+### Transitions
+
+```
+[DRAFT] ──submit_event_for_review()──► [PENDING_REVIEW]
+                                               │
+                          ┌────────────────────┤
+                          ▼                    ▼
+                     [PUBLISHED]          [REJECTED]
+                          │                    │
+                          │              organizer edits
+                          │                    │
+                     [CANCELLED]◄──────────────┘
+                     (future)       resubmit → [PENDING_REVIEW]
+                          │
+                     [COMPLETED]
+                     (future, system)
+```
+
+### Invariants (non-negotiable)
+
+1. Only the organizer who owns an event (or an admin) can edit it while in `draft` or `rejected`.
+2. No organizer can edit an event in `pending_review` or `published` — it is locked.
+3. `draft` and `pending_review` are NEVER publicly visible. Not on the homepage, not on `/events`, not on the map, not on `/events/[slug]` for non-owners.
+4. `rejected` is NEVER publicly visible. The organizer sees it in their dashboard with the admin note.
+5. State transitions happen exclusively inside Postgres RPC functions. Client code never directly updates `events.status`.
+6. `published_at` is set by `approve_event()` and is immutable thereafter.
+7. An event's slug is set on first save and never regenerated (even if title changes), because the slug is a permanent public URL.
+
+### Visibility Matrix
+
+| Status | Anon | Auth non-owner | Organizer (owner) | Admin |
+|---|---|---|---|---|
+| `draft` | ✗ | ✗ | Read + Write | Read + Write |
+| `pending_review` | ✗ | ✗ | Read only | Read + Write |
+| `published` | ✓ | ✓ | Read only | Read + Write |
+| `rejected` | ✗ | ✗ | Read + Write | Read + Write |
+| `cancelled` *(future)* | ✓ with label | ✓ with label | Read + limited write | Read + Write |
+| `completed` *(future)* | ✓ archived | ✓ archived | Read only | Read + Write |
+
+### Status as TEXT (not ENUM)
+
+Postgres ENUM types require `ALTER TYPE ... ADD VALUE` which cannot run inside a transaction and may block on large tables. `events.status` uses `TEXT` with a `CHECK` constraint:
+
+```sql
+CONSTRAINT events_status_check CHECK (
+  status IN ('draft', 'pending_review', 'published', 'rejected', 'cancelled', 'completed')
+)
+```
+
+Adding new values requires only updating this constraint. This is the pattern for all status-like columns in the codebase.
+
+---
+
+## 6. Event Origin Taxonomy
+
+AlbaGo has multiple event ingestion paths. Every event should be traceable to its origin for moderation filtering, analytics, and fraud detection. The `event_origin` vocabulary is defined here even though it is not yet a DB column — it will be added in Phase 7B.
+
+| Origin | Table | Description |
+|---|---|---|
+| `organizer_dashboard` | `events` | Created by an organizer via the wizard. Has `organizer_id` set. |
+| `community_submission` | `event_submissions` | Submitted via `/submit-event` by any authenticated user. Low-friction. |
+| `admin_seeded` | `events` | Directly inserted by admins. `organizer_id` null. The current event catalogue. |
+| `imported` | `events` | Ingested from an external data source (future). `organizer_id` null. |
+
+### Community submissions are a permanent strategic asset
+
+Community submissions (`event_submissions`) are **NOT** a legacy system or a stepping stone to the organizer flow. They are a **complementary low-friction ingestion channel** that serves a different audience:
+
+- An Albanian resident who knows about a local festival but is not an event organizer
+- A tourist who spotted a poster for something happening tonight
+- A venue regular who wants to flag an event to the community
+
+These contributors should never be forced through organizer onboarding. The friction is the point: less commitment → lower quality floor → moderation handles it. More commitment → higher quality floor → organizer track.
+
+**The two tracks are forever parallel.** Never merge them into one table or one flow.
+
+---
+
+## 7. Ownership Model
+
+### Terminology
+
+| Term | Definition |
+|---|---|
+| **Creator user** | The authenticated user (auth.uid()) who initiated an event or submission |
+| **Organizer entity** | The row in the `organizers` table linked to that user |
+| **Event ownership** | The binding between an event and its organizer (`events.organizer_id = organizers.id`) |
+| **Moderation state** | The current lifecycle status of an event as it moves through review |
+| **Public visibility state** | Whether an event is visible to anonymous users (only `published`, `cancelled`, `completed`) |
+
+### Event ownership rules
+
+- `events.organizer_id` is **nullable**. Community submissions and admin-seeded events have no organizer.
+- Ownership is established at event creation and is **immutable** — events cannot be re-assigned between organizers.
+- Ownership check in RLS: `auth.uid() = organizers.id` where `organizers.id` is the FK value in `events.organizer_id`. Since `organizers.id = auth.users.id` (1:1 model), this simplifies to `auth.uid() = events.organizer_id`.
+- An admin can edit any event regardless of ownership.
+
+### Organizer model — 1:1 today, many-to-many tomorrow
+
+Current: `organizers.id = auth.users.id`. One user → one organizer identity.
+
+When teams are needed (planned Phase 7D): add `organizer_members(organizer_id, user_id, role, created_at)`. RLS checks will migrate from `auth.uid() = organizer_id` to `EXISTS (SELECT 1 FROM organizer_members WHERE user_id = auth.uid() AND organizer_id = ...)`. This migration is wide but mechanical — every event/ticket RLS policy updates in one batch. The `organizers` table schema does not change.
+
+### Venue ownership — future concept
+
+Currently, `places` are passive records owned by no one. Future:
+
+```
+organizer ──► organizer_venue_claims ◄──► places
+```
+
+A `organizer_venue_claims` join table (pending/verified/rejected states) allows an organizer to claim stewardship of a venue. Verified venue owners can update venue details and create recurring event templates. They cannot approve their own events — moderation still applies.
+
+**Schema impact today:** The `places` table needs no changes. The `organizers` table needs no changes. Only a join table is added. No current decision closes this door.
+
+---
+
+## 8. Moderation Model and Philosophy
+
+### Philosophy
+
+AlbaGo is a **curated platform with lightweight friction**.
+
+- It is NOT self-publishing (anything posted goes live automatically)
+- It is NOT fully closed (only the team can post)
+- It IS moderated: human review is the quality gate
+
+This philosophy is intentional. It protects the discovery experience (no spam events polluting the map), builds organizer trust (published events carry an implicit quality signal), and enables the platform to scale internationally without becoming a repository of garbage.
+
+### Moderation tracks
+
+```
+Community Track                          Organizer Track
+─────────────                            ───────────────
+/submit-event                            /organizer/events/new
+     │                                         │
+     ▼                                         ▼
+event_submissions                          events (draft)
+(status: pending)                               │
+     │                                  submit_event_for_review()
+     ▼                                         │
+  /admin                                        ▼
+(Submissions tab)                          events (pending_review)
+     │                                         │
+  admin reviews                             /admin
+     │                                  (Pending Events tab)
+     ├── approve ──► creates events row       │
+     │               (status: published)   admin reviews
+     │                                         │
+     └── reject ──► submission rejected         ├── approve_event()
+                                               │    events → published
+                                               │
+                                               └── reject_event()
+                                                    events → rejected
+                                                    → organizer edits
+                                                    → resubmit
+```
+
+The two tracks are **distinct operations**:
+- Approving a community submission **creates** a new `events` row
+- Approving an organizer event **flips the status** of an existing `events` row
+
+The admin UI must make this distinction visually clear — two separate tabs, two separate action handlers, never shared code between them.
+
+### Moderation states for community submissions
+
+| State | Meaning |
+|---|---|
+| `pending` | Awaiting admin review |
+| `approved` | Admin approved; corresponding `events` row created |
+| `rejected` | Admin rejected with note; submitter notified |
+| `more_info_needed` *(future)* | Admin requests clarification; submission pauses, submitter edits |
+
+### What gets auto-approved (future trust scoring)
+
+No auto-approval in MVP. Every event goes through human review. Future trust score gates:
+
+- Verified organizer + previously approved events → eligible for auto-approval
+- Score components: approval rate, account age, verified badge, event quality signals
+- Admins tune the threshold; default is "never auto-approve"
+
+### Anti-spam and anti-fraud roadmap
+
+Document now; implement as adoption grows:
+
+**Tier 1 — Before Phase 7E (before ticket sales):**
+- Rate limit event creation: max N drafts per organizer per rolling 24h window (server-side, Supabase Edge Function)
+- Duplicate event detection: same `organizer_id` + same `date` + fuzzy title match → flag for admin
+- Email verification enforced before organizer onboarding (Supabase can require this at auth level)
+- Account age heuristic: accounts < 7 days old receive higher scrutiny flag in admin UI
+
+**Tier 2 — At scale:**
+- Organizer trust score (stored in `organizers` table, updated by DB trigger on approval/rejection)
+- Public event reporting: "Report this event" CTA → creates `event_reports` row → after N reports, auto-surfaces to moderation queue
+- Duplicate venue prevention: fuzzy match + `google_place_id` UNIQUE constraint
+
+**Tier 3 — Commerce phase:**
+- Phone verification for organizers who enable ticket sales
+- Velocity checks on ticket purchases (multiple purchases from same IP/card in short window)
+- Fraud detection webhook from payment provider
+- Chargeback monitoring
+
+---
+
+## 9. Security Boundaries
+
+This is a **hard architectural rule** that applies to all code written for AlbaGo:
+
+```
+RLS            = final security boundary    (DB layer, cannot be bypassed by app)
+RPC functions  = transactional workflows    (enforce invariants, atomic multi-table ops)
+Server guards  = UX routing gates           (redirect unauthorized users, not a security layer)
+Frontend       = UX validation only         (never trusted for security decisions)
+```
+
+### Implications
+
+**RLS is not optional.** If a Supabase RLS policy is wrong, a correctly-formed client API call WILL expose or corrupt data. Server-side code and React components cannot compensate for a missing or incorrect policy. RLS must be written and verified first; application code builds on top of it.
+
+**Server component guards are UX, not security.** A `redirect('/sign-in')` in a server component prevents unauthorized users from seeing the page. It does NOT prevent them from calling the Supabase API directly (e.g., via Postman, curl, or a tampered client). The RLS policy is what actually blocks the operation.
+
+**Frontend validation is for user experience only.** A disabled "Next" button on a wizard step prevents accidental bad submissions. It does not prevent a user from submitting malformed data via the network. The `submit_event_for_review()` RPC function validates required fields server-side before any state transition.
+
+**Never trust `organizer_id` passed from the client.** Any RPC function that takes an `organizer_id` parameter must validate it against `auth.uid()`. Use `SECURITY INVOKER` functions (already established) so RLS still applies. Never use `SECURITY DEFINER` for organizer-facing functions.
+
+### `is_admin()` — load-bearing function
+
+Every admin RLS policy across all tables uses `public.is_admin()`. This function:
+- Reads `profiles.role = 'admin'` for the current `auth.uid()`
+- Must never be renamed, dropped, or have its semantics changed without a full policy audit
+- Must be verified before each Phase that adds new admin-dependent policies:
+
+```sql
+SELECT prosrc FROM pg_proc WHERE proname = 'is_admin';
+-- Expected output: SELECT (role = 'admin') FROM profiles WHERE id = auth.uid()
+```
+
+---
+
+## 10. RLS Philosophy
+
+Each table follows a consistent policy structure:
+
+```
+SELECT  — minimum visibility needed (public where safe, owner + admin otherwise)
+INSERT  — caller proves ownership at write time via WITH CHECK (auth.uid() = owner_field)
+UPDATE  — state-conditional: owner can edit in mutable states; admin can always edit
+DELETE  — admin only; prefer soft-delete (status = 'deleted') over hard delete
+```
+
+### Soft deletes are preferred
+
+Hard deletes destroy audit trails and make recovery impossible. Status transitions to `'deleted'` or `'cancelled'` preserve history. Reserve hard deletes for test data cleanup and GDPR deletion requests (which require a documented process regardless).
+
+### Policy naming convention
+
+```
+{table}_{operation}_{actor}
+
+organizers_select_public
+organizers_insert_self
+organizers_update_self_or_admin
+organizers_delete_admin
+
+events_select_public_or_owner_or_admin
+events_insert_organizer
+events_update_owner_draft_or_admin
+events_delete_admin
+```
+
+Consistent naming makes policy audits tractable. Every new policy must follow this pattern.
+
+### Verification requirement
+
+Every migration that adds new RLS policies must include verification queries in the migration document. Minimum tests per table:
+
+1. Anonymous user: expected operation fails (42501) or returns empty set
+2. Authenticated non-owner: cannot read private rows or write others' rows
+3. Owner: can read own rows, write in permitted states
+4. Admin: can read and write anything
+
+Use `SET LOCAL ROLE anon` and explicit role testing (not browser-level testing) for DB-layer verification.
+
+---
+
+## 11. Permission Map
+
+Full permission matrix for the current production tables:
+
+| Table | Anon SELECT | Auth SELECT | Owner SELECT | Admin SELECT | INSERT | Owner UPDATE | Admin UPDATE | DELETE |
+|---|---|---|---|---|---|---|---|---|
+| `events` | published only | published only | any status | any | organizer only | draft/rejected only | any | admin only |
+| `places` | active/null | active/null | — | any | admin only | — | any | admin only |
+| `profiles` | — | own only | own | any | system trigger | own (non-role) | any | admin only |
+| `organizers` | any | any | own | any | self (=auth.uid()) | own | any | admin only |
+| `organizer_onboarding_responses` | — | own | own | any | self | self | any | admin only |
+| `event_submissions` | — | own | own | any | self | own+pending | any | admin only |
+| `saved_events` | — | own | own | any | self | — | — | self |
+| `cities` | any | any | — | any | admin only | — | admin only | admin only |
+| `event_tickets` *(Phase 7C)* | published event's | published event's | any status | any | owner+draft | owner+draft/rejected | any | admin only |
+| `ticket_purchases` *(Phase 7E)* | — | own | own | any | self (via checkout fn) | — | admin only | admin only |
+
+---
+
+## 12. Event Flow Map
+
+```mermaid
+flowchart TD
+  Visitor["Anonymous Visitor"]
+  User["Authenticated User"]
+  Organizer["Organizer (User + organizers row)"]
+  Admin["Admin"]
+
+  Visitor -->|"browse"| Discovery["Discovery Layer\n/events · /map · /places/[slug]"]
+  Visitor -->|"visit"| EventPage["/events/[slug]\n(published only)"]
+
+  User -->|"all discovery +"| SaveEvent["Save Event\n(saved_events)"]
+  User -->|"quick submit"| SubmitForm["/submit-event\n→ event_submissions"]
+
+  SubmitForm -->|"pending"| AdminSubmissionsQ["Admin: Submissions Queue"]
+  AdminSubmissionsQ -->|"approve"| CreateEvent["creates events row\nstatus = published"]
+  AdminSubmissionsQ -->|"reject"| SubRejected["submission rejected\nwith admin_note"]
+
+  User -->|"click Create Event"| OrgCheck{organizer\nrow exists?}
+  OrgCheck -->|"no"| Onboarding["/onboarding/organizer\n(runs once)"]
+  Onboarding -->|"completes"| Wizard
+  OrgCheck -->|"yes"| Wizard["/organizer/events/new\nwizard"]
+
+  Wizard -->|"save"| Draft["events\nstatus = draft"]
+  Draft -->|"submit_event_for_review()"| Pending["events\nstatus = pending_review"]
+
+  Pending --> AdminOrgQ["Admin: Pending Events Queue"]
+  AdminOrgQ -->|"approve_event()"| Published["events\nstatus = published"]
+  AdminOrgQ -->|"reject_event()"| Rejected["events\nstatus = rejected\nadmin_note set"]
+  Rejected -->|"organizer edits"| Draft
+
+  Published --> EventPage
+  EventPage -->|"future"| Checkout["Ticket Checkout\n(Phase 7E)"]
+```
+
+---
+
+## 13. Moderation Flow Map
+
+```mermaid
+flowchart LR
+  subgraph Community["Community Track"]
+    CSubmit["User submits\n/submit-event"] --> CSub["event_submissions\nstatus: pending"]
+    CSub --> CAdmin["/admin\nSubmissions tab"]
+    CAdmin -->|approve| CCreate["creates events row\nstatus: published"]
+    CAdmin -->|reject| CReject["submission rejected\nadmin_note added"]
+    CAdmin -.->|more info needed\n(future)| CInfo["submission paused\nuser notified"]
+    CInfo -.->|user updates| CSub
+  end
+
+  subgraph Organizer_Track["Organizer Track"]
+    OCreate["Organizer creates\ndraft event"] --> ODraft["events\nstatus: draft"]
+    ODraft -->|submit_event_for_review| OPending["events\nstatus: pending_review\norganizer LOCKED"]
+    OPending --> OAdmin["/admin\nPending Events tab"]
+    OAdmin -->|approve_event| OPublished["events\nstatus: published"]
+    OAdmin -->|reject_event| ORejected["events\nstatus: rejected\nadmin_note added"]
+    ORejected -->|organizer edits| ODraft
+  end
+
+  CCreate --> Public["Public\n/events/[slug]"]
+  OPublished --> Public
+```
+
+---
+
+## 14. "Create Event" as a Primary Surface
+
+### Current state (Phase 7A)
+
+Discovery path: `/become-organizer` landing page → `/onboarding/organizer` → `/organizer` dashboard. The flow is somewhat hidden and frames becoming an organizer as a separate identity decision.
+
+### Target state (Phase 7B)
+
+"Create Event" is a **navbar-level CTA for all authenticated users**. The framing is: the user is creating an event, not registering as a new type of account.
+
+**UX flow:**
+1. Logged-in user clicks "Create Event" in the navbar
+2. Routed to `/organizer/events/new`
+3. Server guard on `/organizer/events/new` checks for organizer row:
+   - If none → `redirect('/onboarding/organizer?next=/organizer/events/new')`
+   - If exists → render wizard
+4. Onboarding completion reads `?next=` param → redirects to wizard, not the dashboard
+5. User is immediately in the creation flow; the "organizer profile" step felt like a setup screen, not a registration wall
+
+**Implementation in Phase 7B:**
+- Add "Create Event" to `LandingNavbar.tsx` (auth-gated, invisible when signed out)
+- Add `?next=` param handling to the onboarding completion redirect in `OnboardingClient.tsx`
+- Server guard on `/organizer/events/new` redirects to onboarding with `?next=` if no organizer row
+
+**Psychological principle:** Users who want to run events think of themselves as event creators, not as "organizers joining a platform". The UX must reflect this. The platform gains a capability; the user gains an identity label only as a side effect.
+
+---
+
+## 15. Future Expansion Model
+
+### Teams and multi-user organizers
+
+When teams are needed, add `organizer_members`:
+
+```sql
+CREATE TABLE public.organizer_members (
+  organizer_id  uuid REFERENCES public.organizers(id) ON DELETE CASCADE,
+  user_id       uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  role          text CHECK (role IN ('owner', 'editor', 'viewer')),
+  created_at    timestamptz DEFAULT now(),
+  PRIMARY KEY (organizer_id, user_id)
+);
+```
+
+RLS migration: all `auth.uid() = events.organizer_id` checks become:
+```sql
+EXISTS (
+  SELECT 1 FROM organizer_members
+  WHERE organizer_id = events.organizer_id
+    AND user_id = auth.uid()
+    AND role IN ('owner', 'editor')
+)
+```
+
+This is a wide but mechanical migration. Every RLS policy on `events` and `event_tickets` updates in one batch. No schema changes to `events`, `organizers`, or `event_tickets`.
+
+### International expansion
+
+The platform is designed for international scale from the start:
+- `location_slug` + `city` + `country` fields on events support multi-city filtering today
+- `cities` table is the authoritative city registry (not hardcoded)
+- `currency` on `event_tickets` is per-ticket (not hardcoded EUR)
+- Full-text search uses `'simple'` tsvector config (language-agnostic, safe for Albanian + English + others)
+- No i18n infrastructure yet — add via `next-intl` or equivalent when a second language is required
+
+### Payment provider architecture
+
+`ticket_purchases` is designed to be provider-agnostic:
+
+```sql
+ticket_purchases (
+  id                uuid PK,
+  ticket_id         uuid FK event_tickets(id),
+  buyer_id          uuid FK auth.users(id),
+  quantity          int,
+  amount_cents      int,           -- in the purchase currency
+  currency          text,          -- 'EUR', 'ALL', etc.
+  status            text,          -- 'pending', 'completed', 'refunded', 'failed'
+  provider          text,          -- 'stripe', 'paypal', 'wise' — provider-agnostic
+  provider_ref      text,          -- payment intent ID or equivalent
+  created_at        timestamptz,
+  completed_at      timestamptz
+)
+```
+
+Stripe Connect (or any other provider) is a plugin below this table. Switching providers does not require schema changes.
+
+**Albania note:** Confirm payment provider availability for Albanian businesses before committing to Stripe Connect. As of 2026, Stripe's payout availability for Albanian business bank accounts is limited. Consider PayPal Payouts or Wise API as alternatives. Research this in Phase 7D before Phase 7E implementation begins.
+
+### Ticket quantity safety
+
+`event_tickets` does NOT have a `quantity_sold` column. Remaining capacity is always computed:
+
+```sql
+CREATE OR REPLACE FUNCTION public.remaining_tickets(p_ticket_id uuid)
+RETURNS int
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT COALESCE(t.quantity_total, 2147483647)
+       - COUNT(p.id)::int
+  FROM event_tickets t
+  LEFT JOIN ticket_purchases p
+    ON p.ticket_id = t.id AND p.status = 'completed'
+  WHERE t.id = p_ticket_id
+  GROUP BY t.quantity_total
+$$;
+```
+
+Purchases use `SELECT ... FOR UPDATE` on the ticket row inside the checkout RPC function to prevent oversell. This is the correct pattern. Never increment a counter column under concurrent load.
+
+---
+
+## 16. Roadmap Relationships
+
+Phase dependencies: a phase is only safe to start after all its predecessors are complete and deployed.
+
+```
+7A (organizers + onboarding + dashboard) ─── COMPLETE
+ │
+ └─► 7B (event creation wizard + draft system + events schema extension)
+      │
+      └─► 7C (ticket model + admin moderation extension + public page enrichment)
+           │
+           ├─► 7D (organizer profile pages + saved_places + audit polish + sitemap)
+           │
+           └─► 7E (payments MVP) ─── plan separately, research provider first
+                │
+                └─► 8+ (teams, analytics, real-time, mobile native)
+```
+
+**Phase 7B is the load-bearing moment.** It extends the `events` table schema in ways that touch every public query. Get it wrong and either organizer drafts appear publicly (data leak) or published events break. This is why the Phase 7B plan must be written and reviewed before any code is touched.
+
+**7C and 7D are independent after 7B.** Once the event creation and draft system is live, ticket model (7C) and discoverability polish (7D) can proceed in parallel or in either order. Recommended order: 7C first (closes the publish loop for organizers), then 7D (polish and growth).
+
+**7E is gated on real-world signal.** Do not start the payments phase until:
+1. At least 5 organizers have published events through the 7B–7C flow
+2. Payment provider availability for Albanian businesses is confirmed
+3. Legal entity, terms of service, and privacy policy are in place
+
+---
+
+## 17. Glossary
+
+Terms used consistently throughout AlbaGo documentation and code:
+
+| Term | Definition |
+|---|---|
+| **Actor** | A user or system agent with a defined permission set (Anonymous Visitor, Authenticated User, Organizer, Admin, System) |
+| **Capability** | A feature set unlocked for a user without changing their account type (e.g., organizer capability = having an `organizers` row) |
+| **Community submission** | An event submitted via `/submit-event` by any authenticated user, stored in `event_submissions`. A permanent, strategic, low-friction ingestion channel |
+| **Creator user** | The `auth.uid()` of the user who initiated an event or submission |
+| **Draft** | An event in `status = 'draft'` — created by an organizer, not yet submitted for review, invisible publicly |
+| **Event lifecycle** | The formal sequence of states an event can occupy from creation through archival |
+| **Event origin** | The mechanism by which an event entered the system: `community_submission`, `organizer_dashboard`, `admin_seeded`, `imported` |
+| **Event ownership** | The binding between an event and the organizer who created it (`events.organizer_id = organizers.id`) |
+| **Moderation state** | The current lifecycle status of an event or submission as it moves through the review workflow |
+| **Organizer** | An authenticated user who has completed onboarding and has a row in the `organizers` table. Not a separate account type |
+| **Organizer entity** | The `organizers` table row representing a user's organizing identity (display name, slug, contact info) |
+| **Public visibility state** | Whether an event is visible to anonymous users. Only `published`, `cancelled`, and `completed` events are publicly visible |
+| **RLS** | Row Level Security — Postgres-enforced access control at the database row level. The final security boundary; cannot be bypassed by application code |
+| **RPC** | A Postgres function called via Supabase `.rpc()`. Used for transactional workflows, state transitions, and operations requiring server-side invariant enforcement |
+| **Server guard** | A Next.js server component that checks auth state and redirects unauthorized users. A UX gate, not a security boundary |
+| **Trust score** | A future computed value per organizer reflecting their history of quality submissions (approval rate, account age, verified status) |
+| **Venue claim** | A future relationship allowing an organizer to claim stewardship of a `places` record |
+| **Verified organizer** | An organizer who has been manually verified by an admin, indicated by `organizers.verified = true`. Grants a visible badge and future auto-approval eligibility |
+
+---
+
+*This document is updated at the start of each phase. Changes that affect lifecycle states, RLS philosophy, or security boundaries require a corresponding update here before any code is written.*
