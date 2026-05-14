@@ -1,6 +1,6 @@
 # AlbaGo — Schema Reference
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-05-14  
 **Status:** Current production schema as of Phase 7A. Phase 7B additions are marked clearly throughout.  
 **Maintained by:** Update this document before running any migration. It is the schema truth, not a post-migration dump.
@@ -45,6 +45,119 @@ events
 event_submissions             independent pipeline; never merges into events
 cities                        location metadata; no FK to events or places
 ```
+
+---
+
+## Architectural Rationale
+
+This section consolidates the reasoning behind key design decisions. These are not obvious from column types alone — they represent deliberate choices made under specific constraints and must be preserved as the schema evolves.
+
+### Why `organizer_id` is nullable on `events`
+
+`events.organizer_id` is nullable by design. NULL is not an error condition — it is the canonical signal for two legitimate origins:
+
+1. **Admin-seeded** (`origin = 'admin_seeded'`): Events created directly by the AlbaGo team via Supabase Studio or admin tooling. No organizer owns them.
+2. **Community-promoted** (`origin = 'community_submission'`): Events promoted from `event_submissions` by admin approval. The community submitter is not an organizer; the approved event lands in `events` with no organizer linked.
+
+A non-null `organizer_id` means one thing only: this event was created by an organizer through the organizer dashboard. This distinction is load-bearing for RLS (the `events_select_owner` policy), for the organizer event list query (`WHERE organizer_id = auth.uid()`), and for event page attribution ("By {organizer}").
+
+**Alternative rejected:** A separate boolean `is_organizer_event` alongside nullable `organizer_id` would be redundant. NULL itself is the signal. Two sources of truth is worse than one.
+
+---
+
+### Why `event_submissions` is a permanent parallel pipeline
+
+`event_submissions` is never merged into the `events` table structurally. It remains a separate table permanently, regardless of how mature the organizer platform becomes.
+
+**The two flows are different products:**
+- Community: anonymous or casual users, free-text venue name, no account required, admin-curated into events
+- Organizer: authenticated, structured fields, first-party authorship, state-machine controlled, RPC-driven
+
+Merging them would bloat `events` with submission-only fields (e.g. `contact_email`, free-text `venue_name`) or require nullable columns with conditional logic that signals different meanings depending on `origin`.
+
+**The audit trail argument:** Every community submission — including rejected ones — is preserved indefinitely. Merging on approval would lose the original submission data: the submitter's contact email, the raw venue name string (which may not match any `places` row), and the original free-text description. These are operationally useful (the admin sees the submitter's intent, not just the final published event).
+
+**The practical argument:** Retiring `event_submissions` would require migrating all historical submission rows, updating the admin queue UI, and taking down `/submit-event`. The cost exceeds the benefit as long as both flows coexist.
+
+---
+
+### Why `TEXT + CHECK` instead of PostgreSQL ENUM
+
+All status and origin columns — `events.status`, `event_submissions.status`, `places.status`, `events.origin` — use `text` with a CHECK constraint, not a PostgreSQL `ENUM` type.
+
+**The ENUM problem:** Adding a new value to a Postgres ENUM requires `ALTER TYPE ... ADD VALUE`. This is not transactional in Postgres — the command cannot be rolled back within a `BEGIN; ... COMMIT;` block. Every migration in this codebase runs inside a transaction for a clean rollback path. `ALTER TYPE ADD VALUE` breaks that invariant.
+
+**The CHECK advantage:** `ALTER TABLE events DROP CONSTRAINT events_status_check; ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (...new values...);` is fully transactional. If the migration fails mid-way, the whole block rolls back.
+
+**The operational advantage:** Adding a new status (e.g. `'archived'`) requires only updating the CHECK constraint and updating this document and the TypeScript union type. No function signature changes, no type migration, no dependent code changes beyond the places that branch on the value.
+
+---
+
+### Why RLS is the final security boundary
+
+AlbaGo uses a four-layer security model, from outermost to innermost:
+
+```
+Frontend validation   →  UX only. Never trusted. Users can bypass with browser DevTools.
+Server guard          →  Redirect or 403 before rendering. UX gate, not a security gate.
+RPC functions         →  Transactional boundary. Enforces state machine rules per request.
+Row Level Security    →  Database-enforced. The actual enforcer. Cannot be bypassed.
+```
+
+**Why server guards are not sufficient:** A server component can check auth and redirect on failure — but it only protects against browser navigation. A direct call to the Supabase REST API with a valid JWT bypasses the Next.js server entirely. RLS on the database blocks that call regardless of how it arrived.
+
+**Why RPCs alone are not sufficient:** RPC functions enforce state machine logic (e.g. "only move from draft to pending_review, not backward"). But they can only block what they are explicitly programmed to block. A new RPC written without the full security context could accidentally allow a forbidden transition. RLS is the backstop.
+
+**Why RLS at the DB is correct:** Postgres evaluates RLS on every query regardless of origin — Next.js server components, Supabase JS client, PostgREST directly, psql. The database does not trust the caller to have verified permissions upstream. This is the correct model for a system with multiple access paths (browser app, server components, future mobile client, future public API).
+
+**Implication for new tables:** Every table must have `RLS ENABLED` and at least one explicit SELECT policy before shipping. The absence of a policy is a bug — Postgres denies all access when RLS is enabled and no policy matches, but this is a silent failure mode that is easy to miss in testing.
+
+---
+
+### Why there is no `is_organizer()` function
+
+There is no `is_organizer()` counterpart to `is_admin()`. Organizer status is not a role — it is a row-keyed capability.
+
+**Why `is_admin()` exists as a function:** Admin is a binary, cross-cutting gate. The same check ("does this session have admin privileges?") is used in dozens of RLS policies across multiple tables. Centralizing it in a `SECURITY DEFINER` function avoids duplication and ensures a single point of change if the admin model evolves.
+
+**Why `is_organizer()` would be the wrong abstraction:** The organizer-relevant RLS check is not "is this user an organizer globally?" It is "does this user own this specific row?" — expressed as `organizer_id = auth.uid()`. This is a join-key comparison, not a role check. A boolean `is_organizer()` would not express ownership; it would only say "an organizers row exists," which is a weaker predicate than what the policy actually needs.
+
+---
+
+### Why `profiles.role` stays `'user'` for organizers
+
+Organizer is a capability, not a role. Users who complete organizer onboarding remain `profiles.role = 'user'`.
+
+**What this means in practice:**
+- There is no `'organizer'` value in `profiles.role`.
+- The organizer dashboard and all organizer-gated routes check for an `organizers` row, not a role value.
+- An admin user can also be an organizer (if they have an `organizers` row). The two are independent.
+
+**Why:** Roles should control cross-cutting, table-agnostic access levels (`is_admin()` → can read everything). Organizer capability is scoped to specific rows in specific tables. Mixing the two into a single `role` column would require `WHERE role = 'organizer' OR role = 'admin'` patterns that become combinatorially complex as more capabilities are added.
+
+---
+
+### Why slugs are permanent
+
+Both `events.slug` and `organizers.slug` are set at creation time and never regenerated or modified.
+
+**The URL stability argument:** An event URL like `/events/summer-beach-party-tirana-2025` accumulates backlinks, social shares, and search index entries. Changing the slug after publication invalidates all of these. A 301 redirect mitigates some SEO loss but adds operational complexity and is not automatic — it must be manually maintained.
+
+**The integrity argument:** The slug is the public identity of the entity. Any bookmark, share, or embed that references the URL breaks silently if the slug changes. The cost of a slug collision at creation (handled by the 6-character random suffix on organizer slugs) is far lower than the cost of changing a published slug.
+
+**Implication for future imports:** Any event import pipeline (`origin = 'imported'`) must generate a stable, collision-safe slug at import time. Slugs must not be derived from mutable fields like the title (which an editor might later correct).
+
+---
+
+### Why `ON DELETE SET NULL` on `events.organizer_id`
+
+When an organizer row is deleted (account deletion cascade), `events.organizer_id` is set to NULL rather than cascade-deleting the event rows.
+
+**The publication argument:** A published event is a public commitment. If AlbaGo published a concert on behalf of an organizer and then the organizer deleted their account, removing the event would break all links to that event, surprise users who saved it, and remove the event from search indexes. The event outlives the organizer.
+
+**The audit argument:** Keeping the event row with `organizer_id = NULL` preserves the audit trail. The `origin = 'organizer_dashboard'` value remains, signaling the provenance even after the organizer account is gone. Admin can still see and manage the event.
+
+**The failure case:** A draft or pending event becomes orphaned (unreachable by any organizer) if the organizer deletes their account before publishing. Admin must handle these manually via Supabase Studio. This is an acceptable tradeoff for the benefit of preserving published events.
 
 ---
 
