@@ -17,6 +17,9 @@ DROP POLICY IF EXISTS "Anyone can read events" ON public.events;
 DROP POLICY IF EXISTS "Public events are viewable by everyone" ON public.events;
 DROP POLICY IF EXISTS "events select all" ON public.events;
 DROP POLICY IF EXISTS "public_events_read" ON public.events;
+-- Default name when a SELECT policy is created via Supabase Studio's UI
+-- with the "Enable read access for all users" template.
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.events;
 
 -- Ensure the strict published-only policy exists. If a previous Phase 7B
 -- migration already created it, we drop + recreate to guarantee the filter.
