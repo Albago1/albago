@@ -22,6 +22,7 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
+import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
 import type { User } from '@supabase/supabase-js'
 
 const categories = ['nightlife', 'music', 'sports', 'culture', 'food', 'civic']
@@ -68,8 +69,32 @@ export default function SubmitEventPage() {
   const [selectedVenue, setSelectedVenue] = useState<VenueOption | null>(null)
   const [isVenueOpen, setIsVenueOpen] = useState(false)
 
+  // Non-civic city search state (CitySearchInput). Falls back to locationSlug
+  // if the user keeps the prefilled "Tirana" without typing anything.
+  const [nonCivicCityQuery, setNonCivicCityQuery] = useState('')
+  const [nonCivicResolved, setNonCivicResolved] = useState<ResolvedCity | null>(null)
+
   const [category, setCategory] = useState('')
   const isCivic = category === 'civic'
+
+  const popularCities = useMemo(
+    () =>
+      locationOptions
+        .filter((o) => o.center)
+        .map((o) => ({
+          slug: o.slug,
+          label: o.label,
+          country: o.country,
+          lng: o.center[0],
+          lat: o.center[1],
+        })),
+    [locationOptions],
+  )
+
+  // Keep venue list in sync with whatever city the user picked via the
+  // search-input (resolved.slug). Falls back to the default locationSlug
+  // until the user picks something.
+  const effectiveLocationSlug = nonCivicResolved?.slug ?? locationSlug
 
   const [civicAddress, setCivicAddress] = useState('')
   const [civicResolved, setCivicResolved] = useState<CivicResolved | null>(null)
@@ -92,10 +117,10 @@ export default function SubmitEventPage() {
     supabase
       .from('places')
       .select('id, name, category')
-      .eq('location_slug', locationSlug)
+      .eq('location_slug', effectiveLocationSlug)
       .order('name', { ascending: true })
       .then(({ data }) => setVenues(data ?? []))
-  }, [locationSlug, supabase])
+  }, [effectiveLocationSlug, supabase])
 
   // Civic mode: debounced Nominatim geocoding for the "Where will it happen?"
   // address field. Resolves to lat/lng + city + country so the submission can
@@ -251,7 +276,11 @@ export default function SubmitEventPage() {
       }
       setIsSubmitting(true)
       setSubmitError(null)
-      const selectedLocation = getLocationBySlug(locationSlug)
+      const fallback = getLocationBySlug(locationSlug)
+      const resolvedSlug = nonCivicResolved?.slug || fallback.slug
+      const resolvedCountry = nonCivicResolved?.country || fallback.country
+      const resolvedLat = nonCivicResolved?.lat ?? null
+      const resolvedLng = nonCivicResolved?.lng ?? null
       submission = {
         title: String(formData.get('title')),
         venue_name: venueName,
@@ -262,11 +291,17 @@ export default function SubmitEventPage() {
         price: String(formData.get('price')) || null,
         contact_email: String(formData.get('contactEmail')),
         description: String(formData.get('description')),
-        country: selectedLocation.country,
-        region: selectedLocation.region ?? null,
-        location_slug: selectedLocation.slug,
+        country: resolvedCountry,
+        region: nonCivicResolved ? null : (fallback.region ?? null),
+        location_slug: resolvedSlug,
         status: 'pending',
         submitted_by_user_id: user.id,
+        // Carry coords when we resolved a new city via search so admin
+        // approval can auto-seed the cities row via upsert_city_from_event.
+        ...(resolvedLat != null && resolvedLng != null && {
+          lat: resolvedLat,
+          lng: resolvedLng,
+        }),
       }
     }
 
@@ -366,22 +401,26 @@ export default function SubmitEventPage() {
               <form className="space-y-5" onSubmit={handleSubmit}>
                 {!isCivic && (
                   <div>
-                    <label className="text-sm font-medium text-white/75">
+                    <label
+                      htmlFor="non-civic-city"
+                      className="text-sm font-medium text-white/75"
+                    >
                       Location
                     </label>
-
-                    <select
-                      required={!isCivic}
-                      value={locationSlug}
-                      onChange={(e) => setLocationSlug(e.target.value)}
-                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-ink-900 px-4 text-sm text-white outline-none focus:border-white/20"
-                    >
-                      {locationOptions.map((location) => (
-                        <option key={location.slug} value={location.slug}>
-                          {location.label} Â· {location.country}
-                        </option>
-                      ))}
-                    </select>
+                    <p className="mt-1 text-xs text-white/45">
+                      Pick a popular city below or search any city in the world.
+                    </p>
+                    <div className="mt-2">
+                      <CitySearchInput
+                        id="non-civic-city"
+                        value={nonCivicCityQuery}
+                        onChange={setNonCivicCityQuery}
+                        onResolve={setNonCivicResolved}
+                        resolved={nonCivicResolved}
+                        popular={popularCities}
+                        placeholder="Search any city (e.g. Berlin, Milano)..."
+                      />
+                    </div>
                   </div>
                 )}
 

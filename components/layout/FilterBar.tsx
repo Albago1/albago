@@ -15,6 +15,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
+import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
@@ -22,6 +23,7 @@ type LocationOption = {
   slug: string
   label: string
   country: string
+  center?: [number, number]
 }
 
 type FilterBarProps = {
@@ -30,6 +32,7 @@ type FilterBarProps = {
   searchQuery: string
   optionFilter: string
   activeLocationSlug: string
+  activeLocationLabel?: string
   locationOptions: LocationOption[]
   visiblePlacesCount: number
   visibleEventsCount: number
@@ -39,7 +42,7 @@ type FilterBarProps = {
   onCategoryChange: (value: string) => void
   onSearchQueryChange: (value: string) => void
   onOptionFilterChange: (value: string) => void
-  onLocationChange: (slug: string) => void
+  onLocationChange: (slug: string, center?: [number, number]) => void
   onReset: () => void
 }
 
@@ -65,6 +68,18 @@ function FilterSectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+function toPopularCities(options: LocationOption[]) {
+  return options
+    .filter((o) => o.center)
+    .map((o) => ({
+      slug: o.slug,
+      label: o.label,
+      country: o.country,
+      lng: o.center![0],
+      lat: o.center![1],
+    }))
+}
+
 function DesktopFilterBar(props: FilterBarProps) {
   const {
     activeTimeFilter,
@@ -72,6 +87,7 @@ function DesktopFilterBar(props: FilterBarProps) {
     searchQuery,
     optionFilter,
     activeLocationSlug,
+    activeLocationLabel,
     locationOptions,
     visiblePlacesCount,
     visibleEventsCount,
@@ -83,6 +99,21 @@ function DesktopFilterBar(props: FilterBarProps) {
     onLocationChange,
     onReset,
   } = props
+
+  const [locationOpen, setLocationOpen] = useState(false)
+  const [cityQuery, setCityQuery] = useState('')
+  const [resolvedCity, setResolvedCity] = useState<ResolvedCity | null>(null)
+  const popularCities = useMemo(() => toPopularCities(locationOptions), [locationOptions])
+  const activeOption = locationOptions.find((o) => o.slug === activeLocationSlug)
+  const buttonLabel = activeLocationLabel || activeOption?.label || activeLocationSlug
+
+  const handleResolve = (resolved: ResolvedCity | null) => {
+    setResolvedCity(resolved)
+    if (resolved) {
+      onLocationChange(resolved.slug, [resolved.lng, resolved.lat])
+      setLocationOpen(false)
+    }
+  }
 
   const hasActiveFilters =
     activeTimeFilter !== 'all' ||
@@ -118,19 +149,42 @@ function DesktopFilterBar(props: FilterBarProps) {
               />
             </div>
 
-            <div className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] pl-2.5 pr-1">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-white/50" />
-              <select
-                value={activeLocationSlug}
-                onChange={(e) => onLocationChange(e.target.value)}
-                className="cursor-pointer bg-transparent pr-1 text-sm text-white/85 outline-none"
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setLocationOpen((v) => !v)}
+                aria-expanded={locationOpen}
+                className="inline-flex h-9 max-w-[180px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 text-sm text-white/85 outline-none transition hover:bg-white/[0.08]"
               >
-                {locationOptions.map((loc) => (
-                  <option key={loc.slug} value={loc.slug} className="bg-ink-900">
-                    {loc.label}
-                  </option>
-                ))}
-              </select>
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-white/50" />
+                <span className="truncate">{buttonLabel}</span>
+              </button>
+
+              {locationOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setLocationOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full z-40 mt-2 w-[320px] rounded-2xl border border-white/10 bg-ink-950/95 p-3 shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                      Change location
+                    </p>
+                    <CitySearchInput
+                      value={cityQuery}
+                      onChange={setCityQuery}
+                      onResolve={handleResolve}
+                      resolved={resolvedCity}
+                      popular={popularCities}
+                      onPopularClick={(c) => {
+                        onLocationChange(c.slug, [c.lng, c.lat])
+                        setLocationOpen(false)
+                      }}
+                      placeholder="Search any city (e.g. Berlin)..."
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -291,6 +345,16 @@ function MobileFilterBar(props: FilterBarProps) {
   } = props
 
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [cityQuery, setCityQuery] = useState('')
+  const [resolvedCity, setResolvedCity] = useState<ResolvedCity | null>(null)
+  const popularCities = useMemo(() => toPopularCities(locationOptions), [locationOptions])
+
+  const handleResolve = (resolved: ResolvedCity | null) => {
+    setResolvedCity(resolved)
+    if (resolved) {
+      onLocationChange(resolved.slug, [resolved.lng, resolved.lat])
+    }
+  }
 
   const activeChips = useMemo(() => {
     const chips: string[] = []
@@ -430,28 +494,15 @@ function MobileFilterBar(props: FilterBarProps) {
                 <div className="space-y-2">
                   <FilterSectionTitle>Location</FilterSectionTitle>
 
-                  <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {locationOptions.map((loc) => {
-                      const isActive = activeLocationSlug === loc.slug
-
-                      return (
-                        <button
-                          key={loc.slug}
-                          type="button"
-                          onClick={() => onLocationChange(loc.slug)}
-                          className={[
-                            'inline-flex shrink-0 items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-sm font-medium transition',
-                            isActive
-                              ? 'border-white/15 bg-white text-black'
-                              : 'border-white/10 bg-white/[0.04] text-white/80',
-                          ].join(' ')}
-                        >
-                          {isActive && <MapPin className="h-3.5 w-3.5" />}
-                          {loc.label}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <CitySearchInput
+                    value={cityQuery}
+                    onChange={setCityQuery}
+                    onResolve={handleResolve}
+                    resolved={resolvedCity}
+                    popular={popularCities}
+                    onPopularClick={(c) => onLocationChange(c.slug, [c.lng, c.lat])}
+                    placeholder="Search any city (e.g. Berlin)..."
+                  />
                 </div>
 
                 <div className="space-y-2">

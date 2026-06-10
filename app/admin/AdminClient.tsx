@@ -346,6 +346,22 @@ export default function AdminClient() {
     const slug = `${createSlug(s.title)}-${s.id.slice(0, 8)}`
     const isCivic = s.is_civic === true || s.category === 'civic'
 
+    // Auto-seed cities row if this city isn't registered yet. Best-effort:
+    // errors here are non-fatal — we still publish the event. Only runs when
+    // we have coordinates (civic flow always has them; non-civic may not).
+    if (s.lat != null && s.lng != null && s.location_slug) {
+      const { error: cityError } = await supabase.rpc('upsert_city_from_event', {
+        p_slug: s.location_slug,
+        p_name: s.location_slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        p_country: s.country,
+        p_lat: s.lat,
+        p_lng: s.lng,
+      })
+      if (cityError) {
+        console.warn('upsert_city_from_event:', cityError.message)
+      }
+    }
+
     const { error: eventError } = await supabase.from('events').insert({
       title: s.title,
       slug,

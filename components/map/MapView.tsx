@@ -355,18 +355,38 @@ export default function MapView() {
     setOptionFilter('all')
   }
 
-  const handleLocationChange = (slug: string) => {
+  const handleLocationChange = (slug: string, center?: [number, number]) => {
     const params = new URLSearchParams()
     params.set('location', slug)
     if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
     if (activeCategory !== 'all') params.set('category', activeCategory)
+    if (center) {
+      params.set('lng', String(center[0]))
+      params.set('lat', String(center[1]))
+    }
     router.replace(`/map?${params.toString()}`)
+    // For dynamic (Nominatim-resolved) cities we may not have a matching
+    // entry in static `cities`, so fly directly to the resolved coords.
+    if (center && mapAdapterRef.current) {
+      mapAdapterRef.current.flyToLocation(center, 12.5)
+    }
   }
+
+  // Resolve the active location's display label from the dynamic options
+  // (cities table UNION distinct event cities). Falls back to the static
+  // helper for legacy slugs that aren't in either set.
+  const dynamicMatch = locationOptions.find((o) => o.slug === locationSlug)
+  const activeLocationLabel = dynamicMatch?.label ?? location.label
 
   useEffect(() => {
     const adapter = mapAdapterRef.current
     if (!adapter) return
-    adapter.flyToLocation(location.center, location.zoom)
+    // Prefer the dynamic option's coords (covers Nominatim-derived cities
+    // that aren't in the static cities array).
+    const center = dynamicMatch?.center ?? location.center
+    const zoom = dynamicMatch?.zoom ?? location.zoom
+    adapter.flyToLocation(center, zoom)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationSlug])
 
   return (
@@ -387,6 +407,7 @@ export default function MapView() {
         searchQuery={searchQuery}
         optionFilter={optionFilter}
         activeLocationSlug={locationSlug}
+        activeLocationLabel={activeLocationLabel}
         locationOptions={locationOptions}
         visiblePlacesCount={visiblePlaces.length}
         visibleEventsCount={visibleEventsCount}
