@@ -1,0 +1,285 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
+import type { EventDraft } from '@/types/eventDraft'
+import { useEventDraft } from '@/types/eventDraft'
+import EventTypeStep from './steps/EventTypeStep'
+import CategoryStep from './steps/CategoryStep'
+import BasicsStep from './steps/BasicsStep'
+
+export type WizardSubmit = (draft: EventDraft) => Promise<
+  | { id: string; error: null }
+  | { id: null; error: string }
+>
+
+export type WizardMode = 'community' | 'organizer'
+
+type Props = {
+  /** What does the wizard call when the user hits Submit? */
+  onSubmit: WizardSubmit
+  /** Influences copy + which fields are required. */
+  mode: WizardMode
+  /** Where to send the user after a successful submit. */
+  onSuccess?: (id: string) => void
+}
+
+type StepKey = 'type' | 'category' | 'basics' | 'when' | 'where' | 'media' | 'organizer' | 'review'
+
+type StepDef = {
+  key: StepKey
+  label: string
+  validate: (draft: EventDraft) => string | null
+  /** If true, this step is skipped under some draft conditions. */
+  skip?: (draft: EventDraft) => boolean
+}
+
+const STEPS: StepDef[] = [
+  {
+    key: 'type',
+    label: 'Type',
+    validate: (d) => (d.event_type ? null : 'Pick an event type.'),
+  },
+  {
+    key: 'category',
+    label: 'Category',
+    skip: (d) => d.event_type === 'protest', // protest → category auto-set to 'civic'
+    validate: (d) =>
+      d.event_type === 'protest' || d.category ? null : 'Pick a category.',
+  },
+  {
+    key: 'basics',
+    label: 'Basics',
+    validate: (d) => {
+      if (!d.title.trim()) return 'Title is required.'
+      if (d.title.trim().length < 3) return 'Title is too short.'
+      if (!d.description.trim()) return 'Description is required.'
+      if (d.description.trim().length < 20)
+        return 'Description should be at least 20 characters so people know what this is.'
+      return null
+    },
+  },
+  // D4 will add 'when' + 'where'
+  // D5 will add 'media' + 'organizer'
+  // D6 will add 'review'
+]
+
+export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props) {
+  const { draft, patch, addTag, removeTag, reset, clearPersisted } = useEventDraft()
+  const [stepIndex, setStepIndex] = useState(0)
+  const [stepError, setStepError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const activeSteps = useMemo(
+    () => STEPS.filter((step) => !step.skip?.(draft)),
+    [draft],
+  )
+
+  const activeStep = activeSteps[stepIndex] ?? activeSteps[0]
+  const isLast = stepIndex >= activeSteps.length - 1
+  const isFirst = stepIndex === 0
+
+  const handleNext = async () => {
+    setStepError(null)
+    const err = activeStep.validate(draft)
+    if (err) {
+      setStepError(err)
+      return
+    }
+
+    if (!isLast) {
+      setStepIndex((i) => i + 1)
+      return
+    }
+
+    // Last step → submit. (For now there's no "review" step yet so submitting
+    // happens off the last available step. D6 will move the submit button into
+    // the dedicated review step.)
+    setSubmitting(true)
+    setSubmitError(null)
+    const result = await onSubmit(draft)
+    setSubmitting(false)
+
+    if (result.error) {
+      setSubmitError(result.error)
+      return
+    }
+
+    clearPersisted()
+    if (result.id) onSuccess?.(result.id)
+  }
+
+  const handleBack = () => {
+    setStepError(null)
+    if (!isFirst) setStepIndex((i) => i - 1)
+  }
+
+  const handleReset = () => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('Discard this draft and start over?')
+    ) {
+      return
+    }
+    reset()
+    setStepIndex(0)
+    setStepError(null)
+    setSubmitError(null)
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white">
+            {mode === 'organizer' ? 'Create event' : 'Submit an event'}
+          </h1>
+          <p className="mt-1 text-sm text-white/55">
+            {mode === 'organizer'
+              ? 'Goes into your draft list. Submit for review when you are ready.'
+              : 'Your submission goes to the moderation queue. Approved events appear on the public site.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/[0.08] hover:text-white"
+        >
+          Reset draft
+        </button>
+      </div>
+
+      <Stepper steps={activeSteps} activeIndex={stepIndex} onJump={setStepIndex} draft={draft} />
+
+      <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        {activeStep.key === 'type' && (
+          <EventTypeStep draft={draft} patch={patch} />
+        )}
+        {activeStep.key === 'category' && (
+          <CategoryStep draft={draft} patch={patch} />
+        )}
+        {activeStep.key === 'basics' && (
+          <BasicsStep draft={draft} patch={patch} addTag={addTag} removeTag={removeTag} />
+        )}
+      </div>
+
+      {(stepError || submitError) && (
+        <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+          {stepError || submitError}
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={handleBack}
+          disabled={isFirst || submitting}
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back
+        </button>
+
+        <p className="text-xs text-white/45">
+          Step {stepIndex + 1} of {activeSteps.length}
+        </p>
+
+        <button
+          type="button"
+          onClick={handleNext}
+          disabled={submitting}
+          className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400 disabled:opacity-50"
+        >
+          {submitting ? (
+            'Submitting...'
+          ) : isLast ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              Submit
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-3.5 w-3.5" />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Stepper(props: {
+  steps: StepDef[]
+  activeIndex: number
+  onJump: (i: number) => void
+  draft: EventDraft
+}) {
+  const { steps, activeIndex, onJump, draft } = props
+
+  return (
+    <ol className="flex flex-wrap gap-2">
+      {steps.map((step, idx) => {
+        const isActive = idx === activeIndex
+        const isPast = idx < activeIndex
+        const passes = step.validate(draft) === null
+        return (
+          <li key={step.key}>
+            <button
+              type="button"
+              onClick={() => {
+                if (idx <= activeIndex) onJump(idx)
+              }}
+              disabled={idx > activeIndex}
+              className={[
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                isActive
+                  ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                  : isPast
+                    ? 'border-white/15 bg-white/[0.06] text-white/85 hover:bg-white/[0.10]'
+                    : 'border-white/10 bg-transparent text-white/40',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
+                  isActive
+                    ? 'bg-flame-500 text-white'
+                    : isPast && passes
+                      ? 'bg-emerald-500/80 text-white'
+                      : 'bg-white/10 text-white/55',
+                ].join(' ')}
+              >
+                {isPast && passes ? <Check className="h-3 w-3" /> : idx + 1}
+              </span>
+              {step.label}
+            </button>
+          </li>
+        )
+      })}
+      {/* Future-steps preview chips so user knows what's coming. */}
+      <FuturePreviewChip label="When" />
+      <FuturePreviewChip label="Where" />
+      <FuturePreviewChip label="Media" />
+      <FuturePreviewChip label="Organizer" />
+      <FuturePreviewChip label="Review" />
+    </ol>
+  )
+}
+
+function FuturePreviewChip({ label }: { label: string }) {
+  return (
+    <li>
+      <span
+        className="inline-flex items-center gap-2 rounded-full border border-dashed border-white/10 px-3 py-1.5 text-xs text-white/30"
+        title="Coming next"
+      >
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.04]">
+          <X className="h-2.5 w-2.5" />
+        </span>
+        {label}
+      </span>
+    </li>
+  )
+}
