@@ -46,6 +46,9 @@ export type EventDraft = {
   city: string
   /** Formatted street address from the geocoder. */
   address: string
+  /** Display name of the venue (free-text). Optional — useful for community
+   *  submissions that don't link to a `places` row. */
+  venue_name: string
   lat: number | null
   lng: number | null
   /** For online events. */
@@ -109,6 +112,7 @@ export const defaultEventDraft: EventDraft = {
   region: '',
   city: '',
   address: '',
+  venue_name: '',
   lat: null,
   lng: null,
   online_url: '',

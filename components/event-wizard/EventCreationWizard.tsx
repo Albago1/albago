@@ -7,6 +7,8 @@ import { useEventDraft } from '@/types/eventDraft'
 import EventTypeStep from './steps/EventTypeStep'
 import CategoryStep from './steps/CategoryStep'
 import BasicsStep from './steps/BasicsStep'
+import WhenStep from './steps/WhenStep'
+import WhereStep from './steps/WhereStep'
 
 export type WizardSubmit = (draft: EventDraft) => Promise<
   | { id: string; error: null }
@@ -59,7 +61,45 @@ const STEPS: StepDef[] = [
       return null
     },
   },
-  // D4 will add 'when' + 'where'
+  {
+    key: 'when',
+    label: 'When',
+    validate: (d) => {
+      if (!d.date) return 'Pick a date.'
+      // Date input gives YYYY-MM-DD. Compare as ISO strings against today.
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const picked = new Date(d.date + 'T00:00:00')
+      if (Number.isNaN(picked.getTime())) return 'Date is invalid.'
+      if (picked < today) return 'Date is in the past.'
+      if (d.end_time && d.time && d.end_time <= d.time) {
+        return 'End time must be after start time.'
+      }
+      return null
+    },
+  },
+  {
+    key: 'where',
+    label: 'Where',
+    validate: (d) => {
+      if (d.is_online) {
+        if (!d.online_url.trim()) return 'Add an online URL.'
+        try {
+          // Accept anything URL-shaped; minimal sanity check.
+          // eslint-disable-next-line no-new
+          new URL(d.online_url)
+        } catch {
+          return 'Online URL is not valid.'
+        }
+        return null
+      }
+      if (d.lat == null || d.lng == null) {
+        return 'Pick a location on the map.'
+      }
+      if (!d.location_slug) return 'Pick a location on the map.'
+      return null
+    },
+  },
   // D5 will add 'media' + 'organizer'
   // D6 will add 'review'
 ]
@@ -162,6 +202,8 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props
         {activeStep.key === 'basics' && (
           <BasicsStep draft={draft} patch={patch} addTag={addTag} removeTag={removeTag} />
         )}
+        {activeStep.key === 'when' && <WhenStep draft={draft} patch={patch} />}
+        {activeStep.key === 'where' && <WhereStep draft={draft} patch={patch} />}
       </div>
 
       {(stepError || submitError) && (
@@ -259,8 +301,6 @@ function Stepper(props: {
         )
       })}
       {/* Future-steps preview chips so user knows what's coming. */}
-      <FuturePreviewChip label="When" />
-      <FuturePreviewChip label="Where" />
       <FuturePreviewChip label="Media" />
       <FuturePreviewChip label="Organizer" />
       <FuturePreviewChip label="Review" />
