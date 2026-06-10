@@ -5,6 +5,7 @@ export const translations: Record<Language, Record<string, string>> = {
     nav_home: "Home",
     nav_map: "Map",
     nav_events: "Events",
+    nav_protests: "Protests",
     nav_submit_event: "Submit Event",
     nav_dashboard: 'Dashboard',
     open_menu: 'Open menu',
@@ -23,6 +24,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_sports: "Sports",
     category_culture: "Culture",
     category_food: "Food",
+    category_civic: "Civic",
 
     venues: "Venues",
     events: "Events",
@@ -80,6 +82,7 @@ export const translations: Record<Language, Record<string, string>> = {
     nav_home: "Start",
     nav_map: "Karte",
     nav_events: "Events",
+    nav_protests: "Proteste",
     nav_submit_event: "Event einreichen",
     nav_dashboard: 'Dashboard',
     open_menu: 'Menü öffnen',
@@ -98,6 +101,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_sports: "Sport",
     category_culture: "Kultur",
     category_food: "Essen",
+    category_civic: "Bürgerlich",
 
     venues: "Locations",
     events: "Events",
@@ -155,6 +159,7 @@ export const translations: Record<Language, Record<string, string>> = {
     nav_home: "Inicio",
     nav_map: "Mapa",
     nav_events: "Eventos",
+    nav_protests: "Protestas",
     nav_submit_event: "Enviar evento",
     nav_dashboard: 'Panel',
     open_menu: 'Abrir menú',
@@ -173,6 +178,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_sports: "Deportes",
     category_culture: "Cultura",
     category_food: "Comida",
+    category_civic: "Cívico",
 
     venues: "Lugares",
     events: "Eventos",
@@ -230,6 +236,7 @@ export const translations: Record<Language, Record<string, string>> = {
     nav_home: "Kreu",
     nav_map: "Harta",
     nav_events: "Evente",
+    nav_protests: "Protesta",
     nav_submit_event: "Shto event",
     nav_dashboard: 'Paneli',
     open_menu: 'Hap menunë',
@@ -248,6 +255,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_sports: "Sport",
     category_culture: "Kulturë",
     category_food: "Ushqim",
+    category_civic: "Qytetare",
 
     venues: "Vende",
     events: "Evente",

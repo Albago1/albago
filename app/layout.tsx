@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import "./globals.css";
 
@@ -13,21 +13,35 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: {
     template: '%s | AlbaGo',
-    default: 'AlbaGo — Discover Nightlife & Events in Albania',
+    default: 'AlbaGo — Discover Events, Movements & Nightlife',
   },
   description:
-    'Discover the best nightlife, events, venues and places in Albania and the Balkans. Your guide to what\'s happening tonight.',
+    'AlbaGo is a modern global platform for events, nightlife, civic movements, and public gatherings — peaceful, lawful, and worldwide.',
   openGraph: {
-    title: 'AlbaGo — Discover Nightlife & Events',
+    title: 'AlbaGo — Events, Movements & Nightlife',
     description:
-      'Discover the best nightlife, events, venues and places in Albania and the Balkans.',
+      'Discover events, venues, and civic gatherings across cities and continents.',
     siteName: 'AlbaGo',
     locale: 'en_US',
     type: 'website',
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#050505',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -38,9 +52,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-ink-950 text-white">
+        <div className="pointer-events-none fixed inset-0 -z-10 bg-noise" />
         <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>

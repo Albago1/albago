@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -105,7 +105,7 @@ export default function PlacePanel({
   return (
     <aside
       className={[
-        'z-30 overflow-hidden border border-white/10 bg-[#070b14]/94 text-white shadow-2xl backdrop-blur-xl',
+        'z-30 overflow-hidden border border-white/10 bg-ink-950/94 text-white shadow-2xl backdrop-blur-xl',
         isMobile
           ? 'absolute inset-x-0 bottom-0 h-[76vh] rounded-t-[32px]'
           : 'absolute right-4 top-4 h-[calc(100vh-2rem)] w-[390px] rounded-[32px]',
@@ -197,7 +197,7 @@ export default function PlacePanel({
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
               href={`/places/${place.slug}`}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-flame-400"
             >
               View details
               <ArrowRight className="h-3.5 w-3.5" />

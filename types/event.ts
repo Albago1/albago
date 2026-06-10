@@ -9,7 +9,22 @@ export type Event = {
   category: string
   price?: string
   highlight?: boolean
+  // Phase 8 — optional civic-event extension. NULL for non-civic events.
+  eventType?: CivicEventType | null
+  isCivic?: boolean
+  featuredMovementSlug?: string | null
+  organizerContact?: string | null
+  telegramLink?: string | null
+  whatsappLink?: string | null
+  safetyNotes?: string | null
+  expectedAttendees?: number | null
 }
+
+export type CivicEventType =
+  | 'protest'
+  | 'civic_gathering'
+  | 'movement_event'
+  | 'demonstration'
 
 export type EventStatus =
   | 'draft'

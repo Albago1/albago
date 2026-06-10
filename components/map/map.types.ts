@@ -24,9 +24,16 @@ export type CreateMapAdapterParams = {
   getMarkerClassName: (isSelected: boolean) => string
 }
 
+export type FitBoundsOptions = {
+  padding?: number
+  maxZoom?: number
+  duration?: number
+}
+
 export type MapAdapter = {
   setMarkers: (markers: MapMarkerInput[]) => void
   flyToPlace: (input: FlyToPlaceInput) => void
   flyToLocation: (center: [number, number], zoom: number) => void
+  fitBounds: (coords: Array<[number, number]>, options?: FitBoundsOptions) => void
   destroy: () => void
 }

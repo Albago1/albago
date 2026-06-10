@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -99,7 +99,7 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  // — Admin view —
+  // â€” Admin view â€”
   if (profile?.role === 'admin') {
     const [eventsRes, pendingRes, placesRes, savedEvents] = await Promise.all([
       supabase
@@ -119,8 +119,8 @@ export default async function DashboardPage() {
         label: 'Published Events',
         value: eventsRes.count ?? 0,
         icon: Calendar,
-        color: 'text-blue-400',
-        bg: 'bg-blue-500/10 border-blue-500/20',
+        color: 'text-flame-400',
+        bg: 'bg-flame-500/10 border-flame-500/30',
       },
       {
         label: 'Pending Review',
@@ -144,11 +144,11 @@ export default async function DashboardPage() {
     return (
       <>
         <LandingNavbar />
-        <main className="min-h-screen bg-[#070b14] px-6 pb-6 pt-24 text-white">
+        <main className="min-h-screen bg-ink-950 px-6 pb-6 pt-24 text-white">
         <div className="mx-auto max-w-5xl">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-              <LayoutDashboard className="h-5 w-5 text-blue-400" />
+              <LayoutDashboard className="h-5 w-5 text-flame-400" />
             </div>
             <div>
               <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -217,7 +217,7 @@ export default async function DashboardPage() {
     )
   }
 
-  // — Regular user view —
+  // â€” Regular user view â€”
   const [submissionsRes, savedEvents, organizer] = await Promise.all([
     supabase
       .from('event_submissions')
@@ -233,12 +233,12 @@ export default async function DashboardPage() {
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-[#070b14] px-6 pb-6 pt-24 text-white">
+      <main className="min-h-screen bg-ink-950 px-6 pb-6 pt-24 text-white">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-              <LayoutDashboard className="h-5 w-5 text-blue-400" />
+              <LayoutDashboard className="h-5 w-5 text-flame-400" />
             </div>
             <div>
               <h1 className="text-3xl font-bold">My Dashboard</h1>
@@ -248,7 +248,7 @@ export default async function DashboardPage() {
 
           <Link
             href="/submit-event"
-            className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+            className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
           >
             <Send className="h-4 w-4" />
             Submit event
@@ -261,7 +261,7 @@ export default async function DashboardPage() {
         >
           <div className="flex items-center gap-4">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-              <Building2 className="h-5 w-5 text-blue-400" />
+              <Building2 className="h-5 w-5 text-flame-400" />
             </div>
             <div>
               <p className="font-semibold text-white">
@@ -299,7 +299,7 @@ export default async function DashboardPage() {
               </p>
               <Link
                 href="/submit-event"
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
               >
                 Submit your first event
               </Link>
@@ -315,7 +315,7 @@ export default async function DashboardPage() {
                     <div>
                       <p className="font-semibold text-white">{sub.title}</p>
                       <p className="mt-1 text-sm text-white/50">
-                        {sub.venue_name} · {sub.date}
+                        {sub.venue_name} Â· {sub.date}
                       </p>
                     </div>
 

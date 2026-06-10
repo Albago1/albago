@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -72,7 +72,7 @@ export default function OnboardingClient({ email }: { email: string }) {
   function chip(active: boolean) {
     return `rounded-full border px-3.5 py-1.5 text-sm transition ${
       active
-        ? 'border-blue-500/50 bg-blue-500/15 text-blue-300'
+        ? 'border-flame-500/50 bg-flame-500/15 text-flame-300'
         : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20 hover:text-white/80'
     }`
   }
@@ -80,27 +80,27 @@ export default function OnboardingClient({ email }: { email: string }) {
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-[#070b14] px-6 pb-20 pt-24 text-white">
+      <main className="min-h-screen bg-ink-950 px-6 pb-20 pt-24 text-white">
         <div className="mx-auto max-w-lg">
 
           {/* Progress */}
           <div className="pb-8 pt-6">
             <p className="mb-3 text-xs text-white/40">
-              Step {step} of 3 — {STEP_LABELS[step - 1]}
+              Step {step} of 3 â€” {STEP_LABELS[step - 1]}
             </p>
             <div className="flex gap-1.5">
               {[1, 2, 3].map(n => (
                 <div
                   key={n}
                   className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                    n <= step ? 'bg-blue-500' : 'bg-white/10'
+                    n <= step ? 'bg-flame-500' : 'bg-white/10'
                   }`}
                 />
               ))}
             </div>
           </div>
 
-          {/* ── Step 1: Profile ── */}
+          {/* â”€â”€ Step 1: Profile â”€â”€ */}
           {step === 1 && (
             <div className="space-y-6">
               <div>
@@ -113,7 +113,7 @@ export default function OnboardingClient({ email }: { email: string }) {
               <div className="space-y-3">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-white/50">
-                    Display name <span className="text-blue-400">*</span>
+                    Display name <span className="text-flame-400">*</span>
                   </label>
                   <input
                     type="text"
@@ -121,20 +121,20 @@ export default function OnboardingClient({ email }: { email: string }) {
                     value={form.displayName}
                     onChange={e => patch({ displayName: e.target.value })}
                     maxLength={60}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none placeholder:text-white/25 focus:border-blue-500/40"
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none placeholder:text-white/25 focus:border-flame-500/40"
                   />
                 </div>
 
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-white/50">
-                    Contact email <span className="text-blue-400">*</span>
+                    Contact email <span className="text-flame-400">*</span>
                   </label>
                   <input
                     type="email"
                     placeholder="you@example.com"
                     value={form.contactEmail}
                     onChange={e => patch({ contactEmail: e.target.value })}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none placeholder:text-white/25 focus:border-blue-500/40"
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none placeholder:text-white/25 focus:border-flame-500/40"
                   />
                 </div>
 
@@ -148,7 +148,7 @@ export default function OnboardingClient({ email }: { email: string }) {
                     placeholder="https://yoursite.com"
                     value={form.websiteUrl}
                     onChange={e => patch({ websiteUrl: e.target.value })}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none placeholder:text-white/25 focus:border-blue-500/40"
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none placeholder:text-white/25 focus:border-flame-500/40"
                   />
                 </div>
               </div>
@@ -156,20 +156,20 @@ export default function OnboardingClient({ email }: { email: string }) {
               <button
                 disabled={!step1Valid}
                 onClick={() => setStep(2)}
-                className="h-12 w-full rounded-2xl bg-blue-600 text-sm font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-12 w-full rounded-2xl bg-flame-500 text-sm font-semibold transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
             </div>
           )}
 
-          {/* ── Step 2: Survey ── */}
+          {/* â”€â”€ Step 2: Survey â”€â”€ */}
           {step === 2 && (
             <div className="space-y-7">
               <div>
                 <h1 className="text-3xl font-bold">About your events</h1>
                 <p className="mt-2 text-sm text-white/50">
-                  Help us understand your events. All optional — skip anything that doesn&apos;t apply.
+                  Help us understand your events. All optional â€” skip anything that doesn&apos;t apply.
                 </p>
               </div>
 
@@ -267,7 +267,7 @@ export default function OnboardingClient({ email }: { email: string }) {
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  className="h-12 flex-[2] rounded-2xl bg-blue-600 text-sm font-semibold transition hover:bg-blue-500"
+                  className="h-12 flex-[2] rounded-2xl bg-flame-500 text-sm font-semibold transition hover:bg-flame-400"
                 >
                   Next
                 </button>
@@ -275,7 +275,7 @@ export default function OnboardingClient({ email }: { email: string }) {
             </div>
           )}
 
-          {/* ── Step 3: Confirm ── */}
+          {/* â”€â”€ Step 3: Confirm â”€â”€ */}
           {step === 3 && (
             <div className="space-y-6">
               <div>
@@ -327,9 +327,9 @@ export default function OnboardingClient({ email }: { email: string }) {
                 <button
                   disabled={isSubmitting}
                   onClick={handleSubmit}
-                  className="h-12 flex-[2] rounded-2xl bg-blue-600 text-sm font-semibold transition hover:bg-blue-500 disabled:opacity-60"
+                  className="h-12 flex-[2] rounded-2xl bg-flame-500 text-sm font-semibold transition hover:bg-flame-400 disabled:opacity-60"
                 >
-                  {isSubmitting ? 'Creating account…' : 'Get started'}
+                  {isSubmitting ? 'Creating accountâ€¦' : 'Get started'}
                 </button>
               </div>
             </div>

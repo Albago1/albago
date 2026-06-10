@@ -1,7 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
+import OrganizerQueue from './OrganizerQueue'
+
+type AdminView = 'submissions' | 'organizer'
 
 type Submission = {
   id: string
@@ -20,6 +25,18 @@ type Submission = {
   country: string
   region: string | null
   location_slug: string
+  // Phase 8.3 civic columns. Nullable for legacy submissions made before the
+  // migration was applied (or for non-civic submissions today).
+  event_type?: string | null
+  is_civic?: boolean | null
+  featured_movement_slug?: string | null
+  organizer_contact?: string | null
+  telegram_link?: string | null
+  whatsapp_link?: string | null
+  safety_notes?: string | null
+  expected_attendees?: number | null
+  lat?: number | null
+  lng?: number | null
 }
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
@@ -48,6 +65,7 @@ export default function AdminClient() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState('')
+  const [view, setView] = useState<AdminView>('submissions')
 
   useEffect(() => {
     fetchSubmissions()
@@ -92,6 +110,8 @@ export default function AdminClient() {
 
     const slug = `${createSlug(submission.title)}-${submission.id.slice(0, 8)}`
 
+    const isCivic = submission.is_civic === true || submission.category === 'civic'
+
     const { error: eventError } = await supabase.from('events').insert({
       title: submission.title,
       slug,
@@ -106,6 +126,20 @@ export default function AdminClient() {
       country: submission.country,
       region: submission.region,
       location_slug: submission.location_slug,
+      // Carry civic context through to the published event. All nullable on
+      // the events table, so passing them for non-civic submissions is a no-op.
+      ...(isCivic && {
+        event_type: submission.event_type ?? 'protest',
+        is_civic: true,
+        featured_movement_slug: submission.featured_movement_slug ?? null,
+        organizer_contact: submission.organizer_contact ?? submission.contact_email,
+        telegram_link: submission.telegram_link ?? null,
+        whatsapp_link: submission.whatsapp_link ?? null,
+        safety_notes: submission.safety_notes ?? null,
+        expected_attendees: submission.expected_attendees ?? null,
+        lat: submission.lat ?? null,
+        lng: submission.lng ?? null,
+      }),
     })
 
     if (eventError) {
@@ -162,11 +196,58 @@ export default function AdminClient() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-3xl font-bold">Review Submissions</h1>
-      <p className="mt-2 text-sm text-white/50">
-        Approve or reject submitted events before publishing.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Admin</h1>
+          <p className="mt-2 text-sm text-white/50">
+            Moderate community submissions, organizer events, and volunteer signups.
+          </p>
+        </div>
 
+        <Link
+          href="/admin/volunteers"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+        >
+          <Users className="h-4 w-4" />
+          Volunteer signups
+        </Link>
+      </div>
+
+      <div className="mt-6 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+        <button
+          type="button"
+          onClick={() => setView('submissions')}
+          className={[
+            'rounded-full px-4 py-1.5 text-sm font-semibold transition',
+            view === 'submissions'
+              ? 'bg-white text-black'
+              : 'text-white/70 hover:text-white',
+          ].join(' ')}
+        >
+          Submissions
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('organizer')}
+          className={[
+            'rounded-full px-4 py-1.5 text-sm font-semibold transition',
+            view === 'organizer'
+              ? 'bg-white text-black'
+              : 'text-white/70 hover:text-white',
+          ].join(' ')}
+        >
+          Organizer queue
+        </button>
+      </div>
+
+      {view === 'organizer' && (
+        <div className="mt-8">
+          <OrganizerQueue />
+        </div>
+      )}
+
+      {view === 'submissions' && (
+        <>
       <div className="mt-6 flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <button
@@ -230,6 +311,11 @@ export default function AdminClient() {
                         venue linked
                       </span>
                     )}
+                    {submission.is_civic && (
+                      <span className="ml-2 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-2 py-0.5 text-xs text-flame-300">
+                        civic
+                      </span>
+                    )}
                     {' · '}
                     {submission.category}
                     {' · '}
@@ -248,11 +334,47 @@ export default function AdminClient() {
                 {submission.price && <p>Price: {submission.price}</p>}
                 <p>Email: {submission.contact_email}</p>
                 <p>Submitted: {new Date(submission.created_at).toLocaleString()}</p>
+                {submission.is_civic && submission.lat != null && submission.lng != null && (
+                  <p className="font-mono text-xs">
+                    Coords: {submission.lat.toFixed(4)}, {submission.lng.toFixed(4)}
+                  </p>
+                )}
               </div>
 
               <p className="mt-4 text-sm leading-6 text-white/70">
                 {submission.description}
               </p>
+
+              {submission.is_civic && (
+                <div className="mt-4 rounded-2xl border border-flame-500/20 bg-flame-500/[0.04] p-4 space-y-2 text-sm text-white/70">
+                  <div className="font-semibold text-white/85">Civic gathering context</div>
+                  {submission.expected_attendees != null && (
+                    <p>Expected attendees: {submission.expected_attendees.toLocaleString()}</p>
+                  )}
+                  {submission.featured_movement_slug && (
+                    <p>Movement: <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs">{submission.featured_movement_slug}</code></p>
+                  )}
+                  {submission.telegram_link && (
+                    <p>
+                      Telegram:{' '}
+                      <a href={submission.telegram_link} target="_blank" rel="noopener noreferrer" className="text-flame-300 underline-offset-2 hover:underline">
+                        {submission.telegram_link}
+                      </a>
+                    </p>
+                  )}
+                  {submission.whatsapp_link && (
+                    <p>
+                      WhatsApp:{' '}
+                      <a href={submission.whatsapp_link} target="_blank" rel="noopener noreferrer" className="text-flame-300 underline-offset-2 hover:underline">
+                        {submission.whatsapp_link}
+                      </a>
+                    </p>
+                  )}
+                  {submission.safety_notes && (
+                    <p className="leading-6"><span className="font-medium text-white/80">Safety:</span> {submission.safety_notes}</p>
+                  )}
+                </div>
+              )}
 
               {submission.admin_note && (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/60">
@@ -320,6 +442,8 @@ export default function AdminClient() {
           )
         })}
       </div>
+        </>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
+  Flame,
   Home,
   MapPin,
   Search,
@@ -42,7 +43,7 @@ type FilterBarProps = {
   onReset: () => void
 }
 
-const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food']
+const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic']
 const timeFilters: TimeFilter[] = ['tonight', 'weekend', 'all']
 
 function getTimeFilterLabel(filter: TimeFilter) {
@@ -95,7 +96,7 @@ function DesktopFilterBar(props: FilterBarProps) {
 
   return (
     <div className="absolute left-4 top-[72px] z-20 w-[600px] max-w-[calc(100%-2rem)]">
-      <div className="rounded-2xl border border-white/10 bg-[#070b14]/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+      <div className="rounded-2xl border border-white/10 bg-ink-950/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Link
@@ -125,7 +126,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                 className="cursor-pointer bg-transparent pr-1 text-sm text-white/85 outline-none"
               >
                 {locationOptions.map((loc) => (
-                  <option key={loc.slug} value={loc.slug} className="bg-[#0b1020]">
+                  <option key={loc.slug} value={loc.slug} className="bg-ink-900">
                     {loc.label}
                   </option>
                 ))}
@@ -167,6 +168,7 @@ function DesktopFilterBar(props: FilterBarProps) {
               .filter((category) => category !== 'all')
               .map((category) => {
                 const isActive = activeCategory === category
+                const isCivic = category === 'civic'
 
                 return (
                   <button
@@ -174,12 +176,15 @@ function DesktopFilterBar(props: FilterBarProps) {
                     type="button"
                     onClick={() => onCategoryChange(isActive ? 'all' : category)}
                     className={[
-                      'inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition',
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition',
                       isActive
-                        ? 'border-[#3b82f6]/40 bg-[#3b82f6]/20 text-white'
-                        : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
+                        ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                        : isCivic
+                          ? 'border-flame-500/30 bg-flame-500/[0.06] text-flame-200/85 hover:bg-flame-500/10 hover:text-flame-100'
+                          : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
                     ].join(' ')}
                   >
+                    {isCivic && <Flame className="h-3 w-3" />}
                     {getCategoryLabel(category)}
                   </button>
                 )
@@ -321,7 +326,7 @@ function MobileFilterBar(props: FilterBarProps) {
   return (
     <>
       <div className="absolute left-3 right-3 top-[72px] z-20 md:hidden">
-        <div className="rounded-2xl border border-white/10 bg-[#070b14]/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="rounded-2xl border border-white/10 bg-ink-950/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <Link
               href="/"
@@ -370,7 +375,7 @@ function MobileFilterBar(props: FilterBarProps) {
                   </button>
                 ))}
 
-                <div className="shrink-0 rounded-full border border-white/10 bg-[#2563eb]/15 px-3 py-1.5 text-xs font-semibold text-blue-300">
+                <div className="shrink-0 rounded-full border border-white/10 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
                   {visiblePlacesCount} found
                 </div>
               </>
@@ -384,7 +389,7 @@ function MobileFilterBar(props: FilterBarProps) {
                   Explore
                 </button>
 
-                <div className="shrink-0 rounded-full border border-white/10 bg-[#2563eb]/15 px-3 py-1.5 text-xs font-semibold text-blue-300">
+                <div className="shrink-0 rounded-full border border-white/10 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
                   {visiblePlacesCount} found
                 </div>
               </>
@@ -401,7 +406,7 @@ function MobileFilterBar(props: FilterBarProps) {
           />
 
           <div className="absolute inset-x-0 bottom-0 z-40 md:hidden">
-            <div className="rounded-t-[32px] border-t border-white/10 bg-[#070b14] px-4 pb-6 pt-3 shadow-[0_-20px_60px_rgba(0,0,0,0.45)]">
+            <div className="rounded-t-[32px] border-t border-white/10 bg-ink-950 px-4 pb-6 pt-3 shadow-[0_-20px_60px_rgba(0,0,0,0.45)]">
               <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/15" />
 
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -505,6 +510,7 @@ function MobileFilterBar(props: FilterBarProps) {
                   <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {categories.map((category) => {
                       const isActive = activeCategory === category
+                      const isCivic = category === 'civic'
 
                       return (
                         <button
@@ -512,12 +518,15 @@ function MobileFilterBar(props: FilterBarProps) {
                           type="button"
                           onClick={() => onCategoryChange(category)}
                           className={[
-                            'shrink-0 rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition',
+                            'inline-flex shrink-0 items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition',
                             isActive
-                              ? 'border-[#3b82f6]/40 bg-[#3b82f6]/20 text-white'
-                              : 'border-white/10 bg-white/[0.04] text-white/70',
+                              ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                              : isCivic
+                                ? 'border-flame-500/30 bg-flame-500/[0.06] text-flame-200/85'
+                                : 'border-white/10 bg-white/[0.04] text-white/70',
                           ].join(' ')}
                         >
+                          {isCivic && <Flame className="h-3.5 w-3.5" />}
                           {getCategoryLabel(category)}
                         </button>
                       )

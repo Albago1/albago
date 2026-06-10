@@ -14,6 +14,7 @@ import {
   X,
   LayoutDashboard,
   Calendar,
+  Flame,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -80,6 +81,12 @@ export default function LandingNavbar() {
   const navItems = [
     { href: '/', label: t('nav_home'), icon: Home, active: pathname === '/' },
     { href: '/events', label: t('nav_events'), icon: Calendar, active: pathname === '/events' },
+    {
+      href: '/protests',
+      label: t('nav_protests'),
+      icon: Flame,
+      active: pathname === '/protests' || pathname.startsWith('/events/albanian-revolution'),
+    },
     { href: '/map', label: t('nav_map'), icon: Map, active: pathname === '/map' },
     {
       href: '/submit-event',
@@ -100,19 +107,19 @@ export default function LandingNavbar() {
   ]
 
   return (
-    <nav className={`fixed inset-x-0 top-0 z-50 backdrop-blur-xl ${isMapRoute ? 'border-b border-white/[0.06] bg-[#070b14]/55' : 'border-b border-white/10 bg-[#070b14]/80'}`}>
+    <nav className={`fixed inset-x-0 top-0 z-50 backdrop-blur-xl ${isMapRoute ? 'border-b border-white/[0.06] bg-ink-950/55' : 'border-b border-white/10 bg-ink-950/80'}`}>
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <Link
           href="/"
           className="flex items-center gap-3"
           onClick={() => setMobileMenuOpen(false)}
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-flame-500 shadow-glow-flame">
             <MapPin className="h-5 w-5 text-white" />
           </div>
 
           <span className="text-2xl font-bold tracking-tight text-white">
-            Alba<span className="text-blue-500">Go</span>
+            Alba<span className="font-display italic font-normal text-flame-500">Go</span>
           </span>
         </Link>
 
@@ -127,7 +134,7 @@ export default function LandingNavbar() {
                 className={[
                   'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition',
                   item.active
-                    ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-violet-600/20'
+                    ? 'bg-flame-500/15 text-flame-100 ring-1 ring-flame-500/40 shadow-glow-soft'
                     : 'text-white/85 hover:bg-white/5 hover:text-white',
                 ].join(' ')}
               >
@@ -148,7 +155,7 @@ export default function LandingNavbar() {
                 onClick={() => setIsUserMenuOpen((prev) => !prev)}
                 className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:bg-white/[0.08]"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-flame-500 text-xs font-bold text-white">
                   {userEmail[0].toUpperCase()}
                 </span>
                 <span className="hidden max-w-[120px] truncate text-xs text-white/60 lg:block">
@@ -157,7 +164,7 @@ export default function LandingNavbar() {
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[160px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1020] shadow-2xl">
+                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[160px] overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
                   <Link
                     href="/dashboard"
                     onClick={() => setIsUserMenuOpen(false)}
@@ -181,7 +188,7 @@ export default function LandingNavbar() {
           ) : (
             <Link
               href="/sign-in"
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-xl bg-flame-500 px-4 py-2 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
             >
               <LogIn className="h-4 w-4" />
               {t('sign_in')}
@@ -194,9 +201,9 @@ export default function LandingNavbar() {
             <Link
               href="/dashboard"
               aria-label="My dashboard"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/20 transition hover:bg-blue-600/30"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-flame-500/20 ring-1 ring-flame-500/30 transition hover:bg-flame-500/30"
             >
-              <span className="text-sm font-bold text-blue-400">
+              <span className="text-sm font-bold text-flame-300">
                 {userEmail[0].toUpperCase()}
               </span>
             </Link>
@@ -222,7 +229,7 @@ export default function LandingNavbar() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="border-t border-white/10 bg-[#070b14] px-4 pb-4 pt-3 md:hidden">
+        <div className="border-t border-white/10 bg-ink-950 px-4 pb-4 pt-3 md:hidden">
           <div className="mb-4 flex justify-end">
             <div className="scale-90 origin-right">
               <LanguageSwitcher />
@@ -241,7 +248,7 @@ export default function LandingNavbar() {
                   className={[
                     'flex items-center gap-3 rounded-2xl px-4 py-4 text-base font-medium transition',
                     item.active
-                      ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-violet-600/20'
+                      ? 'bg-flame-500/15 text-flame-100 ring-1 ring-flame-500/40 shadow-glow-soft'
                       : 'text-white/85 hover:bg-white/5 hover:text-white',
                   ].join(' ')}
                 >

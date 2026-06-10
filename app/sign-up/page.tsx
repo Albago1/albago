@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -43,10 +43,10 @@ export default function SignUpPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#070b14] px-4 py-24 text-white">
+    <main className="min-h-screen bg-ink-950 px-4 py-24 text-white">
       <div className="mx-auto max-w-md rounded-[32px] border border-white/10 bg-white/[0.03] p-6">
         <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-white/90">
-          ← AlbaGo
+          â† AlbaGo
         </Link>
         <h1 className="text-3xl font-bold">Create account</h1>
         <p className="mt-2 text-sm text-white/55">
@@ -80,7 +80,7 @@ export default function SignUpPage() {
                 href="/sign-in"
                 className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/20 px-3 py-1.5 text-xs font-semibold text-green-100 transition hover:bg-green-500/30"
               >
-                Go to sign in →
+                Go to sign in â†’
               </Link>
             </div>
           )}
@@ -93,7 +93,7 @@ export default function SignUpPage() {
 
           <button
             disabled={isLoading}
-            className="h-12 w-full rounded-2xl bg-blue-600 text-sm font-semibold disabled:opacity-60"
+            className="h-12 w-full rounded-2xl bg-flame-500 text-sm font-semibold disabled:opacity-60"
           >
             {isLoading ? 'Creating account...' : 'Create account'}
           </button>
@@ -101,7 +101,7 @@ export default function SignUpPage() {
 
         <p className="mt-5 text-sm text-white/55">
           Already have an account?{' '}
-          <Link href="/sign-in" className="text-blue-400">
+          <Link href="/sign-in" className="text-flame-400">
             Sign in
           </Link>
         </p>

@@ -17,6 +17,7 @@ import {
   Clock3,
   BadgeCheck,
   Search,
+  Megaphone,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
@@ -34,6 +35,7 @@ const categories = [
   { labelKey: 'category_sports', value: 'sports', icon: Trophy },
   { labelKey: 'category_culture', value: 'culture', icon: Palette },
   { labelKey: 'category_food', value: 'food', icon: UtensilsCrossed },
+  { labelKey: 'category_civic', value: 'civic', icon: Megaphone },
 ]
 
 function getCategoryTone(category?: string) {
@@ -45,6 +47,7 @@ function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
+  if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
 
   return 'bg-white/10 text-white/80'
 }
@@ -342,22 +345,27 @@ export default function HomePage() {
       : true // default state always has categories
 
   return (
-    <main className="min-h-screen bg-[#070b14] text-white">
+    <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
       <section className="relative overflow-hidden px-4 pb-20 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-24 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-blue-600/12 blur-3xl" />
-          <div className="absolute left-[58%] top-32 h-[26rem] w-[26rem] rounded-full bg-violet-600/12 blur-3xl" />
+          <div className="absolute inset-0 bg-grid opacity-50" />
+          <div className="absolute inset-0 bg-radial-flame" />
+          <div className="absolute left-1/2 top-24 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-flame-500/20 blur-3xl" />
+          <div className="absolute left-[58%] top-32 h-[26rem] w-[26rem] rounded-full bg-flame-500/12 blur-3xl" />
         </div>
 
         <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-sm text-blue-400">
-            <Sparkles className="h-4 w-4" />
-            Explore events by location
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs backdrop-blur">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-flame-500" />
+            </span>
+            <span className="text-white/80">Events · Nightlife · Civic Movements</span>
           </div>
 
-          <h1 className="mt-8 max-w-5xl text-5xl font-bold tracking-tight text-white sm:text-6xl md:text-7xl">
+          <h1 className="display-text mt-10 max-w-5xl text-5xl sm:text-7xl lg:text-[96px] xl:text-[112px] leading-[0.92] tracking-tight">
             {t('hero_title')}
           </h1>
 
@@ -368,7 +376,7 @@ export default function HomePage() {
           <div className="mt-10 w-full max-w-3xl rounded-[32px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl">
           <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_auto]">
             <div className="relative" ref={searchContainerRef}>
-              <div className="flex h-14 items-center gap-3 rounded-2xl bg-[#0b1020] px-4">
+              <div className="flex h-14 items-center gap-3 rounded-2xl bg-ink-900 px-4">
                 <Search className="h-5 w-5 text-white/35" />
 
                 <input
@@ -391,7 +399,7 @@ export default function HomePage() {
               </div>
 
               {isSearchOpen && hasAnySuggestion && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 max-h-[420px] overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#0b1020] text-left shadow-2xl">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 max-h-[420px] overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-ink-900 text-left shadow-2xl">
 
                   {/* ── Categories ── */}
                   {suggestCats.length > 0 && (
@@ -481,7 +489,7 @@ export default function HomePage() {
             </div>
 
             <div className="relative" ref={locationDropdownRef}>
-              <div className="flex h-14 items-center gap-3 rounded-2xl bg-[#0b1020] px-4">
+              <div className="flex h-14 items-center gap-3 rounded-2xl bg-ink-900 px-4">
                 <MapPin className="h-5 w-5 text-white/35" />
 
                 <input
@@ -517,14 +525,14 @@ export default function HomePage() {
               </div>
 
               {isLocationOpen && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-[#0b1020] text-left shadow-2xl">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-ink-900 text-left shadow-2xl">
                   <button
                     type="button"
                     onClick={handleDetectLocation}
                     disabled={isLocating}
                     className="flex w-full items-center gap-3 px-4 py-4 text-sm text-white/80 transition hover:bg-white/[0.06] disabled:opacity-60"
                   >
-                    <MapPin className="h-5 w-5 text-blue-400" />
+                    <MapPin className="h-5 w-5 text-flame-400" />
                     <span>{isLocating ? 'Detecting...' : 'Use my current location'}</span>
                   </button>
 
@@ -566,7 +574,7 @@ export default function HomePage() {
 
             <Link
               href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
-              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-500"
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-flame-500 px-6 text-sm font-semibold text-white transition hover:bg-flame-400"
             >
               <Search className="h-5 w-5" />
               Search
@@ -598,7 +606,7 @@ export default function HomePage() {
           <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
               href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-10 py-5 text-xl font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-10 py-5 text-xl font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
             >
               <Calendar className="h-5 w-5" />
               Browse Events
@@ -635,7 +643,7 @@ export default function HomePage() {
                 className={[
                   'rounded-full border px-4 py-2 text-sm transition',
                   resolvedLocation.slug === location.slug
-                    ? 'border-blue-500/30 bg-blue-500/15 text-blue-300'
+                    ? 'border-flame-500/40 bg-flame-500/15 text-flame-300'
                     : 'border-white/10 bg-white/[0.03] text-white/75 hover:bg-white/[0.06] hover:text-white',
                 ].join(' ')}
               >
@@ -653,21 +661,21 @@ export default function HomePage() {
           </p>
           <div className="flex items-center justify-around">
             <div className="text-center">
-              <div className="text-5xl font-bold text-blue-500">
+              <div className="text-5xl font-bold text-flame-500">
                 {totalPlacesCount}
               </div>
               <div className="mt-2 text-xl text-white/65">{t('venues')}</div>
             </div>
 
             <div className="text-center">
-              <div className="text-5xl font-bold text-blue-500">
+              <div className="text-5xl font-bold text-flame-500">
                 {totalEventsCount}
               </div>
               <div className="mt-2 text-xl text-white/65">{t('events')}</div>
             </div>
 
             <div className="text-center">
-              <div className="text-5xl font-bold text-blue-500">
+              <div className="text-5xl font-bold text-flame-500">
                 {locationOptions.length}
               </div>
               <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
@@ -681,14 +689,14 @@ export default function HomePage() {
           <div className="mb-8 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <Calendar className="h-5 w-5 text-blue-400" />
+                <Calendar className="h-5 w-5 text-flame-400" />
               </div>
 
               <div>
-                <h2 className="text-2xl font-bold text-white sm:text-3xl">
-                  Featured Events
+                <h2 className="display-text text-3xl text-white sm:text-5xl">
+                  Featured events
                 </h2>
-                <p className="mt-1 text-sm text-white/50">
+                <p className="mt-2 text-sm text-white/55">
                   A quick look at what’s happening now
                 </p>
               </div>
@@ -775,7 +783,7 @@ export default function HomePage() {
                   </p>
 
                   <div className="mt-5">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
+                    <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
                       View event
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
@@ -792,14 +800,14 @@ export default function HomePage() {
           <div className="mb-8 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <MapPin className="h-5 w-5 text-violet-400" />
+                <MapPin className="h-5 w-5 text-flame-400" />
               </div>
 
               <div>
-                <h2 className="text-2xl font-bold text-white sm:text-3xl">
-                  Trending Places
+                <h2 className="display-text text-3xl text-white sm:text-5xl">
+                  Trending places
                 </h2>
-                <p className="mt-1 text-sm text-white/50">
+                <p className="mt-2 text-sm text-white/55">
                   Discover the places people are checking out most
                 </p>
               </div>
@@ -828,7 +836,7 @@ export default function HomePage() {
                       style={{ backgroundImage: `url(${place.imageUrl})` }}
                     />
                   ) : (
-                    <div className="h-full w-full bg-gradient-to-br from-violet-600/20 via-blue-600/10 to-transparent" />
+                    <div className="h-full w-full bg-gradient-to-br from-flame-500/20 via-flame-500/10 to-transparent" />
                   )}
                 </div>
 
@@ -843,7 +851,7 @@ export default function HomePage() {
                     </span>
 
                     {place.verified && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-400">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-flame-400">
                         <BadgeCheck className="h-3.5 w-3.5" />
                         Verified
                       </span>
@@ -873,7 +881,7 @@ export default function HomePage() {
                   )}
 
                   <div className="mt-5">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
+                    <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
                       View venue
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
@@ -885,22 +893,56 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="relative overflow-hidden px-4 py-16">
+        <div className="mx-auto max-w-6xl">
+          <Link
+            href="/events/albanian-revolution"
+            className="group relative block overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-br from-flame-500/15 via-flame-500/5 to-transparent p-8 sm:p-12 transition hover:border-flame-500/40"
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -top-24 left-1/3 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-flame-500/20 blur-3xl" />
+            </div>
+            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-2xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/75">
+                  <span className="h-1.5 w-1.5 rounded-full bg-flame-500" />
+                  Featured movement
+                </div>
+                <h2 className="mt-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                  Albanian Revolution — a peaceful worldwide civic movement
+                </h2>
+                <p className="mt-3 text-base leading-7 text-white/65">
+                  Coordinated gatherings across cities and continents. Peaceful, lawful, and
+                  open to everyone. Find a square near you or organize your city.
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-2 self-start rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition group-hover:bg-white/90">
+                Enter the campaign
+                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              </span>
+            </div>
+          </Link>
+        </div>
+      </section>
+
       <section className="relative overflow-hidden px-4 py-24">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-1/2 top-10 h-96 w-96 -translate-x-1/2 rounded-full bg-violet-600/10 blur-3xl" />
+          <div className="absolute left-1/2 top-10 h-96 w-96 -translate-x-1/2 rounded-full bg-flame-500/10 blur-3xl" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl text-center">
-          <h2 className="text-5xl font-bold text-white">{t('submit_event')}</h2>
+          <h2 className="display-text text-5xl sm:text-6xl lg:text-7xl text-white">
+            {t('submit_event')}
+          </h2>
 
-          <p className="mt-8 text-2xl text-white/55">
+          <p className="mt-8 text-xl text-white/60">
             {t('submit_event_subtitle')}
           </p>
 
           <div className="mt-12">
             <Link
               href="/submit-event"
-              className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.02] px-10 py-5 text-2xl font-semibold text-white transition hover:bg-white/[0.05]"
+              className="inline-flex items-center gap-3 rounded-full bg-flame-500 px-10 py-5 text-lg font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
             >
               {t('submit_event')}
               <ArrowRight className="h-5 w-5" />
@@ -912,11 +954,11 @@ export default function HomePage() {
       <footer className="border-t border-white/10 px-4 py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-flame-500 shadow-glow-flame">
               <MapPin className="h-4 w-4 text-white" />
             </div>
             <span className="text-lg font-bold text-white">
-              Alba<span className="text-blue-500">Go</span>
+              Alba<span className="font-display italic font-normal text-flame-500">Go</span>
             </span>
           </div>
 

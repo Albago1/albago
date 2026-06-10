@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
@@ -87,7 +87,7 @@ function getCategoryTone(category?: string) {
   if (value === 'bar') return 'bg-fuchsia-500/20 text-fuchsia-300'
   if (value === 'club') return 'bg-violet-500/20 text-violet-300'
   if (value === 'restaurant') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'café' || value === 'cafe') return 'bg-sky-500/20 text-sky-300'
+  if (value === 'cafÃ©' || value === 'cafe') return 'bg-sky-500/20 text-sky-300'
   if (value === 'nightlife') return 'bg-fuchsia-500/20 text-fuchsia-300'
   if (value === 'music') return 'bg-violet-500/20 text-violet-300'
   if (value === 'sports' || value === 'sport') return 'bg-emerald-500/20 text-emerald-300'
@@ -123,7 +123,7 @@ export async function generateMetadata(
   const venue = await fetchVenue(slug)
 
   if (!venue) {
-    return { title: 'Venue not found — AlbaGo' }
+    return { title: 'Venue not found â€” AlbaGo' }
   }
 
   const fallback =
@@ -133,7 +133,7 @@ export async function generateMetadata(
   const description = (venue.description ?? fallback).slice(0, 160)
 
   return {
-    title: `${venue.name} — AlbaGo`,
+    title: `${venue.name} â€” AlbaGo`,
     description,
     openGraph: {
       title: venue.name,
@@ -172,16 +172,16 @@ export default async function VenueDetailPage(
     savedIds = new Set((savedRows ?? []).map((r) => r.event_id))
   }
 
-  const cityLine = [venue.address, venue.city ?? location.label].filter(Boolean).join(' · ')
+  const cityLine = [venue.address, venue.city ?? location.label].filter(Boolean).join(' Â· ')
 
   return (
-    <main className="min-h-screen bg-[#070b14] text-white">
+    <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
       <section className="relative overflow-hidden px-4 pb-12 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-20 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-violet-600/10 blur-3xl" />
-          <div className="absolute right-[18%] top-28 h-[22rem] w-[22rem] rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="absolute left-1/2 top-20 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-flame-500/10 blur-3xl" />
+          <div className="absolute right-[18%] top-28 h-[22rem] w-[22rem] rounded-full bg-flame-500/10 blur-3xl" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl">
@@ -203,7 +203,7 @@ export default async function VenueDetailPage(
             </span>
 
             {venue.verified && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
+              <span className="inline-flex items-center gap-1 rounded-full border border-flame-500/30 bg-flame-500/10 px-3 py-1 text-xs font-semibold text-flame-300">
                 <BadgeCheck className="h-3.5 w-3.5" />
                 Verified
               </span>
@@ -224,7 +224,7 @@ export default async function VenueDetailPage(
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={`/map?place=${venue.id}`}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-flame-400"
             >
               <MapPin className="h-4 w-4" />
               Open in Map
@@ -279,7 +279,7 @@ export default async function VenueDetailPage(
                 </p>
                 <Link
                   href="/events"
-                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
                 >
                   Browse events
                   <ArrowRight className="h-4 w-4" />

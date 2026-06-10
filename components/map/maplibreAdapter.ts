@@ -48,8 +48,8 @@ const createMarkerElement = (marker: MapMarkerInput) => {
     <span class="flex items-center gap-1.5">
       ${
         marker.hasHighlight
-          ? '<span class="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]"></span>'
-          : '<span class="h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.8)]"></span>'
+          ? '<span class="h-1.5 w-1.5 rounded-full bg-flame-400 shadow-[0_0_10px_rgba(238,28,37,0.95)]"></span>'
+          : '<span class="h-1.5 w-1.5 rounded-full bg-flame-500 shadow-[0_0_10px_rgba(238,28,37,0.6)]"></span>'
       }
 
       <span class="max-w-[120px] truncate">${marker.name}</span>
@@ -101,6 +101,22 @@ const createMarkerElement = (marker: MapMarkerInput) => {
 
     flyToLocation(center, zoom) {
       map.flyTo({ center, zoom, essential: true })
+    },
+
+    fitBounds(coords, options) {
+      if (coords.length === 0) return
+      if (coords.length === 1) {
+        map.flyTo({ center: coords[0], zoom: 10, essential: true })
+        return
+      }
+      const bounds = new maplibregl.LngLatBounds(coords[0], coords[0])
+      for (const c of coords) bounds.extend(c)
+      map.fitBounds(bounds, {
+        padding: options?.padding ?? 60,
+        maxZoom: options?.maxZoom ?? 6,
+        duration: options?.duration ?? 800,
+        essential: true,
+      })
     },
 
     destroy() {

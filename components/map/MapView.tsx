@@ -17,13 +17,23 @@ import { useLocations } from '@/lib/useLocations'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
+type CivicMapEvent = {
+  id: string
+  slug: string
+  title: string
+  date: string
+  lat: number
+  lng: number
+  expectedAttendees: number | null
+}
+
 function getMarkerClassName(isSelected: boolean) {
   return [
-    'rounded-full border px-3.5 py-2 text-xs font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-all duration-200 origin-bottom cursor-pointer',
+    'rounded-full border px-3.5 py-2 text-xs font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 origin-bottom cursor-pointer',
     'hover:-translate-y-0.5 hover:scale-[1.03]',
     isSelected
-      ? 'border-white/20 bg-white text-black shadow-[0_14px_40px_rgba(255,255,255,0.18)] scale-110'
-      : 'border-white/10 bg-[#070b14]/90 text-white hover:border-white/20 hover:bg-[#111827]/95',
+      ? 'border-flame-400/50 bg-flame-500 text-white shadow-[0_14px_40px_rgba(238,28,37,0.55)] scale-110'
+      : 'border-flame-500/30 bg-ink-950/90 text-flame-100 hover:border-flame-400/60 hover:bg-flame-500/15',
   ].join(' ')
 }
 
@@ -60,6 +70,7 @@ export default function MapView() {
 
   const [places, setPlaces] = useState<Place[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [civicEvents, setCivicEvents] = useState<CivicMapEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(initialPlaceId)
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
@@ -88,9 +99,17 @@ export default function MapView() {
 
     async function fetchData() {
       setIsLoading(true)
-      const [placesRes, eventsRes] = await Promise.all([
+      const [placesRes, eventsRes, civicRes] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', locationSlug),
         supabase.from('events').select('*').eq('status', 'published').eq('location_slug', locationSlug),
+        supabase
+          .from('events')
+          .select('id, slug, title, date, lat, lng, expected_attendees')
+          .eq('status', 'published')
+          .eq('is_civic', true)
+          .eq('location_slug', locationSlug)
+          .not('lat', 'is', null)
+          .not('lng', 'is', null),
       ])
 
       if (placesRes.data) {
@@ -124,6 +143,31 @@ export default function MapView() {
           highlight: e.highlight ?? undefined,
         })))
       }
+
+      if (civicRes.data) {
+        setCivicEvents(
+          (civicRes.data as Array<{
+            id: string
+            slug: string
+            title: string
+            date: string
+            lat: number
+            lng: number
+            expected_attendees: number | null
+          }>).map((row) => ({
+            id: row.id,
+            slug: row.slug,
+            title: row.title,
+            date: row.date,
+            lat: row.lat,
+            lng: row.lng,
+            expectedAttendees: row.expected_attendees,
+          }))
+        )
+      } else {
+        setCivicEvents([])
+      }
+
       setIsLoading(false)
     }
 
@@ -153,6 +197,23 @@ export default function MapView() {
       return true
     })
   }, [activeTimeFilter, events])
+
+  const visibleCivicEvents = useMemo(() => {
+    if (activeCategory !== 'all' && activeCategory !== 'civic') return []
+    const normalizedSearch = searchQuery.trim().toLowerCase()
+    return civicEvents.filter((event) => {
+      const timeMatch =
+        activeTimeFilter === 'all'
+          ? true
+          : activeTimeFilter === 'tonight'
+            ? isToday(event.date)
+            : isThisWeekend(event.date)
+      const searchMatch =
+        normalizedSearch.length === 0 ||
+        event.title.toLowerCase().includes(normalizedSearch)
+      return timeMatch && searchMatch
+    })
+  }, [civicEvents, activeCategory, activeTimeFilter, searchQuery])
 
   const availableOptionChips = useMemo(() => {
     const allOptions = places.flatMap((place) => place.options ?? [])
@@ -197,14 +258,18 @@ export default function MapView() {
   }, [visiblePlaces])
 
   const visibleEventsCount = useMemo(() => {
-    return filteredEvents.filter((event) => event.placeId != null && visiblePlaceIds.has(event.placeId)).length
-  }, [filteredEvents, visiblePlaceIds])
+    const placeEventCount = filteredEvents.filter(
+      (event) => event.placeId != null && visiblePlaceIds.has(event.placeId)
+    ).length
+    return placeEventCount + visibleCivicEvents.length
+  }, [filteredEvents, visiblePlaceIds, visibleCivicEvents])
 
   const selectedPlace = useMemo<Place | null>(() => {
     return places.find((place) => place.id === selectedPlaceId) ?? null
   }, [selectedPlaceId, places])
 
-  const hasNoResults = !isLoading && visiblePlaces.length === 0
+  const hasNoResults =
+    !isLoading && visiblePlaces.length === 0 && visibleCivicEvents.length === 0
 
   useEffect(() => {
     if (!mapRef.current || mapAdapterRef.current) return
@@ -227,7 +292,7 @@ export default function MapView() {
     const adapter = mapAdapterRef.current
     if (!adapter) return
 
-    const markerInputs: MapMarkerInput[] = visiblePlaces.map((place) => {
+    const placeMarkers: MapMarkerInput[] = visiblePlaces.map((place) => {
       const placeEvents = filteredEvents.filter((event) => event.placeId === place.id)
 
       return {
@@ -243,8 +308,20 @@ export default function MapView() {
       }
     })
 
-    adapter.setMarkers(markerInputs)
-    }, [visiblePlaces, selectedPlaceId, filteredEvents])
+    const civicMarkers: MapMarkerInput[] = visibleCivicEvents.map((event) => ({
+      id: `civic-${event.id}`,
+      name: event.title,
+      lat: event.lat,
+      lng: event.lng,
+      category: 'civic',
+      eventCount: 1,
+      hasHighlight: true,
+      isSelected: false,
+      onClick: () => router.push(`/events/${event.slug}`),
+    }))
+
+    adapter.setMarkers([...placeMarkers, ...civicMarkers])
+    }, [visiblePlaces, selectedPlaceId, filteredEvents, visibleCivicEvents, router])
 
   useEffect(() => {
     if (!selectedPlaceId) return
@@ -293,12 +370,12 @@ export default function MapView() {
   }, [locationSlug])
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-[#070b14]">
+    <div className="relative h-screen w-full overflow-hidden bg-ink-950">
       <div ref={mapRef} className="h-full w-full" />
 
       {isLoading && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="rounded-2xl border border-white/10 bg-[#070b14]/80 px-5 py-3 text-sm text-white/60 backdrop-blur-xl">
+          <div className="rounded-2xl border border-white/10 bg-ink-950/80 px-5 py-3 text-sm text-white/60 backdrop-blur-xl">
             Loading places...
           </div>
         </div>
@@ -325,7 +402,7 @@ export default function MapView() {
 
       {hasNoResults && (
         <div className="pointer-events-none absolute inset-x-3 bottom-4 z-20 md:left-4 md:bottom-4 md:w-[380px]">
-          <div className="pointer-events-auto rounded-3xl border border-white/10 bg-[#070b14]/92 p-4 text-white shadow-2xl backdrop-blur-xl">
+          <div className="pointer-events-auto rounded-3xl border border-white/10 bg-ink-950/92 p-4 text-white shadow-2xl backdrop-blur-xl">
             <p className="text-sm font-semibold text-white">
               No places match these filters
             </p>

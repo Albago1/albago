@@ -56,13 +56,32 @@ export async function createOrganizerEvent(
     if (!error) return { id: data as string, error: null }
 
     if (error.message.includes('not_organizer')) {
-      return { id: null, error: 'You must complete organizer onboarding before creating events.' }
+      return {
+        id: null,
+        error: 'You must complete organizer onboarding before creating events.',
+      }
     }
 
     if (error.code === '23505') continue
+
+    console.error('organizer_create_event error:', error)
+    if (error.code === '42501' || error.message.includes('permission denied')) {
+      return {
+        id: null,
+        error:
+          'The server refused the request. The RPC may be missing GRANT EXECUTE — see docs/next-session.md.',
+      }
+    }
+    return {
+      id: null,
+      error: error.message || 'Something went wrong. Please try again.',
+    }
   }
 
-  return { id: null, error: 'Something went wrong. Please try again.' }
+  return {
+    id: null,
+    error: 'Could not generate a unique event URL. Try a slightly different title.',
+  }
 }
 
 export async function submitOrganizerEvent(

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -93,11 +93,11 @@ export default function CreateEventClient() {
     return (
       <>
         <LandingNavbar />
-        <main className="min-h-screen bg-[#070b14] px-6 pb-12 pt-24 text-white">
+        <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
           <div className="mx-auto max-w-xl text-center">
             <div className="flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-blue-500/20 bg-blue-500/10">
-                <CheckCircle2 className="h-8 w-8 text-blue-400" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-flame-500/30 bg-flame-500/10">
+                <CheckCircle2 className="h-8 w-8 text-flame-400" />
               </div>
             </div>
             <h1 className="mt-6 text-2xl font-bold">Draft saved</h1>
@@ -108,7 +108,7 @@ export default function CreateEventClient() {
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
                 href="/organizer"
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-flame-400"
               >
                 Go to my events
               </Link>
@@ -128,7 +128,7 @@ export default function CreateEventClient() {
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-[#070b14] px-6 pb-12 pt-24 text-white">
+      <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
         <div className="mx-auto max-w-xl">
 
           {/* Back link */}
@@ -180,7 +180,7 @@ export default function CreateEventClient() {
               <textarea
                 value={form.description}
                 onChange={(e) => set('description', e.target.value)}
-                placeholder="Describe your event…"
+                placeholder="Describe your eventâ€¦"
                 rows={4}
                 className={`mt-2 resize-none ${inputClass}`}
               />
@@ -230,7 +230,7 @@ export default function CreateEventClient() {
                 type="text"
                 value={form.price}
                 onChange={(e) => set('price', e.target.value)}
-                placeholder="Free  ·  €10  ·  500 ALL"
+                placeholder="Free  Â·  â‚¬10  Â·  500 ALL"
                 className={`mt-2 ${inputClass}`}
               />
             </div>
@@ -246,9 +246,9 @@ export default function CreateEventClient() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-full bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-full bg-flame-500 py-3 text-sm font-semibold text-white transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? 'Saving…' : 'Save as draft'}
+              {isSubmitting ? 'Savingâ€¦' : 'Save as draft'}
             </button>
 
           </form>

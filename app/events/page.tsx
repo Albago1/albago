@@ -23,7 +23,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
-const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food'] as const
+const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic'] as const
 
 type PublicEvent = {
   id: string
@@ -77,6 +77,7 @@ function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
+  if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
 
   return 'bg-white/10 text-white/80'
 }
@@ -275,13 +276,15 @@ function EventsContent() {
   const activeLocation = getLocationBySlug(activeLocationSlug)
 
   return (
-    <main className="min-h-screen bg-[#070b14] text-white">
+    <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
       <section className="relative overflow-hidden px-4 pb-12 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-20 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-blue-600/10 blur-3xl" />
-          <div className="absolute right-[18%] top-28 h-[22rem] w-[22rem] rounded-full bg-violet-600/10 blur-3xl" />
+          <div className="absolute inset-0 bg-grid opacity-40" />
+          <div className="absolute inset-0 bg-radial-flame" />
+          <div className="absolute left-1/2 top-20 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-flame-500/15 blur-3xl" />
+          <div className="absolute right-[18%] top-28 h-[22rem] w-[22rem] rounded-full bg-flame-500/10 blur-3xl" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-6xl">
@@ -293,12 +296,12 @@ function EventsContent() {
             Back
           </Link>
 
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-sm text-blue-400">
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2 text-sm text-flame-300">
             <MapPin className="h-4 w-4" />
             {isSearchMode ? 'All cities' : `${activeLocation.label}, ${activeLocation.country}`}
           </div>
 
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <h1 className="display-text mt-6 text-5xl sm:text-7xl lg:text-[88px] leading-[0.95] tracking-tight">
             {isSearchMode
               ? `Results for "${debouncedSearch}"`
               : `All events in ${activeLocation.label}`}
@@ -312,7 +315,7 @@ function EventsContent() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={`/map?location=${activeLocationSlug}`}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
             >
               <MapPin className="h-4 w-4" />
               {t('open_map')}
@@ -336,7 +339,7 @@ function EventsContent() {
               <select
                 value={activeLocationSlug}
                 onChange={(event) => setActiveLocationSlug(event.target.value)}
-                className="mt-2 h-12 w-full max-w-sm rounded-2xl border border-white/10 bg-[#0b1020] px-4 text-sm text-white outline-none"
+                className="mt-2 h-12 w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 px-4 text-sm text-white outline-none"
               >
                 {locationOptions.map((location) => (
                   <option key={location.slug} value={location.slug}>
@@ -370,11 +373,11 @@ function EventsContent() {
                   }
                 }}
                 placeholder="Search events, music, food..."
-                className="h-12 w-full rounded-2xl border border-white/10 bg-[#0b1020] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35"
+                className="h-12 w-full rounded-2xl border border-white/10 bg-ink-900 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35"
               />
 
               {isSuggestOpen && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-[#0b1020] shadow-2xl">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-ink-900 shadow-2xl">
                   {suggestions.map((s) => (
                     <button
                       key={s.id}
@@ -436,7 +439,7 @@ function EventsContent() {
                   className={[
                     'rounded-full px-4 py-2 text-sm font-medium capitalize transition',
                     isActive
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-flame-500 text-white shadow-glow-flame'
                       : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
                   ].join(' ')}
                 >
@@ -592,7 +595,7 @@ function EventsContent() {
                 </p>
 
                 <div className="mt-5">
-                  <span className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition group-hover:text-blue-300">
+                  <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
                     View event
                     <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                   </span>

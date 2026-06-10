@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import {
@@ -29,7 +29,7 @@ function statusStyle(status: EventStatus): string {
   switch (status) {
     case 'draft': return 'border-white/15 bg-white/[0.05] text-white/60'
     case 'pending_review': return 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-    case 'published': return 'border-blue-500/20 bg-blue-500/10 text-blue-400'
+    case 'published': return 'border-flame-500/30 bg-flame-500/10 text-flame-400'
     case 'rejected': return 'border-red-500/20 bg-red-500/10 text-red-400'
     case 'cancelled': return 'border-white/10 bg-white/[0.03] text-white/40'
     case 'completed': return 'border-green-500/20 bg-green-500/10 text-green-400'
@@ -76,9 +76,9 @@ export default function OrganizerDashboardClient({
       icon: CheckCircle2,
       active: counts.published > 0,
       color: 'text-white/70',
-      activeColor: 'text-blue-400',
+      activeColor: 'text-flame-400',
       bg: 'bg-white/[0.03] border-white/10',
-      activeBg: 'bg-blue-500/[0.07] border-blue-500/15',
+      activeBg: 'bg-flame-500/[0.07] border-flame-500/15',
     },
     {
       label: 'Rejected',
@@ -95,14 +95,14 @@ export default function OrganizerDashboardClient({
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-[#070b14] px-6 pb-12 pt-24 text-white">
+      <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
         <div className="mx-auto max-w-3xl">
 
           {/* Header */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <Building2 className="h-5 w-5 text-blue-400" />
+                <Building2 className="h-5 w-5 text-flame-400" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold sm:text-3xl">
@@ -116,7 +116,7 @@ export default function OrganizerDashboardClient({
 
             <Link
               href="/organizer/create"
-              className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+              className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-flame-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Create event</span>
@@ -154,7 +154,7 @@ export default function OrganizerDashboardClient({
                 </p>
                 <Link
                   href="/organizer/create"
-                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
                 >
                   <Plus className="h-4 w-4" />
                   Create event
@@ -178,8 +178,8 @@ export default function OrganizerDashboardClient({
                             month: 'short',
                             year: 'numeric',
                           })}
-                          {event.time ? ` · ${event.time}` : ''}
-                          {' · '}
+                          {event.time ? ` Â· ${event.time}` : ''}
+                          {' Â· '}
                           <span className="capitalize">{event.category}</span>
                         </p>
                       </div>

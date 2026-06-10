@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -44,10 +44,10 @@ function SignInForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[#070b14] px-4 py-24 text-white">
+    <main className="min-h-screen bg-ink-950 px-4 py-24 text-white">
       <div className="mx-auto max-w-md rounded-[32px] border border-white/10 bg-white/[0.03] p-6">
         <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-white/90">
-          ← AlbaGo
+          â† AlbaGo
         </Link>
         <h1 className="text-3xl font-bold">Sign in</h1>
         <p className="mt-2 text-sm text-white/55">
@@ -81,7 +81,7 @@ function SignInForm() {
 
           <button
             disabled={isLoading}
-            className="h-12 w-full rounded-2xl bg-blue-600 text-sm font-semibold disabled:opacity-60"
+            className="h-12 w-full rounded-2xl bg-flame-500 text-sm font-semibold disabled:opacity-60"
           >
             {isLoading ? 'Signing in...' : 'Sign in'}
           </button>
@@ -89,7 +89,7 @@ function SignInForm() {
 
         <p className="mt-5 text-sm text-white/55">
           No account?{' '}
-          <Link href="/sign-up" className="text-blue-400">
+          <Link href="/sign-up" className="text-flame-400">
             Create one
           </Link>
         </p>

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Calendar, Users, Zap } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -11,7 +11,7 @@ const VALUE_PROPS = [
   {
     icon: Calendar,
     title: 'Publish in minutes',
-    desc: 'Create an event, add your details, and go live — no lengthy approval wait.',
+    desc: 'Create an event, add your details, and go live â€” no lengthy approval wait.',
   },
   {
     icon: Users,
@@ -29,7 +29,7 @@ export default function BecomeOrganizerPage() {
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-[#070b14] px-6 pb-20 pt-24 text-white">
+      <main className="min-h-screen bg-ink-950 px-6 pb-20 pt-24 text-white">
         <div className="mx-auto max-w-lg">
 
           {/* Hero */}
@@ -49,9 +49,9 @@ export default function BecomeOrganizerPage() {
 
             <Link
               href="/onboarding/organizer"
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-3.5 text-base font-semibold text-white transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-xl bg-flame-500 px-8 py-3.5 text-base font-semibold text-white transition hover:bg-flame-400"
             >
-              Get started — it&apos;s free
+              Get started â€” it&apos;s free
             </Link>
 
             <p className="mt-4 text-xs text-white/30">
@@ -72,8 +72,8 @@ export default function BecomeOrganizerPage() {
                 key={title}
                 className="flex items-start gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5"
               >
-                <div className="mt-0.5 flex-shrink-0 rounded-xl border border-blue-500/20 bg-blue-600/15 p-2.5">
-                  <Icon className="h-4 w-4 text-blue-400" />
+                <div className="mt-0.5 flex-shrink-0 rounded-xl border border-flame-500/30 bg-flame-500/15 p-2.5">
+                  <Icon className="h-4 w-4 text-flame-400" />
                 </div>
                 <div>
                   <p className="mb-1 text-sm font-semibold">{title}</p>

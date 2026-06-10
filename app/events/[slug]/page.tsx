@@ -7,8 +7,13 @@ import {
   Clock3,
   ExternalLink,
   Flame,
+  Mail,
   MapPin,
+  MessageCircle,
   Navigation,
+  Send,
+  ShieldAlert,
+  Users,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
@@ -30,6 +35,16 @@ type EventRecord = {
   highlight: boolean | null
   place_id: string | null
   location_slug: string
+  lat: number | null
+  lng: number | null
+  is_civic: boolean | null
+  event_type: string | null
+  featured_movement_slug: string | null
+  organizer_contact: string | null
+  telegram_link: string | null
+  whatsapp_link: string | null
+  safety_notes: string | null
+  expected_attendees: number | null
   places: {
     id: string
     name: string
@@ -45,7 +60,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, price, highlight, place_id, location_slug, places ( id, name, address, lat, lng, website_url )'
+      'id, slug, title, description, category, date, time, price, highlight, place_id, location_slug, lat, lng, is_civic, event_type, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, places ( id, name, address, lat, lng, website_url )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -61,7 +76,17 @@ function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
+  if (value === 'civic') return 'bg-flame-500/15 text-flame-300 ring-1 ring-flame-500/40'
   return 'bg-white/10 text-white/80'
+}
+
+function formatAttendees(count: number) {
+  if (count >= 1000) {
+    const k = count / 1000
+    const formatted = k >= 10 ? Math.round(k).toString() : k.toFixed(1).replace(/\.0$/, '')
+    return `${formatted}k`
+  }
+  return count.toLocaleString('en-US')
 }
 
 function formatDateLong(dateString: string) {
@@ -109,15 +134,21 @@ export default async function EventDetailPage(
 
   const location = getLocationBySlug(event.location_slug)
   const venue = event.places
+  const isCivic = !!event.is_civic
   const mapHref = buildMapHref({
     location_slug: event.location_slug,
     place_id: event.place_id,
     date: event.date,
   })
+  const directionsLat = venue?.lat ?? event.lat ?? null
+  const directionsLng = venue?.lng ?? event.lng ?? null
   const directionsHref =
-    venue && venue.lat != null && venue.lng != null
-      ? buildDirectionsHref(venue.lat, venue.lng)
+    directionsLat != null && directionsLng != null
+      ? buildDirectionsHref(directionsLat, directionsLng)
       : null
+  const hasCoordination =
+    isCivic &&
+    (event.telegram_link || event.whatsapp_link || event.organizer_contact)
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -133,22 +164,24 @@ export default async function EventDetailPage(
   }
 
   return (
-    <main className="min-h-screen bg-[#070b14] text-white">
+    <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
       <section className="relative overflow-hidden px-4 pb-12 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-20 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-blue-600/10 blur-3xl" />
-          <div className="absolute right-[18%] top-28 h-[22rem] w-[22rem] rounded-full bg-violet-600/10 blur-3xl" />
+          <div className="absolute inset-0 bg-grid opacity-40" />
+          <div className="absolute inset-0 bg-radial-flame" />
+          <div className="absolute left-1/2 top-20 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-flame-500/15 blur-3xl" />
+          <div className="absolute right-[18%] top-28 h-[22rem] w-[22rem] rounded-full bg-flame-500/10 blur-3xl" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl">
           <Link
-            href="/events"
+            href={isCivic ? '/protests' : '/events'}
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white/75 transition hover:bg-white/[0.08] hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to events
+            {isCivic ? 'Back to protests' : 'Back to events'}
           </Link>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -174,7 +207,7 @@ export default async function EventDetailPage(
             )}
           </div>
 
-          <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+          <h1 className="display-text mt-5 text-5xl sm:text-7xl leading-[0.95] tracking-tight">
             {event.title}
           </h1>
 
@@ -198,7 +231,7 @@ export default async function EventDetailPage(
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={mapHref}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
             >
               <MapPin className="h-4 w-4" />
               Open in Map
@@ -247,6 +280,87 @@ export default async function EventDetailPage(
               {venue.address && (
                 <p className="mt-1 text-sm text-white/60">{venue.address}</p>
               )}
+            </div>
+          )}
+
+          {isCivic && event.expected_attendees != null && (
+            <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-3xl border border-flame-500/30 bg-flame-500/[0.06] p-6 backdrop-blur-md">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
+                  Expected attendees
+                </p>
+                <p className="mt-2 inline-flex items-baseline gap-2 text-3xl font-semibold text-white">
+                  <Users className="h-5 w-5 text-flame-400" />
+                  {formatAttendees(event.expected_attendees)}
+                </p>
+                <p className="mt-1 text-xs text-white/55">
+                  Projected turnout in {location.label}.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {hasCoordination && (
+            <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                Coordination
+              </p>
+              <p className="mt-2 text-sm text-white/60">
+                Live channels and organizer contact for this gathering.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                {event.telegram_link && (
+                  <a
+                    href={event.telegram_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2 text-sm font-semibold text-flame-100 transition hover:bg-flame-500/20"
+                  >
+                    <Send className="h-4 w-4" />
+                    Telegram
+                  </a>
+                )}
+                {event.whatsapp_link && (
+                  <a
+                    href={event.whatsapp_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp
+                  </a>
+                )}
+                {event.organizer_contact && (
+                  <a
+                    href={
+                      event.organizer_contact.includes('@')
+                        ? `mailto:${event.organizer_contact}`
+                        : event.organizer_contact
+                    }
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {event.organizer_contact}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isCivic && event.safety_notes && (
+            <div className="mt-8 rounded-3xl border border-flame-500/30 bg-flame-500/[0.06] p-6 backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-flame-400" />
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
+                    Safety & legality
+                  </p>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-white/80">
+                    {event.safety_notes}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
