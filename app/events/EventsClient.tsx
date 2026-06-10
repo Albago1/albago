@@ -2,10 +2,13 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUpDown,
   Calendar,
+  CalendarRange,
   Clock3,
   Flame,
   MapPin,
@@ -22,6 +25,14 @@ import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
+
+type SortBy = 'featured' | 'date-asc' | 'date-desc'
+
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: 'featured', label: 'Featured first' },
+  { value: 'date-asc', label: 'Soonest first' },
+  { value: 'date-desc', label: 'Latest first' },
+]
 
 const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic'] as const
 
@@ -158,6 +169,16 @@ function EventsContent() {
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
   const [activeTags, setActiveTags] = useState<Set<string>>(initialTags)
+
+  const initialSort = (() => {
+    const raw = searchParams.get('sort') as SortBy | null
+    if (raw === 'date-asc' || raw === 'date-desc' || raw === 'featured') return raw
+    return 'featured' as SortBy
+  })()
+  const [sortBy, setSortBy] = useState<SortBy>(initialSort)
+  const [dateFrom, setDateFrom] = useState(searchParams.get('from') || '')
+  const [dateTo, setDateTo] = useState(searchParams.get('to') || '')
+  const hasDateRange = dateFrom !== '' || dateTo !== ''
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocationSlug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
@@ -294,8 +315,21 @@ function EventsContent() {
     if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
     if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
     if (activeTags.size > 0) params.set('tags', Array.from(activeTags).sort().join(','))
+    if (sortBy !== 'featured') params.set('sort', sortBy)
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo) params.set('to', dateTo)
     router.replace(`/events?${params.toString()}`)
-  }, [activeLocationSlug, activeCategory, activeTimeFilter, debouncedSearch, activeTags, router])
+  }, [
+    activeLocationSlug,
+    activeCategory,
+    activeTimeFilter,
+    debouncedSearch,
+    activeTags,
+    sortBy,
+    dateFrom,
+    dateTo,
+    router,
+  ])
 
   // Top tags by frequency in the currently loaded events. Capped at 16 so the
   // chip row never gets out of hand.
@@ -328,17 +362,18 @@ function EventsContent() {
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
-      const timeMatches =
-        activeTimeFilter === 'all' ||
-        (activeTimeFilter === 'tonight' && isToday(event.date)) ||
-        (activeTimeFilter === 'weekend' && isThisWeekend(event.date))
+      // Explicit date range overrides the time chip when set.
+      const timeMatches = hasDateRange
+        ? (!dateFrom || event.date >= dateFrom) &&
+          (!dateTo || event.date <= dateTo)
+        : activeTimeFilter === 'all' ||
+          (activeTimeFilter === 'tonight' && isToday(event.date)) ||
+          (activeTimeFilter === 'weekend' && isThisWeekend(event.date))
 
       const categoryMatches =
         activeCategory === 'all' ||
         event.category.toLowerCase() === activeCategory.toLowerCase()
 
-      // ANY-match: event passes if it has at least one of the selected tags.
-      // No selection means tags don't filter anything.
       const tagsMatch =
         activeTags.size === 0 ||
         (event.tags &&
@@ -346,9 +381,25 @@ function EventsContent() {
 
       return timeMatches && categoryMatches && tagsMatch
     })
-  }, [activeTimeFilter, activeCategory, activeTags, events])
+  }, [activeTimeFilter, activeCategory, activeTags, events, hasDateRange, dateFrom, dateTo])
 
-  const sortedEvents = useMemo(() => sortEventsByPriority(filteredEvents), [filteredEvents])
+  const sortedEvents = useMemo(() => {
+    if (sortBy === 'date-asc') {
+      return [...filteredEvents].sort((a, b) => {
+        const da = new Date(`${a.date}T${a.time}`).getTime()
+        const db = new Date(`${b.date}T${b.time}`).getTime()
+        return da - db
+      })
+    }
+    if (sortBy === 'date-desc') {
+      return [...filteredEvents].sort((a, b) => {
+        const da = new Date(`${a.date}T${a.time}`).getTime()
+        const db = new Date(`${b.date}T${b.time}`).getTime()
+        return db - da
+      })
+    }
+    return sortEventsByPriority(filteredEvents)
+  }, [filteredEvents, sortBy])
 
   const activeLocation = resolveLocation(activeLocationSlug, locationOptions)
 
@@ -526,6 +577,45 @@ function EventsContent() {
             })}
           </div>
 
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <CalendarRange className="h-3.5 w-3.5 text-white/45" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+              Date range
+            </p>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white outline-none focus:border-white/25"
+              aria-label="From date"
+            />
+            <span className="text-xs text-white/35">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white outline-none focus:border-white/25"
+              aria-label="To date"
+            />
+            {hasDateRange && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom('')
+                  setDateTo('')
+                }}
+                className="ml-auto text-[11px] font-semibold uppercase tracking-[0.14em] text-flame-300 transition hover:text-flame-200"
+              >
+                Clear dates
+              </button>
+            )}
+            {hasDateRange && (
+              <p className="basis-full text-[11px] text-white/40">
+                Overriding the time filter chips above while a date range is set.
+              </p>
+            )}
+          </div>
+
           {availableTags.length > 0 && (
             <div className="mt-3">
               <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -578,11 +668,30 @@ function EventsContent() {
 
       <section className="px-4 pb-20">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/75">
               <span className="font-semibold text-white">{sortedEvents.length}</span>{' '}
               {sortedEvents.length === 1 ? 'event' : 'events'}
             </div>
+
+            <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75">
+              <ArrowUpDown className="h-3.5 w-3.5 text-white/45" />
+              <span className="font-semibold uppercase tracking-[0.14em] text-white/45">
+                Sort
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                className="bg-transparent text-xs font-medium text-white outline-none"
+                aria-label="Sort events"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-ink-900">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {isLoading && (
@@ -642,12 +751,21 @@ function EventsContent() {
             </div>
           )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <motion.div layout className="grid gap-4 lg:grid-cols-2">
+            <AnimatePresence mode="popLayout">
             {sortedEvents.map((event) => (
-              <Link
+              <motion.div
                 key={event.id}
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.6 }}
+                whileHover={{ y: -3 }}
+              >
+              <Link
                 href={`/events/${event.slug}`}
-                className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]"
+                className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.06] hover:shadow-[0_20px_50px_rgba(238,28,37,0.18)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
@@ -744,8 +862,10 @@ function EventsContent() {
                   </span>
                 </div>
               </Link>
+              </motion.div>
             ))}
-          </div>
+            </AnimatePresence>
+          </motion.div>
         </div>
       </section>
     </main>
