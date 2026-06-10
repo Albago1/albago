@@ -14,6 +14,7 @@ import ProtestEventCard, {
 } from '@/components/protest/ProtestEventCard'
 import SafetyPanel from '@/components/protest/SafetyPanel'
 import type { Movement } from '@/lib/movements'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 type Props = {
   movement: Movement
@@ -22,6 +23,7 @@ type Props = {
 }
 
 export default function MovementClient({ movement, events, migrationApplied }: Props) {
+  const { t } = useLanguage()
   const mapMarkers = useMemo(
     () =>
       events
@@ -61,7 +63,7 @@ export default function MovementClient({ movement, events, migrationApplied }: P
           <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/[0.06] px-4 py-1.5 text-xs text-flame-200 backdrop-blur">
               <Flame className="h-3.5 w-3.5 text-flame-400" />
-              Featured movement
+              {t('movement_featured_label')}
             </div>
           </Reveal>
 
@@ -81,7 +83,7 @@ export default function MovementClient({ movement, events, migrationApplied }: P
           <Reveal delay={0.18}>
             <div className="mt-8 flex flex-wrap gap-3">
               <CinematicLink href="/submit-event" variant="primary" size="md">
-                Register a gathering
+                {t('movement_register_gathering')}
                 <ArrowRight className="h-4 w-4" />
               </CinematicLink>
               <CinematicLink
@@ -89,7 +91,7 @@ export default function MovementClient({ movement, events, migrationApplied }: P
                 variant="secondary"
                 size="md"
               >
-                Volunteer
+                {t('movement_volunteer')}
               </CinematicLink>
               {movement.flagshipUrl && (
                 <CinematicLink
@@ -97,7 +99,7 @@ export default function MovementClient({ movement, events, migrationApplied }: P
                   variant="ghost"
                   size="md"
                 >
-                  Open campaign page
+                  {t('movement_open_campaign')}
                 </CinematicLink>
               )}
             </div>
@@ -106,22 +108,25 @@ export default function MovementClient({ movement, events, migrationApplied }: P
           <Reveal delay={0.24}>
             <div className="mt-10 inline-flex flex-wrap items-center gap-2 text-xs text-white/55">
               <span>
-                <span className="font-semibold text-white">{events.length}</span> gatherings
+                <span className="font-semibold text-white">{events.length}</span>{' '}
+                {t('protests_count_gatherings')}
               </span>
               <span className="h-3 w-px bg-white/15" />
               <span>
-                <span className="font-semibold text-white">{totals.cities}</span> cities
+                <span className="font-semibold text-white">{totals.cities}</span>{' '}
+                {t('protests_count_cities')}
               </span>
               <span className="h-3 w-px bg-white/15" />
               <span>
-                <span className="font-semibold text-white">{totals.countries}</span> countries
+                <span className="font-semibold text-white">{totals.countries}</span>{' '}
+                {t('protests_count_countries')}
               </span>
               <span className="h-3 w-px bg-white/15" />
               <span>
                 <span className="font-semibold text-white">
                   {formatProtestNumber(totals.attending)}
                 </span>{' '}
-                expected
+                {t('protests_count_expected')}
               </span>
             </div>
           </Reveal>
@@ -137,24 +142,24 @@ export default function MovementClient({ movement, events, migrationApplied }: P
               <div>
                 <p className="font-semibold text-white">
                   {migrationApplied
-                    ? 'No gatherings registered for this movement yet.'
-                    : 'Civic schema not enabled.'}
+                    ? t('movement_empty_title')
+                    : t('movement_empty_schema')}
                 </p>
                 <p className="mt-1 text-white/70">
                   {migrationApplied ? (
                     <>
-                      Submit a peaceful gathering with{' '}
+                      {t('movement_empty_hint_pre')}{' '}
                       <code className="mx-1 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px]">
                         {`featured_movement_slug = '${movement.slug}'`}
                       </code>{' '}
-                      via{' '}
+                      {t('movement_empty_hint_via')}{' '}
                       <Link href="/submit-event" className="underline">
                         /submit-event
                       </Link>{' '}
-                      and it will show up here once approved.
+                      {t('movement_empty_hint_post')}
                     </>
                   ) : (
-                    'Apply the SQL migration in docs/phase-8-civic-events-plan.md to enable civic fields, then seed rows.'
+                    t('movement_empty_apply')
                   )}
                 </p>
               </div>
@@ -168,9 +173,9 @@ export default function MovementClient({ movement, events, migrationApplied }: P
         <section className="relative px-5 pb-16 pt-2 sm:px-8 sm:pb-24">
           <div className="mx-auto max-w-7xl">
             <Reveal>
-              <SectionLabel>Worldwide</SectionLabel>
+              <SectionLabel>{t('movement_world_label')}</SectionLabel>
               <h2 className="display-text mt-3 text-3xl sm:text-4xl">
-                Every active gathering for{' '}
+                {t('movement_world_title_pre')}{' '}
                 <span className="italic text-flame-400">{movement.shortName}</span>.
               </h2>
             </Reveal>
@@ -197,9 +202,9 @@ export default function MovementClient({ movement, events, migrationApplied }: P
         <section className="relative px-5 py-16 sm:px-8 sm:py-24">
           <div className="mx-auto max-w-5xl">
             <Reveal>
-              <SectionLabel>What we stand for</SectionLabel>
+              <SectionLabel>{t('movement_principles_label')}</SectionLabel>
               <h2 className="display-text mt-3 text-3xl sm:text-4xl">
-                The principles of{' '}
+                {t('movement_principles_title_pre')}{' '}
                 <span className="italic text-flame-400">{movement.shortName}</span>.
               </h2>
             </Reveal>
@@ -236,23 +241,22 @@ export default function MovementClient({ movement, events, migrationApplied }: P
             <div className="absolute -top-24 left-1/2 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-flame-500/25 blur-3xl" />
           </div>
           <div className="relative flex flex-col items-start gap-6">
-            <SectionLabel>Be part of it</SectionLabel>
+            <SectionLabel>{t('movement_cta_label')}</SectionLabel>
             <h2 className="display-text text-3xl sm:text-4xl lg:text-5xl">
-              Your city is listening.{' '}
-              <span className="italic text-flame-400">Add yours.</span>
+              {t('movement_cta_title_pre')}{' '}
+              <span className="italic text-flame-400">{t('movement_cta_title_emph')}</span>
             </h2>
             <p className="max-w-2xl text-base leading-relaxed text-white/70 sm:text-lg">
-              Whether you have ten people or ten thousand, register your gathering and
-              AlbaGo will help you organize, communicate, and stay safe — peacefully.
+              {t('movement_cta_body')}
             </p>
             <div className="flex flex-wrap gap-3">
               <CinematicLink href="/submit-event" variant="primary" size="md">
                 <Calendar className="h-4 w-4" />
-                Register a gathering
+                {t('movement_register_gathering')}
               </CinematicLink>
               <CinematicLink href="/protests" variant="secondary" size="md">
                 <MapPin className="h-4 w-4" />
-                See the world map
+                {t('movement_cta_see_world')}
               </CinematicLink>
               <CinematicLink
                 href={`/volunteer?movement=${movement.slug}`}
@@ -260,7 +264,7 @@ export default function MovementClient({ movement, events, migrationApplied }: P
                 size="md"
               >
                 <Globe2 className="h-4 w-4" />
-                Volunteer
+                {t('movement_volunteer')}
               </CinematicLink>
             </div>
           </div>

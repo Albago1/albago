@@ -26,6 +26,7 @@ import { SectionLabel } from '@/components/cinematic/SectionLabel'
 import { CinematicLink } from '@/components/cinematic/CinematicButton'
 import { submitVolunteerSignup } from './actions'
 import type { VolunteerRoleKey } from './volunteer-shared'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 type Props = {
   movementSlug: string
@@ -33,7 +34,7 @@ type Props = {
 
 type Role = {
   key: VolunteerRoleKey
-  label: string
+  labelKey: string
   icon: typeof Users
   body: string
 }
@@ -41,55 +42,56 @@ type Role = {
 const ROLES: Role[] = [
   {
     key: 'organizer',
-    label: 'Organizer',
+    labelKey: 'volunteer_role_organizer',
     icon: Compass,
     body: 'Lead a city. Coordinate marshals. Liaise with local authorities.',
   },
   {
     key: 'designer',
-    label: 'Designer',
+    labelKey: 'volunteer_role_designer',
     icon: Palette,
     body: 'Posters, social tiles, square signage. Make the movement look like itself.',
   },
   {
     key: 'video-editor',
-    label: 'Video editor',
+    labelKey: 'volunteer_role_video_editor',
     icon: Video,
     body: 'Short cuts for the diaspora feed. Highlights, recaps, interviews.',
   },
   {
     key: 'translator',
-    label: 'Translator',
+    labelKey: 'volunteer_role_translator',
     icon: Languages,
     body: 'Open letters, safety pages, and announcements in EN / SQ / DE / IT.',
   },
   {
     key: 'marshal',
-    label: 'Marshal',
+    labelKey: 'volunteer_role_marshal',
     icon: Shield,
     body: 'Day-of safety, crowd flow, water stations, calm conversation.',
   },
   {
     key: 'social',
-    label: 'Social media',
+    labelKey: 'volunteer_role_social',
     icon: Megaphone,
     body: 'Boost local pages. Reply kindly. Avoid escalation and rumor.',
   },
   {
     key: 'driver',
-    label: 'Driver',
+    labelKey: 'volunteer_role_driver',
     icon: Car,
     body: 'Help regional buses, equipment, and supplies arrive on time.',
   },
   {
     key: 'legal-observer',
-    label: 'Legal observer',
+    labelKey: 'volunteer_role_legal_observer',
     icon: Gavel,
     body: 'Document conduct. Protect both demonstrators and authorities.',
   },
 ]
 
 export default function VolunteerClient({ movementSlug }: Props) {
+  const { t } = useLanguage()
   const [selected, setSelected] = useState<Set<VolunteerRoleKey>>(new Set())
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -118,7 +120,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
     setNeedsMigration(false)
 
     if (selected.size === 0) {
-      setError('Pick at least one role you can help with.')
+      setError(t('volunteer_pick_roles'))
       return
     }
 
@@ -165,7 +167,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs backdrop-blur"
           >
             <Heart className="h-3.5 w-3.5 text-flame-400" />
-            <span className="text-white/80">A few hours · A real difference</span>
+            <span className="text-white/80">{t('volunteer_badge')}</span>
           </motion.div>
 
           <motion.h1
@@ -174,8 +176,8 @@ export default function VolunteerClient({ movementSlug }: Props) {
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="display-text text-4xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight"
           >
-            Be the{' '}
-            <span className="italic text-flame-400">movement</span>.
+            {t('volunteer_title_pre')}{' '}
+            <span className="italic text-flame-400">{t('volunteer_title_emph')}</span>.
           </motion.h1>
 
           <motion.p
@@ -184,9 +186,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
             transition={{ duration: 0.8, delay: 0.1 }}
             className="mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-white/65"
           >
-            Marshall a square, translate an open letter, design a poster, edit a video — or
-            simply make sure your neighbourhood knows what is happening. Tell us how you can
-            help and we will get in touch.
+            {t('volunteer_subtitle')}
           </motion.p>
         </div>
       </section>
@@ -201,18 +201,18 @@ export default function VolunteerClient({ movementSlug }: Props) {
                   <CheckCircle2 className="h-8 w-8" />
                 </div>
                 <h2 className="display-text mt-6 text-3xl sm:text-4xl">
-                  Welcome to the movement.
+                  {t('volunteer_success_title')}
                 </h2>
                 <p className="mt-4 mx-auto max-w-md text-base text-white/65">
-                  We received your signup. An organizer in <span className="text-white">{city || 'your city'}</span> will reach out by email within a few days.
+                  {t('volunteer_success_body')}
                 </p>
                 <div className="mt-8 flex flex-wrap justify-center gap-3">
                   <CinematicLink href="/protests" variant="primary" size="md">
-                    See active protests
+                    {t('nav_protests')}
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </CinematicLink>
                   <CinematicLink href="/" variant="secondary" size="md">
-                    Back home
+                    {t('volunteer_back_home')}
                   </CinematicLink>
                 </div>
               </div>
@@ -255,7 +255,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
                           <Icon className="h-5 w-5" />
                         </div>
                         <div className="mt-4 flex items-center gap-2">
-                          <h3 className="text-sm font-semibold text-white">{role.label}</h3>
+                          <h3 className="text-sm font-semibold text-white">{t(role.labelKey)}</h3>
                           {active && (
                             <CheckCircle2 className="h-4 w-4 text-flame-300" />
                           )}
@@ -275,7 +275,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
                 </h2>
 
                 <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Full name" required>
+                  <Field label={t('volunteer_name_label')} required>
                     <input
                       type="text"
                       required
@@ -286,7 +286,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
                       className={inputClass}
                     />
                   </Field>
-                  <Field label="Email" required>
+                  <Field label={t('volunteer_email_label')} required>
                     <input
                       type="email"
                       required
@@ -297,7 +297,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
                       className={inputClass}
                     />
                   </Field>
-                  <Field label="City" required>
+                  <Field label={t('volunteer_city_label')} required>
                     <input
                       type="text"
                       required
@@ -308,7 +308,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
                       className={inputClass}
                     />
                   </Field>
-                  <Field label="Country">
+                  <Field label={t('volunteer_country_label')}>
                     <input
                       type="text"
                       maxLength={80}
@@ -318,7 +318,7 @@ export default function VolunteerClient({ movementSlug }: Props) {
                       className={inputClass}
                     />
                   </Field>
-                  <Field label="Phone (optional)" className="sm:col-span-2">
+                  <Field label={t('volunteer_phone_label')} className="sm:col-span-2">
                     <input
                       type="tel"
                       maxLength={40}
@@ -328,13 +328,13 @@ export default function VolunteerClient({ movementSlug }: Props) {
                       className={inputClass}
                     />
                   </Field>
-                  <Field label="Availability / skills (optional)" className="sm:col-span-2">
+                  <Field label={t('volunteer_note_label')} className="sm:col-span-2">
                     <textarea
                       maxLength={600}
                       rows={4}
                       value={availabilityNote}
                       onChange={(e) => setAvailabilityNote(e.target.value)}
-                      placeholder="Evenings and weekends. I speak Albanian and German. I have a press camera."
+                      placeholder={t('volunteer_note_placeholder')}
                       className={`${inputClass} resize-none`}
                     />
                     <div className="mt-1 text-right text-[11px] text-white/40">
@@ -356,11 +356,11 @@ export default function VolunteerClient({ movementSlug }: Props) {
 
                 <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
                   <p className="text-xs text-white/45 max-w-md">
-                    We use your details only to coordinate this movement. Read our{' '}
+                    {t('volunteer_privacy_pre')}{' '}
                     <Link href="/privacy" className="text-flame-300 hover:underline">
-                      privacy notes
+                      {t('volunteer_privacy_link')}
                     </Link>
-                    .
+                    {t('volunteer_privacy_post')}
                   </p>
                   <button
                     type="submit"
@@ -370,12 +370,12 @@ export default function VolunteerClient({ movementSlug }: Props) {
                     {isPending ? (
                       <>
                         <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        Sending…
+                        {t('volunteer_submitting')}
                       </>
                     ) : (
                       <>
                         <Send className="h-4 w-4" />
-                        Sign me up
+                        {t('volunteer_submit')}
                       </>
                     )}
                   </button>

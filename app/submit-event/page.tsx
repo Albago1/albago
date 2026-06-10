@@ -401,7 +401,7 @@ export default function SubmitEventPage() {
                 {isCivic && (
                   <div>
                     <label className="text-sm font-medium text-white/75">
-                      Where will it happen?
+                      {t('submit_civic_address_label')}
                     </label>
                     <div className="relative mt-2">
                       <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -409,7 +409,7 @@ export default function SubmitEventPage() {
                         type="text"
                         value={civicAddress}
                         onChange={(e) => setCivicAddress(e.target.value)}
-                        placeholder='e.g. "Trafalgar Square, London" or "Skënderbej Square, Tirana"'
+                        placeholder={t('submit_civic_address_placeholder')}
                         className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-10 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
                       />
                       {civicGeocoding && (
@@ -431,11 +431,11 @@ export default function SubmitEventPage() {
                       </div>
                     ) : civicAddress.trim().length >= 3 && !civicGeocoding ? (
                       <p className="mt-2 text-xs text-flame-300">
-                        Could not find that location. Try adding the city and country.
+                        {t('submit_civic_no_match')}
                       </p>
                     ) : (
                       <p className="mt-2 text-xs text-white/45">
-                        We use this to place your gathering on the world map. Be specific.
+                        {t('submit_civic_address_placeholder')}
                       </p>
                     )}
                   </div>
@@ -627,7 +627,7 @@ export default function SubmitEventPage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className="text-sm font-medium text-white/75">
-                          Telegram link <span className="text-white/35">(optional)</span>
+                          {t('submit_civic_telegram_label')}
                         </label>
                         <div className="relative mt-2">
                           <Send className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -641,7 +641,7 @@ export default function SubmitEventPage() {
                       </div>
                       <div>
                         <label className="text-sm font-medium text-white/75">
-                          WhatsApp link <span className="text-white/35">(optional)</span>
+                          {t('submit_civic_whatsapp_label')}
                         </label>
                         <div className="relative mt-2">
                           <MessageCircle className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -658,7 +658,7 @@ export default function SubmitEventPage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className="text-sm font-medium text-white/75">
-                          Expected attendees <span className="text-white/35">(optional)</span>
+                          {t('submit_civic_expected_label')}
                         </label>
                         <div className="relative mt-2">
                           <Users className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -667,19 +667,19 @@ export default function SubmitEventPage() {
                             type="number"
                             min={0}
                             max={5_000_000}
-                            placeholder="e.g. 500"
+                            placeholder="500"
                             className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
                           />
                         </div>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-white/75">
-                          Movement slug <span className="text-white/35">(optional)</span>
+                          {t('submit_civic_movement_label')}
                         </label>
                         <input
                           name="movementSlug"
                           type="text"
-                          placeholder="e.g. albanian-revolution"
+                          placeholder={t('submit_civic_movement_hint')}
                           className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
                         />
                       </div>
@@ -687,14 +687,14 @@ export default function SubmitEventPage() {
 
                     <div>
                       <label className="text-sm font-medium text-white/75">
-                        Safety notes <span className="text-white/35">(optional but recommended)</span>
+                        {t('submit_civic_safety_label')}
                       </label>
                       <div className="relative mt-2">
                         <Shield className="pointer-events-none absolute left-4 top-3 h-4 w-4 text-white/35" />
                         <textarea
                           name="safetyNotes"
                           rows={3}
-                          placeholder="Peaceful and lawful. Coordinated with local authorities. Family-friendly, no alcohol, no political party signage."
+                          placeholder={t('submit_civic_safety_placeholder')}
                           className="w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-white/20 focus:bg-white/[0.06]"
                         />
                       </div>

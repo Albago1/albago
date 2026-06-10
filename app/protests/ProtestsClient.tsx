@@ -28,6 +28,7 @@ import ProtestEventCard, {
 } from '@/components/protest/ProtestEventCard'
 import SafetyPanel from '@/components/protest/SafetyPanel'
 import { createClient } from '@/lib/supabase/browser'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 type RealtimeEventRow = {
   id: string
@@ -103,6 +104,7 @@ function addDaysIso(days: number): string {
 }
 
 export default function ProtestsClient({ events, migrationApplied }: Props) {
+  const { t } = useLanguage()
   const [list, setList] = useState<ProtestEvent[]>(events)
   const [realtimeConnected, setRealtimeConnected] = useState(false)
   const showEmptyBanner = list.length === 0
@@ -281,10 +283,10 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
   }, [query, list])
 
   const dateOptions: { value: DateFilter; label: string; icon: typeof Calendar }[] = [
-    { value: 'upcoming', label: 'Upcoming', icon: CalendarClock },
-    { value: 'today', label: 'Today', icon: Calendar },
-    { value: 'week', label: 'This week', icon: CalendarRange },
-    { value: 'past', label: 'Past', icon: History },
+    { value: 'upcoming', label: t('protests_filter_upcoming'), icon: CalendarClock },
+    { value: 'today', label: t('protests_filter_today'), icon: Calendar },
+    { value: 'week', label: t('protests_filter_week'), icon: CalendarRange },
+    { value: 'past', label: t('protests_filter_past'), icon: History },
   ]
 
   return (
@@ -307,7 +309,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs backdrop-blur"
           >
             <Globe2 className="h-3.5 w-3.5 text-flame-400" />
-            <span className="text-white/80">Worldwide Â· Updated continuously</span>
+            <span className="text-white/80">{t('protests_meta_badge')}</span>
           </motion.div>
 
           <motion.h1
@@ -316,8 +318,8 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="display-text text-4xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight"
           >
-            Find a protest{' '}
-            <span className="italic text-flame-400">anywhere</span>.
+            {t('protests_hero_title_pre')}{' '}
+            <span className="italic text-flame-400">{t('protests_hero_title_emph')}</span>.
           </motion.h1>
 
           <motion.p
@@ -326,8 +328,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             transition={{ duration: 0.8, delay: 0.1 }}
             className="mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-white/65"
           >
-            A live directory of peaceful civic gatherings, coordinated through AlbaGo.
-            Search any city in the world â€” if there is a gathering nearby, you will see it.
+            {t('protests_hero_subtitle')}
           </motion.p>
 
           <motion.div
@@ -337,15 +338,18 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             className="mt-8 inline-flex flex-wrap items-center gap-2 text-xs text-white/55"
           >
             <span>
-              <span className="font-semibold text-white">{list.length}</span> gatherings
+              <span className="font-semibold text-white">{list.length}</span>{' '}
+              {t('protests_count_gatherings')}
             </span>
             <span className="h-3 w-px bg-white/15" />
             <span>
-              <span className="font-semibold text-white">{totalCities}</span> cities
+              <span className="font-semibold text-white">{totalCities}</span>{' '}
+              {t('protests_count_cities')}
             </span>
             <span className="h-3 w-px bg-white/15" />
             <span>
-              <span className="font-semibold text-white">{countries.length}</span> countries
+              <span className="font-semibold text-white">{countries.length}</span>{' '}
+              {t('protests_count_countries')}
             </span>
             {realtimeConnected && (
               <>
@@ -359,7 +363,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                   </span>
                   <Radio className="h-3 w-3" />
-                  Live
+                  {t('protests_live')}
                 </span>
               </>
             )}
@@ -375,20 +379,20 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
               <div>
                 <p className="font-semibold text-white">
                   {migrationApplied
-                    ? 'No civic events are published yet.'
-                    : 'Civic schema not enabled.'}
+                    ? t('protests_empty_no_civic_title')
+                    : t('protests_empty_schema_title')}
                 </p>
                 <p className="mt-1 text-white/70">
                   {migrationApplied ? (
                     <>
-                      Be the first to register a peaceful gathering &mdash; visit{' '}
+                      {t('protests_empty_register_hint_pre')}{' '}
                       <Link href="/submit-event" className="underline">
                         /submit-event
                       </Link>{' '}
-                      and pick the civic category.
+                      {t('protests_empty_register_hint_post')}
                     </>
                   ) : (
-                    'Apply the SQL migration in docs/phase-8-civic-events-plan.md, then seed civic rows.'
+                    t('protests_empty_apply_migration')
                   )}
                 </p>
               </div>
@@ -409,7 +413,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search any city â€” try Milano, Berlin, New York, Buenos Airesâ€¦"
+                  placeholder={t('protests_search_placeholder')}
                   className="w-full rounded-xl bg-ink-950/60 border border-white/[0.06] py-3 pl-11 pr-10 text-sm text-white placeholder:text-white/35 focus:border-flame-500/50 focus:outline-none focus:ring-2 focus:ring-flame-500/20 transition"
                 />
                 {searching && (
@@ -419,7 +423,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                   <button
                     type="button"
                     onClick={() => setQuery('')}
-                    aria-label="Clear search"
+                    aria-label={t('protests_clear_search')}
                     className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/[0.04] p-1 text-white/45 hover:bg-white/[0.08] hover:text-white transition"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -462,7 +466,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                         : 'bg-white/[0.04] text-white/65 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white'
                     }`}
                   >
-                    All countries
+                    {t('protests_all_countries')}
                   </button>
                   {countries.map((c) => (
                     <button
@@ -484,14 +488,16 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
               <div className="flex items-center gap-4 text-xs text-white/55 px-1">
                 <span>
                   <span className="font-semibold text-white">{filtered.length}</span>{' '}
-                  gathering{filtered.length !== 1 && 's'}
+                  {filtered.length === 1
+                    ? t('protests_count_gathering_singular')
+                    : t('protests_count_gatherings')}
                 </span>
                 <span className="h-3 w-px bg-white/15" />
                 <span>
                   <span className="font-semibold text-white">
                     {formatProtestNumber(filteredAttendees)}
                   </span>{' '}
-                  expected
+                  {t('protests_count_expected')}
                 </span>
               </div>
             </div>
@@ -514,20 +520,20 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                 <Compass className="h-6 w-6" />
               </div>
               <h3 className="display-text mt-6 text-2xl sm:text-3xl">
-                No gathering in{' '}
+                {t('protests_empty_no_match_pre')}{' '}
                 <span className="italic text-flame-400">
-                  {searchCenter?.label || query.trim() || countryFilter || 'this filter'}
+                  {searchCenter?.label || query.trim() || countryFilter || t('protests_empty_this_filter')}
                 </span>{' '}
-                yet.
+                {t('protests_empty_no_match_post')}
               </h3>
               <p className="mt-4 text-sm sm:text-base text-white/65 max-w-md mx-auto">
                 {searchCenter
-                  ? 'We found your city on the map above. Be the first to register a peaceful gathering there â€” AlbaGo will help you organize it, safely and lawfully.'
-                  : 'Be the first to register a peaceful gathering for your city. AlbaGo will help you organize it â€” safely and lawfully.'}
+                  ? t('protests_empty_found_city')
+                  : t('protests_empty_be_first')}
               </p>
               <div className="mt-7 flex flex-wrap justify-center gap-3">
                 <CinematicLink href="/submit-event" variant="primary" size="md">
-                  Register the first one
+                  {t('protests_empty_register_first')}
                 </CinematicLink>
                 <button
                   type="button"
@@ -539,7 +545,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                   className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-sm text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
                 >
                   <X className="h-3.5 w-3.5" />
-                  Clear filters
+                  {t('protests_empty_clear_filters')}
                 </button>
               </div>
             </div>
@@ -563,27 +569,26 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             <div className="relative grid lg:grid-cols-[1.4fr_1fr] gap-8 items-end">
               <div>
                 <Reveal>
-                  <SectionLabel>Featured movement</SectionLabel>
+                  <SectionLabel>{t('protests_spotlight_label')}</SectionLabel>
                 </Reveal>
                 <Reveal delay={0.1}>
                   <h2 className="display-text mt-5 text-3xl sm:text-4xl lg:text-5xl">
-                    Albanian Revolution â€”{' '}
-                    <span className="italic text-flame-400">a peaceful, worldwide movement</span>.
+                    {t('protests_spotlight_title_pre')}{' '}
+                    <span className="italic text-flame-400">{t('protests_spotlight_title_emph')}</span>.
                   </h2>
                 </Reveal>
                 <Reveal delay={0.2}>
                   <p className="mt-6 max-w-xl text-base leading-relaxed text-white/70">
-                    The flagship civic campaign currently active on AlbaGo. Tirana, Prishtina, and
-                    the diaspora â€” coordinated openly, peacefully, lawfully.
+                    {t('protests_spotlight_subtitle')}
                   </p>
                 </Reveal>
               </div>
               <div className="flex flex-wrap gap-3 lg:justify-end">
                 <CinematicLink href="/events/albanian-revolution" variant="primary" size="md">
-                  Open campaign page
+                  {t('protests_spotlight_open')}
                 </CinematicLink>
                 <CinematicLink href="/submit-event" variant="secondary" size="md">
-                  Register a gathering
+                  {t('protests_spotlight_register')}
                 </CinematicLink>
               </div>
             </div>
@@ -605,20 +610,20 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             {
               href: null,
               icon: MapPin,
-              title: 'See the world map',
-              body: 'Every active gathering, pinned. Zoom and click for details.',
+              title: t('protests_helper_map_title'),
+              body: t('protests_helper_map_body'),
             },
             {
               href: null,
               icon: Search,
-              title: 'Search any city',
-              body: 'Type Milano, Berlin, NYC â€” even cities without a gathering yet.',
+              title: t('protests_helper_search_title'),
+              body: t('protests_helper_search_body'),
             },
             {
               href: '/volunteer',
               icon: Heart,
-              title: 'Volunteer',
-              body: 'Marshal, translate, design, drive â€” a few hours moves the movement.',
+              title: t('protests_helper_volunteer_title'),
+              body: t('protests_helper_volunteer_body'),
             },
           ].map((card) => {
             const Icon = card.icon
@@ -655,14 +660,14 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white transition"
           >
             <MapPin className="h-3.5 w-3.5" />
-            Open the full AlbaGo map
+            {t('protests_open_full_map')}
           </Link>
           <Link
             href="/submit-event"
             className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white transition"
           >
             <Compass className="h-3.5 w-3.5" />
-            Register a gathering
+            {t('protests_register_gathering')}
           </Link>
         </div>
       </section>
