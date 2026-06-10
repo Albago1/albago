@@ -9,6 +9,8 @@ import CategoryStep from './steps/CategoryStep'
 import BasicsStep from './steps/BasicsStep'
 import WhenStep from './steps/WhenStep'
 import WhereStep from './steps/WhereStep'
+import MediaStep from './steps/MediaStep'
+import OrganizerStep from './steps/OrganizerStep'
 
 export type WizardSubmit = (draft: EventDraft) => Promise<
   | { id: string; error: null }
@@ -100,7 +102,30 @@ const STEPS: StepDef[] = [
       return null
     },
   },
-  // D5 will add 'media' + 'organizer'
+  {
+    key: 'media',
+    label: 'Media',
+    // Cover image is optional.
+    validate: () => null,
+  },
+  {
+    key: 'organizer',
+    label: 'Organizer',
+    validate: (d) => {
+      if (!d.organizer_name.trim()) return 'Organizer name is required.'
+      if (!d.organizer_contact.trim()) return 'Contact email is required.'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.organizer_contact.trim())) {
+        return 'Contact email looks invalid.'
+      }
+      if (
+        d.organizer_website.trim() &&
+        !/^https?:\/\//i.test(d.organizer_website.trim())
+      ) {
+        return 'Website should start with http:// or https://'
+      }
+      return null
+    },
+  },
   // D6 will add 'review'
 ]
 
@@ -204,6 +229,10 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props
         )}
         {activeStep.key === 'when' && <WhenStep draft={draft} patch={patch} />}
         {activeStep.key === 'where' && <WhereStep draft={draft} patch={patch} />}
+        {activeStep.key === 'media' && <MediaStep draft={draft} patch={patch} />}
+        {activeStep.key === 'organizer' && (
+          <OrganizerStep draft={draft} patch={patch} mode={mode} />
+        )}
       </div>
 
       {(stepError || submitError) && (
@@ -301,8 +330,6 @@ function Stepper(props: {
         )
       })}
       {/* Future-steps preview chips so user knows what's coming. */}
-      <FuturePreviewChip label="Media" />
-      <FuturePreviewChip label="Organizer" />
       <FuturePreviewChip label="Review" />
     </ol>
   )
