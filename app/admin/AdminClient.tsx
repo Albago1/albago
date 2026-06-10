@@ -9,6 +9,7 @@ import {
   Pencil,
   Search,
   Send,
+  Trash2,
   Users,
   X,
 } from 'lucide-react'
@@ -506,6 +507,63 @@ export default function AdminClient() {
     await fetchAll()
   }
 
+  // -- Delete actions ---------------------------------------------------------
+
+  const deleteSubmission = async (row: UnifiedRow) => {
+    if (
+      !window.confirm(
+        `Permanently delete submission "${row.title}"? This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    setActionId(row.key)
+    setMessage(null)
+    const { error } = await supabase
+      .from('event_submissions')
+      .delete()
+      .eq('id', row.rowId)
+    setActionId(null)
+    if (error) {
+      console.error('event_submissions delete error:', error)
+      if (error.code === '42501') {
+        setMessage(
+          'Delete not allowed. Apply docs/seeds/phase-13.3-admin-delete-policies.sql in Supabase.',
+        )
+        return
+      }
+      setMessage(`Delete failed: ${error.message}`)
+      return
+    }
+    await fetchAll()
+  }
+
+  const deleteEvent = async (row: UnifiedRow) => {
+    if (
+      !window.confirm(
+        `Permanently delete event "${row.title}"? This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    setActionId(row.key)
+    setMessage(null)
+    const { error } = await supabase.from('events').delete().eq('id', row.rowId)
+    setActionId(null)
+    if (error) {
+      console.error('events delete error:', error)
+      if (error.code === '42501') {
+        setMessage(
+          'Delete not allowed. Check the events_admin_write RLS policy.',
+        )
+        return
+      }
+      setMessage(`Delete failed: ${error.message}`)
+      return
+    }
+    await fetchAll()
+  }
+
   // -- Render -----------------------------------------------------------------
 
   return (
@@ -659,6 +717,8 @@ export default function AdminClient() {
             onRejectSubmission={rejectSubmission}
             onPatchEventStatus={patchEventStatus}
             onRejectEvent={rejectEvent}
+            onDeleteSubmission={deleteSubmission}
+            onDeleteEvent={deleteEvent}
           />
         ))}
       </div>
@@ -677,6 +737,8 @@ function RowCard(props: {
   onRejectSubmission: (row: UnifiedRow) => void
   onPatchEventStatus: (row: UnifiedRow, nextStatus: string, label: string) => void
   onRejectEvent: (row: UnifiedRow) => void
+  onDeleteSubmission: (row: UnifiedRow) => void
+  onDeleteEvent: (row: UnifiedRow) => void
 }) {
   const {
     row,
@@ -689,6 +751,8 @@ function RowCard(props: {
     onRejectSubmission,
     onPatchEventStatus,
     onRejectEvent,
+    onDeleteSubmission,
+    onDeleteEvent,
   } = props
 
   const isWorking = actionId === row.key
@@ -907,6 +971,21 @@ function RowCard(props: {
               : 'Awaiting resubmission.'}
           </span>
         )}
+
+        <button
+          type="button"
+          disabled={isWorking}
+          onClick={() =>
+            row.source === 'submission'
+              ? onDeleteSubmission(row)
+              : onDeleteEvent(row)
+          }
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/[0.04] px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15 disabled:opacity-40"
+          title="Permanently delete"
+        >
+          <Trash2 className="h-3 w-3" />
+          Delete
+        </button>
       </div>
 
       {isRejectingThis && (

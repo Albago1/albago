@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Flame, Save } from 'lucide-react'
+import { ArrowLeft, Flame, Save, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
 type OrganizerSocials = {
@@ -321,6 +321,34 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
     router.refresh()
   }
 
+  const deleteEvent = async () => {
+    if (
+      !window.confirm(
+        `Permanently delete "${initial.title}"? This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    setError(null)
+    setMessage(null)
+    setSaving(true)
+    const { error: deleteError } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', initial.id)
+    setSaving(false)
+    if (deleteError) {
+      console.error('events delete error:', deleteError)
+      if (deleteError.code === '42501') {
+        setError('Delete not allowed. Check the events_admin_write RLS policy.')
+        return
+      }
+      setError(`Delete failed: ${deleteError.message}`)
+      return
+    }
+    router.push('/admin/events')
+  }
+
   const quickStatus = async (status: string, label: string) => {
     setError(null)
     setMessage(null)
@@ -413,6 +441,17 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
             Restore to draft
           </button>
         )}
+
+        <button
+          type="button"
+          disabled={saving}
+          onClick={deleteEvent}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/20 disabled:opacity-40"
+          title="Permanently delete this event"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
       </div>
 
       {message && (

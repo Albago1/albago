@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Flame, Pencil, Search, Users } from 'lucide-react'
+import { ArrowLeft, Flame, Pencil, Search, Trash2, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
 type EventRow = {
@@ -149,6 +149,32 @@ export default function EventsAdminClient() {
   const archiveRow = (row: EventRow) => patchStatus(row, 'cancelled', 'Archive')
   const restoreRow = (row: EventRow) => patchStatus(row, 'draft', 'Restore')
   const publishRow = (row: EventRow) => patchStatus(row, 'published', 'Publish')
+
+  const deleteRow = async (row: EventRow) => {
+    if (
+      !window.confirm(
+        `Permanently delete "${row.title}"? This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    setActionId(row.id)
+    setMessage(null)
+    const { error } = await supabase.from('events').delete().eq('id', row.id)
+    setActionId(null)
+    if (error) {
+      console.error('events delete error:', error)
+      if (error.code === '42501') {
+        setMessage(
+          'Delete not allowed. Admin DELETE policy may be missing — check events_admin_write policy.',
+        )
+        return
+      }
+      setMessage(`Delete failed: ${error.message}`)
+      return
+    }
+    await fetchRows()
+  }
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -365,6 +391,17 @@ export default function EventsAdminClient() {
                     Restore to draft
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  disabled={isWorking}
+                  onClick={() => deleteRow(row)}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/[0.04] px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15 disabled:opacity-40"
+                  title="Permanently delete this event"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </button>
               </div>
             </article>
           )
