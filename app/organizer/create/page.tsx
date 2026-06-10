@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import LandingNavbar from '@/components/layout/LandingNavbar'
 import { createClient } from '@/lib/supabase/server'
 import { fetchOrganizer } from '@/lib/organizers'
 import CreateEventClient from './CreateEventClient'
@@ -20,5 +21,12 @@ export default async function CreateEventPage() {
   const organizer = await fetchOrganizer(supabase)
   if (!organizer) redirect('/onboarding/organizer')
 
-  return <CreateEventClient />
+  return (
+    <>
+      <LandingNavbar />
+      <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
+        <CreateEventClient />
+      </main>
+    </>
+  )
 }

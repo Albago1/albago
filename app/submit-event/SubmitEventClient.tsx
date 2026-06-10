@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { submitCommunityEvent } from '@/lib/wizardSubmit'
 import type { EventDraft } from '@/types/eventDraft'
 
-export default function SubmitEventV2Client() {
+export default function SubmitEventClient() {
   const [submittedId, setSubmittedId] = useState<string | null>(null)
 
   const handleSubmit = async (draft: EventDraft) => {
