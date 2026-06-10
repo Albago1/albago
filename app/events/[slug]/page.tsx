@@ -47,6 +47,7 @@ type EventRecord = {
   highlight: boolean | null
   place_id: string | null
   location_slug: string
+  country: string | null
   lat: number | null
   lng: number | null
   address: string | null
@@ -82,7 +83,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, places ( id, name, address, lat, lng, website_url )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, places ( id, name, address, lat, lng, website_url )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -185,7 +186,19 @@ export default async function EventDetailPage(
     notFound()
   }
 
-  const location = getLocationBySlug(event.location_slug)
+  // Prefer the event's own location_slug + country (they always describe the
+  // actual city, even when it isn't in the hardcoded locations list).
+  // getLocationBySlug() only knows the 4 hardcoded cities and silently
+  // returns Tirana for everything else, which was misrendering as the venue
+  // line label.
+  const fallbackLocation = getLocationBySlug(event.location_slug)
+  const cityLabel =
+    fallbackLocation.slug === event.location_slug
+      ? fallbackLocation.label
+      : event.location_slug
+          .replace(/-/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+  const countryLabel = event.country || fallbackLocation.country
   const venue = event.places
   const isCivic = !!event.is_civic
   const mapHref = buildMapHref({
@@ -284,7 +297,7 @@ export default async function EventDetailPage(
               ) : (
                 <>
                   <MapPin className="h-4 w-4" />
-                  {event.address || `${location.label}, ${location.country}`}
+                  {event.address || `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
                 </>
               )}
             </span>
@@ -392,7 +405,7 @@ export default async function EventDetailPage(
                   {formatAttendees(event.expected_attendees)}
                 </p>
                 <p className="mt-1 text-xs text-white/55">
-                  Projected turnout in {location.label}.
+                  Projected turnout in {cityLabel}.
                 </p>
               </div>
             </div>

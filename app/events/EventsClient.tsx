@@ -16,7 +16,7 @@ import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { isThisWeekend, isToday, getTodayDateString } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
-import { getLocationBySlug } from '@/lib/locations'
+import { getLocationBySlug, defaultLocationSlug, type LocationOption } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -85,6 +85,30 @@ function getCategoryTone(category?: string) {
   return 'bg-white/10 text-white/80'
 }
 
+function titleizeSlug(slug: string): string {
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function resolveLocation(
+  slug: string,
+  dynamicOptions: LocationOption[],
+): LocationOption {
+  const fromDynamic = dynamicOptions.find((l) => l.slug === slug)
+  if (fromDynamic) return fromDynamic
+  // The dynamic list may still be loading — fall back to the hardcoded list,
+  // and as a last resort synthesize an option from the slug so we never show
+  // the wrong city label.
+  const fromStatic = getLocationBySlug(slug)
+  if (fromStatic.slug === slug) return fromStatic
+  return {
+    label: titleizeSlug(slug),
+    slug,
+    country: '',
+    center: [0, 0],
+    zoom: 12.5,
+  }
+}
+
 function sortEventsByPriority(list: PublicEvent[]) {
   return [...list].sort((a, b) => {
     if (Boolean(a.highlight) !== Boolean(b.highlight)) {
@@ -113,7 +137,7 @@ function EventsContent() {
   const router = useRouter()
   const locationOptions = useLocations()
 
-  const initialLocation = getLocationBySlug(searchParams.get('location'))
+  const initialLocationSlug = searchParams.get('location') || defaultLocationSlug
   const initialSearchQuery = searchParams.get('q') || ''
   const timeParam = searchParams.get('time')
   const initialTimeFilter: TimeFilter =
@@ -134,7 +158,7 @@ function EventsContent() {
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
   const [activeTags, setActiveTags] = useState<Set<string>>(initialTags)
-  const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocation.slug)
+  const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocationSlug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
   const [events, setEvents] = useState<PublicEvent[]>([])
@@ -326,7 +350,7 @@ function EventsContent() {
 
   const sortedEvents = useMemo(() => sortEventsByPriority(filteredEvents), [filteredEvents])
 
-  const activeLocation = getLocationBySlug(activeLocationSlug)
+  const activeLocation = resolveLocation(activeLocationSlug, locationOptions)
 
   return (
     <main className="min-h-screen bg-ink-950 text-white">
@@ -446,7 +470,7 @@ function EventsContent() {
                       </span>
                       <span className="min-w-0 flex-1 truncate font-medium text-white">{s.title}</span>
                       <span className="shrink-0 text-xs text-white/35">
-                        {getLocationBySlug(s.location_slug).label}
+                        {resolveLocation(s.location_slug, locationOptions).label}
                       </span>
                     </button>
                   ))}
@@ -693,7 +717,7 @@ function EventsContent() {
                 {isSearchMode && (
                   <div className="mt-1 flex items-center gap-1.5 text-xs text-white/35">
                     <MapPin className="h-3 w-3" />
-                    {getLocationBySlug(event.location_slug).label}
+                    {resolveLocation(event.location_slug, locationOptions).label}
                   </div>
                 )}
 
