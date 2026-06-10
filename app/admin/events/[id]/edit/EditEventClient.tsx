@@ -6,6 +6,13 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Flame, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
+type OrganizerSocials = {
+  instagram?: string
+  facebook?: string
+  tiktok?: string
+  twitter?: string
+}
+
 export type EditableEvent = {
   id: string
   slug: string
@@ -14,6 +21,8 @@ export type EditableEvent = {
   category: string
   date: string
   time: string | null
+  end_time: string | null
+  timezone: string | null
   price: string | null
   highlight: boolean | null
   status: string
@@ -22,12 +31,21 @@ export type EditableEvent = {
   region: string | null
   lat: number | null
   lng: number | null
+  address: string | null
+  is_online: boolean | null
+  online_url: string | null
+  tags: string[] | null
+  language: string | null
   banner_url: string | null
   admin_note: string | null
   event_type: string | null
   is_civic: boolean | null
   featured_movement_slug: string | null
   organizer_contact: string | null
+  organizer_name: string | null
+  organizer_phone: string | null
+  organizer_website: string | null
+  organizer_socials: OrganizerSocials | null
   telegram_link: string | null
   whatsapp_link: string | null
   safety_notes: string | null
@@ -44,6 +62,8 @@ type FormState = {
   category: string
   date: string
   time: string
+  end_time: string
+  timezone: string
   price: string
   highlight: boolean
   status: string
@@ -52,12 +72,24 @@ type FormState = {
   region: string
   lat: string
   lng: string
+  address: string
+  is_online: boolean
+  online_url: string
+  tagsRaw: string
+  language: string
   banner_url: string
   admin_note: string
   event_type: string
   is_civic: boolean
   featured_movement_slug: string
   organizer_contact: string
+  organizer_name: string
+  organizer_phone: string
+  organizer_website: string
+  social_instagram: string
+  social_facebook: string
+  social_tiktok: string
+  social_twitter: string
   telegram_link: string
   whatsapp_link: string
   safety_notes: string
@@ -75,13 +107,43 @@ const STATUS_OPTIONS = [
 
 const CATEGORY_OPTIONS = ['nightlife', 'music', 'sports', 'culture', 'food', 'civic']
 
+const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'English' },
+  { code: 'sq', label: 'Shqip' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'es', label: 'Español' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'fr', label: 'Français' },
+]
+
+function tagsToInput(tags: string[] | null): string {
+  if (!tags || tags.length === 0) return ''
+  return tags.join(', ')
+}
+
+function parseTagsInput(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+function tagsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
 function toFormState(initial: EditableEvent): FormState {
+  const socials = initial.organizer_socials ?? {}
   return {
     title: initial.title,
     description: initial.description,
     category: initial.category,
     date: initial.date,
     time: initial.time ?? '',
+    end_time: initial.end_time ?? '',
+    timezone: initial.timezone ?? 'Europe/Tirane',
     price: initial.price ?? '',
     highlight: !!initial.highlight,
     status: initial.status,
@@ -90,12 +152,24 @@ function toFormState(initial: EditableEvent): FormState {
     region: initial.region ?? '',
     lat: initial.lat != null ? String(initial.lat) : '',
     lng: initial.lng != null ? String(initial.lng) : '',
+    address: initial.address ?? '',
+    is_online: !!initial.is_online,
+    online_url: initial.online_url ?? '',
+    tagsRaw: tagsToInput(initial.tags),
+    language: initial.language ?? 'en',
     banner_url: initial.banner_url ?? '',
     admin_note: initial.admin_note ?? '',
     event_type: initial.event_type ?? '',
     is_civic: !!initial.is_civic,
     featured_movement_slug: initial.featured_movement_slug ?? '',
     organizer_contact: initial.organizer_contact ?? '',
+    organizer_name: initial.organizer_name ?? '',
+    organizer_phone: initial.organizer_phone ?? '',
+    organizer_website: initial.organizer_website ?? '',
+    social_instagram: socials.instagram ?? '',
+    social_facebook: socials.facebook ?? '',
+    social_tiktok: socials.tiktok ?? '',
+    social_twitter: socials.twitter ?? '',
     telegram_link: initial.telegram_link ?? '',
     whatsapp_link: initial.whatsapp_link ?? '',
     safety_notes: initial.safety_notes ?? '',
@@ -137,26 +211,65 @@ function diffPatch(initial: EditableEvent, current: FormState): Record<string, u
   text('category', initial.category)
   text('date', initial.date)
   text('time', initial.time)
+  text('end_time', initial.end_time)
+  text('timezone', initial.timezone)
   text('price', initial.price)
   text('status', initial.status)
   text('location_slug', initial.location_slug)
   text('country', initial.country)
   text('region', initial.region)
+  text('address', initial.address)
+  text('online_url', initial.online_url)
+  text('language', initial.language)
   text('banner_url', initial.banner_url)
   text('admin_note', initial.admin_note)
   text('event_type', initial.event_type)
   text('featured_movement_slug', initial.featured_movement_slug)
   text('organizer_contact', initial.organizer_contact)
+  text('organizer_name', initial.organizer_name)
+  text('organizer_phone', initial.organizer_phone)
+  text('organizer_website', initial.organizer_website)
   text('telegram_link', initial.telegram_link)
   text('whatsapp_link', initial.whatsapp_link)
   text('safety_notes', initial.safety_notes)
 
   bool('highlight', initial.highlight)
   bool('is_civic', initial.is_civic)
+  bool('is_online', initial.is_online)
 
   num('lat', initial.lat, 'float')
   num('lng', initial.lng, 'float')
   num('expected_attendees', initial.expected_attendees, 'int')
+
+  // tags — text[] in DB, comma-separated in form. Sent as JSON array.
+  {
+    const nextTags = parseTagsInput(current.tagsRaw)
+    const originalTags = initial.tags ?? []
+    if (!tagsEqual(nextTags, originalTags)) {
+      patch.tags = nextTags
+    }
+  }
+
+  // organizer_socials — jsonb in DB. Build from 4 social inputs.
+  {
+    const nextSocials: Record<string, string> = {}
+    if (current.social_instagram.trim()) nextSocials.instagram = current.social_instagram.trim()
+    if (current.social_facebook.trim()) nextSocials.facebook = current.social_facebook.trim()
+    if (current.social_tiktok.trim()) nextSocials.tiktok = current.social_tiktok.trim()
+    if (current.social_twitter.trim()) nextSocials.twitter = current.social_twitter.trim()
+    const originalSocials = (initial.organizer_socials ?? {}) as Record<string, string>
+    const allKeys = new Set([...Object.keys(nextSocials), ...Object.keys(originalSocials)])
+    let changed = false
+    for (const k of allKeys) {
+      if ((nextSocials[k] ?? '') !== (originalSocials[k] ?? '')) {
+        changed = true
+        break
+      }
+    }
+    if (changed) {
+      patch.organizer_socials = Object.keys(nextSocials).length ? nextSocials : null
+    }
+  }
 
   return patch
 }
@@ -337,7 +450,7 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
             />
           </Field>
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <Field label="Date" htmlFor="f-date">
               <input
                 id="f-date"
@@ -348,13 +461,23 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
                 className="input"
               />
             </Field>
-            <Field label="Time" htmlFor="f-time">
+            <Field label="Start time" htmlFor="f-time">
               <input
                 id="f-time"
                 type="text"
                 value={form.time}
                 onChange={(e) => setField('time', e.target.value)}
                 placeholder="22:00"
+                className="input"
+              />
+            </Field>
+            <Field label="End time" htmlFor="f-end-time">
+              <input
+                id="f-end-time"
+                type="text"
+                value={form.end_time}
+                onChange={(e) => setField('end_time', e.target.value)}
+                placeholder="02:00"
                 className="input"
               />
             </Field>
@@ -369,6 +492,47 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
               />
             </Field>
           </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Timezone (IANA)" htmlFor="f-tz">
+              <input
+                id="f-tz"
+                type="text"
+                value={form.timezone}
+                onChange={(e) => setField('timezone', e.target.value)}
+                placeholder="Europe/Tirane"
+                className="input font-mono"
+              />
+            </Field>
+            <Field label="Language" htmlFor="f-lang">
+              <select
+                id="f-lang"
+                value={form.language}
+                onChange={(e) => setField('language', e.target.value)}
+                className="input"
+              >
+                {LANGUAGE_OPTIONS.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-ink-900">
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Tags (comma-separated)" htmlFor="f-tags">
+            <input
+              id="f-tags"
+              type="text"
+              value={form.tagsRaw}
+              onChange={(e) => setField('tagsRaw', e.target.value)}
+              placeholder="free, family-friendly, outdoors"
+              className="input"
+            />
+            <p className="mt-1 text-xs text-white/40">
+              Lowercased automatically. GIN-indexed for filtering on /events.
+            </p>
+          </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Category" htmlFor="f-category">
@@ -413,6 +577,29 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
         </Section>
 
         <Section title="Location">
+          <label className="flex items-center gap-3 text-sm text-white/80">
+            <input
+              type="checkbox"
+              checked={form.is_online}
+              onChange={(e) => setField('is_online', e.target.checked)}
+              className="h-4 w-4 rounded border-white/15 bg-white/[0.04]"
+            />
+            This event is online
+          </label>
+
+          {form.is_online && (
+            <Field label="Online URL" htmlFor="f-online-url">
+              <input
+                id="f-online-url"
+                type="url"
+                value={form.online_url}
+                onChange={(e) => setField('online_url', e.target.value)}
+                placeholder="https://zoom.us/j/..."
+                className="input"
+              />
+            </Field>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="City slug" htmlFor="f-loc-slug">
               <input
@@ -436,6 +623,16 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
               />
             </Field>
           </div>
+          <Field label="Street address (optional)" htmlFor="f-address">
+            <input
+              id="f-address"
+              type="text"
+              value={form.address}
+              onChange={(e) => setField('address', e.target.value)}
+              placeholder="Rruga Murat Toptani 4, Tirana"
+              className="input"
+            />
+          </Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Region (optional)" htmlFor="f-region">
               <input
@@ -479,6 +676,16 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
               placeholder="https://..."
               className="input"
             />
+            {form.banner_url && (
+              <div className="mt-2 overflow-hidden rounded-2xl border border-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={form.banner_url}
+                  alt="Banner preview"
+                  className="aspect-[16/9] w-full object-cover"
+                />
+              </div>
+            )}
           </Field>
           <Field
             label="Admin note (visible to owning organizer)"
@@ -492,6 +699,81 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
               className="input resize-y"
             />
           </Field>
+        </Section>
+
+        <Section title="Organizer">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Organizer name" htmlFor="f-org-name">
+              <input
+                id="f-org-name"
+                type="text"
+                value={form.organizer_name}
+                onChange={(e) => setField('organizer_name', e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Organizer phone" htmlFor="f-org-phone">
+              <input
+                id="f-org-phone"
+                type="tel"
+                value={form.organizer_phone}
+                onChange={(e) => setField('organizer_phone', e.target.value)}
+                className="input"
+              />
+            </Field>
+          </div>
+          <Field label="Organizer website" htmlFor="f-org-web">
+            <input
+              id="f-org-web"
+              type="url"
+              value={form.organizer_website}
+              onChange={(e) => setField('organizer_website', e.target.value)}
+              placeholder="https://..."
+              className="input"
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Instagram" htmlFor="f-soc-ig">
+              <input
+                id="f-soc-ig"
+                type="text"
+                value={form.social_instagram}
+                onChange={(e) => setField('social_instagram', e.target.value)}
+                placeholder="@yourhandle"
+                className="input"
+              />
+            </Field>
+            <Field label="Facebook" htmlFor="f-soc-fb">
+              <input
+                id="f-soc-fb"
+                type="text"
+                value={form.social_facebook}
+                onChange={(e) => setField('social_facebook', e.target.value)}
+                placeholder="facebook.com/your.page"
+                className="input"
+              />
+            </Field>
+            <Field label="TikTok" htmlFor="f-soc-tt">
+              <input
+                id="f-soc-tt"
+                type="text"
+                value={form.social_tiktok}
+                onChange={(e) => setField('social_tiktok', e.target.value)}
+                placeholder="@yourhandle"
+                className="input"
+              />
+            </Field>
+            <Field label="X / Twitter" htmlFor="f-soc-tw">
+              <input
+                id="f-soc-tw"
+                type="text"
+                value={form.social_twitter}
+                onChange={(e) => setField('social_twitter', e.target.value)}
+                placeholder="@yourhandle"
+                className="input"
+              />
+            </Field>
+          </div>
         </Section>
 
         <Section

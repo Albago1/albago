@@ -40,6 +40,9 @@ type PublicEvent = {
   location_slug: string
   country: string
   region: string | null
+  tags?: string[] | null
+  is_online?: boolean | null
+  banner_url?: string | null
 }
 
 const timeFilters: TimeFilter[] = ['all', 'tonight', 'weekend']
@@ -563,6 +566,24 @@ function EventsContent() {
                 <h2 className="mt-4 text-xl font-semibold leading-tight text-white">
                   {event.title}
                 </h2>
+
+                {event.tags && event.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {event.tags.slice(0, 4).map((t) => (
+                      <span
+                        key={t}
+                        className="rounded-full bg-flame-500/[0.08] px-2 py-0.5 text-[10px] text-flame-100 ring-1 ring-flame-500/25"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {event.tags.length > 4 && (
+                      <span className="text-[10px] text-white/35">
+                        +{event.tags.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {event.place_id && (
                   <div className="mt-2 flex items-center gap-2 text-sm text-white/55">

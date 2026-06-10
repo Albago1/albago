@@ -7,12 +7,15 @@ import {
   Clock3,
   ExternalLink,
   Flame,
+  Globe2,
   Mail,
   MapPin,
   MessageCircle,
   Navigation,
+  Phone,
   Send,
   ShieldAlert,
+  User2,
   Users,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -23,6 +26,13 @@ import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
 
 type Params = { slug: string }
 
+type OrganizerSocials = {
+  instagram?: string
+  facebook?: string
+  tiktok?: string
+  twitter?: string
+}
+
 type EventRecord = {
   id: string
   slug: string
@@ -31,16 +41,28 @@ type EventRecord = {
   category: string
   date: string
   time: string
+  end_time: string | null
+  timezone: string | null
   price: string | null
   highlight: boolean | null
   place_id: string | null
   location_slug: string
   lat: number | null
   lng: number | null
+  address: string | null
+  is_online: boolean | null
+  online_url: string | null
+  tags: string[] | null
+  language: string | null
+  banner_url: string | null
   is_civic: boolean | null
   event_type: string | null
   featured_movement_slug: string | null
   organizer_contact: string | null
+  organizer_name: string | null
+  organizer_phone: string | null
+  organizer_website: string | null
+  organizer_socials: OrganizerSocials | null
   telegram_link: string | null
   whatsapp_link: string | null
   safety_notes: string | null
@@ -60,12 +82,43 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, price, highlight, place_id, location_slug, lat, lng, is_civic, event_type, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, places ( id, name, address, lat, lng, website_url )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, places ( id, name, address, lat, lng, website_url )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
     .maybeSingle()
   return (data as EventRecord | null) ?? null
+}
+
+function formatTimeRange(time: string | null, endTime: string | null, tz: string | null): string {
+  if (!time) return ''
+  const range = endTime ? `${time} → ${endTime}` : time
+  if (tz && tz !== 'Europe/Tirane') {
+    const short = tz.split('/').pop() ?? tz
+    return `${range} (${short})`
+  }
+  return range
+}
+
+function socialHref(platform: string, value: string): string {
+  const handle = value.replace(/^@+/, '').trim()
+  if (/^https?:\/\//i.test(handle)) return handle
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${handle}`
+    case 'facebook':
+      return handle.includes('/') ? `https://${handle}` : `https://facebook.com/${handle}`
+    case 'tiktok':
+      return `https://tiktok.com/@${handle}`
+    case 'twitter':
+      return `https://x.com/${handle}`
+    default:
+      return handle
+  }
+}
+
+function socialLabel(platform: string): string {
+  return platform.charAt(0).toUpperCase() + platform.slice(1)
 }
 
 function getCategoryTone(category?: string) {
@@ -219,14 +272,36 @@ export default async function EventDetailPage(
 
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
-              {event.time}
+              {formatTimeRange(event.time, event.end_time, event.timezone)}
             </span>
 
             <span className="inline-flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              {location.label}, {location.country}
+              {event.is_online ? (
+                <>
+                  <Globe2 className="h-4 w-4 text-emerald-300" />
+                  Online
+                </>
+              ) : (
+                <>
+                  <MapPin className="h-4 w-4" />
+                  {event.address || `${location.label}, ${location.country}`}
+                </>
+              )}
             </span>
           </div>
+
+          {event.tags && event.tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {event.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-2.5 py-1 text-xs text-flame-100"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -256,6 +331,18 @@ export default async function EventDetailPage(
               </a>
             )}
 
+            {event.is_online && event.online_url && (
+              <a
+                href={event.online_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
+              >
+                <Globe2 className="h-4 w-4" />
+                Join online
+              </a>
+            )}
+
             {venue?.website_url && (
               <a
                 href={venue.website_url}
@@ -268,6 +355,17 @@ export default async function EventDetailPage(
               </a>
             )}
           </div>
+
+          {event.banner_url && (
+            <div className="mt-10 overflow-hidden rounded-3xl border border-white/10">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={event.banner_url}
+                alt={event.title}
+                className="aspect-[16/9] w-full object-cover"
+              />
+            </div>
+          )}
 
           {venue && (
             <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
@@ -372,6 +470,59 @@ export default async function EventDetailPage(
               <p className="mt-3 whitespace-pre-line text-base leading-7 text-white/75">
                 {event.description}
               </p>
+            </div>
+          )}
+
+          {(event.organizer_name ||
+            event.organizer_phone ||
+            event.organizer_website ||
+            event.organizer_socials) && (
+            <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                Organizer
+              </p>
+              {event.organizer_name && (
+                <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-white">
+                  <User2 className="h-4 w-4 text-flame-300" />
+                  {event.organizer_name}
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap gap-3">
+                {event.organizer_phone && (
+                  <a
+                    href={`tel:${event.organizer_phone}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    {event.organizer_phone}
+                  </a>
+                )}
+                {event.organizer_website && (
+                  <a
+                    href={event.organizer_website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Website
+                  </a>
+                )}
+                {event.organizer_socials &&
+                  Object.entries(event.organizer_socials)
+                    .filter(([, v]) => v && String(v).trim())
+                    .map(([platform, handle]) => (
+                      <a
+                        key={platform}
+                        href={socialHref(platform, handle as string)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        {socialLabel(platform)}
+                      </a>
+                    ))}
+              </div>
             </div>
           )}
         </div>
