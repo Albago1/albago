@@ -119,8 +119,21 @@ function EventsContent() {
   const initialTimeFilter: TimeFilter =
     timeParam === 'tonight' || timeParam === 'weekend' ? timeParam : 'all'
 
+  const initialTags = useMemo(() => {
+    const raw = searchParams.get('tags')
+    if (!raw) return new Set<string>()
+    return new Set(
+      raw
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
+  const [activeTags, setActiveTags] = useState<Set<string>>(initialTags)
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocation.slug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
@@ -256,8 +269,38 @@ function EventsContent() {
     if (activeCategory !== 'all') params.set('category', activeCategory)
     if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
     if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
+    if (activeTags.size > 0) params.set('tags', Array.from(activeTags).sort().join(','))
     router.replace(`/events?${params.toString()}`)
-  }, [activeLocationSlug, activeCategory, activeTimeFilter, debouncedSearch, router])
+  }, [activeLocationSlug, activeCategory, activeTimeFilter, debouncedSearch, activeTags, router])
+
+  // Top tags by frequency in the currently loaded events. Capped at 16 so the
+  // chip row never gets out of hand.
+  const availableTags = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const e of events) {
+      if (!e.tags) continue
+      for (const t of e.tags) {
+        const tag = t.trim().toLowerCase()
+        if (!tag) continue
+        counts.set(tag, (counts.get(tag) ?? 0) + 1)
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 16)
+      .map(([tag, count]) => ({ tag, count }))
+  }, [events])
+
+  const toggleTag = (tag: string) => {
+    setActiveTags((prev) => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
+  const clearTags = () => setActiveTags(new Set())
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
@@ -270,9 +313,16 @@ function EventsContent() {
         activeCategory === 'all' ||
         event.category.toLowerCase() === activeCategory.toLowerCase()
 
-      return timeMatches && categoryMatches
+      // ANY-match: event passes if it has at least one of the selected tags.
+      // No selection means tags don't filter anything.
+      const tagsMatch =
+        activeTags.size === 0 ||
+        (event.tags &&
+          event.tags.some((t) => activeTags.has(t.trim().toLowerCase())))
+
+      return timeMatches && categoryMatches && tagsMatch
     })
-  }, [activeTimeFilter, activeCategory, events])
+  }, [activeTimeFilter, activeCategory, activeTags, events])
 
   const sortedEvents = useMemo(() => sortEventsByPriority(filteredEvents), [filteredEvents])
 
@@ -451,6 +501,54 @@ function EventsContent() {
               )
             })}
           </div>
+
+          {availableTags.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                  Tags
+                </p>
+                {activeTags.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearTags}
+                    className="text-[11px] font-semibold uppercase tracking-[0.14em] text-flame-300 transition hover:text-flame-200"
+                  >
+                    Clear ({activeTags.size})
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {availableTags.map(({ tag, count }) => {
+                  const isActive = activeTags.has(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      aria-pressed={isActive}
+                      className={[
+                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
+                        isActive
+                          ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/50'
+                          : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
+                      ].join(' ')}
+                    >
+                      {tag}
+                      <span
+                        className={[
+                          'rounded-full px-1.5 text-[10px]',
+                          isActive ? 'bg-flame-500/30 text-flame-50' : 'bg-white/[0.06] text-white/45',
+                        ].join(' ')}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
