@@ -1,0 +1,51 @@
+import type { Metadata } from 'next'
+import { notFound, redirect } from 'next/navigation'
+import LandingNavbar from '@/components/layout/LandingNavbar'
+import { createClient } from '@/lib/supabase/server'
+import EditEventClient, { type EditableEvent } from './EditEventClient'
+
+export const metadata: Metadata = {
+  title: 'Admin · Edit event',
+}
+
+export default async function AdminEditEventPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) redirect(`/sign-in?next=/admin/events/${id}/edit`)
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profile?.role !== 'admin') redirect('/dashboard')
+
+  const { data: event, error } = await supabase
+    .from('events')
+    .select(
+      'id, slug, title, description, category, date, time, price, highlight, status, location_slug, country, region, lat, lng, banner_url, admin_note, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, origin, organizer_id, created_at, updated_at',
+    )
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !event) notFound()
+
+  return (
+    <>
+      <LandingNavbar />
+      <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
+        <EditEventClient initial={event as EditableEvent} />
+      </main>
+    </>
+  )
+}

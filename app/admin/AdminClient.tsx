@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Users } from 'lucide-react'
+import { CalendarRange, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import OrganizerQueue from './OrganizerQueue'
 
@@ -204,13 +204,22 @@ export default function AdminClient() {
           </p>
         </div>
 
-        <Link
-          href="/admin/volunteers"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-        >
-          <Users className="h-4 w-4" />
-          Volunteer signups
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/events"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <CalendarRange className="h-4 w-4" />
+            Events &amp; protests
+          </Link>
+          <Link
+            href="/admin/volunteers"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <Users className="h-4 w-4" />
+            Volunteer signups
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
