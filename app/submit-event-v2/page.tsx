@@ -3,8 +3,8 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import SubmitEventV2Client from './SubmitEventV2Client'
 
 export const metadata: Metadata = {
-  title: 'Submit event (preview) Â· AlbaGo',
-  description: 'Preview of the upcoming multi-step event creation flow.',
+  title: 'Submit an event · AlbaGo',
+  description: 'Submit an event to AlbaGo — the multi-step submission flow.',
 }
 
 export default function SubmitEventV2Page() {

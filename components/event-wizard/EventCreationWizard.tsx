@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import type { EventDraft } from '@/types/eventDraft'
 import { useEventDraft } from '@/types/eventDraft'
 import EventTypeStep from './steps/EventTypeStep'
@@ -11,6 +11,7 @@ import WhenStep from './steps/WhenStep'
 import WhereStep from './steps/WhereStep'
 import MediaStep from './steps/MediaStep'
 import OrganizerStep from './steps/OrganizerStep'
+import ReviewStep from './steps/ReviewStep'
 
 export type WizardSubmit = (draft: EventDraft) => Promise<
   | { id: string; error: null }
@@ -126,7 +127,11 @@ const STEPS: StepDef[] = [
       return null
     },
   },
-  // D6 will add 'review'
+  {
+    key: 'review',
+    label: 'Review',
+    validate: () => null,
+  },
 ]
 
 export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props) {
@@ -144,6 +149,17 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props
   const activeStep = activeSteps[stepIndex] ?? activeSteps[0]
   const isLast = stepIndex >= activeSteps.length - 1
   const isFirst = stepIndex === 0
+
+  const jumpToKey = useCallback(
+    (key: string) => {
+      const idx = activeSteps.findIndex((s) => s.key === key)
+      if (idx >= 0) {
+        setStepIndex(idx)
+        setStepError(null)
+      }
+    },
+    [activeSteps],
+  )
 
   const handleNext = async () => {
     setStepError(null)
@@ -215,7 +231,7 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props
         </button>
       </div>
 
-      <Stepper steps={activeSteps} activeIndex={stepIndex} onJump={setStepIndex} draft={draft} />
+      <Stepper steps={activeSteps} activeIndex={stepIndex} onJump={(i) => { setStepIndex(i); setStepError(null) }} draft={draft} />
 
       <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
         {activeStep.key === 'type' && (
@@ -232,6 +248,9 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props
         {activeStep.key === 'media' && <MediaStep draft={draft} patch={patch} />}
         {activeStep.key === 'organizer' && (
           <OrganizerStep draft={draft} patch={patch} mode={mode} />
+        )}
+        {activeStep.key === 'review' && (
+          <ReviewStep draft={draft} onJumpTo={jumpToKey} />
         )}
       </div>
 
@@ -329,24 +348,6 @@ function Stepper(props: {
           </li>
         )
       })}
-      {/* Future-steps preview chips so user knows what's coming. */}
-      <FuturePreviewChip label="Review" />
     </ol>
-  )
-}
-
-function FuturePreviewChip({ label }: { label: string }) {
-  return (
-    <li>
-      <span
-        className="inline-flex items-center gap-2 rounded-full border border-dashed border-white/10 px-3 py-1.5 text-xs text-white/30"
-        title="Coming next"
-      >
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.04]">
-          <X className="h-2.5 w-2.5" />
-        </span>
-        {label}
-      </span>
-    </li>
   )
 }

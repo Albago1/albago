@@ -1,47 +1,61 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
+import { CheckCircle2 } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
+import { createClient } from '@/lib/supabase/browser'
+import { submitCommunityEvent } from '@/lib/wizardSubmit'
 import type { EventDraft } from '@/types/eventDraft'
 
 export default function SubmitEventV2Client() {
-  const [lastSubmitted, setLastSubmitted] = useState<EventDraft | null>(null)
+  const [submittedId, setSubmittedId] = useState<string | null>(null)
 
   const handleSubmit = async (draft: EventDraft) => {
-    // Preview-only: do not write to Supabase yet. The wizard is still
-    // missing date/time, location, media, organizer, and review steps.
-    setLastSubmitted(draft)
-    const result: { id: string; error: null } = { id: 'preview-only', error: null }
-    return result
+    const supabase = createClient()
+    return submitCommunityEvent(supabase, draft)
+  }
+
+  if (submittedId) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/[0.06] p-8 text-center">
+          <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-300" />
+          <h2 className="mt-4 text-2xl font-bold text-white">
+            Submission received
+          </h2>
+          <p className="mt-2 text-sm text-emerald-100/80">
+            Thanks — your event is in the moderation queue. We&apos;ll review it
+            shortly and notify you when it&apos;s published.
+          </p>
+          <p className="mt-3 text-xs text-white/45">
+            Reference: <span className="font-mono">{submittedId}</span>
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/events"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+            >
+              Browse events
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSubmittedId(null)}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
+            >
+              Submit another
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div>
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
-          <p className="font-semibold">Preview mode</p>
-          <p className="mt-1 leading-6 text-amber-100/85">
-            This is a work-in-progress preview of the multi-step event creation flow
-            (Phase D3). Steps 4&ndash;8 (date, location, media, organizer, review) are
-            coming next. Submissions here are NOT saved to the database.
-          </p>
-        </div>
-      </div>
-
-      <EventCreationWizard mode="community" onSubmit={handleSubmit} />
-
-      {lastSubmitted && (
-        <div className="mx-auto mt-8 max-w-3xl rounded-3xl border border-emerald-500/30 bg-emerald-500/[0.06] p-5 text-sm text-emerald-100">
-          <p className="font-semibold">Preview submit fired ✓</p>
-          <p className="mt-1 text-emerald-100/85">
-            The wizard collected the draft below. In Phase D6 this will be written to
-            event_submissions / events depending on the user&apos;s role.
-          </p>
-          <pre className="mt-4 max-h-96 overflow-auto rounded-2xl border border-emerald-500/20 bg-ink-950/70 p-3 text-[11px] leading-5 text-emerald-100/80">
-            {JSON.stringify(lastSubmitted, null, 2)}
-          </pre>
-        </div>
-      )}
-    </div>
+    <EventCreationWizard
+      mode="community"
+      onSubmit={handleSubmit}
+      onSuccess={(id) => setSubmittedId(id)}
+    />
   )
 }
