@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { MOVEMENTS } from '@/lib/movements'
 
 const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ?? 'https://albago.com'
@@ -31,6 +32,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: now,
     changeFrequency: route.changeFrequency,
     priority: route.priority,
+  }))
+
+  const movementEntries: MetadataRoute.Sitemap = MOVEMENTS.map((m) => ({
+    url: `${SITE_URL}/movements/${m.slug}`,
+    lastModified: now,
+    changeFrequency: 'daily',
+    priority: 0.8,
   }))
 
   let dynamicEntries: MetadataRoute.Sitemap = []
@@ -69,5 +77,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // If Supabase is unreachable at build time, fall back to static routes only.
   }
 
-  return [...staticEntries, ...dynamicEntries]
+  return [...staticEntries, ...movementEntries, ...dynamicEntries]
 }

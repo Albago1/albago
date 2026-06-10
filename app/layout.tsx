@@ -22,6 +22,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://albago.com',
+  ),
   title: {
     template: '%s | AlbaGo',
     default: 'AlbaGo — Discover Events, Movements & Nightlife',
