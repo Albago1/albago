@@ -19,6 +19,7 @@ import {
   Megaphone,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
 import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { getLocationBySlug, locations } from '@/lib/locations'
@@ -352,6 +353,8 @@ export default function HomeClient() {
   return (
     <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
+
+      <LiveProtestsBanner protests={upcomingProtests} />
 
       <section className="relative overflow-hidden px-4 pb-20 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
