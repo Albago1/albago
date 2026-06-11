@@ -9,8 +9,14 @@
 -- Idempotent; safe to re-run.
 
 -- ---------------------------------------------------------------------------
--- admin_list_users — paginated user roster with auth + profile metadata.
+-- admin_list_users — paginated user roster with auth + profile metadata
+-- plus organizer state (is_organizer / organizer_verified).
+--
+-- DROP first because the return-table shape evolved (added two columns)
+-- and Postgres rejects CREATE OR REPLACE on a function signature change.
 -- ---------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.admin_list_users();
+
 CREATE OR REPLACE FUNCTION public.admin_list_users()
 RETURNS TABLE (
   id uuid,
