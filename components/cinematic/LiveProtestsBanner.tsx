@@ -114,7 +114,7 @@ export default function LiveProtestsBanner({ protests }: Props) {
             </button>
 
             <Link
-              href="/events/albanian-revolution"
+              href="/protests"
               className="group relative block p-5 focus:outline-none"
             >
               {/* LIVE pill */}
