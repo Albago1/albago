@@ -968,8 +968,20 @@ export default function HomeClient() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {upcomingProtests.map((protest) => {
-                const cityLabel = getLocationBySlug(protest.location_slug)?.label
-                  ?? protest.location_slug
+                // getLocationBySlug() always returns a row (Tirana as the
+                // hardcoded fallback), so it would label every non-static
+                // slug as "Tirana". Resolve against the dynamic options
+                // first, then titleize the slug as a last resort.
+                const dynamicMatch = locationOptions.find(
+                  (o) => o.slug === protest.location_slug,
+                )
+                const staticMatch = locations.find(
+                  (l) => l.slug === protest.location_slug,
+                )
+                const cityLabel =
+                  dynamicMatch?.label ??
+                  staticMatch?.label ??
+                  protest.location_slug
                     .split('-')
                     .map((part) => part[0]?.toUpperCase() + part.slice(1))
                     .join(' ')
