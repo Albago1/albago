@@ -12,7 +12,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tirana, Albania",
     hero_title: "Find what’s happening tonight",
     hero_subtitle:
-      "Discover the best events, venues, and nightlife in Albania",
+      "Live events, nightlife, and peaceful protests — from any city in the world",
 
     open_map: "Open Map",
     browse_events: "Browse Events",
@@ -214,7 +214,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tirana, Albanien",
     hero_title: "Finde heraus, was heute Abend los ist",
     hero_subtitle:
-      "Entdecke die besten Events, Locations und das Nachtleben in Albanien",
+      "Live-Events, Nachtleben und friedliche Proteste — aus jeder Stadt der Welt",
 
     open_map: "Karte öffnen",
     browse_events: "Events ansehen",
@@ -417,7 +417,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tirana, Albania",
     hero_title: "Descubre qué está pasando esta noche",
     hero_subtitle:
-      "Descubre los mejores eventos, lugares y vida nocturna en Albania",
+      "Eventos en vivo, vida nocturna y protestas pacíficas — desde cualquier ciudad del mundo",
 
     open_map: "Abrir mapa",
     browse_events: "Ver eventos",
@@ -620,7 +620,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tiranë, Shqipëri",
     hero_title: "Gjej çfarë po ndodh sonte",
     hero_subtitle:
-      "Zbulo eventet, vendet dhe jetën e natës më të mirë në Shqipëri",
+      "Evente live, jetë nate dhe protesta paqësore — nga çdo qytet i botës",
 
     open_map: "Hap Hartën",
     browse_events: "Shiko Eventet",

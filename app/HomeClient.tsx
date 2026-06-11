@@ -52,6 +52,39 @@ function getCategoryTone(category?: string) {
   return 'bg-white/10 text-white/80'
 }
 
+// ISO 3166-1 alpha-2 country code → the big-city slug we snap to when a
+// visitor lands from that country. Values match slugs that show up in
+// our seeded event set / hardcoded locations list — adjust if the slug
+// in the events table is different (e.g. 'tirane' vs 'tirana').
+const BIG_CITY_BY_COUNTRY: Record<string, string> = {
+  AL: 'tirana',
+  XK: 'prishtina',
+  RKS: 'prishtina',
+  MK: 'prishtina', // North Macedonia → closest Albanian-speaking hub
+  IT: 'roma',
+  DE: 'berlin',
+  AT: 'vienna',
+  CH: 'zurich',
+  GB: 'london',
+  IE: 'dublin',
+  FR: 'paris',
+  ES: 'madrid',
+  NL: 'amsterdam',
+  BE: 'brussels',
+  GR: 'athens',
+  TR: 'istanbul',
+  CZ: 'praha',
+  PL: 'warsaw',
+  SE: 'stockholm',
+  NO: 'oslo',
+  DK: 'copenhagen',
+  FI: 'helsinki',
+  US: 'new-york',
+  CA: 'toronto',
+  AU: 'sydney',
+  AE: 'dubai',
+}
+
 function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
   const dLat = ((lat2 - lat1) * Math.PI) / 180
@@ -142,9 +175,10 @@ export default function HomeClient() {
     return () => { cancelled = true }
   }, [supabase])
 
-  // Auto-snap to the closest known city based on the visitor's IP (Vercel
-  // edge headers). Runs once on first paint and only if the user hasn't
-  // already manually changed the location.
+  // Snap the default location to the major city for the visitor's country
+  // (Vercel IP geo). Country-level, not precise lat/lng — so someone in
+  // Munich gets snapped to Berlin, not to a random suburb. Runs once on
+  // first paint and only if the user hasn't already moved the location.
   const didAutoSnap = useRef(false)
   useEffect(() => {
     if (didAutoSnap.current) return
@@ -159,33 +193,21 @@ export default function HomeClient() {
         if (!res.ok) return
         const data = (await res.json()) as {
           available: boolean
-          city: string | null
-          latitude: number | null
-          longitude: number | null
+          country: string | null
         }
-        if (cancelled || !data.available || data.latitude == null || data.longitude == null) return
+        if (cancelled || !data.available || !data.country) return
+
+        const code = data.country.toUpperCase()
+        const mapped = BIG_CITY_BY_COUNTRY[code]
+        if (!mapped) return
 
         const candidates = locationOptionsRef.current.length > 0
           ? locationOptionsRef.current
           : locations
-        let nearest = candidates[0]
-        let nearestKm = Infinity
-        for (const loc of candidates) {
-          const km = distanceKm(data.latitude, data.longitude, loc.center[1], loc.center[0])
-          if (km < nearestKm) {
-            nearestKm = km
-            nearest = loc
-          }
-        }
-        // 350km radius — far enough to catch nearby cities, close enough
-        // to avoid snapping a visitor in Tokyo to "Tirana".
-        if (nearest && nearestKm <= 350) {
-          setLocationInput(nearest.label)
-          setActiveLocationSlug(nearest.slug)
-        } else if (data.city) {
-          // No nearby city in the registry — show the visitor's actual
-          // city name as a label hint even though events won't filter.
-          setLocationInput(data.city)
+        const found = candidates.find((l) => l.slug === mapped)
+        if (found) {
+          setLocationInput(found.label)
+          setActiveLocationSlug(found.slug)
         }
       } catch {
         // Silent fallback to the hardcoded default.
