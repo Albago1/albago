@@ -142,6 +142,61 @@ export default function HomeClient() {
     return () => { cancelled = true }
   }, [supabase])
 
+  // Auto-snap to the closest known city based on the visitor's IP (Vercel
+  // edge headers). Runs once on first paint and only if the user hasn't
+  // already manually changed the location.
+  const didAutoSnap = useRef(false)
+  useEffect(() => {
+    if (didAutoSnap.current) return
+    if (activeLocationSlug !== 'tirana') {
+      didAutoSnap.current = true
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/geo', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          available: boolean
+          city: string | null
+          latitude: number | null
+          longitude: number | null
+        }
+        if (cancelled || !data.available || data.latitude == null || data.longitude == null) return
+
+        const candidates = locationOptionsRef.current.length > 0
+          ? locationOptionsRef.current
+          : locations
+        let nearest = candidates[0]
+        let nearestKm = Infinity
+        for (const loc of candidates) {
+          const km = distanceKm(data.latitude, data.longitude, loc.center[1], loc.center[0])
+          if (km < nearestKm) {
+            nearestKm = km
+            nearest = loc
+          }
+        }
+        // 350km radius — far enough to catch nearby cities, close enough
+        // to avoid snapping a visitor in Tokyo to "Tirana".
+        if (nearest && nearestKm <= 350) {
+          setLocationInput(nearest.label)
+          setActiveLocationSlug(nearest.slug)
+        } else if (data.city) {
+          // No nearby city in the registry — show the visitor's actual
+          // city name as a label hint even though events won't filter.
+          setLocationInput(data.city)
+        }
+      } catch {
+        // Silent fallback to the hardcoded default.
+      } finally {
+        didAutoSnap.current = true
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     async function fetchFeatured() {
       const today = new Date().toISOString().slice(0, 10)
