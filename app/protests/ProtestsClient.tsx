@@ -7,6 +7,7 @@ import {
   Calendar,
   CalendarClock,
   CalendarRange,
+  ChevronDown,
   Compass,
   Globe2,
   Heart,
@@ -168,6 +169,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
 
   const [query, setQuery] = useState('')
   const [countryFilter, setCountryFilter] = useState<string | null>(null)
+  const [countryOpen, setCountryOpen] = useState(false)
   const [dateFilter, setDateFilter] = useState<DateFilter>('upcoming')
   const [searchCenter, setSearchCenter] = useState<
     { lat: number; lng: number; label: string } | null
@@ -462,34 +464,71 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                 })}
               </div>
 
-              {/* Country chips */}
+              {/* Country picker — collapsed by default */}
               {countries.length > 1 && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="space-y-2">
                   <button
                     type="button"
-                    onClick={() => setCountryFilter(null)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      countryFilter === null
-                        ? 'bg-white/10 text-white ring-1 ring-white/25'
-                        : 'bg-white/[0.04] text-white/65 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white'
-                    }`}
+                    onClick={() => setCountryOpen((v) => !v)}
+                    className="inline-flex w-full items-center justify-between gap-2 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/75 ring-1 ring-white/10 transition hover:bg-white/[0.08] hover:text-white sm:w-auto"
+                    aria-expanded={countryOpen}
                   >
-                    {t('protests_all_countries')}
-                  </button>
-                  {countries.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setCountryFilter(countryFilter === c ? null : c)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        countryFilter === c
-                          ? 'bg-flame-500/15 text-flame-100 ring-1 ring-flame-500/40'
-                          : 'bg-white/[0.04] text-white/65 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white'
+                    <span className="inline-flex items-center gap-2">
+                      <Globe2 className="h-3.5 w-3.5 text-flame-300" />
+                      {countryFilter ? (
+                        <>
+                          Country:{' '}
+                          <span className="text-flame-200">{countryFilter}</span>
+                        </>
+                      ) : (
+                        <>
+                          {t('protests_all_countries')}{' '}
+                          <span className="text-white/45">({countries.length})</span>
+                        </>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition ${
+                        countryOpen ? 'rotate-180' : ''
                       }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
+                    />
+                  </button>
+
+                  {countryOpen && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCountryFilter(null)
+                          setCountryOpen(false)
+                        }}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                          countryFilter === null
+                            ? 'bg-white/10 text-white ring-1 ring-white/25'
+                            : 'bg-white/[0.04] text-white/65 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white'
+                        }`}
+                      >
+                        {t('protests_all_countries')}
+                      </button>
+                      {countries.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setCountryFilter(countryFilter === c ? null : c)
+                            setCountryOpen(false)
+                          }}
+                          className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                            countryFilter === c
+                              ? 'bg-flame-500/15 text-flame-100 ring-1 ring-flame-500/40'
+                              : 'bg-white/[0.04] text-white/65 ring-1 ring-white/10 hover:bg-white/[0.08] hover:text-white'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
