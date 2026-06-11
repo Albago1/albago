@@ -632,7 +632,7 @@ export default function HomeClient() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <span className="text-sm text-white/45">Quick locations:</span>
 
-            {locationOptions.map((location) => (
+            {locationOptions.slice(0, 6).map((location) => (
               <button
                 key={location.slug}
                 type="button"
@@ -650,6 +650,15 @@ export default function HomeClient() {
                 {location.label}
               </button>
             ))}
+
+            {locationOptions.length > 6 && (
+              <Link
+                href="/events"
+                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white/60 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                +{locationOptions.length - 6} more
+              </Link>
+            )}
           </div>
         </div>
       </section>
