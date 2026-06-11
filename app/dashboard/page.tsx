@@ -10,6 +10,8 @@ import {
   Send,
   Heart,
   Building2,
+  Shield,
+  Users as UsersIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -146,13 +148,32 @@ export default async function DashboardPage() {
         <LandingNavbar />
         <main className="min-h-screen bg-ink-950 px-6 pb-6 pt-24 text-white">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-              <LayoutDashboard className="h-5 w-5 text-flame-400" />
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                <LayoutDashboard className="h-5 w-5 text-flame-400" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold">Dashboard</h1>
+                <p className="mt-0.5 text-sm text-white/45">{user.email}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold">Dashboard</h1>
-              <p className="mt-0.5 text-sm text-white/45">{user.email}</p>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_30px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+              >
+                <Shield className="h-4 w-4" />
+                Open admin panel
+              </Link>
+              <Link
+                href="/admin/users"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <UsersIcon className="h-4 w-4" />
+                Manage users
+              </Link>
             </div>
           </div>
 
