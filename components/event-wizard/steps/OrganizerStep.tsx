@@ -42,16 +42,16 @@ export default function OrganizerStep({ draft, patch, mode }: Props) {
         patch({
           organizer_name: org.display_name,
           organizer_contact: org.contact_email,
-          organizer_website: draft.organizer_website || org.website_url || 'https://',
+          organizer_website: draft.organizer_website || org.website_url || '',
         })
         setPrefilled(true)
       } else if (!org) {
-        // No organizer profile (community submitter) — seed sensible
-        // starting values so the field isn't blank on first load.
-        const seed: Partial<EventDraft> = {}
-        if (!draft.organizer_name.trim()) seed.organizer_name = 'activists'
-        if (!draft.organizer_website.trim()) seed.organizer_website = 'https://'
-        if (Object.keys(seed).length > 0) patch(seed)
+        // No organizer profile (community submitter) — seed only the
+        // display name so the field isn't blank on first load. Website
+        // stays empty; the placeholder hints the expected format.
+        if (!draft.organizer_name.trim()) {
+          patch({ organizer_name: 'Activists' })
+        }
       }
     })()
     return () => {
@@ -198,6 +198,15 @@ export default function OrganizerStep({ draft, patch, mode }: Props) {
           font-size: 0.875rem;
           outline: none;
           transition: border-color 0.15s, background 0.15s;
+        }
+        /* Higher-specificity overrides so icon-padded inputs leave room
+         * for the absolute-positioned glyph at left-3 (12px) instead of
+         * letting the .input shorthand win the cascade. */
+        :global(.input.pl-10) {
+          padding-left: 2.5rem;
+        }
+        :global(.input.pl-9) {
+          padding-left: 2.25rem;
         }
         :global(.input::placeholder) {
           color: rgba(255, 255, 255, 0.35);
