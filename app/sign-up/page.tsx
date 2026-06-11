@@ -24,6 +24,9 @@ export default function SignUpPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      },
     })
 
     setIsLoading(false)
@@ -34,12 +37,14 @@ export default function SignUpPage() {
     }
 
     if (data.session) {
-      router.push('/')
+      router.push('/dashboard')
       router.refresh()
       return
     }
 
-    setMessage('Account created. Check your email to confirm, then sign in.')
+    setMessage(
+      `We sent a confirmation link to ${email}. Open it from your inbox to activate your AlbaGo account.`,
+    )
   }
 
   return (
