@@ -20,8 +20,15 @@ type Protest = {
   expected_attendees: number | null
 }
 
+type Totals = {
+  count: number
+  countries: number
+  expected: number
+}
+
 type Props = {
   protests: Protest[]
+  totals?: Totals
 }
 
 function titleizeSlug(slug: string): string {
@@ -50,7 +57,7 @@ function formatBigCount(n: number): string {
   return String(n)
 }
 
-export default function LiveProtestsBanner({ protests }: Props) {
+export default function LiveProtestsBanner({ protests, totals }: Props) {
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
 
@@ -69,11 +76,17 @@ export default function LiveProtestsBanner({ protests }: Props) {
   const cityLabel =
     getLocationBySlug(next.location_slug)?.label ?? titleizeSlug(next.location_slug)
   const countdown = formatCountdown(next.date, next.time)
-  const totalExpected = protests.reduce(
-    (sum, p) => sum + (p.expected_attendees ?? 0),
-    0,
-  )
-  const uniqueCities = new Set(protests.map((p) => p.location_slug)).size
+
+  // Prefer worldwide totals (fetched without limit) over the truncated list.
+  const totalCount = totals?.count && totals.count > 0 ? totals.count : protests.length
+  const totalCountries =
+    totals?.countries && totals.countries > 0
+      ? totals.countries
+      : new Set(protests.map((p) => p.country).filter(Boolean)).size
+  const totalExpected =
+    totals?.expected && totals.expected > 0
+      ? totals.expected
+      : protests.reduce((sum, p) => sum + (p.expected_attendees ?? 0), 0)
 
   const dismiss = () => {
     if (typeof window !== 'undefined') {
@@ -131,24 +144,30 @@ export default function LiveProtestsBanner({ protests }: Props) {
                 </span>
               </div>
 
-              {/* Hero number */}
+              {/* Hero number — total protests */}
               <div className="mt-4 flex items-baseline gap-2">
                 <span className="font-display text-[56px] leading-none tracking-tight text-flame-500 drop-shadow-[0_0_30px_rgba(238,28,37,0.45)]">
-                  {totalExpected > 0 ? formatBigCount(totalExpected) : protests.length}
+                  {totalCount}
                 </span>
                 <span className="font-display text-[20px] italic leading-tight text-white/90">
-                  {totalExpected > 0 ? 'expected' : protests.length === 1 ? 'protest' : 'protests'}
+                  {totalCount === 1 ? 'protest' : 'protests'}
                 </span>
               </div>
 
-              {/* Sub line — count of protests + cities */}
+              {/* Sub line — countries + (optional) expected */}
               <p className="mt-1 text-[12px] text-white/65">
-                <span className="font-semibold text-white">
-                  {protests.length}
-                </span>{' '}
-                {protests.length === 1 ? 'gathering' : 'gatherings'} across{' '}
-                <span className="font-semibold text-white">{uniqueCities}</span>{' '}
-                {uniqueCities === 1 ? 'city' : 'cities'} worldwide
+                across{' '}
+                <span className="font-semibold text-white">{totalCountries}</span>{' '}
+                {totalCountries === 1 ? 'country' : 'countries'} worldwide
+                {totalExpected > 0 && (
+                  <>
+                    {' '}·{' '}
+                    <span className="font-semibold text-white">
+                      {formatBigCount(totalExpected)}
+                    </span>{' '}
+                    expected
+                  </>
+                )}
               </p>
 
               {/* Next-protest strip */}

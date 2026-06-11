@@ -105,6 +105,11 @@ export default function HomeClient() {
       expected_attendees: number | null
     }>
   >([])
+  const [protestTotals, setProtestTotals] = useState<{
+    count: number
+    countries: number
+    expected: number
+  }>({ count: 0, countries: 0, expected: 0 })
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
   const [totalEventsCount, setTotalEventsCount] = useState(0)
   const [totalPlacesCount, setTotalPlacesCount] = useState(0)
@@ -140,7 +145,14 @@ export default function HomeClient() {
   useEffect(() => {
     async function fetchFeatured() {
       const today = new Date().toISOString().slice(0, 10)
-      const [placesRes, eventsRes, eventsCountRes, placesCountRes, protestsRes] = await Promise.all([
+      const [
+        placesRes,
+        eventsRes,
+        eventsCountRes,
+        placesCountRes,
+        protestsRes,
+        protestsTotalsRes,
+      ] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
         supabase
           .from('events')
@@ -160,6 +172,12 @@ export default function HomeClient() {
           .gte('date', today)
           .order('date', { ascending: true })
           .limit(6),
+        supabase
+          .from('events')
+          .select('country, expected_attendees')
+          .eq('status', 'published')
+          .eq('is_civic', true)
+          .gte('date', today),
       ])
 
       if (placesRes.data) {
@@ -202,6 +220,21 @@ export default function HomeClient() {
 
       if (protestsRes.data) {
         setUpcomingProtests(protestsRes.data)
+      }
+
+      if (protestsTotalsRes.data) {
+        const rows = protestsTotalsRes.data as Array<{
+          country: string | null
+          expected_attendees: number | null
+        }>
+        const countries = new Set(
+          rows.map((r) => (r.country ?? '').trim().toLowerCase()).filter(Boolean),
+        ).size
+        const expected = rows.reduce(
+          (sum, r) => sum + (r.expected_attendees ?? 0),
+          0,
+        )
+        setProtestTotals({ count: rows.length, countries, expected })
       }
 
       setTotalEventsCount(eventsCountRes.count ?? 0)
@@ -354,7 +387,7 @@ export default function HomeClient() {
     <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
-      <LiveProtestsBanner protests={upcomingProtests} />
+      <LiveProtestsBanner protests={upcomingProtests} totals={protestTotals} />
 
       <section className="relative overflow-hidden px-4 pb-20 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
