@@ -25,6 +25,8 @@ type SubmissionRow = {
   description: string
   date: string
   time: string
+  end_time: string | null
+  timezone: string | null
   price: string | null
   contact_email: string
   status: string
@@ -37,12 +39,26 @@ type SubmissionRow = {
   is_civic: boolean | null
   featured_movement_slug: string | null
   organizer_contact: string | null
+  organizer_name: string | null
+  organizer_phone: string | null
+  organizer_website: string | null
+  organizer_socials: Record<string, string> | null
   telegram_link: string | null
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
   lat: number | null
   lng: number | null
+  address: string | null
+  is_online: boolean | null
+  online_url: string | null
+  tags: string[] | null
+  language: string | null
+  banner_url: string | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }
 
 type EventRow = {
@@ -372,12 +388,30 @@ export default function AdminClient() {
       description: s.description,
       date: s.date,
       time: s.time,
+      end_time: s.end_time ?? null,
+      timezone: s.timezone ?? null,
       price: s.price ?? null,
       highlight: false,
       status: 'published',
       country: s.country,
       region: s.region,
       location_slug: s.location_slug,
+      lat: s.lat ?? null,
+      lng: s.lng ?? null,
+      address: s.address ?? null,
+      is_online: s.is_online ?? false,
+      online_url: s.online_url ?? null,
+      tags: s.tags ?? [],
+      language: s.language ?? 'en',
+      banner_url: s.banner_url ?? null,
+      organizer_name: s.organizer_name ?? null,
+      organizer_phone: s.organizer_phone ?? null,
+      organizer_website: s.organizer_website ?? null,
+      organizer_socials: s.organizer_socials ?? null,
+      recurrence: s.recurrence ?? 'none',
+      recurrence_until: s.recurrence_until ?? null,
+      recurrence_days_of_week: s.recurrence_days_of_week ?? [],
+      recurrence_exceptions: s.recurrence_exceptions ?? [],
       ...(isCivic && {
         event_type: s.event_type ?? 'protest',
         is_civic: true,
@@ -387,8 +421,6 @@ export default function AdminClient() {
         whatsapp_link: s.whatsapp_link ?? null,
         safety_notes: s.safety_notes ?? null,
         expected_attendees: s.expected_attendees ?? null,
-        lat: s.lat ?? null,
-        lng: s.lng ?? null,
       }),
     })
 

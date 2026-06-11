@@ -165,7 +165,7 @@ function EventsContent() {
   const router = useRouter()
   const locationOptions = useLocations()
 
-  const initialLocationSlug = searchParams.get('location') || defaultLocationSlug
+  const initialLocationSlug = searchParams.get('location') || 'all'
   const initialSearchQuery = searchParams.get('q') || ''
   const timeParam = searchParams.get('time')
   const initialTimeFilter: TimeFilter =
@@ -293,18 +293,21 @@ function EventsContent() {
           setPlaceNames(new Map())
         }
       } else {
+        const isAllCities = activeLocationSlug === 'all'
+        const eventsQuery = supabase
+          .from('events')
+          .select('*')
+          .eq('status', 'published')
+          .order('date', { ascending: true })
+          .order('time', { ascending: true })
+        const placesQuery = supabase.from('places').select('id, name')
         const [eventsRes, placesRes] = await Promise.all([
-          supabase
-            .from('events')
-            .select('*')
-            .eq('status', 'published')
-            .eq('location_slug', activeLocationSlug)
-            .order('date', { ascending: true })
-            .order('time', { ascending: true }),
-          supabase
-            .from('places')
-            .select('id, name')
-            .eq('location_slug', activeLocationSlug),
+          isAllCities
+            ? eventsQuery
+            : eventsQuery.eq('location_slug', activeLocationSlug),
+          isAllCities
+            ? placesQuery
+            : placesQuery.eq('location_slug', activeLocationSlug),
         ])
 
         setIsLoading(false)
@@ -327,7 +330,7 @@ function EventsContent() {
 
   useEffect(() => {
     const params = new URLSearchParams()
-    params.set('location', activeLocationSlug)
+    if (activeLocationSlug !== 'all') params.set('location', activeLocationSlug)
     if (activeCategory !== 'all') params.set('category', activeCategory)
     if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
     if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
@@ -443,7 +446,10 @@ function EventsContent() {
     return sortEventsByPriority(filteredEvents)
   }, [filteredEvents, sortBy])
 
+  const isAllCities = activeLocationSlug === 'all'
   const activeLocation = resolveLocation(activeLocationSlug, locationOptions)
+  const headerCity = isAllCities ? 'Worldwide' : activeLocation.label
+  const headerCountry = isAllCities ? '' : activeLocation.country
 
   return (
     <main className="min-h-screen bg-ink-950 text-white">
@@ -468,13 +474,19 @@ function EventsContent() {
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2 text-sm text-flame-300">
             <MapPin className="h-4 w-4" />
-            {isSearchMode ? 'All cities' : `${activeLocation.label}, ${activeLocation.country}`}
+            {isSearchMode
+              ? 'All cities'
+              : headerCountry
+                ? `${headerCity}, ${headerCountry}`
+                : headerCity}
           </div>
 
           <h1 className="display-text mt-6 text-5xl sm:text-7xl lg:text-[88px] leading-[0.95] tracking-tight">
             {isSearchMode
               ? `Results for "${debouncedSearch}"`
-              : `All events in ${activeLocation.label}`}
+              : isAllCities
+                ? 'All events'
+                : `All events in ${headerCity}`}
           </h1>
 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
@@ -511,6 +523,7 @@ function EventsContent() {
                 onChange={(event) => setActiveLocationSlug(event.target.value)}
                 className="mt-2 h-12 w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 px-4 text-sm text-white outline-none"
               >
+                <option value="all">All cities · Worldwide</option>
                 {locationOptions.map((location) => (
                   <option key={location.slug} value={location.slug}>
                     {location.label} · {location.country}
