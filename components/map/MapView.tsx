@@ -62,7 +62,11 @@ export default function MapView() {
   const mapAdapterRef = useRef<MapAdapter | null>(null)
 
   const locationSlug = searchParams.get('location') || 'tirana'
+  const isWorldwide = locationSlug === 'all'
   const location = getLocationBySlug(locationSlug)
+  // Worldwide view: roughly Europe-centered, low zoom — matches ProtestMap.
+  const worldCenter: [number, number] = [10, 30]
+  const worldZoom = 1.6
 
   const initialCategory = searchParams.get('category') || 'all'
   const initialPlaceId = searchParams.get('place')
@@ -99,17 +103,28 @@ export default function MapView() {
 
     async function fetchData() {
       setIsLoading(true)
+      const placesQuery = supabase.from('places').select('*')
+      const eventsQuery = supabase.from('events').select('*').eq('status', 'published')
+      const civicQuery = supabase
+        .from('events')
+        .select('id, slug, title, date, lat, lng, expected_attendees')
+        .eq('status', 'published')
+        .eq('is_civic', true)
+        .not('lat', 'is', null)
+        .not('lng', 'is', null)
+
+      // When the user picked a specific city, scope all three queries to it.
+      // 'all' means worldwide → keep the queries unfiltered.
+      if (!isWorldwide) {
+        placesQuery.eq('location_slug', locationSlug)
+        eventsQuery.eq('location_slug', locationSlug)
+        civicQuery.eq('location_slug', locationSlug)
+      }
+
       const [placesRes, eventsRes, civicRes] = await Promise.all([
-        supabase.from('places').select('*').eq('location_slug', locationSlug),
-        supabase.from('events').select('*').eq('status', 'published').eq('location_slug', locationSlug),
-        supabase
-          .from('events')
-          .select('id, slug, title, date, lat, lng, expected_attendees')
-          .eq('status', 'published')
-          .eq('is_civic', true)
-          .eq('location_slug', locationSlug)
-          .not('lat', 'is', null)
-          .not('lng', 'is', null),
+        placesQuery,
+        eventsQuery,
+        civicQuery,
       ])
 
       if (placesRes.data) {
@@ -276,8 +291,8 @@ export default function MapView() {
 
     mapAdapterRef.current = createMaplibreAdapter({
       container: mapRef.current,
-      center: location.center,
-      zoom: location.zoom,
+      center: isWorldwide ? worldCenter : location.center,
+      zoom: isWorldwide ? worldZoom : location.zoom,
       onMapClick: () => setSelectedPlaceId(null),
       getMarkerClassName,
     })
@@ -376,11 +391,17 @@ export default function MapView() {
   // (cities table UNION distinct event cities). Falls back to the static
   // helper for legacy slugs that aren't in either set.
   const dynamicMatch = locationOptions.find((o) => o.slug === locationSlug)
-  const activeLocationLabel = dynamicMatch?.label ?? location.label
+  const activeLocationLabel = isWorldwide
+    ? 'Worldwide'
+    : dynamicMatch?.label ?? location.label
 
   useEffect(() => {
     const adapter = mapAdapterRef.current
     if (!adapter) return
+    if (isWorldwide) {
+      adapter.flyToLocation(worldCenter, worldZoom)
+      return
+    }
     // Prefer the dynamic option's coords (covers Nominatim-derived cities
     // that aren't in the static cities array).
     const center = dynamicMatch?.center ?? location.center
@@ -429,7 +450,7 @@ export default function MapView() {
             </p>
             <p className="mt-1 text-sm leading-6 text-white/60">
               Try another search, time, category, or tag to see more places and
-              events in {location.label}.
+              events {isWorldwide ? 'worldwide' : `in ${location.label}`}.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
