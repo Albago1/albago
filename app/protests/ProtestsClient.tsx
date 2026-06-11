@@ -104,21 +104,55 @@ type Props = {
 
 type DateFilter = 'upcoming' | 'today' | 'week' | 'past'
 
+// Local-component date math — `.toISOString()` would shift everything back
+// by a day for any user east of UTC near midnight, which is exactly when
+// "is this event expired" matters most.
 function todayIso(): string {
-  return new Date().toISOString().split('T')[0]
+  const d = new Date()
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
 }
 
 function addDaysIso(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+// Adapt a ProtestEvent (camelCase, no end_time tracked) into the shape the
+// shared `isEventActive` helper expects.
+function asActiveShape(e: ProtestEvent) {
+  return {
+    date: e.date,
+    time: e.time,
+    end_time: null,
+    recurrence: e.recurrence ?? null,
+    recurrence_until: e.recurrenceUntil ?? null,
+    recurrence_days_of_week: e.recurrenceDaysOfWeek ?? null,
+    recurrence_exceptions: e.recurrenceExceptions ?? null,
+  }
 }
 
 export default function ProtestsClient({ events, migrationApplied }: Props) {
   const { t } = useLanguage()
   const [list, setList] = useState<ProtestEvent[]>(events)
   const [realtimeConnected, setRealtimeConnected] = useState(false)
-  const showEmptyBanner = list.length === 0
+  // Live = upcoming/today/recurring-still-running, evaluated in the user's
+  // local frame. The server-side filter in app/protests/page.tsx runs on
+  // Vercel (UTC) and would happily keep a Thursday event visible while
+  // CEST has already rolled into Friday — this is the final say.
+  const activeList = useMemo(
+    () => list.filter((e) => isEventActive(asActiveShape(e))),
+    [list],
+  )
+  const showEmptyBanner = activeList.length === 0
 
   // Sync to fresh server props on navigation.
   useEffect(() => {
@@ -181,26 +215,28 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
   const [searching, setSearching] = useState(false)
 
   const countries = useMemo(() => {
-    const set = new Set(list.map((e) => e.country))
+    const set = new Set(activeList.map((e) => e.country))
     return Array.from(set).sort()
-  }, [list])
+  }, [activeList])
 
   const totalCities = useMemo(
-    () => new Set(list.map((e) => e.locationSlug)).size,
-    [list],
+    () => new Set(activeList.map((e) => e.locationSlug)).size,
+    [activeList],
   )
 
   const filtered = useMemo(() => {
     const today = todayIso()
     const weekEnd = addDaysIso(7)
     const q = query.trim().toLowerCase()
+    // 'past' chip explicitly wants historical rows, so don't pre-strip
+    // them. Every other chip works on the active set.
+    const source = dateFilter === 'past' ? list : activeList
 
-    return list.filter((e) => {
-      // Date window
-      if (dateFilter === 'upcoming' && e.date < today) return false
+    return source.filter((e) => {
       if (dateFilter === 'today' && e.date !== today) return false
       if (dateFilter === 'week' && (e.date < today || e.date > weekEnd)) return false
       if (dateFilter === 'past' && e.date >= today) return false
+      // 'upcoming' needs no extra date check — activeList already enforces it.
 
       if (countryFilter && e.country !== countryFilter) return false
 
@@ -209,7 +245,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
         `${e.placeName ?? ''} ${e.locationSlug} ${e.country} ${e.region ?? ''} ${e.title}`.toLowerCase()
       return haystack.includes(q)
     })
-  }, [list, query, countryFilter, dateFilter])
+  }, [list, activeList, query, countryFilter, dateFilter])
 
   const filteredAttendees = useMemo(
     () => filtered.reduce((sum, e) => sum + (e.expectedAttendees ?? 0), 0),
@@ -352,7 +388,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             className="mt-8 inline-flex flex-wrap items-center gap-2 text-xs text-white/55"
           >
             <span>
-              <span className="font-semibold text-white">{list.length}</span>{' '}
+              <span className="font-semibold text-white">{activeList.length}</span>{' '}
               {t('protests_count_gatherings')}
             </span>
             <span className="h-3 w-px bg-white/15" />
