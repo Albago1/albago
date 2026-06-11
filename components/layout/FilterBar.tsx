@@ -17,7 +17,7 @@ import {
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
 
-type TimeFilter = 'all' | 'tonight' | 'weekend'
+type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
 type LocationOption = {
   slug: string
@@ -25,6 +25,8 @@ type LocationOption = {
   country: string
   center?: [number, number]
 }
+
+type CountryCount = { country: string; count: number }
 
 type FilterBarProps = {
   activeTimeFilter: TimeFilter
@@ -37,6 +39,9 @@ type FilterBarProps = {
   visiblePlacesCount: number
   visibleEventsCount: number
   availableOptionChips: string[]
+  countryOptions?: CountryCount[]
+  activeCountry?: string | null
+  onCountryChange?: (country: string | null) => void
   isMobile: boolean
   onTimeFilterChange: (value: TimeFilter) => void
   onCategoryChange: (value: string) => void
@@ -47,11 +52,12 @@ type FilterBarProps = {
 }
 
 const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic']
-const timeFilters: TimeFilter[] = ['tonight', 'weekend', 'all']
+const timeFilters: TimeFilter[] = ['tonight', 'weekend', 'week', 'all']
 
 function getTimeFilterLabel(filter: TimeFilter) {
   if (filter === 'all') return 'All'
   if (filter === 'tonight') return 'Tonight'
+  if (filter === 'week') return 'This Week'
   return 'This Weekend'
 }
 
@@ -92,6 +98,9 @@ function DesktopFilterBar(props: FilterBarProps) {
     visiblePlacesCount,
     visibleEventsCount,
     availableOptionChips,
+    countryOptions,
+    activeCountry,
+    onCountryChange,
     onTimeFilterChange,
     onCategoryChange,
     onSearchQueryChange,
@@ -99,6 +108,9 @@ function DesktopFilterBar(props: FilterBarProps) {
     onLocationChange,
     onReset,
   } = props
+  const isWorldwide = activeLocationSlug === 'all'
+  const showCountryRow =
+    isWorldwide && !!onCountryChange && (countryOptions?.length ?? 0) > 0
 
   const [locationOpen, setLocationOpen] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
@@ -295,6 +307,46 @@ function DesktopFilterBar(props: FilterBarProps) {
                     ].join(' ')}
                   >
                     {option}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {showCountryRow && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                type="button"
+                onClick={() => onCountryChange?.(null)}
+                className={[
+                  'shrink-0 rounded-full border px-2.5 py-1 text-xs transition',
+                  !activeCountry
+                    ? 'border-white/15 bg-white/10 text-white'
+                    : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white',
+                ].join(' ')}
+              >
+                All countries
+              </button>
+              {countryOptions?.slice(0, 18).map((entry) => {
+                const isActive = activeCountry === entry.country
+                return (
+                  <button
+                    key={entry.country}
+                    type="button"
+                    onClick={() =>
+                      onCountryChange?.(isActive ? null : entry.country)
+                    }
+                    className={[
+                      'shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition',
+                      isActive
+                        ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                        : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white',
+                    ].join(' ')}
+                  >
+                    <span>{entry.country}</span>
+                    <span className="rounded-full bg-white/10 px-1.5 py-0 text-[10px] text-white/65">
+                      {entry.count}
+                    </span>
                   </button>
                 )
               })}

@@ -17,7 +17,7 @@ import { useLocations } from '@/lib/useLocations'
 import { eventMatchesDate, hasOccurrenceInRange, todayIso } from '@/lib/recurrence'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
-type TimeFilter = 'all' | 'tonight' | 'weekend'
+type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
 type CivicMapEvent = {
   id: string
@@ -25,6 +25,7 @@ type CivicMapEvent = {
   title: string
   date: string
   time: string | null
+  country: string | null
   lat: number
   lng: number
   expectedAttendees: number | null
@@ -81,6 +82,7 @@ function getMarkerClassName(isSelected: boolean) {
 function getTimeFilterLabel(filter: TimeFilter) {
   if (filter === 'all') return 'All'
   if (filter === 'tonight') return 'Tonight'
+  if (filter === 'week') return 'This week'
   return 'This weekend'
 }
 
@@ -90,8 +92,17 @@ function getCategoryLabel(category: string) {
 }
 
 function getValidTimeFilter(value: string | null): TimeFilter {
-  if (value === 'tonight' || value === 'weekend') return value
+  if (value === 'tonight' || value === 'weekend' || value === 'week') return value
   return 'all'
+}
+
+// 7-day window starting today, in local date components.
+function getWeekIsoRange(): { from: string; to: string } {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const end = new Date(today)
+  end.setDate(today.getDate() + 7)
+  return { from: fmtLocalIso(today), to: fmtLocalIso(end) }
 }
 
 export default function MapView() {
@@ -106,8 +117,12 @@ export default function MapView() {
   // different city.
   const initialFitDoneForSlugRef = useRef<string | null>(null)
 
-  const locationSlug = searchParams.get('location') || 'tirana'
+  // Default to the worldwide view so the map opens onto the actual current
+  // events (civic protests everywhere) instead of the city-scoped Tirana
+  // venue map most visitors never asked for.
+  const locationSlug = searchParams.get('location') || 'all'
   const isWorldwide = locationSlug === 'all'
+  const initialCountry = searchParams.get('country')
   const location = getLocationBySlug(locationSlug)
   // Worldwide view: roughly Europe-centered, low zoom — matches ProtestMap.
   const worldCenter: [number, number] = [10, 30]
@@ -126,6 +141,7 @@ export default function MapView() {
   const [activeCategory, setActiveCategory] = useState(initialCategory)
   const [searchQuery, setSearchQuery] = useState('')
   const [optionFilter, setOptionFilter] = useState('all')
+  const [countryFilter, setCountryFilter] = useState<string | null>(initialCountry)
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -149,16 +165,10 @@ export default function MapView() {
     async function fetchData() {
       setIsLoading(true)
       const activeFilter = activeEventsOrFilter()
-      const placesQuery = supabase.from('places').select('*')
-      const eventsQuery = supabase
-        .from('events')
-        .select('*')
-        .eq('status', 'published')
-        .or(activeFilter)
       const civicQuery = supabase
         .from('events')
         .select(
-          'id, slug, title, date, time, end_time, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          'id, slug, title, date, time, end_time, country, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
         )
         .eq('status', 'published')
         .or(activeFilter)
@@ -166,17 +176,32 @@ export default function MapView() {
         .not('lat', 'is', null)
         .not('lng', 'is', null)
 
-      // When the user picked a specific city, scope all three queries to it.
-      // 'all' means worldwide → keep the queries unfiltered.
+      // Worldwide view: pull civic pins only (skipping places + non-civic
+      // events keeps the wire payload manageable across every country). A
+      // user that wants nightlife venues opens a specific city.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const emptyRes = Promise.resolve({ data: [] as any[], error: null })
+      const placesPromise = isWorldwide
+        ? emptyRes
+        : supabase
+            .from('places')
+            .select('*')
+            .eq('location_slug', locationSlug)
+      const eventsPromise = isWorldwide
+        ? emptyRes
+        : supabase
+            .from('events')
+            .select('*')
+            .eq('status', 'published')
+            .or(activeFilter)
+            .eq('location_slug', locationSlug)
       if (!isWorldwide) {
-        placesQuery.eq('location_slug', locationSlug)
-        eventsQuery.eq('location_slug', locationSlug)
         civicQuery.eq('location_slug', locationSlug)
       }
 
       const [placesRes, eventsRes, civicRes] = await Promise.all([
-        placesQuery,
-        eventsQuery,
+        placesPromise,
+        eventsPromise,
         civicQuery,
       ])
 
@@ -221,6 +246,7 @@ export default function MapView() {
             date: string
             time: string | null
             end_time: string | null
+            country: string | null
             lat: number
             lng: number
             expected_attendees: number | null
@@ -236,6 +262,7 @@ export default function MapView() {
               title: row.title,
               date: row.date,
               time: row.time,
+              country: row.country,
               lat: row.lat,
               lng: row.lng,
               expectedAttendees: row.expected_attendees,
@@ -270,7 +297,12 @@ export default function MapView() {
     setActiveTimeFilter(nextTimeFilter)
   }, [searchParams])
 
+  useEffect(() => {
+    setCountryFilter(searchParams.get('country'))
+  }, [searchParams])
+
   const filteredEvents = useMemo(() => {
+    const week = getWeekIsoRange()
     return events.filter((event) => {
       if (activeTimeFilter === 'all') return true
       // Regular events go through the legacy single-date filter — they may
@@ -280,15 +312,29 @@ export default function MapView() {
       // recurrence case the user actually noticed.
       if (activeTimeFilter === 'tonight') return isToday(event.date)
       if (activeTimeFilter === 'weekend') return isThisWeekend(event.date)
+      if (activeTimeFilter === 'week') return event.date >= week.from && event.date <= week.to
       return true
     })
   }, [activeTimeFilter, events])
+
+  const civicCountryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const ev of civicEvents) {
+      const key = (ev.country ?? '').trim()
+      if (!key) continue
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([country, count]) => ({ country, count }))
+  }, [civicEvents])
 
   const visibleCivicEvents = useMemo(() => {
     if (activeCategory !== 'all' && activeCategory !== 'civic') return []
     const normalizedSearch = searchQuery.trim().toLowerCase()
     const today = todayIso()
     const weekend = getWeekendIsoRange()
+    const week = getWeekIsoRange()
     return civicEvents.filter((event) => {
       // For the time filter, ask the recurrence helpers when this event
       // actually runs — so a weekly Saturday protest with a months-old
@@ -306,13 +352,18 @@ export default function MapView() {
           ? true
           : activeTimeFilter === 'tonight'
             ? eventMatchesDate(recurringShape, today)
-            : hasOccurrenceInRange(recurringShape, weekend.from, weekend.to)
+            : activeTimeFilter === 'week'
+              ? hasOccurrenceInRange(recurringShape, week.from, week.to)
+              : hasOccurrenceInRange(recurringShape, weekend.from, weekend.to)
+      const countryMatch =
+        !countryFilter || (event.country ?? '').trim() === countryFilter
       const searchMatch =
         normalizedSearch.length === 0 ||
-        event.title.toLowerCase().includes(normalizedSearch)
-      return timeMatch && searchMatch
+        event.title.toLowerCase().includes(normalizedSearch) ||
+        (event.country ?? '').toLowerCase().includes(normalizedSearch)
+      return timeMatch && countryMatch && searchMatch
     })
-  }, [civicEvents, activeCategory, activeTimeFilter, searchQuery])
+  }, [civicEvents, activeCategory, activeTimeFilter, searchQuery, countryFilter])
 
   const availableOptionChips = useMemo(() => {
     const allOptions = places.flatMap((place) => place.options ?? [])
@@ -452,6 +503,7 @@ export default function MapView() {
     setActiveCategory('all')
     setSearchQuery('')
     setOptionFilter('all')
+    setCountryFilter(null)
   }
 
   const handleLocationChange = (slug: string, center?: [number, number]) => {
@@ -463,6 +515,9 @@ export default function MapView() {
       params.set('lng', String(center[0]))
       params.set('lat', String(center[1]))
     }
+    // Country filter only makes sense in worldwide mode; drop it when the
+    // user picks a specific city.
+    setCountryFilter(null)
     router.replace(`/map?${params.toString()}`)
     // For dynamic (Nominatim-resolved) cities we may not have a matching
     // entry in static `cities`, so fly directly to the resolved coords.
@@ -542,6 +597,9 @@ export default function MapView() {
         visiblePlacesCount={visiblePlaces.length}
         visibleEventsCount={visibleEventsCount}
         availableOptionChips={availableOptionChips}
+        countryOptions={civicCountryCounts}
+        activeCountry={countryFilter}
+        onCountryChange={setCountryFilter}
         isMobile={isMobile}
         onTimeFilterChange={setActiveTimeFilter}
         onCategoryChange={setActiveCategory}
