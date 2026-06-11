@@ -51,7 +51,14 @@ type NominatimHit = {
     town?: string
     village?: string
     municipality?: string
+    hamlet?: string
+    suburb?: string
+    city_district?: string
+    borough?: string
+    neighbourhood?: string
+    quarter?: string
     state?: string
+    state_district?: string
     county?: string
     country?: string
     country_code?: string
@@ -73,8 +80,27 @@ function slugify(value: string): string {
 
 function hitToSuggestion(hit: NominatimHit): Suggestion {
   const a = hit.address ?? {}
-  const city = a.city || a.town || a.village || a.municipality || null
+  // Walk the OSM admin hierarchy from most-specific city-like field down
+  // to coarser fallbacks. Some Albanian villages, US neighborhoods, etc.
+  // omit the canonical `city` field entirely — without these fallbacks
+  // the display falls through to `displayName.split(',')[0]`, which is
+  // typically the street name.
+  const city =
+    a.city ||
+    a.town ||
+    a.village ||
+    a.municipality ||
+    a.hamlet ||
+    a.suburb ||
+    a.city_district ||
+    a.borough ||
+    a.neighbourhood ||
+    a.quarter ||
+    a.county ||
+    null
   const country = a.country || null
+  // For the slug, prefer the city we just resolved; only fall back to the
+  // displayName-first-part if city is truly missing (very rare now).
   const cityForSlug = city || hit.display_name.split(',')[0]?.trim() || 'unknown'
   const addressParts = [a.house_number, a.road].filter(Boolean).join(' ')
 
