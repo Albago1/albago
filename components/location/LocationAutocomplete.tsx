@@ -93,8 +93,10 @@ export default function LocationAutocomplete(props: Props) {
         const payload = (await res.json()) as ApiForwardResponse
         const list = payload.suggestions ?? []
         setSuggestions(list)
-        if (list[0]) onResolve(list[0])
-        else onResolve(null)
+        // Do NOT auto-resolve to list[0]. The user must explicitly click a
+        // suggestion, click the map, or drag the pin to set `resolved`.
+        // Auto-resolving on every keystroke was overwriting deliberate picks
+        // and snapping the map back to a stale "top hit" mid-typing.
       } catch {
         setSuggestions([])
       } finally {
@@ -231,7 +233,7 @@ export default function LocationAutocomplete(props: Props) {
 
   // --- Render -----------------------------------------------------------
 
-  const showSuggestions = open && suggestions.length > 1 && suggestionsLimit > 0
+  const showSuggestions = open && suggestions.length > 0 && suggestionsLimit > 0
 
   const clear = () => {
     onChange('')
