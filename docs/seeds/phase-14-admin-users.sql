@@ -96,3 +96,39 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_set_user_role(uuid, text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- admin_delete_user — hard-delete a user from auth.users. Cascades to
+-- profiles / saved_events / event_submissions / organizers / volunteer_signups
+-- via existing FKs. Events the user authored stay published with a NULL
+-- organizer_id (FK is SET NULL) unless `also_delete_events = true`.
+--
+-- Self-deletion is blocked.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_delete_user(
+  target_user uuid,
+  also_delete_events boolean DEFAULT false
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_admin' USING ERRCODE = '42501';
+  END IF;
+
+  IF target_user = auth.uid() THEN
+    RAISE EXCEPTION 'cannot_delete_self' USING ERRCODE = '22023';
+  END IF;
+
+  IF also_delete_events THEN
+    DELETE FROM public.events WHERE organizer_id = target_user;
+  END IF;
+
+  DELETE FROM auth.users WHERE id = target_user;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_delete_user(uuid, boolean) TO authenticated;

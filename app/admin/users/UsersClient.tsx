@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
+  AlertTriangle,
   ArrowLeft,
   BadgeCheck,
   Mail,
@@ -10,7 +11,9 @@ import {
   Search,
   Shield,
   ShieldOff,
+  Trash2,
   Users as UsersIcon,
+  X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
@@ -53,6 +56,7 @@ export default function UsersClient({
   const [search, setSearch] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -152,6 +156,34 @@ export default function UsersClient({
       prev.map((row) => (row.id === u.id ? { ...row, role: next } : row)),
     )
     flashToast(`${u.email} is now ${next}.`)
+  }
+
+  const deleteUser = async (u: UserRow, alsoDeleteEvents: boolean) => {
+    setBusyId(u.id)
+    const { error: rpcError } = await supabase.rpc('admin_delete_user', {
+      target_user: u.id,
+      also_delete_events: alsoDeleteEvents,
+    })
+    setBusyId(null)
+    if (rpcError) {
+      console.error('admin_delete_user:', rpcError)
+      if (/cannot_delete_self/i.test(rpcError.message)) {
+        flashToast('You cannot delete your own account.')
+        return
+      }
+      if (
+        /admin_delete_user/i.test(rpcError.message) &&
+        /does not exist/i.test(rpcError.message)
+      ) {
+        flashToast('admin_delete_user RPC missing — re-apply phase-14 SQL.')
+        return
+      }
+      flashToast(`Delete failed: ${rpcError.message}`)
+      return
+    }
+    setUsers((prev) => prev.filter((row) => row.id !== u.id))
+    setDeleteTarget(null)
+    flashToast(`Deleted ${u.email}.`)
   }
 
   return (
@@ -325,6 +357,18 @@ export default function UsersClient({
                             Demote
                           </button>
                         )}
+                        {!isSelf && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setDeleteTarget(u)}
+                            className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/[0.06] px-3 py-1 text-[11px] font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                            title="Permanently delete this user"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -333,6 +377,17 @@ export default function UsersClient({
             </tbody>
           </table>
         </div>
+      )}
+
+      {deleteTarget && (
+        <DeleteUserDialog
+          user={deleteTarget}
+          busy={busyId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(alsoDeleteEvents) =>
+            deleteUser(deleteTarget, alsoDeleteEvents)
+          }
+        />
       )}
 
       {toast && (
@@ -394,5 +449,134 @@ function FilterChip({
     >
       {children}
     </button>
+  )
+}
+
+function DeleteUserDialog({
+  user,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  user: UserRow
+  busy: boolean
+  onCancel: () => void
+  onConfirm: (alsoDeleteEvents: boolean) => void
+}) {
+  const [typed, setTyped] = useState('')
+  const [alsoDeleteEvents, setAlsoDeleteEvents] = useState(false)
+  const matches = typed.trim().toLowerCase() === user.email.trim().toLowerCase()
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/75 p-4 backdrop-blur"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl border border-red-500/30 bg-ink-900 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-500/15 ring-1 ring-red-500/30">
+              <AlertTriangle className="h-5 w-5 text-red-300" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Delete user</h2>
+              <p className="mt-0.5 text-xs text-white/55">
+                This cannot be undone.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full p-1.5 text-white/55 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+            title="Cancel"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-4 text-xs text-red-100">
+          <p className="font-semibold text-red-100">
+            Deleting <span className="font-mono">{user.email}</span> will also
+            remove:
+          </p>
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-red-100/90">
+            <li>their profile + admin role (if any)</li>
+            <li>saved events</li>
+            <li>event submissions they filed</li>
+            <li>organizer profile + verification</li>
+            <li>volunteer signups</li>
+          </ul>
+          <p className="mt-2 text-red-100/70">
+            Published events they authored stay live with no organizer link —
+            tick the box below to remove those too.
+          </p>
+        </div>
+
+        <label className="mt-4 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/85 hover:bg-white/[0.06]">
+          <input
+            type="checkbox"
+            checked={alsoDeleteEvents}
+            onChange={(e) => setAlsoDeleteEvents(e.target.checked)}
+            disabled={busy}
+            className="mt-0.5 h-4 w-4 rounded border-white/15 bg-white/[0.04]"
+          />
+          <div>
+            <p className="font-semibold">
+              Also delete this user&apos;s published events
+            </p>
+            <p className="mt-0.5 text-xs text-white/55">
+              Removes every event where they are the organizer. Civic /
+              community submissions they only filed (not authored) are not
+              affected.
+            </p>
+          </div>
+        </label>
+
+        <div className="mt-5">
+          <label
+            htmlFor="delete-email-confirm"
+            className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
+          >
+            Type the email to confirm
+          </label>
+          <input
+            id="delete-email-confirm"
+            type="email"
+            autoComplete="off"
+            autoFocus
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={user.email}
+            disabled={busy}
+            className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-mono text-sm text-white outline-none transition focus:border-red-500/40"
+          />
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(alsoDeleteEvents)}
+            disabled={busy || !matches}
+            className="inline-flex items-center gap-1.5 rounded-full bg-red-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_30px_rgba(239,68,68,0.35)] transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {busy ? 'Deleting…' : 'Delete user'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
