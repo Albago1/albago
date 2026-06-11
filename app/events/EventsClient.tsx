@@ -12,12 +12,25 @@ import {
   Clock3,
   Flame,
   MapPin,
+  Repeat,
   Search,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
-import { isThisWeekend, isToday, getTodayDateString } from '@/lib/dateFilters'
+import {
+  isThisWeekend,
+  isToday,
+  getTodayDateString,
+  getWeekendDateStrings,
+} from '@/lib/dateFilters'
+import {
+  hasOccurrenceInRange,
+  isRecurring,
+  nextOccurrence,
+  nextOccurrenceLabel,
+  recurrenceLabel,
+} from '@/lib/recurrence'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, defaultLocationSlug, type LocationOption } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
@@ -54,6 +67,10 @@ type PublicEvent = {
   tags?: string[] | null
   is_online?: boolean | null
   banner_url?: string | null
+  recurrence?: string | null
+  recurrence_until?: string | null
+  recurrence_days_of_week?: number[] | null
+  recurrence_exceptions?: string[] | null
 }
 
 const timeFilters: TimeFilter[] = ['all', 'tonight', 'weekend']
@@ -361,14 +378,36 @@ function EventsContent() {
   const clearTags = () => setActiveTags(new Set())
 
   const filteredEvents = useMemo(() => {
+    const weekendDates = getWeekendDateStrings()
+    const weekendFrom = weekendDates[0] ?? getTodayDateString()
+    const weekendTo = weekendDates[weekendDates.length - 1] ?? weekendFrom
+    const today = getTodayDateString()
+
     return events.filter((event) => {
-      // Explicit date range overrides the time chip when set.
-      const timeMatches = hasDateRange
-        ? (!dateFrom || event.date >= dateFrom) &&
-          (!dateTo || event.date <= dateTo)
-        : activeTimeFilter === 'all' ||
-          (activeTimeFilter === 'tonight' && isToday(event.date)) ||
-          (activeTimeFilter === 'weekend' && isThisWeekend(event.date))
+      // Recurring events expand into any matching day inside the queried
+      // window; non-recurring keep the existing exact-date semantics.
+      const recurring = isRecurring(event)
+
+      let timeMatches: boolean
+      if (hasDateRange) {
+        const from = dateFrom || today
+        const to = dateTo || '9999-12-31'
+        timeMatches = recurring
+          ? hasOccurrenceInRange(event, from, to)
+          : event.date >= from && event.date <= to
+      } else if (activeTimeFilter === 'all') {
+        timeMatches = true
+      } else if (activeTimeFilter === 'tonight') {
+        timeMatches = recurring
+          ? hasOccurrenceInRange(event, today, today)
+          : isToday(event.date)
+      } else if (activeTimeFilter === 'weekend') {
+        timeMatches = recurring
+          ? hasOccurrenceInRange(event, weekendFrom, weekendTo)
+          : isThisWeekend(event.date)
+      } else {
+        timeMatches = true
+      }
 
       const categoryMatches =
         activeCategory === 'all' ||
@@ -384,17 +423,20 @@ function EventsContent() {
   }, [activeTimeFilter, activeCategory, activeTags, events, hasDateRange, dateFrom, dateTo])
 
   const sortedEvents = useMemo(() => {
+    const today = getTodayDateString()
+    const effectiveDate = (e: PublicEvent) =>
+      isRecurring(e) ? nextOccurrence(e, today) ?? e.date : e.date
     if (sortBy === 'date-asc') {
       return [...filteredEvents].sort((a, b) => {
-        const da = new Date(`${a.date}T${a.time}`).getTime()
-        const db = new Date(`${b.date}T${b.time}`).getTime()
+        const da = new Date(`${effectiveDate(a)}T${a.time}`).getTime()
+        const db = new Date(`${effectiveDate(b)}T${b.time}`).getTime()
         return da - db
       })
     }
     if (sortBy === 'date-desc') {
       return [...filteredEvents].sort((a, b) => {
-        const da = new Date(`${a.date}T${a.time}`).getTime()
-        const db = new Date(`${b.date}T${b.time}`).getTime()
+        const da = new Date(`${effectiveDate(a)}T${a.time}`).getTime()
+        const db = new Date(`${effectiveDate(b)}T${b.time}`).getTime()
         return db - da
       })
     }
@@ -798,7 +840,10 @@ function EventsContent() {
                     />
 
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-white/70">
-                      {formatEventDateLabel(event.date)}
+                      {isRecurring(event)
+                        ? nextOccurrenceLabel(event) ??
+                          formatEventDateLabel(event.date)
+                        : formatEventDateLabel(event.date)}
                     </span>
                   </div>
                 </div>
@@ -842,13 +887,25 @@ function EventsContent() {
                 <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/60">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    <span>{formatEventDateLabel(event.date)}</span>
+                    <span>
+                      {isRecurring(event)
+                        ? nextOccurrenceLabel(event) ??
+                          formatEventDateLabel(event.date)
+                        : formatEventDateLabel(event.date)}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Clock3 className="h-4 w-4" />
                     <span>{event.time}</span>
                   </div>
+
+                  {isRecurring(event) && (
+                    <div className="flex items-center gap-2 text-flame-300">
+                      <Repeat className="h-4 w-4" />
+                      <span>{recurrenceLabel(event)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <p className="mt-4 text-sm leading-6 text-white/65">

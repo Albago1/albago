@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Navigation,
   Phone,
+  Repeat,
   Send,
   ShieldAlert,
   User2,
@@ -23,6 +24,11 @@ import SaveEventButton from '@/components/SaveEventButton'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
+import {
+  isRecurring,
+  recurrenceLabel,
+  upcomingOccurrences,
+} from '@/lib/recurrence'
 
 type Params = { slug: string }
 
@@ -68,6 +74,10 @@ type EventRecord = {
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
   places: {
     id: string
     name: string
@@ -83,7 +93,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, places ( id, name, address, lat, lng, website_url )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -151,6 +161,42 @@ function formatDateLong(dateString: string) {
     month: 'long',
     year: 'numeric',
   })
+}
+
+function UpcomingOccurrencesList({ event }: { event: EventRecord }) {
+  const dates = upcomingOccurrences(
+    {
+      date: event.date,
+      time: event.time,
+      recurrence: event.recurrence,
+      recurrence_until: event.recurrence_until,
+      recurrence_days_of_week: event.recurrence_days_of_week,
+      recurrence_exceptions: event.recurrence_exceptions,
+    },
+    5,
+  )
+  if (dates.length === 0) {
+    return (
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/55">
+        No upcoming dates — the series has ended.
+      </div>
+    )
+  }
+  return (
+    <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+        Upcoming
+      </span>
+      {dates.map((iso) => (
+        <span
+          key={iso}
+          className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-white/80"
+        >
+          {formatDateLong(iso).replace(/, \d{4}$/, '')}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 export async function generateMetadata(
@@ -280,13 +326,22 @@ export default async function EventDetailPage(
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/65">
             <span className="inline-flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              {formatDateLong(event.date)}
+              {isRecurring(event)
+                ? `Starts ${formatDateLong(event.date)}`
+                : formatDateLong(event.date)}
             </span>
 
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
               {formatTimeRange(event.time, event.end_time, event.timezone)}
             </span>
+
+            {isRecurring(event) && (
+              <span className="inline-flex items-center gap-2 text-flame-300">
+                <Repeat className="h-4 w-4" />
+                {recurrenceLabel(event)}
+              </span>
+            )}
 
             <span className="inline-flex items-center gap-2">
               {event.is_online ? (
@@ -302,6 +357,10 @@ export default async function EventDetailPage(
               )}
             </span>
           </div>
+
+          {isRecurring(event) && (
+            <UpcomingOccurrencesList event={event} />
+          )}
 
           {event.tags && event.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5">

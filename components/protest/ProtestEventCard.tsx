@@ -9,9 +9,15 @@ import {
   MapPin,
   Megaphone,
   MessageCircle,
+  Repeat,
   Send,
   Users,
 } from 'lucide-react'
+import {
+  isRecurring,
+  nextOccurrence,
+  recurrenceLabel,
+} from '@/lib/recurrence'
 
 export type ProtestEvent = {
   id: string
@@ -38,6 +44,22 @@ export type ProtestEvent = {
   whatsappLink: string | null
   safetyNotes: string | null
   expectedAttendees: number | null
+  recurrence?: string | null
+  recurrenceUntil?: string | null
+  recurrenceDaysOfWeek?: number[] | null
+  recurrenceExceptions?: string[] | null
+}
+
+/** Shim that lets the recurrence helpers accept a ProtestEvent (camelCase). */
+function asRecurring(ev: ProtestEvent) {
+  return {
+    date: ev.date,
+    time: ev.time,
+    recurrence: ev.recurrence ?? null,
+    recurrence_until: ev.recurrenceUntil ?? null,
+    recurrence_days_of_week: ev.recurrenceDaysOfWeek ?? null,
+    recurrence_exceptions: ev.recurrenceExceptions ?? null,
+  }
 }
 
 export function formatProtestNumber(value: number): string {
@@ -69,12 +91,23 @@ export function timeUntilProtest(iso: string, time = '12:00'): string {
 }
 
 export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
-  const [countdown, setCountdown] = useState<string>(timeUntilProtest(event.date, event.time))
+  // For recurring events the countdown chases the next occurrence, not the
+  // series start (which may be in the past).
+  const recurring = isRecurring(asRecurring(event))
+  const baseDate = recurring
+    ? nextOccurrence(asRecurring(event)) ?? event.date
+    : event.date
+  const [countdown, setCountdown] = useState<string>(
+    timeUntilProtest(baseDate, event.time),
+  )
 
   useEffect(() => {
-    const id = setInterval(() => setCountdown(timeUntilProtest(event.date, event.time)), 60_000)
+    const id = setInterval(() => {
+      const d = recurring ? nextOccurrence(asRecurring(event)) ?? event.date : event.date
+      setCountdown(timeUntilProtest(d, event.time))
+    }, 60_000)
     return () => clearInterval(id)
-  }, [event.date, event.time])
+  }, [event, recurring])
 
   return (
     <motion.article
@@ -104,8 +137,13 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
 
       <div className="relative mt-5 grid grid-cols-2 gap-2 text-xs">
         <Meta icon={<Clock3 className="h-3.5 w-3.5" />}>
-          {formatProtestDate(event.date)} · {event.time}
+          {formatProtestDate(baseDate)} · {event.time}
         </Meta>
+        {recurring && (
+          <Meta icon={<Repeat className="h-3.5 w-3.5" />}>
+            {recurrenceLabel(asRecurring(event))}
+          </Meta>
+        )}
         {event.expectedAttendees != null && (
           <Meta icon={<Users className="h-3.5 w-3.5" />}>
             {formatProtestNumber(event.expectedAttendees)} expected

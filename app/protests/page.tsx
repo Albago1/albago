@@ -39,6 +39,10 @@ type EventRow = {
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }
 
 type PlaceRow = {
@@ -61,7 +65,7 @@ export default async function ProtestsPage() {
   const wide = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, date, time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees',
+      'id, slug, title, description, date, time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
     )
     .eq('status', 'published')
     .eq('is_civic', true)
@@ -116,6 +120,10 @@ export default async function ProtestsPage() {
       whatsappLink: row.whatsapp_link ?? null,
       safetyNotes: row.safety_notes ?? null,
       expectedAttendees: row.expected_attendees ?? null,
+      recurrence: row.recurrence ?? null,
+      recurrenceUntil: row.recurrence_until ?? null,
+      recurrenceDaysOfWeek: row.recurrence_days_of_week ?? null,
+      recurrenceExceptions: row.recurrence_exceptions ?? null,
     }
   })
 

@@ -55,6 +55,10 @@ type RealtimeEventRow = {
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }
 
 function rowToProtestEvent(row: RealtimeEventRow): ProtestEvent {
@@ -83,6 +87,10 @@ function rowToProtestEvent(row: RealtimeEventRow): ProtestEvent {
     whatsappLink: row.whatsapp_link ?? null,
     safetyNotes: row.safety_notes ?? null,
     expectedAttendees: row.expected_attendees ?? null,
+    recurrence: row.recurrence ?? null,
+    recurrenceUntil: row.recurrence_until ?? null,
+    recurrenceDaysOfWeek: row.recurrence_days_of_week ?? null,
+    recurrenceExceptions: row.recurrence_exceptions ?? null,
   }
 }
 
