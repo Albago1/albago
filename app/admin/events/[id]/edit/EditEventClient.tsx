@@ -1,10 +1,25 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Flame, Save, Trash2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronDown,
+  Flame,
+  Globe2,
+  ImageIcon,
+  Link as LinkIcon,
+  MapPin,
+  Save,
+  Trash2,
+  UploadCloud,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
+import LocationAutocomplete, {
+  type ResolvedAddress,
+} from '@/components/location/LocationAutocomplete'
+import { useImageUpload } from '@/hooks/useImageUpload'
 
 type OrganizerSocials = {
   instagram?: string
@@ -616,116 +631,14 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
         </Section>
 
         <Section title="Location">
-          <label className="flex items-center gap-3 text-sm text-white/80">
-            <input
-              type="checkbox"
-              checked={form.is_online}
-              onChange={(e) => setField('is_online', e.target.checked)}
-              className="h-4 w-4 rounded border-white/15 bg-white/[0.04]"
-            />
-            This event is online
-          </label>
-
-          {form.is_online && (
-            <Field label="Online URL" htmlFor="f-online-url">
-              <input
-                id="f-online-url"
-                type="url"
-                value={form.online_url}
-                onChange={(e) => setField('online_url', e.target.value)}
-                placeholder="https://zoom.us/j/..."
-                className="input"
-              />
-            </Field>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="City slug" htmlFor="f-loc-slug">
-              <input
-                id="f-loc-slug"
-                type="text"
-                value={form.location_slug}
-                onChange={(e) => setField('location_slug', e.target.value)}
-                placeholder="berlin"
-                required
-                className="input font-mono"
-              />
-            </Field>
-            <Field label="Country" htmlFor="f-country">
-              <input
-                id="f-country"
-                type="text"
-                value={form.country}
-                onChange={(e) => setField('country', e.target.value)}
-                required
-                className="input"
-              />
-            </Field>
-          </div>
-          <Field label="Street address (optional)" htmlFor="f-address">
-            <input
-              id="f-address"
-              type="text"
-              value={form.address}
-              onChange={(e) => setField('address', e.target.value)}
-              placeholder="Rruga Murat Toptani 4, Tirana"
-              className="input"
-            />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Region (optional)" htmlFor="f-region">
-              <input
-                id="f-region"
-                type="text"
-                value={form.region}
-                onChange={(e) => setField('region', e.target.value)}
-                className="input"
-              />
-            </Field>
-            <Field label="Latitude" htmlFor="f-lat">
-              <input
-                id="f-lat"
-                type="number"
-                step="any"
-                value={form.lat}
-                onChange={(e) => setField('lat', e.target.value)}
-                className="input font-mono"
-              />
-            </Field>
-            <Field label="Longitude" htmlFor="f-lng">
-              <input
-                id="f-lng"
-                type="number"
-                step="any"
-                value={form.lng}
-                onChange={(e) => setField('lng', e.target.value)}
-                className="input font-mono"
-              />
-            </Field>
-          </div>
+          <LocationEditor form={form} setField={setField} />
         </Section>
 
         <Section title="Media & moderation">
-          <Field label="Banner URL" htmlFor="f-banner">
-            <input
-              id="f-banner"
-              type="url"
-              value={form.banner_url}
-              onChange={(e) => setField('banner_url', e.target.value)}
-              placeholder="https://..."
-              className="input"
-            />
-            {form.banner_url && (
-              <div className="mt-2 overflow-hidden rounded-2xl border border-white/10">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={form.banner_url}
-                  alt="Banner preview"
-                  className="aspect-[16/9] w-full object-cover"
-                />
-              </div>
-            )}
-          </Field>
+          <BannerEditor
+            bannerUrl={form.banner_url}
+            onChange={(url) => setField('banner_url', url)}
+          />
           <Field
             label="Admin note (visible to owning organizer)"
             htmlFor="f-note"
@@ -976,6 +889,421 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  )
+}
+
+function formToResolved(form: FormState): ResolvedAddress | null {
+  const latNum = parseFloat(form.lat)
+  const lngNum = parseFloat(form.lng)
+  if (Number.isNaN(latNum) || Number.isNaN(lngNum)) return null
+  return {
+    slug: form.location_slug || 'unknown',
+    city: null,
+    country: form.country || null,
+    countryCode: null,
+    region: form.region || null,
+    address: form.address || null,
+    road: null,
+    houseNumber: null,
+    postcode: null,
+    displayName: [form.address, form.location_slug, form.country]
+      .filter(Boolean)
+      .join(', '),
+    lat: latNum,
+    lng: lngNum,
+    placeId: form.location_slug || `${latNum},${lngNum}`,
+    type: null,
+  }
+}
+
+function LocationEditor({
+  form,
+  setField,
+}: {
+  form: FormState
+  setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void
+}) {
+  const [query, setQuery] = useState<string>(
+    () => form.address || form.location_slug || '',
+  )
+  const [resolved, setResolved] = useState<ResolvedAddress | null>(() =>
+    formToResolved(form),
+  )
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  // Keep the resolved view in sync if the raw lat/lng/slug are edited via
+  // the Advanced override panel.
+  useEffect(() => {
+    setResolved((prev) => {
+      const next = formToResolved(form)
+      if (!next) return null
+      if (
+        prev &&
+        prev.lat === next.lat &&
+        prev.lng === next.lng &&
+        prev.slug === next.slug
+      ) {
+        return prev
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.lat, form.lng, form.location_slug, form.country, form.region, form.address])
+
+  const handleResolve = (next: ResolvedAddress | null) => {
+    setResolved(next)
+    if (!next) {
+      setField('location_slug', '')
+      setField('country', '')
+      setField('region', '')
+      setField('address', '')
+      setField('lat', '')
+      setField('lng', '')
+      return
+    }
+    setField('location_slug', next.slug || form.location_slug)
+    setField('country', next.country ?? form.country)
+    setField('region', next.region ?? '')
+    setField('address', next.address || next.displayName)
+    setField('lat', String(next.lat))
+    setField('lng', String(next.lng))
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Physical / Online toggle */}
+      <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1">
+        <button
+          type="button"
+          onClick={() => setField('is_online', false)}
+          className={[
+            'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition',
+            !form.is_online ? 'bg-white text-black' : 'text-white/65 hover:text-white',
+          ].join(' ')}
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Physical place
+        </button>
+        <button
+          type="button"
+          onClick={() => setField('is_online', true)}
+          className={[
+            'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition',
+            form.is_online ? 'bg-white text-black' : 'text-white/65 hover:text-white',
+          ].join(' ')}
+        >
+          <Globe2 className="h-3.5 w-3.5" />
+          Online
+        </button>
+      </div>
+
+      {form.is_online ? (
+        <div className="space-y-3">
+          <label
+            htmlFor="f-online-url"
+            className="block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
+          >
+            Online URL
+          </label>
+          <div className="relative">
+            <LinkIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+            <input
+              id="f-online-url"
+              type="url"
+              value={form.online_url}
+              onChange={(e) => setField('online_url', e.target.value)}
+              placeholder="https://zoom.us/j/..."
+              className="input pl-10"
+            />
+          </div>
+
+          {/* Even online events get a tagged city for discovery (optional). */}
+          <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+              Tag a city (optional)
+            </p>
+            <p className="text-xs text-white/45">
+              Helps people find the event when they browse a city. Skip if it&apos;s
+              truly worldwide.
+            </p>
+            <LocationAutocomplete
+              id="f-online-city"
+              value={query}
+              onChange={setQuery}
+              onResolve={handleResolve}
+              resolved={resolved}
+              placeholder="Search a city..."
+              showMap={false}
+            />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label
+            htmlFor="f-where-search"
+            className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
+          >
+            Address / place
+          </label>
+          <LocationAutocomplete
+            id="f-where-search"
+            value={query}
+            onChange={setQuery}
+            onResolve={handleResolve}
+            resolved={resolved}
+            placeholder='Search any address (e.g. "Brandenburg Gate, Berlin")'
+            mapHeightClass="h-64"
+          />
+          <p className="mt-2 text-xs text-white/45">
+            Drag the pin or click the map to fine-tune the exact spot.
+          </p>
+        </div>
+      )}
+
+      {/* Advanced manual override — useful when autocomplete misses. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02]">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-white/55 transition hover:text-white"
+        >
+          Advanced — manual override
+          <ChevronDown
+            className={[
+              'h-4 w-4 transition-transform',
+              advancedOpen ? 'rotate-180' : '',
+            ].join(' ')}
+          />
+        </button>
+        {advancedOpen && (
+          <div className="space-y-4 border-t border-white/10 px-4 py-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="City slug" htmlFor="f-loc-slug">
+                <input
+                  id="f-loc-slug"
+                  type="text"
+                  value={form.location_slug}
+                  onChange={(e) => setField('location_slug', e.target.value)}
+                  placeholder="berlin"
+                  className="input font-mono"
+                />
+              </Field>
+              <Field label="Country" htmlFor="f-country">
+                <input
+                  id="f-country"
+                  type="text"
+                  value={form.country}
+                  onChange={(e) => setField('country', e.target.value)}
+                  className="input"
+                />
+              </Field>
+            </div>
+            <Field label="Street address" htmlFor="f-address">
+              <input
+                id="f-address"
+                type="text"
+                value={form.address}
+                onChange={(e) => setField('address', e.target.value)}
+                placeholder="Rruga Murat Toptani 4, Tirana"
+                className="input"
+              />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Region" htmlFor="f-region">
+                <input
+                  id="f-region"
+                  type="text"
+                  value={form.region}
+                  onChange={(e) => setField('region', e.target.value)}
+                  className="input"
+                />
+              </Field>
+              <Field label="Latitude" htmlFor="f-lat">
+                <input
+                  id="f-lat"
+                  type="number"
+                  step="any"
+                  value={form.lat}
+                  onChange={(e) => setField('lat', e.target.value)}
+                  className="input font-mono"
+                />
+              </Field>
+              <Field label="Longitude" htmlFor="f-lng">
+                <input
+                  id="f-lng"
+                  type="number"
+                  step="any"
+                  value={form.lng}
+                  onChange={(e) => setField('lng', e.target.value)}
+                  className="input font-mono"
+                />
+              </Field>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BannerEditor({
+  bannerUrl,
+  onChange,
+}: {
+  bannerUrl: string
+  onChange: (url: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { upload, uploading, error: uploadError } = useImageUpload('event-covers')
+  const [localPreview, setLocalPreview] = useState<string | null>(null)
+  const [urlOverrideOpen, setUrlOverrideOpen] = useState(false)
+
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview)
+    }
+  }, [localPreview])
+
+  async function handleFile(file: File) {
+    const objectUrl = URL.createObjectURL(file)
+    setLocalPreview(objectUrl)
+    const result = await upload(file)
+    if (result.url) {
+      onChange(result.url)
+    }
+    URL.revokeObjectURL(objectUrl)
+    setLocalPreview(null)
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  function handleClear() {
+    onChange('')
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  const previewUrl = localPreview || bannerUrl
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+          Cover image
+        </p>
+        <p className="mt-1 text-xs text-white/45">
+          16:9 recommended — JPG, PNG, WebP, or AVIF, up to 8&nbsp;MB.
+        </p>
+      </div>
+
+      {previewUrl ? (
+        <div className="space-y-3">
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="Cover preview"
+              className="aspect-[16/9] w-full object-cover"
+            />
+            {uploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-ink-950/60 text-sm font-semibold text-white">
+                <UploadCloud className="mr-2 h-4 w-4 animate-pulse text-flame-300" />
+                Uploading…
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <UploadCloud className="h-3.5 w-3.5" />
+              Replace
+            </button>
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/65 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-white/15 bg-white/[0.02] p-10 text-center transition hover:border-flame-500/40 hover:bg-flame-500/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {uploading ? (
+            <>
+              <UploadCloud className="h-10 w-10 animate-pulse text-flame-300" />
+              <span className="text-sm font-semibold text-white">Uploading…</span>
+              <span className="text-xs text-white/45">Don&apos;t close this tab</span>
+            </>
+          ) : (
+            <>
+              <ImageIcon className="h-10 w-10 text-white/45" />
+              <span className="text-sm font-semibold text-white">
+                Click to upload a cover
+              </span>
+              <span className="text-xs text-white/45">
+                Recommended 1600 × 900 px. Up to 8&nbsp;MB.
+              </span>
+            </>
+          )}
+        </button>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void handleFile(file)
+        }}
+      />
+
+      {uploadError && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+          {uploadError}
+        </div>
+      )}
+
+      {/* URL-only override — useful for pasting external images. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02]">
+        <button
+          type="button"
+          onClick={() => setUrlOverrideOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/55 transition hover:text-white"
+        >
+          Paste URL instead
+          <ChevronDown
+            className={[
+              'h-4 w-4 transition-transform',
+              urlOverrideOpen ? 'rotate-180' : '',
+            ].join(' ')}
+          />
+        </button>
+        {urlOverrideOpen && (
+          <div className="border-t border-white/10 px-4 py-3">
+            <input
+              id="f-banner"
+              type="url"
+              value={bannerUrl}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="https://..."
+              className="input"
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
