@@ -163,6 +163,105 @@ export default function UsersClient({
     flashToast(`${u.email} is now ${next}.`)
   }
 
+  const grantOrganizer = async (u: UserRow) => {
+    const defaultName = u.email.split('@')[0]
+    const displayName = window.prompt(
+      `Make "${u.email}" an organizer.\n\nDisplay name shown to attendees:`,
+      defaultName,
+    )
+    if (displayName === null) return
+    const trimmed = displayName.trim()
+    if (!trimmed) {
+      flashToast('Display name is required.')
+      return
+    }
+    setBusyId(u.id)
+    const { error: rpcError } = await supabase.rpc('admin_grant_organizer', {
+      target_user: u.id,
+      display_name: trimmed,
+    })
+    setBusyId(null)
+    if (rpcError) {
+      console.error('admin_grant_organizer:', rpcError)
+      if (/already_organizer/i.test(rpcError.message)) {
+        flashToast('Already an organizer.')
+        return
+      }
+      if (
+        /admin_grant_organizer/i.test(rpcError.message) &&
+        /does not exist/i.test(rpcError.message)
+      ) {
+        flashToast('admin_grant_organizer RPC missing — re-apply phase-14 SQL.')
+        return
+      }
+      flashToast(`Failed: ${rpcError.message}`)
+      return
+    }
+    setUsers((prev) =>
+      prev.map((row) =>
+        row.id === u.id
+          ? { ...row, is_organizer: true, organizer_verified: false }
+          : row,
+      ),
+    )
+    flashToast(`${u.email} is now an organizer.`)
+  }
+
+  const revokeOrganizer = async (u: UserRow) => {
+    if (
+      !window.confirm(
+        `Strip organizer status from ${u.email}? Their published events stay live but lose the organizer link.`,
+      )
+    ) {
+      return
+    }
+    setBusyId(u.id)
+    const { error: rpcError } = await supabase.rpc('admin_revoke_organizer', {
+      target_user: u.id,
+    })
+    setBusyId(null)
+    if (rpcError) {
+      console.error('admin_revoke_organizer:', rpcError)
+      flashToast(`Failed: ${rpcError.message}`)
+      return
+    }
+    setUsers((prev) =>
+      prev.map((row) =>
+        row.id === u.id
+          ? { ...row, is_organizer: false, organizer_verified: false }
+          : row,
+      ),
+    )
+    flashToast(`${u.email} is no longer an organizer.`)
+  }
+
+  const setOrganizerVerified = async (u: UserRow, next: boolean) => {
+    setBusyId(u.id)
+    const { error: rpcError } = await supabase.rpc(
+      'admin_set_organizer_verified',
+      {
+        target_user: u.id,
+        verified_value: next,
+      },
+    )
+    setBusyId(null)
+    if (rpcError) {
+      console.error('admin_set_organizer_verified:', rpcError)
+      flashToast(`Failed: ${rpcError.message}`)
+      return
+    }
+    setUsers((prev) =>
+      prev.map((row) =>
+        row.id === u.id ? { ...row, organizer_verified: next } : row,
+      ),
+    )
+    flashToast(
+      next
+        ? `${u.email} is now a verified organizer.`
+        : `${u.email} is no longer verified.`,
+    )
+  }
+
   const deleteUser = async (u: UserRow, alsoDeleteEvents: boolean) => {
     setBusyId(u.id)
     const { error: rpcError } = await supabase.rpc('admin_delete_user', {
@@ -392,6 +491,54 @@ export default function UsersClient({
                             <ShieldOff className="h-3 w-3" />
                             Demote
                           </button>
+                        )}
+                        {!u.is_organizer ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => grantOrganizer(u)}
+                            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-white/85 transition hover:bg-sky-500/20 hover:text-sky-100 disabled:opacity-50"
+                            title="Grant organizer status"
+                          >
+                            <Building2 className="h-3 w-3" />
+                            Make organizer
+                          </button>
+                        ) : (
+                          <>
+                            {u.organizer_verified ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setOrganizerVerified(u, false)}
+                                className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-1 text-[11px] font-semibold text-emerald-200 transition hover:bg-amber-500/15 hover:text-amber-100 hover:border-amber-500/30 disabled:opacity-50"
+                                title="Remove verified badge"
+                              >
+                                <BadgeCheck className="h-3 w-3" />
+                                Unverify
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setOrganizerVerified(u, true)}
+                                className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-1 text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                                title="Grant verified badge"
+                              >
+                                <BadgeCheck className="h-3 w-3" />
+                                Verify
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => revokeOrganizer(u)}
+                              className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/65 transition hover:bg-red-500/10 hover:text-red-200 disabled:opacity-50"
+                              title="Strip organizer status"
+                            >
+                              <Building2 className="h-3 w-3" />
+                              Strip org
+                            </button>
+                          </>
                         )}
                         {!isSelf && (
                           <button

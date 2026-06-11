@@ -143,3 +143,107 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_delete_user(uuid, boolean) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- admin_grant_organizer — promote a regular user to an organizer.
+-- Inserts a minimal organizers row using the user's email as contact_email
+-- and a slug derived from display_name + 6 chars of their UUID.
+-- Errors with already_organizer if a row already exists.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_grant_organizer(
+  target_user uuid,
+  display_name text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  user_email text;
+  base_slug text;
+  final_slug text;
+  clean_name text;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_admin' USING ERRCODE = '42501';
+  END IF;
+
+  clean_name := trim(display_name);
+  IF clean_name = '' THEN
+    RAISE EXCEPTION 'display_name_required' USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.organizers WHERE id = target_user) THEN
+    RAISE EXCEPTION 'already_organizer' USING ERRCODE = '23505';
+  END IF;
+
+  SELECT email INTO user_email FROM auth.users WHERE id = target_user;
+  IF user_email IS NULL THEN
+    RAISE EXCEPTION 'user_not_found' USING ERRCODE = '02000';
+  END IF;
+
+  base_slug := regexp_replace(lower(clean_name), '[^a-z0-9]+', '-', 'g');
+  base_slug := trim(both '-' from base_slug);
+  IF base_slug = '' THEN
+    base_slug := 'organizer';
+  END IF;
+  final_slug := substring(base_slug FROM 1 FOR 40) || '-' ||
+                substring(replace(target_user::text, '-', '') FROM 1 FOR 6);
+
+  INSERT INTO public.organizers (id, display_name, slug, contact_email, verified)
+  VALUES (target_user, clean_name, final_slug, user_email, false);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_grant_organizer(uuid, text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- admin_revoke_organizer — strip organizer status from a user. Events they
+-- authored stay published with organizer_id SET NULL via the existing FK.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_revoke_organizer(target_user uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_admin' USING ERRCODE = '42501';
+  END IF;
+
+  DELETE FROM public.organizers WHERE id = target_user;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_revoke_organizer(uuid) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- admin_set_organizer_verified — toggle the green Verified badge.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_set_organizer_verified(
+  target_user uuid,
+  verified_value boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_admin' USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.organizers
+  SET verified = verified_value
+  WHERE id = target_user;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_an_organizer' USING ERRCODE = '02000';
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_set_organizer_verified(uuid, boolean) TO authenticated;
