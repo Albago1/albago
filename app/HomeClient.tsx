@@ -23,6 +23,7 @@ import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
 import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { getLocationBySlug, locations } from '@/lib/locations'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
@@ -222,6 +223,7 @@ export default function HomeClient() {
   useEffect(() => {
     async function fetchFeatured() {
       const today = new Date().toISOString().slice(0, 10)
+      const activeFilter = activeEventsOrFilter(today)
       const [
         placesRes,
         eventsRes,
@@ -236,25 +238,34 @@ export default function HomeClient() {
           .select('*')
           .eq('status', 'published')
           .eq('location_slug', activeLocationSlug)
+          .or(activeFilter)
           .order('highlight', { ascending: false })
           .order('date', { ascending: true })
-          .limit(6),
-        supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+          .limit(12),
+        supabase
+          .from('events')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'published')
+          .or(activeFilter),
         supabase.from('places').select('*', { count: 'exact', head: true }),
         supabase
           .from('events')
-          .select('id, slug, title, date, time, location_slug, country, expected_attendees')
+          .select(
+            'id, slug, title, date, time, end_time, location_slug, country, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          )
           .eq('status', 'published')
           .eq('is_civic', true)
-          .gte('date', today)
+          .or(activeFilter)
           .order('date', { ascending: true })
-          .limit(6),
+          .limit(12),
         supabase
           .from('events')
-          .select('country, expected_attendees')
+          .select(
+            'country, expected_attendees, date, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          )
           .eq('status', 'published')
           .eq('is_civic', true)
-          .gte('date', today),
+          .or(activeFilter),
       ])
 
       if (placesRes.data) {
@@ -281,7 +292,8 @@ export default function HomeClient() {
       }
 
       if (eventsRes.data) {
-        setFeaturedEvents(eventsRes.data.map((e) => ({
+        const activeRows = eventsRes.data.filter(isEventActive).slice(0, 6)
+        setFeaturedEvents(activeRows.map((e) => ({
           id: e.id,
           slug: e.slug,
           title: e.title,
@@ -296,14 +308,35 @@ export default function HomeClient() {
       }
 
       if (protestsRes.data) {
-        setUpcomingProtests(protestsRes.data)
+        const activeProtests = (protestsRes.data as Array<{
+          id: string
+          slug: string
+          title: string
+          date: string
+          time: string | null
+          end_time: string | null
+          location_slug: string
+          country: string
+          expected_attendees: number | null
+          recurrence: string | null
+          recurrence_until: string | null
+          recurrence_days_of_week: number[] | null
+          recurrence_exceptions: string[] | null
+        }>).filter(isEventActive).slice(0, 6)
+        setUpcomingProtests(activeProtests)
       }
 
       if (protestsTotalsRes.data) {
-        const rows = protestsTotalsRes.data as Array<{
+        const rows = (protestsTotalsRes.data as Array<{
           country: string | null
           expected_attendees: number | null
-        }>
+          date: string
+          end_time: string | null
+          recurrence: string | null
+          recurrence_until: string | null
+          recurrence_days_of_week: number[] | null
+          recurrence_exceptions: string[] | null
+        }>).filter(isEventActive)
         const countries = new Set(
           rows.map((r) => (r.country ?? '').trim().toLowerCase()).filter(Boolean),
         ).size

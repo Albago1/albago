@@ -30,6 +30,7 @@ import ProtestEventCard, {
 import SafetyPanel from '@/components/protest/SafetyPanel'
 import { createClient } from '@/lib/supabase/browser'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { isEventActive } from '@/lib/eventActive'
 
 type RealtimeEventRow = {
   id: string
@@ -38,6 +39,7 @@ type RealtimeEventRow = {
   description: string
   date: string
   time: string
+  end_time: string | null
   category: string
   price: string | null
   highlight: boolean | null
@@ -151,10 +153,12 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
 
           if (!newRow) return
           const isPublishedCivic = newRow.status === 'published' && newRow.is_civic === true
+          // Past one-offs and fully-elapsed recurring series get the boot too.
+          const stillActive = isPublishedCivic && isEventActive(newRow)
           const mapped = rowToProtestEvent(newRow)
           setList((prev) => {
             const without = prev.filter((e) => e.id !== newRow.id)
-            return isPublishedCivic ? [...without, mapped] : without
+            return stillActive ? [...without, mapped] : without
           })
         },
       )

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMovementBySlug, MOVEMENTS } from '@/lib/movements'
 import type { ProtestEvent } from '@/components/protest/ProtestEventCard'
 import MovementClient from './MovementClient'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 type Params = { slug: string }
 
@@ -14,6 +15,7 @@ type EventRow = {
   description: string
   date: string
   time: string
+  end_time: string | null
   category: string
   price: string | null
   highlight: boolean | null
@@ -30,6 +32,10 @@ type EventRow = {
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }
 
 export async function generateStaticParams(): Promise<Params[]> {
@@ -74,17 +80,18 @@ export default async function MovementPage(
   const wide = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, date, time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees',
+      'id, slug, title, description, date, time, end_time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
     )
     .eq('status', 'published')
     .eq('is_civic', true)
     .eq('featured_movement_slug', slug)
+    .or(activeEventsOrFilter())
     .order('date', { ascending: true })
 
   if (wide.error) {
     migrationApplied = false
   } else {
-    const rows = (wide.data ?? []) as EventRow[]
+    const rows = ((wide.data ?? []) as EventRow[]).filter(isEventActive)
     events = rows.map((row) => ({
       id: row.id,
       slug: row.slug,

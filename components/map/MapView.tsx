@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { eventMatchesDate, hasOccurrenceInRange, todayIso } from '@/lib/recurrence'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
@@ -147,14 +148,20 @@ export default function MapView() {
 
     async function fetchData() {
       setIsLoading(true)
+      const activeFilter = activeEventsOrFilter()
       const placesQuery = supabase.from('places').select('*')
-      const eventsQuery = supabase.from('events').select('*').eq('status', 'published')
+      const eventsQuery = supabase
+        .from('events')
+        .select('*')
+        .eq('status', 'published')
+        .or(activeFilter)
       const civicQuery = supabase
         .from('events')
         .select(
-          'id, slug, title, date, time, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          'id, slug, title, date, time, end_time, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
         )
         .eq('status', 'published')
+        .or(activeFilter)
         .eq('is_civic', true)
         .not('lat', 'is', null)
         .not('lng', 'is', null)
@@ -191,7 +198,7 @@ export default function MapView() {
       }
 
       if (eventsRes.data) {
-        setEvents(eventsRes.data.map((e) => ({
+        setEvents(eventsRes.data.filter(isEventActive).map((e) => ({
           id: e.id,
           slug: e.slug,
           title: e.title,
@@ -213,6 +220,7 @@ export default function MapView() {
             title: string
             date: string
             time: string | null
+            end_time: string | null
             lat: number
             lng: number
             expected_attendees: number | null
@@ -220,20 +228,22 @@ export default function MapView() {
             recurrence_until: string | null
             recurrence_days_of_week: number[] | null
             recurrence_exceptions: string[] | null
-          }>).map((row) => ({
-            id: row.id,
-            slug: row.slug,
-            title: row.title,
-            date: row.date,
-            time: row.time,
-            lat: row.lat,
-            lng: row.lng,
-            expectedAttendees: row.expected_attendees,
-            recurrence: row.recurrence,
-            recurrenceUntil: row.recurrence_until,
-            recurrenceDaysOfWeek: row.recurrence_days_of_week,
-            recurrenceExceptions: row.recurrence_exceptions,
-          }))
+          }>)
+            .filter(isEventActive)
+            .map((row) => ({
+              id: row.id,
+              slug: row.slug,
+              title: row.title,
+              date: row.date,
+              time: row.time,
+              lat: row.lat,
+              lng: row.lng,
+              expectedAttendees: row.expected_attendees,
+              recurrence: row.recurrence,
+              recurrenceUntil: row.recurrence_until,
+              recurrenceDaysOfWeek: row.recurrence_days_of_week,
+              recurrenceExceptions: row.recurrence_exceptions,
+            }))
         )
       } else {
         setCivicEvents([])

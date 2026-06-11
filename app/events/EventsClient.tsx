@@ -35,6 +35,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, defaultLocationSlug, type LocationOption } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
@@ -267,6 +268,7 @@ function EventsContent() {
           .from('events')
           .select('*')
           .eq('status', 'published')
+          .or(activeEventsOrFilter())
           .textSearch('search_vector', debouncedSearch.trim(), { type: 'plain', config: 'simple' })
           .order('date', { ascending: true })
           .limit(60)
@@ -278,7 +280,7 @@ function EventsContent() {
           return
         }
 
-        const results = data ?? []
+        const results = (data ?? []).filter(isEventActive)
         setEvents(results)
 
         const placeIds = [...new Set(results.flatMap((e) => (e.place_id ? [e.place_id] : [])))]
@@ -298,6 +300,7 @@ function EventsContent() {
           .from('events')
           .select('*')
           .eq('status', 'published')
+          .or(activeEventsOrFilter())
           .order('date', { ascending: true })
           .order('time', { ascending: true })
         const placesQuery = supabase.from('places').select('id, name')
@@ -317,7 +320,7 @@ function EventsContent() {
           return
         }
 
-        setEvents(eventsRes.data ?? [])
+        setEvents((eventsRes.data ?? []).filter(isEventActive))
 
         if (placesRes.data) {
           setPlaceNames(new Map(placesRes.data.map((p) => [p.id, p.name])))

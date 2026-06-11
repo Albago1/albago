@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import AlbanianRevolutionClient, {
   type MovementEvent,
 } from './AlbanianRevolutionClient'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 export const metadata: Metadata = {
   title: 'Albanian Revolution — Peaceful Worldwide Civic Movement',
@@ -25,6 +26,7 @@ type EventRow = {
   description: string
   date: string
   time: string
+  end_time: string | null
   category: string
   price: string | null
   highlight: boolean | null
@@ -42,6 +44,10 @@ type EventRow = {
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }
 
 type PlaceRow = {
@@ -64,10 +70,11 @@ export default async function AlbanianRevolutionPage() {
   const wide = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, date, time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees',
+      'id, slug, title, description, date, time, end_time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
     )
     .eq('status', 'published')
     .eq('featured_movement_slug', FEATURED_SLUG)
+    .or(activeEventsOrFilter())
     .order('date', { ascending: true })
 
   if (wide.error) {
@@ -75,7 +82,7 @@ export default async function AlbanianRevolutionPage() {
     // Migration not yet applied — show an empty-state version of the page.
     rows = []
   } else {
-    rows = (wide.data ?? []) as EventRow[]
+    rows = ((wide.data ?? []) as EventRow[]).filter(isEventActive)
   }
 
   const placeIds = rows

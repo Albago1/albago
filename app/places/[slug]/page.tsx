@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref } from '@/lib/eventLinks'
 import { getTodayDateString } from '@/lib/dateFilters'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 type Params = { slug: string }
 
@@ -44,11 +45,16 @@ type UpcomingEvent = {
   title: string
   date: string
   time: string
+  end_time: string | null
   category: string
   price: string | null
   highlight: boolean | null
   place_id: string | null
   location_slug: string
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }
 
 async function fetchVenue(slug: string): Promise<VenueRecord | null> {
@@ -70,15 +76,15 @@ async function fetchUpcomingEvents(venueId: string): Promise<UpcomingEvent[]> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, date, time, category, price, highlight, place_id, location_slug'
+      'id, slug, title, date, time, end_time, category, price, highlight, place_id, location_slug, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions'
     )
     .eq('place_id', venueId)
     .eq('status', 'published')
-    .gte('date', today)
+    .or(activeEventsOrFilter(today))
     .order('date', { ascending: true })
     .order('time', { ascending: true })
     .limit(30)
-  return (data as UpcomingEvent[] | null) ?? []
+  return ((data as UpcomingEvent[] | null) ?? []).filter(isEventActive)
 }
 
 function getCategoryTone(category?: string) {

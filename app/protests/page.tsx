@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import ProtestsClient from './ProtestsClient'
 import type { ProtestEvent } from '@/components/protest/ProtestEventCard'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 export const metadata: Metadata = {
   title: 'Protests Worldwide — AlbaGo',
@@ -22,6 +23,7 @@ type EventRow = {
   description: string
   date: string
   time: string
+  end_time: string | null
   category: string
   price: string | null
   highlight: boolean | null
@@ -65,17 +67,18 @@ export default async function ProtestsPage() {
   const wide = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, date, time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+      'id, slug, title, description, date, time, end_time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
     )
     .eq('status', 'published')
     .eq('is_civic', true)
+    .or(activeEventsOrFilter())
     .order('date', { ascending: true })
 
   if (wide.error) {
     migrationApplied = false
     rows = []
   } else {
-    rows = (wide.data ?? []) as EventRow[]
+    rows = ((wide.data ?? []) as EventRow[]).filter(isEventActive)
   }
 
   const placeIds = rows
