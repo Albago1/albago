@@ -42,9 +42,16 @@ export default function OrganizerStep({ draft, patch, mode }: Props) {
         patch({
           organizer_name: org.display_name,
           organizer_contact: org.contact_email,
-          organizer_website: draft.organizer_website || org.website_url || '',
+          organizer_website: draft.organizer_website || org.website_url || 'https://',
         })
         setPrefilled(true)
+      } else if (!org) {
+        // No organizer profile (community submitter) — seed sensible
+        // starting values so the field isn't blank on first load.
+        const seed: Partial<EventDraft> = {}
+        if (!draft.organizer_name.trim()) seed.organizer_name = 'activists'
+        if (!draft.organizer_website.trim()) seed.organizer_website = 'https://'
+        if (Object.keys(seed).length > 0) patch(seed)
       }
     })()
     return () => {
