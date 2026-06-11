@@ -15,7 +15,6 @@ import {
   Palette,
   Calendar,
   Clock3,
-  BadgeCheck,
   Search,
   Megaphone,
 } from 'lucide-react'
@@ -48,23 +47,6 @@ function getCategoryTone(category?: string) {
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
   if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
-
-  return 'bg-white/10 text-white/80'
-}
-
-function getPlaceCategoryTone(category?: string) {
-  if (!category) return 'bg-white/10 text-white/80'
-  const value = category.toLowerCase()
-
-  if (value === 'bar') return 'bg-fuchsia-500/20 text-fuchsia-300'
-  if (value === 'club') return 'bg-violet-500/20 text-violet-300'
-  if (value === 'restaurant') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'café' || value === 'cafe') return 'bg-sky-500/20 text-sky-300'
-  if (value === 'music') return 'bg-violet-500/20 text-violet-300'
-  if (value === 'sports' || value === 'sport') return 'bg-emerald-500/20 text-emerald-300'
-  if (value === 'nightlife') return 'bg-fuchsia-500/20 text-fuchsia-300'
-  if (value === 'food') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
 
   return 'bg-white/10 text-white/80'
 }
@@ -110,7 +92,18 @@ export default function HomeClient() {
   const [activeLocationSlug, setActiveLocationSlug] = useState('tirana')
   const [isLocating, setIsLocating] = useState(false)
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
-  const [featuredPlaces, setFeaturedPlaces] = useState<Place[]>([])
+  const [upcomingProtests, setUpcomingProtests] = useState<
+    Array<{
+      id: string
+      slug: string
+      title: string
+      date: string
+      time: string | null
+      location_slug: string
+      country: string
+      expected_attendees: number | null
+    }>
+  >([])
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
   const [totalEventsCount, setTotalEventsCount] = useState(0)
   const [totalPlacesCount, setTotalPlacesCount] = useState(0)
@@ -145,7 +138,8 @@ export default function HomeClient() {
 
   useEffect(() => {
     async function fetchFeatured() {
-      const [placesRes, eventsRes, eventsCountRes, placesCountRes] = await Promise.all([
+      const today = new Date().toISOString().slice(0, 10)
+      const [placesRes, eventsRes, eventsCountRes, placesCountRes, protestsRes] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
         supabase
           .from('events')
@@ -157,6 +151,14 @@ export default function HomeClient() {
           .limit(6),
         supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'published'),
         supabase.from('places').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('events')
+          .select('id, slug, title, date, time, location_slug, country, expected_attendees')
+          .eq('status', 'published')
+          .eq('is_civic', true)
+          .gte('date', today)
+          .order('date', { ascending: true })
+          .limit(6),
       ])
 
       if (placesRes.data) {
@@ -180,7 +182,6 @@ export default function HomeClient() {
           }
         })
         setAllPlaces(mapped)
-        setFeaturedPlaces(mapped.slice(0, 6))
       }
 
       if (eventsRes.data) {
@@ -196,6 +197,10 @@ export default function HomeClient() {
           price: e.price ?? undefined,
           highlight: e.highlight ?? undefined,
         })))
+      }
+
+      if (protestsRes.data) {
+        setUpcomingProtests(protestsRes.data)
       }
 
       setTotalEventsCount(eventsCountRes.count ?? 0)
@@ -808,22 +813,22 @@ export default function HomeClient() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-8 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <MapPin className="h-5 w-5 text-flame-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
+                <Flame className="h-5 w-5 text-flame-400" />
               </div>
 
               <div>
                 <h2 className="display-text text-3xl text-white sm:text-5xl">
-                  Trending places
+                  Upcoming protests
                 </h2>
                 <p className="mt-2 text-sm text-white/55">
-                  Discover the places people are checking out most
+                  The next peaceful gatherings happening worldwide
                 </p>
               </div>
             </div>
 
             <Link
-              href={buildSearchUrl('/map', activeLocationSlug, searchQuery)}
+              href="/protests"
               className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
             >
               View all
@@ -831,74 +836,87 @@ export default function HomeClient() {
             </Link>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {featuredPlaces.map((place) => (
+          {upcomingProtests.length === 0 ? (
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center backdrop-blur-md">
+              <p className="text-base font-semibold text-white">
+                No upcoming protests yet
+              </p>
+              <p className="mt-2 text-sm text-white/55">
+                When organizers post peaceful gatherings, they will show here.
+              </p>
               <Link
-                key={place.id}
-                href={`/places/${place.slug}`}
-                className="group block overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]"
+                href="/submit-event"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
               >
-                <div className="relative h-56 w-full overflow-hidden">
-                  {place.imageUrl ? (
-                    <div
-                      className="h-full w-full bg-cover bg-center transition duration-300 group-hover:scale-[1.02]"
-                      style={{ backgroundImage: `url(${place.imageUrl})` }}
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-gradient-to-br from-flame-500/20 via-flame-500/10 to-transparent" />
-                  )}
-                </div>
-
-                <div className="p-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getPlaceCategoryTone(
-                        place.category
-                      )}`}
-                    >
-                      {place.category}
-                    </span>
-
-                    {place.verified && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-flame-400">
-                        <BadgeCheck className="h-3.5 w-3.5" />
-                        Verified
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="mt-4 text-xl font-semibold text-white">
-                    {place.name}
-                  </h3>
-
-                  <div className="mt-3 flex items-center gap-2 text-sm text-white/55">
-                    <MapPin className="h-4 w-4" />
-                    <span>{place.city ?? 'Albania'}</span>
-                  </div>
-
-                  {place.options?.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {place.options.slice(0, 4).map((option) => (
-                        <span
-                          key={option}
-                          className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/55"
-                        >
-                          {option}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="mt-5">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
-                      View venue
-                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                    </span>
-                  </div>
-                </div>
+                <Flame className="h-4 w-4" />
+                Post one
               </Link>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {upcomingProtests.map((protest) => {
+                const cityLabel = getLocationBySlug(protest.location_slug)?.label
+                  ?? protest.location_slug
+                    .split('-')
+                    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+                    .join(' ')
+                return (
+                  <Link
+                    key={protest.id}
+                    href={`/events/${protest.slug}`}
+                    className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.05]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/15 px-3 py-1 text-xs font-semibold text-flame-300 ring-1 ring-flame-500/30">
+                        <Flame className="h-3 w-3" />
+                        Civic
+                      </span>
+                      {protest.expected_attendees != null && protest.expected_attendees > 0 && (
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/75">
+                          {protest.expected_attendees >= 1000
+                            ? `${(protest.expected_attendees / 1000).toFixed(1)}k expected`
+                            : `${protest.expected_attendees} expected`}
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="mt-4 text-xl font-semibold leading-tight text-white">
+                      {protest.title}
+                    </h3>
+
+                    <div className="mt-4 space-y-2 text-sm text-white/55">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        <span>{protest.date}</span>
+                      </div>
+
+                      {protest.time && (
+                        <div className="flex items-center gap-2">
+                          <Clock3 className="h-4 w-4" />
+                          <span>{protest.time}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        <span>
+                          {cityLabel}
+                          {protest.country ? `, ${protest.country}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
+                        Open protest
+                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
