@@ -113,7 +113,7 @@ export default function ProtestMap({
 
   return (
     <div className="relative w-full overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
-      <div ref={containerRef} className="aspect-[2/1] w-full" />
+      <div ref={containerRef} className="aspect-[4/5] w-full sm:aspect-[2/1]" />
 
       {/* When the filter yields zero markers but the user has searched a city,
           show a small "no protest yet here" pin overlay over the geocoded spot. */}
