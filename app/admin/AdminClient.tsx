@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
+import UserStatsCard from './UserStatsCard'
 
 type SubmissionRow = {
   id: string
@@ -579,6 +580,13 @@ export default function AdminClient() {
 
         <div className="flex flex-wrap gap-2">
           <Link
+            href="/admin/users"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <Users className="h-4 w-4" />
+            Users
+          </Link>
+          <Link
             href="/admin/volunteers"
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
           >
@@ -586,6 +594,10 @@ export default function AdminClient() {
             Volunteer signups
           </Link>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <UserStatsCard />
       </div>
 
       <section className="mt-6 space-y-3">
