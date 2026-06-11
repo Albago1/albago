@@ -10,10 +10,11 @@ import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
 import type { MapAdapter, MapMarkerInput } from '@/components/map/map.types'
-import { isToday, isThisWeekend } from '@/lib/dateFilters'
+import { isToday, isThisWeekend, getWeekendDateStrings } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
+import { eventMatchesDate, hasOccurrenceInRange, todayIso } from '@/lib/recurrence'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
 
@@ -22,9 +23,23 @@ type CivicMapEvent = {
   slug: string
   title: string
   date: string
+  time: string | null
   lat: number
   lng: number
   expectedAttendees: number | null
+  recurrence: string | null
+  recurrenceUntil: string | null
+  recurrenceDaysOfWeek: number[] | null
+  recurrenceExceptions: string[] | null
+}
+
+// Inclusive Fri/Sat/Sun span for the upcoming weekend. Returns null only if
+// `getWeekendDateStrings()` finds no weekend days in the next 7 days (which
+// should never happen, but we guard anyway).
+function getWeekendIsoRange(): { from: string; to: string } | null {
+  const days = getWeekendDateStrings()
+  if (days.length === 0) return null
+  return { from: days[0], to: days[days.length - 1] }
 }
 
 function getMarkerClassName(isSelected: boolean) {
@@ -60,6 +75,10 @@ export default function MapView() {
 
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapAdapterRef = useRef<MapAdapter | null>(null)
+  // Tracks the slug we've already auto-framed after data load, so changing a
+  // filter doesn't yank the viewport around. Resets when the user picks a
+  // different city.
+  const initialFitDoneForSlugRef = useRef<string | null>(null)
 
   const locationSlug = searchParams.get('location') || 'tirana'
   const isWorldwide = locationSlug === 'all'
@@ -107,7 +126,9 @@ export default function MapView() {
       const eventsQuery = supabase.from('events').select('*').eq('status', 'published')
       const civicQuery = supabase
         .from('events')
-        .select('id, slug, title, date, lat, lng, expected_attendees')
+        .select(
+          'id, slug, title, date, time, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+        )
         .eq('status', 'published')
         .eq('is_civic', true)
         .not('lat', 'is', null)
@@ -166,17 +187,27 @@ export default function MapView() {
             slug: string
             title: string
             date: string
+            time: string | null
             lat: number
             lng: number
             expected_attendees: number | null
+            recurrence: string | null
+            recurrence_until: string | null
+            recurrence_days_of_week: number[] | null
+            recurrence_exceptions: string[] | null
           }>).map((row) => ({
             id: row.id,
             slug: row.slug,
             title: row.title,
             date: row.date,
+            time: row.time,
             lat: row.lat,
             lng: row.lng,
             expectedAttendees: row.expected_attendees,
+            recurrence: row.recurrence,
+            recurrenceUntil: row.recurrence_until,
+            recurrenceDaysOfWeek: row.recurrence_days_of_week,
+            recurrenceExceptions: row.recurrence_exceptions,
           }))
         )
       } else {
@@ -207,6 +238,11 @@ export default function MapView() {
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
       if (activeTimeFilter === 'all') return true
+      // Regular events go through the legacy single-date filter — they may
+      // also be recurring (events.* SELECT includes recurrence cols) but the
+      // local Event type doesn't carry them through, so we keep the simple
+      // behavior here and let the visibleCivicEvents path handle the civic
+      // recurrence case the user actually noticed.
       if (activeTimeFilter === 'tonight') return isToday(event.date)
       if (activeTimeFilter === 'weekend') return isThisWeekend(event.date)
       return true
@@ -216,13 +252,28 @@ export default function MapView() {
   const visibleCivicEvents = useMemo(() => {
     if (activeCategory !== 'all' && activeCategory !== 'civic') return []
     const normalizedSearch = searchQuery.trim().toLowerCase()
+    const today = todayIso()
+    const weekend = getWeekendIsoRange()
     return civicEvents.filter((event) => {
+      // For the time filter, ask the recurrence helpers when this event
+      // actually runs — so a weekly Saturday protest with a months-old
+      // series start still matches the "This weekend" filter.
+      const recurringShape = {
+        date: event.date,
+        time: event.time,
+        recurrence: event.recurrence,
+        recurrence_until: event.recurrenceUntil,
+        recurrence_days_of_week: event.recurrenceDaysOfWeek,
+        recurrence_exceptions: event.recurrenceExceptions,
+      }
       const timeMatch =
         activeTimeFilter === 'all'
           ? true
           : activeTimeFilter === 'tonight'
-            ? isToday(event.date)
-            : isThisWeekend(event.date)
+            ? eventMatchesDate(recurringShape, today)
+            : weekend
+              ? hasOccurrenceInRange(recurringShape, weekend.from, weekend.to)
+              : false
       const searchMatch =
         normalizedSearch.length === 0 ||
         event.title.toLowerCase().includes(normalizedSearch)
@@ -398,6 +449,8 @@ export default function MapView() {
   useEffect(() => {
     const adapter = mapAdapterRef.current
     if (!adapter) return
+    // A brand-new slug means we'll want to re-frame to its data once it loads.
+    initialFitDoneForSlugRef.current = null
     if (isWorldwide) {
       adapter.flyToLocation(worldCenter, worldZoom)
       return
@@ -409,6 +462,29 @@ export default function MapView() {
     adapter.flyToLocation(center, zoom)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationSlug])
+
+  // After the first data load for a given slug, frame the map around the
+  // markers we actually have. This is what fixes the "/map?location=berlin
+  // shows the Tirana map and you have to manually pan to find the Berlin pin"
+  // problem — getLocationBySlug only knows 4 hardcoded cities, so for any
+  // Nominatim-derived slug (berlin, praha, frankfurt-am-main, …) the static
+  // fallback was Tirana. Fitting to the loaded data sidesteps that entirely.
+  useEffect(() => {
+    if (isLoading) return
+    const adapter = mapAdapterRef.current
+    if (!adapter) return
+    if (initialFitDoneForSlugRef.current === locationSlug) return
+    const coords: [number, number][] = []
+    places.forEach((p) => coords.push([p.lng, p.lat]))
+    civicEvents.forEach((e) => coords.push([e.lng, e.lat]))
+    if (coords.length > 0) {
+      adapter.fitBounds(coords, {
+        padding: 80,
+        maxZoom: coords.length === 1 ? 11 : 9,
+      })
+    }
+    initialFitDoneForSlugRef.current = locationSlug
+  }, [isLoading, locationSlug, places, civicEvents])
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-ink-950">
