@@ -77,6 +77,16 @@ export type EventDraft = {
   whatsapp_link: string
   safety_notes: string
   expected_attendees: string // string in form, parse on submit
+
+  // Recurrence (Phase 15)
+  /** 'none' | 'daily' | 'weekly'. Default 'none' for one-off events. */
+  recurrence: 'none' | 'daily' | 'weekly'
+  /** ISO date when the series ends. Empty string = open-ended. */
+  recurrence_until: string
+  /** ISO weekday numbers, 1=Mon..7=Sun. Used when recurrence='weekly'. */
+  recurrence_days_of_week: number[]
+  /** ISO dates the series should skip (cancellations). */
+  recurrence_exceptions: string[]
 }
 
 function detectTimezone(): string {
@@ -131,6 +141,11 @@ export const defaultEventDraft: EventDraft = {
   whatsapp_link: '',
   safety_notes: '',
   expected_attendees: '',
+
+  recurrence: 'none',
+  recurrence_until: '',
+  recurrence_days_of_week: [],
+  recurrence_exceptions: [],
 }
 
 // ---------------------------------------------------------------------------

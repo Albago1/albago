@@ -95,6 +95,10 @@ export async function submitCommunityEvent(
     expected_attendees: draft.expected_attendees
       ? parseAttendees(draft.expected_attendees)
       : null,
+    recurrence: draft.recurrence,
+    recurrence_until: trim(draft.recurrence_until),
+    recurrence_days_of_week: draft.recurrence_days_of_week,
+    recurrence_exceptions: draft.recurrence_exceptions,
   }
 
   const { data, error } = await supabase
@@ -172,6 +176,10 @@ export async function submitOrganizerDraft(
     expected_attendees: draft.expected_attendees
       ? String(parseAttendees(draft.expected_attendees) ?? '')
       : null,
+    recurrence: draft.recurrence,
+    recurrence_until: trim(draft.recurrence_until),
+    recurrence_days_of_week: draft.recurrence_days_of_week,
+    recurrence_exceptions: draft.recurrence_exceptions,
   }
 
   const { data, error } = await supabase.rpc('organizer_create_event_v2', {

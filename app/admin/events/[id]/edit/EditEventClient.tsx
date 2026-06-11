@@ -65,6 +65,10 @@ export type EditableEvent = {
   whatsapp_link: string | null
   safety_notes: string | null
   expected_attendees: number | null
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
   origin: string | null
   organizer_id: string | null
   created_at: string
@@ -109,6 +113,9 @@ type FormState = {
   whatsapp_link: string
   safety_notes: string
   expected_attendees: string
+  recurrence: 'none' | 'daily' | 'weekly'
+  recurrence_until: string
+  recurrence_dow: number[]
 }
 
 const STATUS_OPTIONS = [
@@ -190,6 +197,14 @@ function toFormState(initial: EditableEvent): FormState {
     safety_notes: initial.safety_notes ?? '',
     expected_attendees:
       initial.expected_attendees != null ? String(initial.expected_attendees) : '',
+    recurrence:
+      (initial.recurrence === 'daily' || initial.recurrence === 'weekly'
+        ? initial.recurrence
+        : 'none') as FormState['recurrence'],
+    recurrence_until: initial.recurrence_until ?? '',
+    recurrence_dow: Array.isArray(initial.recurrence_days_of_week)
+      ? [...initial.recurrence_days_of_week].sort((a, b) => a - b)
+      : [],
   }
 }
 
@@ -262,6 +277,33 @@ function diffPatch(initial: EditableEvent, current: FormState): Record<string, u
     const originalTags = initial.tags ?? []
     if (!tagsEqual(nextTags, originalTags)) {
       patch.tags = nextTags
+    }
+  }
+
+  // Recurrence — three fields. We don't currently expose exceptions in the
+  // edit UI; that ships in a follow-up.
+  {
+    const initialRec =
+      initial.recurrence === 'daily' || initial.recurrence === 'weekly'
+        ? initial.recurrence
+        : 'none'
+    if (current.recurrence !== initialRec) {
+      patch.recurrence = current.recurrence
+    }
+    const nextUntil = current.recurrence_until.trim()
+    const origUntil = initial.recurrence_until ?? ''
+    if (nextUntil !== origUntil) {
+      patch.recurrence_until = nextUntil === '' ? null : nextUntil
+    }
+    const nextDow = [...current.recurrence_dow].sort((a, b) => a - b)
+    const origDow = (initial.recurrence_days_of_week ?? [])
+      .slice()
+      .sort((a, b) => a - b)
+    const dowChanged =
+      nextDow.length !== origDow.length ||
+      nextDow.some((v, i) => v !== origDow[i])
+    if (dowChanged) {
+      patch.recurrence_days_of_week = nextDow
     }
   }
 
@@ -573,6 +615,8 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
               </select>
             </Field>
           </div>
+
+          <RecurrenceEditor form={form} setField={setField} />
 
           <Field label="Tags (comma-separated)" htmlFor="f-tags">
             <input
@@ -889,6 +933,106 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  )
+}
+
+const EDIT_WEEKDAYS = [
+  { iso: 1, short: 'Mon' },
+  { iso: 2, short: 'Tue' },
+  { iso: 3, short: 'Wed' },
+  { iso: 4, short: 'Thu' },
+  { iso: 5, short: 'Fri' },
+  { iso: 6, short: 'Sat' },
+  { iso: 7, short: 'Sun' },
+]
+
+function RecurrenceEditor({
+  form,
+  setField,
+}: {
+  form: FormState
+  setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void
+}) {
+  const toggleDay = (iso: number) => {
+    const set = new Set(form.recurrence_dow)
+    if (set.has(iso)) set.delete(iso)
+    else set.add(iso)
+    setField(
+      'recurrence_dow',
+      Array.from(set).sort((a, b) => a - b),
+    )
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+        Repeats?
+      </div>
+
+      <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1">
+        {(['none', 'daily', 'weekly'] as const).map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => {
+              setField('recurrence', opt)
+              if (opt === 'none') {
+                setField('recurrence_until', '')
+                setField('recurrence_dow', [])
+              } else if (opt === 'daily') {
+                setField('recurrence_dow', [])
+              }
+            }}
+            className={[
+              'rounded-full px-4 py-1.5 text-sm font-semibold transition',
+              form.recurrence === opt
+                ? 'bg-white text-black'
+                : 'text-white/65 hover:text-white',
+            ].join(' ')}
+          >
+            {opt === 'none' ? 'One-off' : opt === 'daily' ? 'Daily' : 'Weekly'}
+          </button>
+        ))}
+      </div>
+
+      {form.recurrence === 'weekly' && (
+        <div>
+          <p className="mb-1.5 text-xs text-white/55">Run weekdays</p>
+          <div className="flex flex-wrap gap-1.5">
+            {EDIT_WEEKDAYS.map((d) => {
+              const active = form.recurrence_dow.includes(d.iso)
+              return (
+                <button
+                  key={d.iso}
+                  type="button"
+                  onClick={() => toggleDay(d.iso)}
+                  className={[
+                    'rounded-full border px-3 py-1 text-xs font-semibold transition',
+                    active
+                      ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                      : 'border-white/10 bg-white/[0.04] text-white/65 hover:text-white',
+                  ].join(' ')}
+                >
+                  {d.short}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {form.recurrence !== 'none' && (
+        <Field label="Repeat until (optional)" htmlFor="f-rec-until">
+          <input
+            id="f-rec-until"
+            type="date"
+            value={form.recurrence_until}
+            onChange={(e) => setField('recurrence_until', e.target.value)}
+            className="input"
+          />
+        </Field>
+      )}
     </div>
   )
 }
