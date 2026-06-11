@@ -687,7 +687,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // /protests
     protests_meta_badge: "Në mbarë botën · Përditësohet vazhdimisht",
-    protests_hero_title_pre: "Gjej një protestë",
+    protests_hero_title_pre: "Gjej protestën",
     protests_hero_title_emph: "kudo",
     protests_hero_subtitle: "Një direktori e drejtpërdrejtë e tubimeve qytetare paqësore, e koordinuar përmes AlbaGo. Kërko çdo qytet në botë — nëse ka një tubim afër, do ta shohësh.",
     protests_count_gatherings: "tubime",
