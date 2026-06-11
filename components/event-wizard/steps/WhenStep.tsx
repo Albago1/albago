@@ -19,22 +19,122 @@ type Props = {
   patch: (patch: Partial<EventDraft>) => void
 }
 
-// Most common IANA timezones for the diaspora cities the platform targets.
-// Always-present even if the auto-detected zone falls outside the list.
-const POPULAR_TIMEZONES = [
-  'Europe/Tirane',
-  'Europe/Berlin',
-  'Europe/Vienna',
-  'Europe/Zurich',
-  'Europe/London',
-  'Europe/Brussels',
-  'Europe/Rome',
-  'Europe/Paris',
-  'Europe/Madrid',
-  'America/New_York',
-  'America/Toronto',
-  'UTC',
+// Comprehensive worldwide IANA timezones grouped by region. The detected
+// browser zone is always added on top of this list, so even an obscure
+// city still appears as a choice.
+const TIMEZONE_GROUPS: Array<{ region: string; zones: string[] }> = [
+  {
+    region: 'Europe',
+    zones: [
+      'Europe/Tirane',
+      'Europe/Amsterdam',
+      'Europe/Athens',
+      'Europe/Belgrade',
+      'Europe/Berlin',
+      'Europe/Brussels',
+      'Europe/Bucharest',
+      'Europe/Budapest',
+      'Europe/Copenhagen',
+      'Europe/Dublin',
+      'Europe/Helsinki',
+      'Europe/Istanbul',
+      'Europe/Kyiv',
+      'Europe/Lisbon',
+      'Europe/London',
+      'Europe/Luxembourg',
+      'Europe/Madrid',
+      'Europe/Moscow',
+      'Europe/Oslo',
+      'Europe/Paris',
+      'Europe/Prague',
+      'Europe/Rome',
+      'Europe/Sofia',
+      'Europe/Stockholm',
+      'Europe/Vienna',
+      'Europe/Warsaw',
+      'Europe/Zurich',
+    ],
+  },
+  {
+    region: 'Americas',
+    zones: [
+      'America/New_York',
+      'America/Chicago',
+      'America/Denver',
+      'America/Los_Angeles',
+      'America/Anchorage',
+      'America/Phoenix',
+      'America/Toronto',
+      'America/Vancouver',
+      'America/Mexico_City',
+      'America/Bogota',
+      'America/Lima',
+      'America/Caracas',
+      'America/Santiago',
+      'America/Buenos_Aires',
+      'America/Sao_Paulo',
+      'America/Halifax',
+      'America/St_Johns',
+      'Pacific/Honolulu',
+    ],
+  },
+  {
+    region: 'Asia & Middle East',
+    zones: [
+      'Asia/Dubai',
+      'Asia/Tehran',
+      'Asia/Jerusalem',
+      'Asia/Riyadh',
+      'Asia/Karachi',
+      'Asia/Kolkata',
+      'Asia/Dhaka',
+      'Asia/Bangkok',
+      'Asia/Jakarta',
+      'Asia/Singapore',
+      'Asia/Kuala_Lumpur',
+      'Asia/Manila',
+      'Asia/Hong_Kong',
+      'Asia/Shanghai',
+      'Asia/Taipei',
+      'Asia/Seoul',
+      'Asia/Tokyo',
+    ],
+  },
+  {
+    region: 'Africa',
+    zones: [
+      'Africa/Cairo',
+      'Africa/Johannesburg',
+      'Africa/Lagos',
+      'Africa/Nairobi',
+      'Africa/Casablanca',
+      'Africa/Algiers',
+      'Africa/Addis_Ababa',
+      'Africa/Accra',
+    ],
+  },
+  {
+    region: 'Australia & Pacific',
+    zones: [
+      'Australia/Perth',
+      'Australia/Adelaide',
+      'Australia/Brisbane',
+      'Australia/Melbourne',
+      'Australia/Sydney',
+      'Australia/Hobart',
+      'Australia/Darwin',
+      'Pacific/Auckland',
+      'Pacific/Fiji',
+      'Pacific/Guam',
+    ],
+  },
+  {
+    region: 'UTC',
+    zones: ['UTC'],
+  },
 ]
+
+const ALL_KNOWN_ZONES = new Set<string>(TIMEZONE_GROUPS.flatMap((g) => g.zones))
 
 function todayIso(): string {
   const d = new Date()
@@ -46,10 +146,9 @@ function todayIso(): string {
 
 export default function WhenStep({ draft, patch }: Props) {
   const today = useMemo(() => todayIso(), [])
-  const timezoneOptions = useMemo(() => {
-    const set = new Set<string>(POPULAR_TIMEZONES)
-    if (draft.timezone) set.add(draft.timezone)
-    return Array.from(set).sort()
+  const extraTimezone = useMemo(() => {
+    if (!draft.timezone) return null
+    return ALL_KNOWN_ZONES.has(draft.timezone) ? null : draft.timezone
   }, [draft.timezone])
 
   return (
@@ -100,10 +199,21 @@ export default function WhenStep({ draft, patch }: Props) {
             onChange={(e) => patch({ timezone: e.target.value })}
             className="input"
           >
-            {timezoneOptions.map((tz) => (
-              <option key={tz} value={tz} className="bg-ink-900">
-                {tz}
-              </option>
+            {extraTimezone && (
+              <optgroup label="Detected" className="bg-ink-900">
+                <option value={extraTimezone} className="bg-ink-900">
+                  {extraTimezone}
+                </option>
+              </optgroup>
+            )}
+            {TIMEZONE_GROUPS.map((group) => (
+              <optgroup key={group.region} label={group.region} className="bg-ink-900">
+                {group.zones.map((tz) => (
+                  <option key={tz} value={tz} className="bg-ink-900">
+                    {tz.replace(/_/g, ' ').replace(/^[^/]+\//, '')}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </Field>
