@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  Building2,
   Mail,
   MailCheck,
   Search,
@@ -24,9 +25,11 @@ type UserRow = {
   email_confirmed_at: string | null
   last_sign_in_at: string | null
   role: 'admin' | 'user'
+  is_organizer: boolean
+  organizer_verified: boolean
 }
 
-type Filter = 'all' | 'admins' | 'unconfirmed'
+type Filter = 'all' | 'admins' | 'organizers' | 'unconfirmed'
 
 function timeAgo(iso: string | null): string {
   if (!iso) return '—'
@@ -89,6 +92,7 @@ export default function UsersClient({
     const q = search.trim().toLowerCase()
     return users.filter((u) => {
       if (filter === 'admins' && u.role !== 'admin') return false
+      if (filter === 'organizers' && !u.is_organizer) return false
       if (filter === 'unconfirmed' && u.email_confirmed_at) return false
       if (q && !u.email.toLowerCase().includes(q)) return false
       return true
@@ -99,6 +103,7 @@ export default function UsersClient({
     () => ({
       total: users.length,
       admins: users.filter((u) => u.role === 'admin').length,
+      organizers: users.filter((u) => u.is_organizer).length,
       unconfirmed: users.filter((u) => !u.email_confirmed_at).length,
     }),
     [users],
@@ -209,6 +214,11 @@ export default function UsersClient({
           <Stat label="Total" value={stats.total} icon={<UsersIcon className="h-3.5 w-3.5" />} />
           <Stat label="Admins" value={stats.admins} icon={<Shield className="h-3.5 w-3.5" />} />
           <Stat
+            label="Organizers"
+            value={stats.organizers}
+            icon={<Building2 className="h-3.5 w-3.5" />}
+          />
+          <Stat
             label="Unconfirmed"
             value={stats.unconfirmed}
             icon={<Mail className="h-3.5 w-3.5" />}
@@ -226,6 +236,12 @@ export default function UsersClient({
           onClick={() => setFilter('admins')}
         >
           Admins
+        </FilterChip>
+        <FilterChip
+          active={filter === 'organizers'}
+          onClick={() => setFilter('organizers')}
+        >
+          Organizers
         </FilterChip>
         <FilterChip
           active={filter === 'unconfirmed'}
@@ -305,14 +321,34 @@ export default function UsersClient({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {u.role === 'admin' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/10 px-2.5 py-1 text-[11px] font-semibold text-flame-200 ring-1 ring-flame-500/30">
-                          <Shield className="h-3 w-3" />
-                          Admin
-                        </span>
-                      ) : (
-                        <span className="text-xs text-white/55">User</span>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {u.role === 'admin' ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/10 px-2.5 py-1 text-[11px] font-semibold text-flame-200 ring-1 ring-flame-500/30">
+                            <Shield className="h-3 w-3" />
+                            Admin
+                          </span>
+                        ) : !u.is_organizer ? (
+                          <span className="text-xs text-white/55">User</span>
+                        ) : null}
+                        {u.is_organizer && (
+                          <span
+                            className={[
+                              'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1',
+                              u.organizer_verified
+                                ? 'bg-emerald-500/10 text-emerald-200 ring-emerald-500/30'
+                                : 'bg-white/[0.06] text-white/85 ring-white/15',
+                            ].join(' ')}
+                            title={
+                              u.organizer_verified
+                                ? 'Verified organizer'
+                                : 'Organizer — not yet verified'
+                            }
+                          >
+                            <Building2 className="h-3 w-3" />
+                            {u.organizer_verified ? 'Verified org' : 'Organizer'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-white/55">
                       {timeAgo(u.created_at)}

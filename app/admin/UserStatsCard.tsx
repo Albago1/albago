@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Mail, Shield, Users as UsersIcon } from 'lucide-react'
+import {
+  ArrowRight,
+  Building2,
+  Mail,
+  Shield,
+  Users as UsersIcon,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
 type UserRow = {
@@ -10,11 +16,13 @@ type UserRow = {
   email: string
   email_confirmed_at: string | null
   role: 'admin' | 'user'
+  is_organizer: boolean
 }
 
 type Stats = {
   total: number
   admins: number
+  organizers: number
   unconfirmed: number
 }
 
@@ -43,6 +51,7 @@ export default function UserStatsCard() {
       setStats({
         total: rows.length,
         admins: rows.filter((u) => u.role === 'admin').length,
+        organizers: rows.filter((u) => u.is_organizer).length,
         unconfirmed: rows.filter((u) => !u.email_confirmed_at).length,
       })
     })()
@@ -79,7 +88,7 @@ export default function UserStatsCard() {
           {error}
         </p>
       ) : (
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile
             label="Total accounts"
             value={stats?.total ?? null}
@@ -89,6 +98,11 @@ export default function UserStatsCard() {
             label="Admins"
             value={stats?.admins ?? null}
             icon={<Shield className="h-4 w-4 text-flame-300" />}
+          />
+          <StatTile
+            label="Organizers"
+            value={stats?.organizers ?? null}
+            icon={<Building2 className="h-4 w-4 text-sky-300" />}
           />
           <StatTile
             label="Unconfirmed"

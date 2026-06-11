@@ -18,7 +18,9 @@ RETURNS TABLE (
   created_at timestamptz,
   email_confirmed_at timestamptz,
   last_sign_in_at timestamptz,
-  role text
+  role text,
+  is_organizer boolean,
+  organizer_verified boolean
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -36,9 +38,12 @@ BEGIN
       u.created_at,
       u.email_confirmed_at,
       u.last_sign_in_at,
-      COALESCE(p.role, 'user')::text AS role
+      COALESCE(p.role, 'user')::text AS role,
+      (o.id IS NOT NULL) AS is_organizer,
+      COALESCE(o.verified, false) AS organizer_verified
     FROM auth.users u
     LEFT JOIN public.profiles p ON p.id = u.id
+    LEFT JOIN public.organizers o ON o.id = u.id
     ORDER BY u.created_at DESC;
 END;
 $$;
