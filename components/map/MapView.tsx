@@ -10,7 +10,7 @@ import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
 import type { MapAdapter, MapMarkerInput } from '@/components/map/map.types'
-import { isToday, isThisWeekend, getWeekendDateStrings } from '@/lib/dateFilters'
+import { isToday, isThisWeekend } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
@@ -33,13 +33,38 @@ type CivicMapEvent = {
   recurrenceExceptions: string[] | null
 }
 
-// Inclusive Fri/Sat/Sun span for the upcoming weekend. Returns null only if
-// `getWeekendDateStrings()` finds no weekend days in the next 7 days (which
-// should never happen, but we guard anyway).
-function getWeekendIsoRange(): { from: string; to: string } | null {
-  const days = getWeekendDateStrings()
-  if (days.length === 0) return null
-  return { from: days[0], to: days[days.length - 1] }
+function fmtLocalIso(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+// "This weekend" = today through the upcoming Sunday (covers Fri-evening
+// usage). For Sat/Sun the range collapses to today..Sun. All math is on
+// LOCAL date components — `Date.toISOString()` is UTC and would shift the
+// window backward by a day around midnight in zones east of UTC, which is
+// exactly the kind of off-by-one that silently drops Sunday events for a
+// user filtering on Friday night in CEST.
+function getWeekendIsoRange(): { from: string; to: string } {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dow = today.getDay() // 0=Sun..6=Sat
+  let from = today
+  let to: Date
+  if (dow === 0) {
+    to = today // Sunday → just today
+  } else if (dow === 6) {
+    to = new Date(today); to.setDate(today.getDate() + 1) // Sat → +Sun
+  } else if (dow === 5) {
+    to = new Date(today); to.setDate(today.getDate() + 2) // Fri → Sat + Sun
+  } else {
+    // Mon-Thu → jump forward to the upcoming Saturday, end on Sunday.
+    from = new Date(today); from.setDate(today.getDate() + (6 - dow))
+    to = new Date(from); to.setDate(from.getDate() + 1)
+  }
+  return { from: fmtLocalIso(from), to: fmtLocalIso(to) }
 }
 
 function getMarkerClassName(isSelected: boolean) {
@@ -271,9 +296,7 @@ export default function MapView() {
           ? true
           : activeTimeFilter === 'tonight'
             ? eventMatchesDate(recurringShape, today)
-            : weekend
-              ? hasOccurrenceInRange(recurringShape, weekend.from, weekend.to)
-              : false
+            : hasOccurrenceInRange(recurringShape, weekend.from, weekend.to)
       const searchMatch =
         normalizedSearch.length === 0 ||
         event.title.toLowerCase().includes(normalizedSearch)
