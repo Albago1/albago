@@ -23,6 +23,7 @@ import {
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
+import MapPickerButton from '@/components/MapPickerButton'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
@@ -381,13 +382,12 @@ export default async function EventDetailPage(
           )}
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href={mapHref}
-              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
-            >
-              <MapPin className="h-4 w-4" />
-              Open in Map
-            </Link>
+            <MapPickerButton
+              albagoHref={mapHref}
+              lat={directionsLat}
+              lng={directionsLng}
+              address={event.address ?? venue?.address ?? null}
+            />
 
             <SaveEventButton
               eventId={event.id}

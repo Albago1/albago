@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
+import MapPickerButton from '@/components/MapPickerButton'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref } from '@/lib/eventLinks'
@@ -228,13 +229,12 @@ export default async function VenueDetailPage(
           )}
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href={`/map?place=${venue.id}`}
-              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(37,99,235,0.35)] transition hover:bg-flame-400"
-            >
-              <MapPin className="h-4 w-4" />
-              Open in Map
-            </Link>
+            <MapPickerButton
+              albagoHref={`/map?place=${venue.id}`}
+              lat={venue.lat}
+              lng={venue.lng}
+              address={venue.address}
+            />
 
             {directionsHref && (
               <a
