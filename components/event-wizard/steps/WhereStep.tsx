@@ -64,18 +64,19 @@ export default function WhereStep({ draft, patch }: Props) {
         country: '',
         region: '',
         city: '',
-        address: '',
         lat: null,
         lng: null,
       })
       return
     }
+    // Don't auto-fill draft.address — it's the static label the submitter
+    // writes themselves and what users actually read on the event page.
+    // The geocoder only feeds lat/lng + city/country/region for the map pin.
     patch({
       location_slug: next.slug || draft.location_slug,
       country: next.country ?? draft.country,
       region: next.region ?? '',
       city: next.city ?? '',
-      address: next.address || next.displayName,
       lat: next.lat,
       lng: next.lng,
     })

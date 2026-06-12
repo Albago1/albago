@@ -351,7 +351,7 @@ export default async function EventDetailPage(
               </span>
             )}
 
-            <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-start gap-2">
               {event.is_online ? (
                 <>
                   <Globe2 className="h-4 w-4 text-emerald-300" />
@@ -359,9 +359,11 @@ export default async function EventDetailPage(
                 </>
               ) : (
                 <>
-                  <MapPin className="h-4 w-4" />
-                  {cityLabel}
-                  {countryLabel ? `, ${countryLabel}` : ''}
+                  <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span className="whitespace-pre-line">
+                    {event.address ||
+                      `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+                  </span>
                 </>
               )}
             </span>
@@ -435,22 +437,6 @@ export default async function EventDetailPage(
               </a>
             )}
           </div>
-
-          {!event.is_online && (event.address || venue?.address) && (
-            <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-md">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                Address
-              </p>
-              {venue?.name && (
-                <p className="mt-2 text-base font-semibold text-white">
-                  {venue.name}
-                </p>
-              )}
-              <p className="mt-1 whitespace-pre-line text-base leading-7 text-white/85">
-                {event.address || venue?.address}
-              </p>
-            </div>
-          )}
 
           <EventGallery
             urls={
