@@ -12,6 +12,7 @@ import {
   Building2,
   Shield,
   Users as UsersIcon,
+  Settings,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -174,6 +175,13 @@ export default async function DashboardPage() {
                 <UsersIcon className="h-4 w-4" />
                 Manage users
               </Link>
+              <Link
+                href="/dashboard/settings"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
             </div>
           </div>
 
@@ -267,13 +275,22 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <Link
-            href="/submit-event"
-            className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
-          >
-            <Send className="h-4 w-4" />
-            Submit event
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/settings"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+            <Link
+              href="/submit-event"
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
+            >
+              <Send className="h-4 w-4" />
+              Submit event
+            </Link>
+          </div>
         </div>
 
         <Link
