@@ -168,7 +168,7 @@ export default function WhereStep({ draft, patch }: Props) {
               htmlFor="where-search"
               className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
             >
-              Address / place
+              Pin the location on the map
               <span className="ml-1 text-flame-400">*</span>
             </label>
             <LocationAutocomplete
@@ -177,10 +177,37 @@ export default function WhereStep({ draft, patch }: Props) {
               onChange={setQuery}
               onResolve={handleResolve}
               resolved={resolved}
-              placeholder='Search any address (e.g. "Brandenburg Gate, Berlin")'
+              placeholder='Search a street + number (e.g. "Rruga Murat Toptani 1, Tirana")'
               mapHeightClass="h-64"
               required
             />
+            <p className="mt-1 text-xs text-white/45">
+              We use this to drop the pin on the AlbaGo map. Pick the closest
+              match — you&apos;ll write the version people read in the next field.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="where-address-alias"
+              className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
+            >
+              Address as you want it shown
+              {draft.lat != null && <span className="ml-1 text-flame-400">*</span>}
+            </label>
+            <textarea
+              id="where-address-alias"
+              rows={2}
+              value={draft.address}
+              onChange={(e) => patch({ address: e.target.value })}
+              placeholder='Write the full clear address. Example: "Rruga e Durrësit 219, Tirana 1001, near Komiteti"'
+              className="input resize-none"
+            />
+            <p className="mt-1 text-xs text-white/45">
+              This is what attendees actually read on the event page. Spell it
+              out fully — street, number, area, landmarks. Don&apos;t rely on
+              just the map.
+            </p>
           </div>
 
           <div>
@@ -199,8 +226,8 @@ export default function WhereStep({ draft, patch }: Props) {
               className="input"
             />
             <p className="mt-1 text-xs text-white/45">
-              If the venue has a recognizable name, add it so people know exactly
-              where to go. Leave blank for outdoor / public locations.
+              If the venue has a recognizable name, add it. Leave blank for
+              outdoor / public locations.
             </p>
           </div>
         </div>

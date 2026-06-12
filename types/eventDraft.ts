@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
+export const MAX_EVENT_PHOTOS = 5
+
 /**
  * The full event creation draft. Mirrors the columns on `events` /
  * `event_submissions` after the Phase 13 schema migration. Every field has a
@@ -55,8 +57,9 @@ export type EventDraft = {
   online_url: string
 
   // Step 6 — Media
-  /** Cover image URL (Supabase Storage). */
-  banner_url: string
+  /** Photo URLs (Supabase Storage). First one is treated as the cover.
+   *  Capped at MAX_EVENT_PHOTOS in the UI; column is unbounded server-side. */
+  gallery_urls: string[]
 
   // Step 7 — Organizer
   organizer_name: string
@@ -127,7 +130,7 @@ export const defaultEventDraft: EventDraft = {
   lng: null,
   online_url: '',
 
-  banner_url: '',
+  gallery_urls: [],
 
   organizer_name: '',
   organizer_contact: '',
@@ -192,9 +195,17 @@ function loadFromStorage(): EventDraft | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<EventDraft>
+    const parsed = JSON.parse(raw) as Partial<EventDraft> & { banner_url?: string }
     // Merge with defaults so newer fields work for old saved drafts.
-    return { ...defaultEventDraft, ...parsed }
+    const merged = { ...defaultEventDraft, ...parsed }
+    // Migrate legacy drafts that still hold a single banner_url string.
+    if (
+      parsed.banner_url &&
+      (!merged.gallery_urls || merged.gallery_urls.length === 0)
+    ) {
+      merged.gallery_urls = [parsed.banner_url]
+    }
+    return merged
   } catch {
     return null
   }

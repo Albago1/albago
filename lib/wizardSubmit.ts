@@ -76,7 +76,7 @@ export async function submitCommunityEvent(
     online_url: trim(draft.online_url),
     tags: draft.tags,
     language: trim(draft.language) ?? 'en',
-    banner_url: trim(draft.banner_url),
+    gallery_urls: draft.gallery_urls,
     status: 'pending',
     submitted_by_user_id: user.id,
     // The DB CHECK on event_type only accepts the civic subtypes
@@ -164,7 +164,7 @@ export async function submitOrganizerDraft(
     online_url: trim(draft.online_url),
     tags: draft.tags,
     language: trim(draft.language) ?? 'en',
-    banner_url: trim(draft.banner_url),
+    gallery_urls: draft.gallery_urls,
     organizer_name: trim(draft.organizer_name),
     organizer_phone: trim(draft.organizer_phone),
     organizer_website: trim(draft.organizer_website),

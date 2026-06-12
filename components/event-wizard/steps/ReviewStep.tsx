@@ -67,7 +67,8 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
       : '—'
   const langLabel = LANG_LABEL[draft.language] || draft.language
 
-  const previewUrl = draft.banner_url
+  const previewUrl = draft.gallery_urls[0] ?? ''
+  const photoCount = draft.gallery_urls.length
 
   return (
     <div className="space-y-5">
@@ -238,15 +239,15 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
         onEdit={() => onJumpTo('media')}
       >
         <Row
-          label="Cover image"
+          label="Photos"
           value={
-            draft.banner_url ? (
+            photoCount > 0 ? (
               <span className="inline-flex items-center gap-1.5 text-emerald-200">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Uploaded
+                {photoCount} uploaded {photoCount === 1 ? '(cover)' : '(first = cover)'}
               </span>
             ) : (
-              <span className="text-white/50">No cover (fallback gradient)</span>
+              <span className="text-white/50">No photos (fallback gradient)</span>
             )
           }
         />
