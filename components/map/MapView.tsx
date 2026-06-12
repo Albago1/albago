@@ -19,10 +19,16 @@ import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
+// Direct-pin event: a published event with its own lat/lng and no place_id
+// linking it to a venue. Covers civic protests AND any regular event whose
+// submitter geocoded an address through the wizard. Rendered on the map as
+// its own marker (not via a place).
 type CivicMapEvent = {
   id: string
   slug: string
   title: string
+  category: string | null
+  isCivic: boolean
   date: string
   time: string | null
   country: string | null
@@ -169,14 +175,19 @@ export default function MapView() {
     async function fetchData() {
       setIsLoading(true)
       const activeFilter = activeEventsOrFilter()
+      // "civicQuery" historically only fetched protests, but we use it as the
+      // direct-pin layer for ANY published event that has its own lat/lng and
+      // no place_id — so a wizard-created regular event (which writes coords
+      // but never creates a places row) ends up on the map too. Events that
+      // are tied to a venue still render via the place pin instead.
       const civicQuery = supabase
         .from('events')
         .select(
-          'id, slug, title, date, time, end_time, country, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          'id, slug, title, category, is_civic, date, time, end_time, country, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
         )
         .eq('status', 'published')
         .or(activeFilter)
-        .eq('is_civic', true)
+        .is('place_id', null)
         .not('lat', 'is', null)
         .not('lng', 'is', null)
 
@@ -247,6 +258,8 @@ export default function MapView() {
             id: string
             slug: string
             title: string
+            category: string | null
+            is_civic: boolean | null
             date: string
             time: string | null
             end_time: string | null
@@ -264,6 +277,8 @@ export default function MapView() {
               id: row.id,
               slug: row.slug,
               title: row.title,
+              category: row.category,
+              isCivic: !!row.is_civic,
               date: row.date,
               time: row.time,
               country: row.country,
@@ -334,12 +349,20 @@ export default function MapView() {
   }, [civicEvents])
 
   const visibleCivicEvents = useMemo(() => {
-    if (activeCategory !== 'all' && activeCategory !== 'civic') return []
     const normalizedSearch = searchQuery.trim().toLowerCase()
     const today = todayIso()
     const weekend = getWeekendIsoRange()
     const week = getWeekIsoRange()
     return civicEvents.filter((event) => {
+      // Category chip: 'all' = everything; 'civic' = is_civic events
+      // regardless of stored category; anything else matches event.category.
+      const categoryMatch =
+        activeCategory === 'all' ||
+        (activeCategory === 'civic'
+          ? event.isCivic || event.category === 'civic'
+          : event.category === activeCategory)
+      if (!categoryMatch) return false
+
       // For the time filter, ask the recurrence helpers when this event
       // actually runs — so a weekly Saturday protest with a months-old
       // series start still matches the "This weekend" filter.
