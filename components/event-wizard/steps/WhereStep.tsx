@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Globe2, Link as LinkIcon, MapPin, Sparkles } from 'lucide-react'
+import { Globe2, Link as LinkIcon, MapPin } from 'lucide-react'
 import LocationAutocomplete, {
   type ResolvedAddress,
 } from '@/components/location/LocationAutocomplete'
+import AddressSearchField from '@/components/event-wizard/AddressSearchField'
 import type { EventDraft } from '@/types/eventDraft'
 
 type Props = {
@@ -196,43 +197,16 @@ export default function WhereStep({ draft, patch }: Props) {
               Address as you want it shown
               {draft.lat != null && <span className="ml-1 text-flame-400">*</span>}
             </label>
-            <textarea
-              id="where-address-alias"
-              rows={2}
+            <AddressSearchField
               value={draft.address}
-              onChange={(e) => patch({ address: e.target.value })}
-              placeholder='Write the full clear address. Example: "Rruga e Durrësit 219, Tirana 1001, near Komiteti"'
-              className="input resize-none"
+              onChange={(next) => patch({ address: next })}
+              mapResult={resolved}
+              placeholder='Start typing the address — pick a match below. Example: "Grünhofer Weg, Berlin"'
             />
-            {(() => {
-              const suggested =
-                resolved?.address || resolved?.displayName || ''
-              const trimmedSuggested = suggested.trim()
-              const trimmedCurrent = draft.address.trim()
-              if (!trimmedSuggested || trimmedSuggested === trimmedCurrent) {
-                return null
-              }
-              return (
-                <button
-                  type="button"
-                  onClick={() => patch({ address: trimmedSuggested })}
-                  className="mt-2 flex w-full items-center gap-2 rounded-2xl border border-flame-500/25 bg-flame-500/[0.06] p-3 text-left text-xs text-white/85 transition hover:border-flame-500/40 hover:bg-flame-500/[0.10]"
-                >
-                  <Sparkles className="h-3.5 w-3.5 flex-shrink-0 text-flame-300" />
-                  <span className="flex-1 truncate">
-                    <span className="text-white/55">Use: </span>
-                    <span className="text-white">{trimmedSuggested}</span>
-                  </span>
-                  <span className="flex-shrink-0 rounded-full bg-flame-500 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
-                    Apply
-                  </span>
-                </button>
-              )
-            })()}
             <p className="mt-1 text-xs text-white/45">
-              This is what attendees actually read on the event page. Spell it
-              out fully — street, number, area, landmarks. Don&apos;t rely on
-              just the map.
+              This is what attendees actually read on the event page. Pick a
+              match from the dropdown for the cleanest result (street + postal
+              code + city + country) or type your own version.
             </p>
           </div>
 
