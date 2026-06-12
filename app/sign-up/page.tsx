@@ -1,8 +1,17 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  Lock,
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
 export default function SignUpPage() {
@@ -43,72 +52,118 @@ export default function SignUpPage() {
     }
 
     setMessage(
-      `We sent a confirmation link to ${email}. Open it from your inbox to activate your AlbaGo account.`,
+      `We've sent a confirmation link to ${email}. Open it from your inbox to activate your AlbaGo account.`,
     )
   }
 
   return (
-    <main className="min-h-screen bg-ink-950 px-4 py-24 text-white">
-      <div className="mx-auto max-w-md rounded-[32px] border border-white/10 bg-white/[0.03] p-6">
-        <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-white/90">
-          â† AlbaGo
+    <main className="min-h-screen bg-ink-950 px-4 py-16 text-white">
+      <div className="mx-auto w-full max-w-md">
+        <Link
+          href="/"
+          className="mb-8 inline-flex items-center gap-1.5 text-sm text-white/55 transition hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to home
         </Link>
-        <h1 className="text-3xl font-bold">Create account</h1>
-        <p className="mt-2 text-sm text-white/55">
-          Create your AlbaGo account.
-        </p>
 
-        <form onSubmit={handleSignUp} className="mt-8 space-y-4">
-          <input
-            required
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none"
-          />
+        <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-8 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
+          <div className="text-center">
+            <p className="font-display text-2xl font-normal text-white/85">
+              AlbaGo
+            </p>
+            <h1 className="mt-6 text-3xl font-bold tracking-tight">
+              Create your account
+            </h1>
+            <p className="mt-2 text-sm text-white/55">
+              Save events, follow movements, and never miss a gathering.
+            </p>
+          </div>
 
-          <input
-            required
-            type="password"
-            placeholder="Password"
-            minLength={6}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none"
-          />
-
-          {message && (
-            <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-200">
-              <p>{message}</p>
+          {message ? (
+            <div className="mt-8 rounded-3xl border border-green-500/20 bg-green-500/10 p-6 text-center">
+              <CheckCircle2 className="mx-auto h-8 w-8 text-green-300" />
+              <p className="mt-4 text-sm text-green-100">{message}</p>
               <Link
                 href="/sign-in"
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/20 px-3 py-1.5 text-xs font-semibold text-green-100 transition hover:bg-green-500/30"
+                className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-green-500/20 px-4 py-2 text-xs font-semibold text-green-100 transition hover:bg-green-500/30"
               >
-                Go to sign in â†’
+                Go to sign in
+                <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
+          ) : (
+            <form onSubmit={handleSignUp} className="mt-8 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                  Email
+                </span>
+                <div className="relative">
+                  <Mail
+                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                    aria-hidden="true"
+                  />
+                  <input
+                    required
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm outline-none transition placeholder:text-white/30 focus:border-flame-500/40 focus:ring-2 focus:ring-flame-500/20"
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                  Password
+                </span>
+                <div className="relative">
+                  <Lock
+                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                    aria-hidden="true"
+                  />
+                  <input
+                    required
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="At least 6 characters"
+                    minLength={6}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm outline-none transition placeholder:text-white/30 focus:border-flame-500/40 focus:ring-2 focus:ring-flame-500/20"
+                  />
+                </div>
+              </label>
+
+              {errorMessage && (
+                <div className="flex items-start gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              <button
+                disabled={isLoading}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-flame-500 text-sm font-semibold shadow-[0_12px_30px_-12px_rgba(238,28,37,0.6)] transition hover:bg-flame-400 disabled:opacity-60"
+              >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isLoading ? 'Creating account...' : 'Create account'}
+              </button>
+            </form>
           )}
 
-          {errorMessage && (
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-              {errorMessage}
-            </div>
-          )}
+          <p className="mt-6 text-center text-sm text-white/55">
+            Already a member?{' '}
+            <Link href="/sign-in" className="font-semibold text-flame-400 transition hover:text-flame-300">
+              Sign in
+            </Link>
+          </p>
+        </div>
 
-          <button
-            disabled={isLoading}
-            className="h-12 w-full rounded-2xl bg-flame-500 text-sm font-semibold disabled:opacity-60"
-          >
-            {isLoading ? 'Creating account...' : 'Create account'}
-          </button>
-        </form>
-
-        <p className="mt-5 text-sm text-white/55">
-          Already have an account?{' '}
-          <Link href="/sign-in" className="text-flame-400">
-            Sign in
-          </Link>
+        <p className="mt-6 text-center text-xs text-white/35">
+          By creating an account you agree to our terms and privacy policy.
         </p>
       </div>
     </main>

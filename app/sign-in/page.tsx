@@ -1,8 +1,9 @@
-﻿'use client'
+'use client'
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft, Loader2, Lock, Mail, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
 function SignInForm() {
@@ -44,60 +45,106 @@ function SignInForm() {
   }
 
   return (
-    <main className="min-h-screen bg-ink-950 px-4 py-24 text-white">
-      <div className="mx-auto max-w-md rounded-[32px] border border-white/10 bg-white/[0.03] p-6">
-        <Link href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-white/90">
-          â† AlbaGo
+    <main className="min-h-screen bg-ink-950 px-4 py-16 text-white">
+      <div className="mx-auto w-full max-w-md">
+        <Link
+          href="/"
+          className="mb-8 inline-flex items-center gap-1.5 text-sm text-white/55 transition hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to home
         </Link>
-        <h1 className="text-3xl font-bold">Sign in</h1>
-        <p className="mt-2 text-sm text-white/55">
-          Access your AlbaGo account.
-        </p>
 
-        <form onSubmit={handleSignIn} className="mt-8 space-y-4">
-          <input
-            required
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none"
-          />
-
-          <input
-            required
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none"
-          />
-
-          <div className="flex justify-end">
-            <Link href="/forgot-password" className="text-xs text-white/55 transition hover:text-white/90">
-              Forgot password?
-            </Link>
+        <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-8 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
+          <div className="text-center">
+            <p className="font-display text-2xl font-normal text-white/85">
+              AlbaGo
+            </p>
+            <h1 className="mt-6 text-3xl font-bold tracking-tight">
+              Welcome back
+            </h1>
+            <p className="mt-2 text-sm text-white/55">
+              Sign in to continue to your account.
+            </p>
           </div>
 
-          {errorMessage && (
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-              {errorMessage}
-            </div>
-          )}
+          <form onSubmit={handleSignIn} className="mt-8 space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                Email
+              </span>
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                  aria-hidden="true"
+                />
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm outline-none transition placeholder:text-white/30 focus:border-flame-500/40 focus:ring-2 focus:ring-flame-500/20"
+                />
+              </div>
+            </label>
 
-          <button
-            disabled={isLoading}
-            className="h-12 w-full rounded-2xl bg-flame-500 text-sm font-semibold disabled:opacity-60"
-          >
-            {isLoading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
+            <label className="block">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                  Password
+                </span>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-white/55 transition hover:text-white"
+                >
+                  Forgot?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                  aria-hidden="true"
+                />
+                <input
+                  required
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Your password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm outline-none transition placeholder:text-white/30 focus:border-flame-500/40 focus:ring-2 focus:ring-flame-500/20"
+                />
+              </div>
+            </label>
 
-        <p className="mt-5 text-sm text-white/55">
-          No account?{' '}
-          <Link href="/sign-up" className="text-flame-400">
-            Create one
-          </Link>
+            {errorMessage && (
+              <div className="flex items-start gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            <button
+              disabled={isLoading}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-flame-500 text-sm font-semibold shadow-[0_12px_30px_-12px_rgba(238,28,37,0.6)] transition hover:bg-flame-400 disabled:opacity-60"
+            >
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-white/55">
+            New to AlbaGo?{' '}
+            <Link href="/sign-up" className="font-semibold text-flame-400 transition hover:text-flame-300">
+              Create an account
+            </Link>
+          </p>
+        </div>
+
+        <p className="mt-6 text-center text-xs text-white/35">
+          By signing in you agree to our terms and privacy policy.
         </p>
       </div>
     </main>
