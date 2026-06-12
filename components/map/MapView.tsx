@@ -116,6 +116,10 @@ export default function MapView() {
   // filter doesn't yank the viewport around. Resets when the user picks a
   // different city.
   const initialFitDoneForSlugRef = useRef<string | null>(null)
+  // Remembers the last country we re-framed to, so the country-zoom effect
+  // can ignore the run that's triggered purely by data loading (vs. the
+  // user actually clicking a different country chip).
+  const lastCountryFitRef = useRef<string | null | undefined>(undefined)
 
   // Default to the worldwide view so the map opens onto the actual current
   // events (civic protests everywhere) instead of the city-scoped Tirana
@@ -573,6 +577,42 @@ export default function MapView() {
     }
     initialFitDoneForSlugRef.current = locationSlug
   }, [isLoading, locationSlug, places, civicEvents])
+
+  // Per-country zoom-on-click: when the user picks a country chip, frame
+  // the map around that country's civic pins. When they clear the filter
+  // and we're still in worldwide mode, snap back to the global view.
+  // Gated by a ref so the initial data load doesn't trigger this — that
+  // first paint is owned by the initial-fit effect above.
+  useEffect(() => {
+    if (isLoading) return
+    const adapter = mapAdapterRef.current
+    if (!adapter) return
+
+    const isFirstRun = lastCountryFitRef.current === undefined
+    const sameAsLast = !isFirstRun && lastCountryFitRef.current === countryFilter
+    if (sameAsLast) return
+    lastCountryFitRef.current = countryFilter
+
+    if (countryFilter == null) {
+      // On first paint with no country picked, let the initial-fit effect
+      // handle framing. Only fly back to worldCenter when the user actively
+      // clears a previously-set country.
+      if (isFirstRun) return
+      if (isWorldwide) adapter.flyToLocation(worldCenter, worldZoom)
+      return
+    }
+
+    const coords = civicEvents
+      .filter((e) => (e.country ?? '').trim() === countryFilter)
+      .map((e): [number, number] => [e.lng, e.lat])
+
+    if (coords.length === 0) return
+    if (coords.length === 1) {
+      adapter.flyToLocation(coords[0], 8)
+    } else {
+      adapter.fitBounds(coords, { padding: 80, maxZoom: 6.5 })
+    }
+  }, [countryFilter, civicEvents, isLoading, isWorldwide])
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-ink-950">
