@@ -24,11 +24,14 @@ function buildGoogleMapsHref(
   lng: number | null | undefined,
   address: string | null | undefined,
 ): string | null {
-  if (lat != null && lng != null) {
-    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
-  }
+  // Prefer the human-readable address so Google Maps resolves to a named
+  // place ("Lustgarten, 10178 Berlin, Germany") instead of bare coordinates.
+  // Fall back to lat/lng only when no address text is available.
   if (address && address.trim()) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.trim())}`
+  }
+  if (lat != null && lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
   }
   return null
 }
