@@ -1,7 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0A0A0A"/>
-  <text x="130" y="330" font-family="Arial, Helvetica, sans-serif" font-size="220" font-weight="700" fill="#FFFFFF">A</text>
-  <text x="250" y="330" font-family="Arial, Helvetica, sans-serif" font-size="220" font-weight="700" fill="#FF1F2D">G</text>
-  <path d="M180 360 C180 310 240 310 240 360 C240 395 210 425 210 425 C210 425 180 395 180 360 Z" fill="#FF1F2D"/>
-  <circle cx="210" cy="360" r="18" fill="#0A0A0A"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#101827"/>
+      <stop offset="60%" stop-color="#070b14"/>
+      <stop offset="100%" stop-color="#02040a"/>
+    </radialGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff3a45"/>
+      <stop offset="45%" stop-color="#ff1f2d"/>
+      <stop offset="100%" stop-color="#b80016"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+
+  <!-- White A -->
+  <path
+    d="M125 735 L332 280 C348 245 401 245 417 280 L625 735 H510 L468 638 H282 L241 735 H125 Z
+       M318 545 H432 L375 412 L318 545 Z"
+    fill="#ffffff"
+  />
+
+  <!-- Red G -->
+  <path
+    d="M705 742 C574 742 488 650 488 512 C488 374 584 282 722 282
+       C817 282 890 324 929 398 L835 452
+       C813 405 775 382 725 382
+       C650 382 601 432 601 512
+       C601 594 654 643 731 643
+       C785 643 824 618 841 573
+       H721 V484 H944 V735 H854 L845 666
+       C814 716 767 742 705 742 Z"
+    fill="url(#red)"
+  />
+
+  <!-- Pin placed between A and G, under their junction -->
+  <g transform="translate(502 635)">
+    <path
+      d="M0 -68 C48 -68 86 -31 86 17 C86 83 0 168 0 168 C0 168 -86 83 -86 17 C-86 -31 -48 -68 0 -68 Z"
+      fill="url(#red)"
+    />
+    <circle cx="0" cy="17" r="28" fill="#070b14"/>
+  </g>
 </svg>
