@@ -1,3 +1,7 @@
+export type VerificationTier = 'unverified' | 'established' | 'verified'
+
+export type IdReviewStatus = 'none' | 'pending' | 'approved' | 'rejected'
+
 export interface Organizer {
   id: string
   display_name: string
@@ -6,6 +10,15 @@ export interface Organizer {
   contact_email: string
   website_url: string | null
   verified: boolean
+  verification_tier: VerificationTier
+  verification_tier_at: string | null
+  phone: string | null
+  id_document_url: string | null
+  id_review_status: IdReviewStatus
+  id_review_notes: string | null
+  id_reviewed_at: string | null
+  id_reviewed_by: string | null
+  weekly_event_quota: number
   created_at: string
   updated_at: string
 }
