@@ -92,7 +92,12 @@ export default function CitySearchInput(props: Props) {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Debounced Nominatim search.
+  // Debounced Nominatim search. Loads the suggestion list — does NOT
+  // auto-apply the first hit. Auto-resolving on every keystroke was
+  // hijacking the picker (e.g. typing 'T' would Nominatim → Tirana →
+  // navigate to /map?location=tirana, then every further keystroke
+  // re-fired the same logic and you were locked into Tirana). Same fix
+  // already shipped in LocationAutocomplete.tsx — applies here too.
   useEffect(() => {
     const q = value.trim()
     if (q.length < 2) {
@@ -116,8 +121,6 @@ export default function CitySearchInput(props: Props) {
         const hits = (await res.json()) as NominatimHit[]
         const mapped = Array.isArray(hits) ? hits.map(hitToResolved) : []
         setSuggestions(mapped)
-        if (mapped[0]) onResolve(mapped[0])
-        else onResolve(null)
       } catch {
         setSuggestions([])
       } finally {
@@ -128,8 +131,8 @@ export default function CitySearchInput(props: Props) {
       ctrl.abort()
       clearTimeout(timer)
     }
-    // We intentionally do not include onResolve in deps to avoid re-runs from
-    // parent re-renders. onResolve is treated as a stable callback by callers.
+    // onResolve intentionally excluded — see comment above; it's only called
+    // when the user clicks a suggestion or a popular chip.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, suggestionsLimit])
 
@@ -157,7 +160,10 @@ export default function CitySearchInput(props: Props) {
     onPopularClick?.(r)
   }
 
-  const showSuggestions = open && suggestions.length > 1 && suggestionsLimit > 0
+  // Show as soon as Nominatim returns anything — a single hit used to be
+  // hidden, which combined with the removed auto-resolve would leave the
+  // user with no way to actually pick it.
+  const showSuggestions = open && suggestions.length > 0 && suggestionsLimit > 0
 
   return (
     <div className={['space-y-2', className].filter(Boolean).join(' ')}>
