@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
+import ReportEventButton from '@/components/ReportEventButton'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
@@ -610,6 +611,10 @@ export default async function EventDetailPage(
               </div>
             </div>
           )}
+
+          <div className="mt-10 flex justify-center border-t border-white/5 pt-6">
+            <ReportEventButton eventId={event.id} />
+          </div>
         </div>
       </section>
     </main>
