@@ -79,7 +79,12 @@ export async function submitCommunityEvent(
     banner_url: trim(draft.banner_url),
     status: 'pending',
     submitted_by_user_id: user.id,
-    event_type: draft.event_type,
+    // The DB CHECK on event_type only accepts the civic subtypes
+    // ('protest' / 'civic_gathering' / 'movement_event' / 'demonstration')
+    // or NULL. The wizard stores the literal 'event' for non-civic
+    // submissions — translate that to NULL here so we don't trip
+    // event_submissions_event_type_check.
+    event_type: draft.event_type === 'protest' ? 'protest' : null,
     is_civic: isCivic,
     featured_movement_slug: trim(draft.featured_movement_slug),
     organizer_name: trim(draft.organizer_name),
@@ -167,7 +172,12 @@ export async function submitOrganizerDraft(
       ? cleanSocials(draft.organizer_socials)
       : null,
     is_civic: isCivic,
-    event_type: draft.event_type,
+    // The DB CHECK on event_type only accepts the civic subtypes
+    // ('protest' / 'civic_gathering' / 'movement_event' / 'demonstration')
+    // or NULL. The wizard stores the literal 'event' for non-civic
+    // submissions — translate that to NULL here so we don't trip
+    // event_submissions_event_type_check.
+    event_type: draft.event_type === 'protest' ? 'protest' : null,
     featured_movement_slug: trim(draft.featured_movement_slug),
     organizer_contact: trim(draft.organizer_contact),
     telegram_link: trim(draft.telegram_link),
