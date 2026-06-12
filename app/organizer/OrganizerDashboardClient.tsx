@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
+  ShieldCheck,
+  ArrowRight,
+  BadgeCheck,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import type { Organizer } from '@/types/organizer'
@@ -114,14 +117,55 @@ export default function OrganizerDashboardClient({
               </div>
             </div>
 
-            <Link
-              href="/organizer/create"
-              className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-flame-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create event</span>
-            </Link>
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+              <Link
+                href="/organizer/verification"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                {organizer.verification_tier === 'verified' ? (
+                  <BadgeCheck className="h-4 w-4 text-flame-400" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {organizer.verification_tier === 'verified'
+                    ? 'Verified'
+                    : organizer.verification_tier === 'established'
+                    ? 'Established'
+                    : 'Get verified'}
+                </span>
+              </Link>
+              <Link
+                href="/organizer/create"
+                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create event</span>
+              </Link>
+            </div>
           </div>
+
+          {organizer.verification_tier === 'unverified' && (
+            <Link
+              href="/organizer/verification"
+              className="group mt-6 flex items-center justify-between gap-4 rounded-3xl border border-flame-500/20 bg-flame-500/[0.06] p-5 transition hover:border-flame-500/30 hover:bg-flame-500/[0.08]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-flame-500/20 bg-flame-500/10">
+                  <ShieldCheck className="h-5 w-5 text-flame-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Unlock instant publishing
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/55">
+                    Earn Established by getting 2 events approved, or apply for the public Verified badge.
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
+            </Link>
+          )}
 
           {/* Status counts */}
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
