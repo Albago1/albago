@@ -24,6 +24,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
+import EventGallery from '@/components/EventGallery'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
@@ -65,6 +66,7 @@ type EventRecord = {
   tags: string[] | null
   language: string | null
   banner_url: string | null
+  gallery_urls: string[] | null
   is_civic: boolean | null
   event_type: string | null
   featured_movement_slug: string | null
@@ -99,7 +101,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( verification_tier )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( verification_tier )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -358,7 +360,8 @@ export default async function EventDetailPage(
               ) : (
                 <>
                   <MapPin className="h-4 w-4" />
-                  {event.address || `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+                  {cityLabel}
+                  {countryLabel ? `, ${countryLabel}` : ''}
                 </>
               )}
             </span>
@@ -433,16 +436,32 @@ export default async function EventDetailPage(
             )}
           </div>
 
-          {event.banner_url && (
-            <div className="mt-10 overflow-hidden rounded-3xl border border-white/10">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={event.banner_url}
-                alt={event.title}
-                className="aspect-[16/9] w-full object-cover"
-              />
+          {!event.is_online && (event.address || venue?.address) && (
+            <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-md">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                Address
+              </p>
+              {venue?.name && (
+                <p className="mt-2 text-base font-semibold text-white">
+                  {venue.name}
+                </p>
+              )}
+              <p className="mt-1 whitespace-pre-line text-base leading-7 text-white/85">
+                {event.address || venue?.address}
+              </p>
             </div>
           )}
+
+          <EventGallery
+            urls={
+              (event.gallery_urls && event.gallery_urls.length > 0
+                ? event.gallery_urls
+                : event.banner_url
+                  ? [event.banner_url]
+                  : []) as string[]
+            }
+            alt={event.title}
+          />
 
           {venue && (
             <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
