@@ -73,6 +73,12 @@ function SignInForm() {
             className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none"
           />
 
+          <div className="flex justify-end">
+            <Link href="/forgot-password" className="text-xs text-white/55 transition hover:text-white/90">
+              Forgot password?
+            </Link>
+          </div>
+
           {errorMessage && (
             <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
               {errorMessage}
