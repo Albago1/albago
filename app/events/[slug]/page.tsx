@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
   ArrowLeft,
+  BadgeCheck,
   Calendar,
   Clock3,
   ExternalLink,
@@ -86,6 +87,9 @@ type EventRecord = {
     lng: number | null
     website_url: string | null
   } | null
+  organizers: {
+    verification_tier: 'unverified' | 'established' | 'verified'
+  } | null
 }
 
 async function fetchEvent(slug: string): Promise<EventRecord | null> {
@@ -93,7 +97,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( verification_tier )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -557,6 +561,15 @@ export default async function EventDetailPage(
                 <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-white">
                   <User2 className="h-4 w-4 text-flame-300" />
                   {event.organizer_name}
+                  {event.organizers?.verification_tier === 'verified' && (
+                    <span
+                      title="Verified organizer — identity confirmed by AlbaGo"
+                      className="inline-flex items-center gap-1 rounded-full border border-flame-500/30 bg-flame-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-flame-300"
+                    >
+                      <BadgeCheck className="h-3 w-3" />
+                      Verified
+                    </span>
+                  )}
                 </p>
               )}
               <div className="mt-4 flex flex-wrap gap-3">
