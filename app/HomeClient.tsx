@@ -145,8 +145,28 @@ export default function HomeClient() {
     expected: number
   }>({ count: 0, countries: 0, expected: 0 })
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
-  const [totalEventsCount, setTotalEventsCount] = useState(0)
+  // Lightweight rows used only for the live "Across the platform" counts.
+  // Same shape /protests uses — we mirror its isEventActive + realtime flow
+  // so an event silently drops out of the tally the moment it expires or
+  // the admin unpublishes it.
+  const [globalEventRows, setGlobalEventRows] = useState<Array<{
+    id: string
+    location_slug: string
+    country: string
+    date: string
+    time: string | null
+    end_time: string | null
+    recurrence: string | null
+    recurrence_until: string | null
+    recurrence_days_of_week: number[] | null
+    recurrence_exceptions: string[] | null
+    status: string
+  }>>([])
   const [totalPlacesCount, setTotalPlacesCount] = useState(0)
+  // Bumped every 60s so isEventActive re-runs against the current wall clock —
+  // handles the end_time cutoff and the midnight rollover without needing a DB
+  // event to fire.
+  const [nowTick, setNowTick] = useState(0)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchSuggestionEvents, setSearchSuggestionEvents] = useState<SuggestionEvent[]>([])
   const [isAuth, setIsAuth] = useState(false)
@@ -227,7 +247,7 @@ export default function HomeClient() {
       const [
         placesRes,
         eventsRes,
-        eventsCountRes,
+        globalEventsRes,
         placesCountRes,
         protestsRes,
         protestsTotalsRes,
@@ -244,7 +264,9 @@ export default function HomeClient() {
           .limit(12),
         supabase
           .from('events')
-          .select('*', { count: 'exact', head: true })
+          .select(
+            'id, location_slug, country, date, time, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, status',
+          )
           .eq('status', 'published')
           .or(activeFilter),
         supabase.from('places').select('*', { count: 'exact', head: true }),
@@ -347,12 +369,87 @@ export default function HomeClient() {
         setProtestTotals({ count: rows.length, countries, expected })
       }
 
-      setTotalEventsCount(eventsCountRes.count ?? 0)
+      if (globalEventsRes.data) {
+        setGlobalEventRows(globalEventsRes.data)
+      }
       setTotalPlacesCount(placesCountRes.count ?? 0)
     }
 
     fetchFeatured()
   }, [activeLocationSlug, supabase])
+
+  // Live-tally subscription. Same shape as /protests but unfiltered, so any
+  // publish / unpublish / cancel / delete on the events table flows straight
+  // into globalEventRows and the counts re-derive.
+  useEffect(() => {
+    const channel = supabase
+      .channel('home-events-stream')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events' },
+        (payload) => {
+          const newRow = payload.new as Record<string, unknown> | null
+          const oldRow = payload.old as { id?: string } | null
+
+          if (payload.eventType === 'DELETE') {
+            if (oldRow?.id) {
+              setGlobalEventRows((prev) => prev.filter((e) => e.id !== oldRow.id))
+            }
+            return
+          }
+          if (!newRow) return
+
+          const isPublished = newRow.status === 'published'
+          const stillActive =
+            isPublished &&
+            isEventActive({
+              date: newRow.date as string,
+              time: (newRow.time as string | null) ?? null,
+              end_time: (newRow.end_time as string | null) ?? null,
+              recurrence: (newRow.recurrence as string | null) ?? null,
+              recurrence_until: (newRow.recurrence_until as string | null) ?? null,
+              recurrence_days_of_week:
+                (newRow.recurrence_days_of_week as number[] | null) ?? null,
+              recurrence_exceptions:
+                (newRow.recurrence_exceptions as string[] | null) ?? null,
+            })
+
+          setGlobalEventRows((prev) => {
+            const without = prev.filter((e) => e.id !== (newRow.id as string))
+            if (!stillActive) return without
+            return [
+              ...without,
+              {
+                id: newRow.id as string,
+                location_slug: newRow.location_slug as string,
+                country: newRow.country as string,
+                date: newRow.date as string,
+                time: (newRow.time as string | null) ?? null,
+                end_time: (newRow.end_time as string | null) ?? null,
+                recurrence: (newRow.recurrence as string | null) ?? null,
+                recurrence_until: (newRow.recurrence_until as string | null) ?? null,
+                recurrence_days_of_week:
+                  (newRow.recurrence_days_of_week as number[] | null) ?? null,
+                recurrence_exceptions:
+                  (newRow.recurrence_exceptions as string[] | null) ?? null,
+                status: newRow.status as string,
+              },
+            ]
+          })
+        },
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase])
+
+  // Wall-clock tick so end_time and midnight rollover invalidate counts even
+  // when no DB write has happened.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -470,6 +567,17 @@ export default function HomeClient() {
   )
 })
   const resolvedLocation = getLocationBySlug(activeLocationSlug)
+
+  // Active-event derived counts. nowTick is in the dep list on purpose so the
+  // tally refreshes every minute against the wall clock; ESLint doesn't see
+  // it as "used" inside the filter callback.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const activeGlobalEvents = useMemo(() => globalEventRows.filter(isEventActive), [globalEventRows, nowTick])
+  const totalEventsCount = activeGlobalEvents.length
+  const totalCitiesCount = useMemo(
+    () => new Set(activeGlobalEvents.map((e) => e.location_slug)).size,
+    [activeGlobalEvents],
+  )
 
   const searchQ = searchQuery.trim().toLowerCase()
   const isTyping = searchQ.length > 0
@@ -836,7 +944,7 @@ export default function HomeClient() {
 
             <div className="text-center">
               <div className="text-5xl font-bold text-flame-500">
-                {locationOptions.length}
+                {totalCitiesCount}
               </div>
               <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
             </div>
