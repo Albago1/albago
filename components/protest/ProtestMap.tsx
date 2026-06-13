@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { ArrowUpRight, Calendar, Clock3, Flame, MapPin, Users, X } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
@@ -15,6 +16,11 @@ export type ProtestMarker = {
   lat: number
   lng: number
   slug: string
+  // Lightweight info shown in the on-map popup so the user can skim without
+  // navigating away.
+  date: string
+  time: string
+  expectedAttendees: number | null
 }
 
 type Props = {
@@ -52,15 +58,27 @@ function computeCenter(
   return [lng, lat]
 }
 
+function formatAttendees(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
+  return String(n)
+}
+
 export default function ProtestMap({
   markers,
   flyTo,
   defaultCenter = [19.8187, 41.3275],
   defaultZoom = 5.5,
 }: Props) {
-  const router = useRouter()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const adapterRef = useRef<MapAdapter | null>(null)
+  const [selected, setSelected] = useState<ProtestMarker | null>(null)
+  // Mirror selected into a ref so the adapter's onMapClick callback (closed
+  // over once at mount) can read the latest state without forcing a re-init.
+  const selectedRef = useRef<ProtestMarker | null>(null)
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
 
   useEffect(() => {
     if (!containerRef.current || adapterRef.current) return
@@ -68,7 +86,11 @@ export default function ProtestMap({
       container: containerRef.current,
       center: computeCenter(markers, defaultCenter),
       zoom: markers.length > 4 ? Math.max(defaultZoom - 2, 1.2) : defaultZoom,
-      onMapClick: () => {},
+      // Background click closes any open popup; a pin click stops propagation
+      // so this never fires for the pin itself.
+      onMapClick: () => {
+        if (selectedRef.current) setSelected(null)
+      },
       getMarkerClassName: getProtestMarkerClassName,
     })
     return () => {
@@ -82,20 +104,21 @@ export default function ProtestMap({
   useEffect(() => {
     const adapter = adapterRef.current
     if (!adapter) return
-    // Match /map's civic pin shape: label = event title, count badge = 1,
-    // click navigates straight to the event detail page.
     const inputs: MapMarkerInput[] = markers.map((m) => ({
       id: m.id,
       name: m.name,
       lat: m.lat,
       lng: m.lng,
       eventCount: 1,
-      isSelected: false,
+      isSelected: selected?.id === m.id,
       hasHighlight: true,
-      onClick: () => router.push(`/events/${m.slug}`),
+      onClick: () => {
+        setSelected(m)
+        adapter.flyToLocation([m.lng, m.lat], Math.max(adapter ? 7 : 5, 7))
+      },
     }))
     adapter.setMarkers(inputs)
-  }, [markers, router])
+  }, [markers, selected])
 
   // Refit the map whenever the set of markers changes (e.g. filter applied).
   // When there are no markers but the parent provided a geocoded flyTo target,
@@ -113,6 +136,14 @@ export default function ProtestMap({
     }
   }, [markers, flyTo])
 
+  // If the filter strips the currently-selected pin away (e.g. the user
+  // changes country chip), drop the popup so it doesn't dangle.
+  useEffect(() => {
+    if (selected && !markers.find((m) => m.id === selected.id)) {
+      setSelected(null)
+    }
+  }, [markers, selected])
+
   return (
     <div className="relative w-full overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
       <div ref={containerRef} className="aspect-[4/5] w-full sm:aspect-[2/1]" />
@@ -127,6 +158,66 @@ export default function ProtestMap({
               {flyTo.label ?? 'Here'}
             </p>
             <p className="mt-1 text-[11px] text-white/55">Scroll down to register the first one.</p>
+          </div>
+        </div>
+      )}
+
+      {selected && (
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3 sm:top-5">
+          <div className="pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border border-flame-500/40 bg-ink-950/95 shadow-[0_24px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setSelected(null)}
+              className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-flame-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-flame-300 ring-1 ring-flame-500/30">
+                  <Flame className="h-3 w-3" />
+                  Civic
+                </span>
+                {selected.expectedAttendees != null && selected.expectedAttendees > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/75">
+                    <Users className="h-3 w-3" />
+                    {formatAttendees(selected.expectedAttendees)} expected
+                  </span>
+                )}
+              </div>
+
+              <h3 className="mt-3 pr-7 text-sm font-semibold leading-snug text-white">
+                {selected.name}
+              </h3>
+
+              <div className="mt-3 space-y-1.5 text-[12px] text-white/65">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-white/45" />
+                  <span>{selected.date}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock3 className="h-3.5 w-3.5 text-white/45" />
+                  <span>{selected.time}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 text-white/45" />
+                  <span className="truncate">
+                    {selected.city}
+                    {selected.country ? `, ${selected.country}` : ''}
+                  </span>
+                </div>
+              </div>
+
+              <Link
+                href={`/events/${selected.slug}`}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-white shadow-glow-flame transition hover:bg-flame-400"
+              >
+                Open event
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
       )}

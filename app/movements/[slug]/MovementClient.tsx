@@ -36,6 +36,9 @@ export default function MovementClient({ movement, events, migrationApplied }: P
           lat: e.lat as number,
           lng: e.lng as number,
           slug: e.slug,
+          date: e.date,
+          time: e.time,
+          expectedAttendees: e.expectedAttendees ?? null,
         })),
     [events],
   )

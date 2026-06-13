@@ -264,6 +264,9 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
           lat: e.lat as number,
           lng: e.lng as number,
           slug: e.slug,
+          date: e.date,
+          time: e.time,
+          expectedAttendees: e.expectedAttendees ?? null,
         })),
     [filtered],
   )
