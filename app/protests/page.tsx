@@ -2,7 +2,22 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import ProtestsClient from './ProtestsClient'
 import type { ProtestEvent } from '@/components/protest/ProtestEventCard'
-import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+
+// /protests intentionally keeps a 14-day rear window so the "Past" chip and
+// search bar can surface civic gatherings that happened in the last two
+// weeks. activeEventsOrFilter is too tight here — it would cut everything
+// before today and the Past chip would be permanently empty.
+const PAST_DAYS_KEPT = 14
+
+function isoDaysAgo(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+}
 
 export const metadata: Metadata = {
   title: 'Protests Worldwide — AlbaGo',
@@ -64,6 +79,7 @@ export default async function ProtestsPage() {
   let rows: EventRow[] = []
   let migrationApplied = true
 
+  const earliest = isoDaysAgo(PAST_DAYS_KEPT)
   const wide = await supabase
     .from('events')
     .select(
@@ -71,14 +87,17 @@ export default async function ProtestsPage() {
     )
     .eq('status', 'published')
     .eq('is_civic', true)
-    .or(activeEventsOrFilter())
+    .or(`date.gte.${earliest},recurrence.in.(daily,weekly)`)
     .order('date', { ascending: true })
 
   if (wide.error) {
     migrationApplied = false
     rows = []
   } else {
-    rows = ((wide.data ?? []) as EventRow[]).filter(isEventActive)
+    // No isEventActive post-filter here — the client splits the list with
+    // its own activeList useMemo for the Upcoming/Today/This week chips, and
+    // needs the raw rows so the Past chip can show the last two weeks.
+    rows = (wide.data ?? []) as EventRow[]
   }
 
   const placeIds = rows
