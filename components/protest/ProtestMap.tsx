@@ -79,6 +79,37 @@ export default function ProtestMap({
   useEffect(() => {
     selectedRef.current = selected
   }, [selected])
+  // Markers ref so the close-handlers (which run after a click, not on every
+  // render) can refit against the latest set without going stale.
+  const markersRef = useRef<ProtestMarker[]>(markers)
+  useEffect(() => {
+    markersRef.current = markers
+  }, [markers])
+  const flyToRef = useRef(flyTo)
+  useEffect(() => {
+    flyToRef.current = flyTo
+  }, [flyTo])
+
+  // Snap back to the world-view (or geocoded fallback) the user came in with.
+  // Called when the popup is dismissed via X or by tapping the map background.
+  const resetView = () => {
+    const adapter = adapterRef.current
+    if (!adapter) return
+    const current = markersRef.current
+    if (current.length > 0) {
+      adapter.fitBounds(
+        current.map((m) => [m.lng, m.lat] as [number, number]),
+        { padding: 80, maxZoom: current.length === 1 ? 10 : 5.5 },
+      )
+    } else if (flyToRef.current) {
+      adapter.flyToLocation([flyToRef.current.lng, flyToRef.current.lat], 9)
+    }
+  }
+
+  const closePopup = () => {
+    setSelected(null)
+    resetView()
+  }
 
   useEffect(() => {
     if (!containerRef.current || adapterRef.current) return
@@ -89,7 +120,7 @@ export default function ProtestMap({
       // Background click closes any open popup; a pin click stops propagation
       // so this never fires for the pin itself.
       onMapClick: () => {
-        if (selectedRef.current) setSelected(null)
+        if (selectedRef.current) closePopup()
       },
       getMarkerClassName: getProtestMarkerClassName,
     })
@@ -168,7 +199,7 @@ export default function ProtestMap({
             <button
               type="button"
               aria-label="Close"
-              onClick={() => setSelected(null)}
+              onClick={closePopup}
               className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
