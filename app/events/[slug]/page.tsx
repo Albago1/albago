@@ -24,6 +24,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
+import AddToCalendarButton from '@/components/AddToCalendarButton'
 import EventGallery from '@/components/EventGallery'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
@@ -399,6 +400,26 @@ export default async function EventDetailPage(
               initialSaved={initialSaved}
               isAuthenticated={!!user}
               size="md"
+            />
+
+            <AddToCalendarButton
+              event={{
+                id: event.id,
+                slug: event.slug,
+                title: event.title,
+                description: event.description,
+                date: event.date,
+                time: event.time,
+                end_time: event.end_time,
+                timezone: event.timezone,
+                is_online: event.is_online,
+                online_url: event.online_url,
+                address: event.address,
+                venueName: venue?.name ?? null,
+                venueAddress: venue?.address ?? null,
+                city: cityLabel,
+                country: countryLabel,
+              }}
             />
 
             {directionsHref && (
