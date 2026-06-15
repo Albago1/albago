@@ -201,6 +201,71 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_civic_geocoding: "Geocoding…",
     submit_civic_geocoded: "Geocoded",
     submit_civic_no_match: "Could not find that address. Try a more specific one.",
+
+    // /protests/edi-rama-berlin
+    er_eyebrow: "Berlin · 16 June 2026",
+    er_hero_title: "Edi Rama in Berlin — peaceful protest information",
+    er_hero_subtitle:
+      "Albanian Prime Minister Edi Rama is expected as keynote speaker at the Annual Conference of the Ost-Ausschuss der Deutschen Wirtschaft in Berlin on 16 June 2026. This page brings together the confirmed date, address and official programme so that Albanians in Germany and neighbouring countries can organise a peaceful, lawful gathering connected to the Albanian Revolution and the Flamingo Revolution.",
+    er_back: "Back to protests",
+
+    er_cta_directions: "Open in Google Maps",
+    er_cta_download: "Download official programme",
+    er_cta_share: "Share this page",
+
+    er_info_label: "Confirmed details",
+    er_info_when: "When",
+    er_info_when_value: "Tuesday, 16 June 2026",
+    er_info_where: "Where",
+    er_info_venue: "Theater Aufbau Kreuzberg (TAK) & Club Prince Charles",
+    er_info_address: "Prinzenstraße 85, 10969 Berlin",
+    er_info_country: "Germany",
+    er_info_timeline: "Schedule",
+    er_info_t1: "External guests arrive",
+    er_info_t2: "Main reception begins",
+    er_info_t3: "Move to Club Prince Charles",
+    er_info_t3_note: "approximate",
+
+    er_why_label: "Why people are gathering",
+    er_why_title: "A peaceful Albanian civic call",
+    er_why_p1:
+      "Across Europe, Albanians are organising peaceful gatherings under the banner of the Albanian Revolution and the Flamingo Revolution — a diaspora-led civic movement asking for accountability, transparency and democratic renewal in Albania.",
+    er_why_p2:
+      "Berlin matters because Edi Rama's official engagements abroad are some of the few moments when Albanian citizens living outside the country can publicly express their position to their own head of government.",
+    er_why_p3:
+      "If you choose to come, please come peacefully — and bring others who will do the same. The strength of this movement is its calm, its discipline and its civic intent.",
+
+    er_pledge_title: "Peaceful pledge",
+    er_pledge_body:
+      "No violence. No insults. No property damage. We stand for peaceful, lawful civic expression — respecting German law and the safety of every participant, journalist and bystander. Anyone calling for violence is acting outside this gathering.",
+
+    er_program_label: "Official programme",
+    er_program_title: "Edi Rama is listed in the conference programme",
+    er_program_body:
+      "The official invitation programme of the Ost-Ausschuss der Deutschen Wirtschaft lists Edi Rama as keynote speaker and as participant in a fireside chat together with Albania's AI minister, “Diella”. External guests are expected from 17:30, the main reception begins at 18:30.",
+    er_program_event_name:
+      "Jahresveranstaltung des Ost-Ausschusses der Deutschen Wirtschaft e.V.",
+
+    er_download_label: "Downloads",
+    er_download_title: "Official programme (PDF)",
+    er_download_body:
+      "The PDF below is the original conference invitation. We share it so anyone can verify the date, time and presence of Edi Rama for themselves.",
+    er_download_meta: "PDF · Ost-Ausschuss der Deutschen Wirtschaft",
+    er_download_cta: "Download programme",
+
+    er_share_label: "Spread the word",
+    er_share_title: "Share this page with the Albanian diaspora",
+    er_share_body:
+      "Send this page through WhatsApp groups, Telegram channels, family chats and social posts. Many Albanians in Germany will not see this on their own.",
+    er_share_whatsapp: "WhatsApp",
+    er_share_telegram: "Telegram",
+    er_share_facebook: "Facebook",
+    er_share_x: "X",
+    er_share_copy: "Copy link",
+    er_share_copied: "Link copied",
+    er_share_native: "Share…",
+    er_share_caption:
+      "Edi Rama is expected in Berlin on 16 June 2026 — peaceful protest information from AlbaGo.",
   },
 
   de: {
@@ -404,6 +469,71 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_civic_geocoding: "Geocodierung…",
     submit_civic_geocoded: "Geocodiert",
     submit_civic_no_match: "Adresse nicht gefunden. Versuche eine genauere.",
+
+    // /protests/edi-rama-berlin
+    er_eyebrow: "Berlin · 16. Juni 2026",
+    er_hero_title: "Edi Rama in Berlin — Informationen für eine friedliche Kundgebung",
+    er_hero_subtitle:
+      "Der albanische Ministerpräsident Edi Rama wird am 16. Juni 2026 als Hauptredner bei der Jahresveranstaltung des Ost-Ausschusses der Deutschen Wirtschaft in Berlin erwartet. Diese Seite stellt das bestätigte Datum, die Adresse und das offizielle Programm zur Verfügung, damit Albanerinnen und Albaner in Deutschland und in den Nachbarländern eine friedliche und rechtmäßige Versammlung im Rahmen der Albanischen Revolution und der Flamingo-Revolution organisieren können.",
+    er_back: "Zurück zu den Protesten",
+
+    er_cta_directions: "In Google Maps öffnen",
+    er_cta_download: "Offizielles Programm herunterladen",
+    er_cta_share: "Diese Seite teilen",
+
+    er_info_label: "Bestätigte Angaben",
+    er_info_when: "Wann",
+    er_info_when_value: "Dienstag, 16. Juni 2026",
+    er_info_where: "Wo",
+    er_info_venue: "Theater Aufbau Kreuzberg (TAK) & Club Prince Charles",
+    er_info_address: "Prinzenstraße 85, 10969 Berlin",
+    er_info_country: "Deutschland",
+    er_info_timeline: "Ablauf",
+    er_info_t1: "Externe Gäste treffen ein",
+    er_info_t2: "Hauptempfang beginnt",
+    er_info_t3: "Wechsel zum Club Prince Charles",
+    er_info_t3_note: "ungefähr",
+
+    er_why_label: "Warum Menschen sich versammeln",
+    er_why_title: "Ein friedlicher albanischer Bürgerappell",
+    er_why_p1:
+      "In ganz Europa organisieren Albanerinnen und Albaner friedliche Versammlungen unter dem Banner der Albanischen Revolution und der Flamingo-Revolution — einer von der Diaspora getragenen Bürgerbewegung, die Rechenschaft, Transparenz und demokratische Erneuerung in Albanien fordert.",
+    er_why_p2:
+      "Berlin ist wichtig, weil die offiziellen Auftritte von Edi Rama im Ausland zu den seltenen Gelegenheiten gehören, bei denen albanische Bürgerinnen und Bürger im Exil ihre Haltung direkt gegenüber ihrem eigenen Regierungschef öffentlich zum Ausdruck bringen können.",
+    er_why_p3:
+      "Wenn Sie kommen möchten — bitte friedlich. Bringen Sie andere mit, die das gleiche Versprechen geben. Die Stärke dieser Bewegung liegt in ihrer Ruhe, ihrer Disziplin und ihrem bürgerlichen Ernst.",
+
+    er_pledge_title: "Friedlich-Versprechen",
+    er_pledge_body:
+      "Keine Gewalt. Keine Beleidigungen. Keine Sachbeschädigung. Wir stehen für friedlichen, rechtmäßigen Bürgerausdruck — unter Achtung des deutschen Rechts und der Sicherheit jeder Teilnehmerin, jedes Teilnehmers, jeder Journalistin und jedes Passanten. Wer zu Gewalt aufruft, gehört nicht zu dieser Kundgebung.",
+
+    er_program_label: "Offizielles Programm",
+    er_program_title: "Edi Rama steht im Konferenzprogramm",
+    er_program_body:
+      "Das offizielle Einladungsprogramm des Ost-Ausschusses der Deutschen Wirtschaft führt Edi Rama als Hauptredner und als Teilnehmer eines Fireside-Chats gemeinsam mit der albanischen KI-Ministerin „Diella“ auf. Externe Gäste werden ab 17:30 Uhr erwartet, der Hauptempfang beginnt um 18:30 Uhr.",
+    er_program_event_name:
+      "Jahresveranstaltung des Ost-Ausschusses der Deutschen Wirtschaft e.V.",
+
+    er_download_label: "Downloads",
+    er_download_title: "Offizielles Programm (PDF)",
+    er_download_body:
+      "Die PDF-Datei unten ist die Originaleinladung der Konferenz. Wir veröffentlichen sie, damit jede und jeder Datum, Uhrzeit und die Anwesenheit von Edi Rama selbst überprüfen kann.",
+    er_download_meta: "PDF · Ost-Ausschuss der Deutschen Wirtschaft",
+    er_download_cta: "Programm herunterladen",
+
+    er_share_label: "Verbreiten",
+    er_share_title: "Diese Seite mit der albanischen Diaspora teilen",
+    er_share_body:
+      "Teilen Sie diese Seite in WhatsApp-Gruppen, Telegram-Kanälen, Familienchats und sozialen Netzwerken. Viele Albanerinnen und Albaner in Deutschland werden diese Information sonst nicht sehen.",
+    er_share_whatsapp: "WhatsApp",
+    er_share_telegram: "Telegram",
+    er_share_facebook: "Facebook",
+    er_share_x: "X",
+    er_share_copy: "Link kopieren",
+    er_share_copied: "Link kopiert",
+    er_share_native: "Teilen…",
+    er_share_caption:
+      "Edi Rama wird am 16. Juni 2026 in Berlin erwartet — Informationen zu einer friedlichen Kundgebung von AlbaGo.",
   },
 
   es: {
@@ -810,5 +940,70 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_civic_geocoding: "Po gjeokodohet…",
     submit_civic_geocoded: "Gjeokoduar",
     submit_civic_no_match: "Adresa nuk u gjet. Provo një më të saktë.",
+
+    // /protests/edi-rama-berlin
+    er_eyebrow: "Berlin · 16 qershor 2026",
+    er_hero_title: "Edi Rama në Berlin — informacion për një protestë paqësore",
+    er_hero_subtitle:
+      "Kryeministri shqiptar Edi Rama pritet të jetë folësi kryesor në Konferencën Vjetore të Ost-Ausschuss-it të Ekonomisë Gjermane, më 16 qershor 2026 në Berlin. Kjo faqe sjell së bashku datën, adresën dhe programin zyrtar, që shqiptarët në Gjermani dhe vendet fqinje të mund të organizojnë një tubim paqësor dhe të ligjshëm, të lidhur me Revolucionin Shqiptar dhe Revolucionin Flamingo.",
+    er_back: "Kthehu te protestat",
+
+    er_cta_directions: "Hape në Google Maps",
+    er_cta_download: "Shkarko programin zyrtar",
+    er_cta_share: "Shpërndaje këtë faqe",
+
+    er_info_label: "Të dhëna të konfirmuara",
+    er_info_when: "Kur",
+    er_info_when_value: "E martë, 16 qershor 2026",
+    er_info_where: "Ku",
+    er_info_venue: "Theater Aufbau Kreuzberg (TAK) & Club Prince Charles",
+    er_info_address: "Prinzenstraße 85, 10969 Berlin",
+    er_info_country: "Gjermani",
+    er_info_timeline: "Orari",
+    er_info_t1: "Mysafirët e jashtëm mbërrijnë",
+    er_info_t2: "Pritja kryesore fillon",
+    er_info_t3: "Kalimi te Club Prince Charles",
+    er_info_t3_note: "afërsisht",
+
+    er_why_label: "Pse po mblidhemi",
+    er_why_title: "Një thirrje qytetare paqësore shqiptare",
+    er_why_p1:
+      "Nëpër Evropë, shqiptarët po organizojnë tubime paqësore nën flamurin e Revolucionit Shqiptar dhe Revolucionit Flamingo — një lëvizje qytetare e diasporës, që kërkon llogaridhënie, transparencë dhe rinovim demokratik në Shqipëri.",
+    er_why_p2:
+      "Berlini ka rëndësi sepse paraqitjet zyrtare të Edi Ramës jashtë vendit janë ndër momentet e rralla kur qytetarët shqiptarë që jetojnë jashtë mund të shprehin publikisht qëndrimin e tyre përballë vetë kreut të qeverisë.",
+    er_why_p3:
+      "Nëse zgjidhni të vini, ju lutemi ejani në paqe — dhe sillni edhe të tjerë që do të bëjnë të njëjtën gjë. Forca e kësaj lëvizjeje është qetësia, disiplina dhe seriozitetin qytetar.",
+
+    er_pledge_title: "Premtimi paqësor",
+    er_pledge_body:
+      "Pa dhunë. Pa fyerje. Pa dëmtim të pronës. Ne përfaqësojmë shprehjen paqësore dhe të ligjshme qytetare — me respekt për ligjin gjerman dhe sigurinë e çdo pjesëmarrësi, gazetari dhe kalimtari. Kushdo që thërret për dhunë, vepron jashtë këtij tubimi.",
+
+    er_program_label: "Programi zyrtar",
+    er_program_title: "Edi Rama është i listuar në programin e konferencës",
+    er_program_body:
+      "Programi zyrtar i ftesës nga Ost-Ausschuss-i i Ekonomisë Gjermane e rendit Edi Ramën si folës kryesor dhe si pjesëmarrës në një „fireside chat“ së bashku me ministren shqiptare të Inteligjencës Artificiale, „Diella“. Mysafirët e jashtëm priten nga ora 17:30, ndërsa pritja kryesore fillon në orën 18:30.",
+    er_program_event_name:
+      "Jahresveranstaltung des Ost-Ausschusses der Deutschen Wirtschaft e.V.",
+
+    er_download_label: "Shkarkime",
+    er_download_title: "Programi zyrtar (PDF)",
+    er_download_body:
+      "PDF-i më poshtë është ftesa origjinale e konferencës. E ndajmë publikisht në mënyrë që kushdo të mund të verifikojë vetë datën, orën dhe pjesëmarrjen e Edi Ramës.",
+    er_download_meta: "PDF · Ost-Ausschuss i Ekonomisë Gjermane",
+    er_download_cta: "Shkarko programin",
+
+    er_share_label: "Përhape fjalën",
+    er_share_title: "Shpërndaje këtë faqe me diasporën shqiptare",
+    er_share_body:
+      "Dërgoni këtë faqe nëpër grupe WhatsApp, kanale Telegram, biseda familjare dhe rrjete sociale. Shumë shqiptarë në Gjermani nuk do ta shohin këtë informacion vetë.",
+    er_share_whatsapp: "WhatsApp",
+    er_share_telegram: "Telegram",
+    er_share_facebook: "Facebook",
+    er_share_x: "X",
+    er_share_copy: "Kopjo lidhjen",
+    er_share_copied: "Lidhja u kopjua",
+    er_share_native: "Shpërndaje…",
+    er_share_caption:
+      "Edi Rama pritet në Berlin më 16 qershor 2026 — informacion për një protestë paqësore nga AlbaGo.",
   },
 }
