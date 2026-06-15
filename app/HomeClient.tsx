@@ -153,6 +153,7 @@ export default function HomeClient() {
     id: string
     location_slug: string
     country: string
+    place_id: string | null
     date: string
     time: string | null
     end_time: string | null
@@ -162,7 +163,6 @@ export default function HomeClient() {
     recurrence_exceptions: string[] | null
     status: string
   }>>([])
-  const [totalPlacesCount, setTotalPlacesCount] = useState(0)
   // Bumped every 60s so isEventActive re-runs against the current wall clock —
   // handles the end_time cutoff and the midnight rollover without needing a DB
   // event to fire.
@@ -248,7 +248,6 @@ export default function HomeClient() {
         placesRes,
         eventsRes,
         globalEventsRes,
-        placesCountRes,
         protestsRes,
         protestsTotalsRes,
       ] = await Promise.all([
@@ -265,11 +264,10 @@ export default function HomeClient() {
         supabase
           .from('events')
           .select(
-            'id, location_slug, country, date, time, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, status',
+            'id, location_slug, country, place_id, date, time, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, status',
           )
           .eq('status', 'published')
           .or(activeFilter),
-        supabase.from('places').select('*', { count: 'exact', head: true }),
         supabase
           .from('events')
           .select(
@@ -372,7 +370,6 @@ export default function HomeClient() {
       if (globalEventsRes.data) {
         setGlobalEventRows(globalEventsRes.data)
       }
-      setTotalPlacesCount(placesCountRes.count ?? 0)
     }
 
     fetchFeatured()
@@ -423,6 +420,7 @@ export default function HomeClient() {
                 id: newRow.id as string,
                 location_slug: newRow.location_slug as string,
                 country: newRow.country as string,
+                place_id: (newRow.place_id as string | null) ?? null,
                 date: newRow.date as string,
                 time: (newRow.time as string | null) ?? null,
                 end_time: (newRow.end_time as string | null) ?? null,
@@ -576,6 +574,17 @@ export default function HomeClient() {
   const totalEventsCount = activeGlobalEvents.length
   const totalCitiesCount = useMemo(
     () => new Set(activeGlobalEvents.map((e) => e.location_slug)).size,
+    [activeGlobalEvents],
+  )
+  // Distinct venues with at least one live event. Civic/online events without a
+  // place_id don't contribute — "venues" should mean actual venues.
+  const totalPlacesCount = useMemo(
+    () =>
+      new Set(
+        activeGlobalEvents
+          .map((e) => e.place_id)
+          .filter((id): id is string => !!id),
+      ).size,
     [activeGlobalEvents],
   )
 
