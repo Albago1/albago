@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
   ArrowLeft,
@@ -35,6 +35,12 @@ import {
 } from '@/lib/recurrence'
 
 type Params = { slug: string }
+
+// Slugs whose event row exists for catalog/list/map presence, but whose
+// canonical detail page is a curated route elsewhere on the site.
+const CURATED_REDIRECTS: Record<string, string> = {
+  'edi-rama-berlin-2026': '/protests/edi-rama-berlin-2026',
+}
 
 type OrganizerSocials = {
   instagram?: string
@@ -211,6 +217,9 @@ export async function generateMetadata(
   { params }: { params: Promise<Params> }
 ): Promise<Metadata> {
   const { slug } = await params
+  if (CURATED_REDIRECTS[slug]) {
+    return { title: 'Redirecting — AlbaGo' }
+  }
   const event = await fetchEvent(slug)
 
   if (!event) {
@@ -234,6 +243,12 @@ export default async function EventDetailPage(
   { params }: { params: Promise<Params> }
 ) {
   const { slug } = await params
+
+  const curated = CURATED_REDIRECTS[slug]
+  if (curated) {
+    redirect(curated)
+  }
+
   const event = await fetchEvent(slug)
 
   if (!event) {
