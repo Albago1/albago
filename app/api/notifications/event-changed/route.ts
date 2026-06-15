@@ -114,6 +114,13 @@ export async function POST(request: Request) {
     !payload.record ||
     !payload.old_record
   ) {
+    console.log('[event-changed] skipped not_applicable', {
+      type: payload.type,
+      table: payload.table,
+      schema: payload.schema,
+      hasRecord: !!payload.record,
+      hasOldRecord: !!payload.old_record,
+    })
     return NextResponse.json({ skipped: 'not_applicable' })
   }
 
@@ -124,8 +131,30 @@ export async function POST(request: Request) {
 
   const changes = diffEvent(oldRow, newRow)
   if (!isCancelled && changes.length === 0) {
+    console.log('[event-changed] skipped no_meaningful_change', {
+      eventId: newRow.id,
+      eventSlug: newRow.slug,
+      oldDate: oldRow.date,
+      newDate: newRow.date,
+      oldTime: oldRow.time,
+      newTime: newRow.time,
+      oldEndTime: oldRow.end_time,
+      newEndTime: newRow.end_time,
+      oldAddress: oldRow.address,
+      newAddress: newRow.address,
+      oldStatus: oldRow.status,
+      newStatus: newRow.status,
+    })
     return NextResponse.json({ skipped: 'no_meaningful_change' })
   }
+
+  console.log('[event-changed] meaningful change detected', {
+    eventId: newRow.id,
+    eventSlug: newRow.slug,
+    isCancelled,
+    changeCount: changes.length,
+    changedFields: changes.map((c) => c.label),
+  })
 
   const admin = createAdminClient()
 
@@ -143,8 +172,16 @@ export async function POST(request: Request) {
   const savedRows = (savedRes.data ?? []) as Array<{ user_id: string }>
   const userIds = savedRows.map((r) => r.user_id)
   if (userIds.length === 0) {
+    console.log('[event-changed] no subscribers for event', {
+      eventId: newRow.id,
+      eventSlug: newRow.slug,
+    })
     return NextResponse.json({ sent: 0, reason: 'no_subscribers' })
   }
+  console.log('[event-changed] subscriber count', {
+    eventId: newRow.id,
+    userCount: userIds.length,
+  })
 
   const profileRes = await admin
     .from('profiles')
@@ -174,8 +211,16 @@ export async function POST(request: Request) {
   }
 
   if (recipients.length === 0) {
+    console.log('[event-changed] all subscribers opted out', {
+      eventId: newRow.id,
+      userCount: userIds.length,
+    })
     return NextResponse.json({ sent: 0, reason: 'all_opted_out' })
   }
+  console.log('[event-changed] sending to recipients', {
+    eventId: newRow.id,
+    recipientCount: recipients.length,
+  })
 
   const { subject, html, text } = renderSavedEventChangedEmail({
     eventTitle: newRow.title,
@@ -200,6 +245,16 @@ export async function POST(request: Request) {
 
   const sent = sendResults.filter((r) => r.status === 'fulfilled').length
   const failed = sendResults.length - sent
+
+  const failures = sendResults
+    .map((r, i) => (r.status === 'rejected' ? { i, reason: String(r.reason) } : null))
+    .filter(Boolean)
+  console.log('[event-changed] send results', {
+    eventId: newRow.id,
+    sent,
+    failed,
+    failures,
+  })
 
   return NextResponse.json({ sent, failed, isCancelled, changes: changes.length })
 }
