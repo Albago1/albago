@@ -40,7 +40,7 @@ export default function EdiRamaBerlinClient({ pageUrl, pdfUrl }: Props) {
   // localhost too — falls back to canonical URL for the SSR pass.
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setOrigin(`${window.location.origin}/protests/edi-rama-berlin`)
+      setOrigin(`${window.location.origin}/protests/edi-rama-berlin-2026`)
     }
   }, [])
 

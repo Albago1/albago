@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import EdiRamaBerlinClient from './EdiRamaBerlinClient'
 
-const PAGE_URL = 'https://albago.org/protests/edi-rama-berlin'
+const PAGE_URL = 'https://albago.org/protests/edi-rama-berlin-2026'
 const PDF_URL = '/documents/ost-ausschuss-edi-rama-berlin-2026.pdf'
 
 export const metadata: Metadata = {
