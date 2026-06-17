@@ -7,6 +7,7 @@ import {
   Check,
   Flame,
   Pencil,
+  RotateCcw,
   Search,
   Send,
   ShieldCheck,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import UserStatsCard from './UserStatsCard'
+import AdminRepostModal from './events/AdminRepostModal'
 
 type SubmissionRow = {
   id: string
@@ -272,6 +274,8 @@ export default function AdminClient() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [civicOnly, setCivicOnly] = useState(false)
   const [search, setSearch] = useState('')
+
+  const [repostSource, setRepostSource] = useState<{ id: string; title: string } | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -771,9 +775,23 @@ export default function AdminClient() {
             onRejectEvent={rejectEvent}
             onDeleteSubmission={deleteSubmission}
             onDeleteEvent={deleteEvent}
+            onRepostEvent={(r) => setRepostSource({ id: r.rowId, title: r.title })}
           />
         ))}
       </div>
+
+      {repostSource && (
+        <AdminRepostModal
+          sourceEventId={repostSource.id}
+          sourceTitle={repostSource.title}
+          onClose={() => setRepostSource(null)}
+          onCreated={() => {
+            setRepostSource(null)
+            setMessage('Repost created as a new draft event.')
+            void fetchAll()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -791,6 +809,7 @@ function RowCard(props: {
   onRejectEvent: (row: UnifiedRow) => void
   onDeleteSubmission: (row: UnifiedRow) => void
   onDeleteEvent: (row: UnifiedRow) => void
+  onRepostEvent: (row: UnifiedRow) => void
 }) {
   const {
     row,
@@ -805,6 +824,7 @@ function RowCard(props: {
     onRejectEvent,
     onDeleteSubmission,
     onDeleteEvent,
+    onRepostEvent,
   } = props
 
   const isWorking = actionId === row.key
@@ -1013,6 +1033,17 @@ function RowCard(props: {
                 Restore to draft
               </button>
             )}
+
+            <button
+              type="button"
+              disabled={isWorking}
+              onClick={() => onRepostEvent(row)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-3 py-2 text-xs font-semibold text-flame-200 transition hover:bg-flame-500/15 disabled:opacity-40"
+              title="Create a new draft event from this one with a new date"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Repost
+            </button>
           </>
         )}
 
