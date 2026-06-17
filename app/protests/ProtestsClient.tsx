@@ -351,6 +351,68 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
         <div className="absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-grid opacity-50" />
           <div className="absolute inset-0 bg-radial-flame" />
+
+          {/* Flamingo Revolution motif — symbolic silhouette in the hero corner. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute right-0 top-20 sm:top-8 lg:-top-2"
+          >
+            <div className="absolute inset-0 -m-10 rounded-full bg-flame-500/10 blur-3xl" />
+            <motion.svg
+              viewBox="0 0 200 300"
+              fill="currentColor"
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative -mr-10 h-[220px] w-auto text-flame-400/[0.22] sm:-mr-4 sm:h-[380px] lg:h-[460px]"
+            >
+              {/* Tail feathers */}
+              <path d="M 22,165 L 0,138 L 10,172 L -4,180 L 22,195 Z" />
+              {/* Body */}
+              <ellipse cx="80" cy="170" rx="58" ry="42" />
+              {/* Neck S-curve */}
+              <path
+                d="M 115,140 C 155,100 80,80 130,30"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={18}
+                strokeLinecap="round"
+              />
+              {/* Head */}
+              <circle cx="135" cy="28" r="16" />
+              {/* Beak */}
+              <path d="M 150,32 L 178,46 L 152,52 Z" />
+              <path
+                d="M 162,48 L 178,46 L 168,58 Z"
+                fill="black"
+                fillOpacity={0.4}
+              />
+              {/* Eye */}
+              <circle cx="138" cy="22" r="2.4" fill="black" fillOpacity={0.55} />
+              {/* Standing leg */}
+              <rect x="76" y="208" width="5" height="80" rx="2.5" />
+              <ellipse cx="78" cy="290" rx="14" ry="3" />
+              {/* Folded leg */}
+              <line
+                x1="100"
+                y1="208"
+                x2="110"
+                y2="248"
+                stroke="currentColor"
+                strokeWidth={5}
+                strokeLinecap="round"
+              />
+              <line
+                x1="110"
+                y1="248"
+                x2="82"
+                y2="238"
+                stroke="currentColor"
+                strokeWidth={5}
+                strokeLinecap="round"
+              />
+            </motion.svg>
+          </div>
+
           <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-ink-950 to-transparent" />
         </div>
 
