@@ -73,14 +73,24 @@ export default function WhereStep({ draft, patch }: Props) {
     // Don't auto-fill draft.address — it's the static label the submitter
     // writes themselves and what users actually read on the event page.
     // The geocoder only feeds lat/lng + city/country/region for the map pin.
-    patch({
+    const updates: Partial<EventDraft> = {
       location_slug: next.slug || draft.location_slug,
       country: next.country ?? draft.country,
       region: next.region ?? '',
       city: next.city ?? '',
       lat: next.lat,
       lng: next.lng,
-    })
+    }
+    // Protest template: replace the (City) placeholder in the title once the
+    // submitter picks a city.
+    if (
+      draft.event_type === 'protest' &&
+      next.city &&
+      draft.title.includes('(City)')
+    ) {
+      updates.title = draft.title.replace('(City)', next.city)
+    }
+    patch(updates)
   }
 
   return (

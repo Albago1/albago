@@ -32,12 +32,30 @@ const OPTIONS: TypeOption[] = [
     description:
       'Peaceful civic gathering. Includes safety guidance and coordination links.',
     icon: Flame,
-    apply: () => ({
-      event_type: 'protest',
-      is_civic: true,
-      category: 'civic',
-      is_online: false,
-    }),
+    apply: (draft) => {
+      const patch: Partial<EventDraft> = {
+        event_type: 'protest',
+        is_civic: true,
+        category: 'civic',
+        is_online: false,
+      }
+      // Protest template — fills only the fields the user hasn't touched.
+      // City placeholder in the title is replaced from WhereStep when a
+      // location is resolved.
+      if (!draft.title.trim()) {
+        patch.title = '📍(City) Flamingo Revolution Protest'
+      }
+      if (!draft.description.trim()) {
+        patch.description = 'For the land .\nFor the people .\nFor Albania .'
+      }
+      if (!draft.organizer_name.trim()) {
+        patch.organizer_name = 'Activists'
+      }
+      if (!draft.organizer_contact.trim()) {
+        patch.organizer_contact = 'albago.org@gmail.com'
+      }
+      return patch
+    },
     detect: (d) => d.event_type === 'protest',
   },
   {
