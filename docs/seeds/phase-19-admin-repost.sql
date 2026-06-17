@@ -112,8 +112,8 @@ BEGIN
     src.description,
     src.category,
     new_date,
-    new_time,
-    new_end_time,
+    new_time::time,
+    new_end_time::time,
     src.timezone,
     src.price,
     false,                                 -- new draft never starts highlighted
