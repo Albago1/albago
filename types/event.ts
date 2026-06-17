@@ -48,6 +48,7 @@ export type OrganizerEvent = {
   description: string
   date: string
   time: string | null
+  end_time: string | null
   price: string | null
   highlight: boolean
   status: EventStatus
@@ -62,4 +63,8 @@ export type OrganizerEvent = {
   admin_note: string | null
   created_at: string
   updated_at: string
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
 }

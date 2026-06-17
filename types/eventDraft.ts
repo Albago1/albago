@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 
 export const MAX_EVENT_PHOTOS = 5
 
@@ -248,20 +248,22 @@ export function useEventDraft(): UseEventDraftReturn {
     ...init,
     timezone: detectTimezone(),
   }))
-  const hydratedRef = useRef(false)
+  const [hydrated, setHydrated] = useState(false)
 
   // Load persisted draft once.
   useEffect(() => {
     const stored = loadFromStorage()
     if (stored) dispatch({ type: 'hydrate', draft: stored })
-    hydratedRef.current = true
+    // One-shot post-mount sync from localStorage; consumers wait on `hydrated`.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHydrated(true)
   }, [])
 
   // Persist on change (skip the initial mount until hydration finishes).
   useEffect(() => {
-    if (!hydratedRef.current) return
+    if (!hydrated) return
     saveToStorage(draft)
-  }, [draft])
+  }, [draft, hydrated])
 
   const patch = useCallback((p: Partial<EventDraft>) => {
     dispatch({ type: 'patch', patch: p })
@@ -289,6 +291,6 @@ export function useEventDraft(): UseEventDraftReturn {
     removeTag,
     reset,
     clearPersisted,
-    hydrated: hydratedRef.current,
+    hydrated,
   }
 }

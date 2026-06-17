@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import type { EventDraft } from '@/types/eventDraft'
 import { useEventDraft } from '@/types/eventDraft'
@@ -20,6 +20,8 @@ export type WizardSubmit = (draft: EventDraft) => Promise<
 
 export type WizardMode = 'community' | 'organizer'
 
+export type StepKey = 'type' | 'category' | 'basics' | 'when' | 'where' | 'media' | 'organizer' | 'review'
+
 type Props = {
   /** What does the wizard call when the user hits Submit? */
   onSubmit: WizardSubmit
@@ -27,9 +29,9 @@ type Props = {
   mode: WizardMode
   /** Where to send the user after a successful submit. */
   onSuccess?: (id: string) => void
+  /** Optional starting step (one-shot, applied after the draft hydrates). */
+  initialStepKey?: StepKey
 }
-
-type StepKey = 'type' | 'category' | 'basics' | 'when' | 'where' | 'media' | 'organizer' | 'review'
 
 type StepDef = {
   key: StepKey
@@ -134,8 +136,8 @@ const STEPS: StepDef[] = [
   },
 ]
 
-export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props) {
-  const { draft, patch, addTag, removeTag, reset, clearPersisted } = useEventDraft()
+export default function EventCreationWizard({ onSubmit, mode, onSuccess, initialStepKey }: Props) {
+  const { draft, patch, addTag, removeTag, reset, clearPersisted, hydrated } = useEventDraft()
   const [stepIndex, setStepIndex] = useState(0)
   const [stepError, setStepError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -145,6 +147,18 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess }: Props
     () => STEPS.filter((step) => !step.skip?.(draft)),
     [draft],
   )
+
+  const initialStepAppliedRef = useRef(false)
+  useEffect(() => {
+    if (initialStepAppliedRef.current) return
+    if (!hydrated) return
+    initialStepAppliedRef.current = true
+    if (!initialStepKey) return
+    const idx = activeSteps.findIndex((s) => s.key === initialStepKey)
+    // One-shot jump once the wizard's persisted draft has finished loading.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (idx >= 0) setStepIndex(idx)
+  }, [hydrated, initialStepKey, activeSteps])
 
   const activeStep = activeSteps[stepIndex] ?? activeSteps[0]
   const isLast = stepIndex >= activeSteps.length - 1
