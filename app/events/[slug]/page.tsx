@@ -98,6 +98,7 @@ type EventRecord = {
     website_url: string | null
   } | null
   organizers: {
+    slug: string
     verification_tier: 'unverified' | 'established' | 'verified'
   } | null
 }
@@ -107,7 +108,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( verification_tier )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( slug, verification_tier )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -581,7 +582,16 @@ export default async function EventDetailPage(
               {event.organizer_name && (
                 <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-white">
                   <User2 className="h-4 w-4 text-flame-300" />
-                  {event.organizer_name}
+                  {event.organizers?.slug ? (
+                    <Link
+                      href={`/organizers/${event.organizers.slug}`}
+                      className="underline-offset-4 transition hover:text-flame-200 hover:underline"
+                    >
+                      {event.organizer_name}
+                    </Link>
+                  ) : (
+                    event.organizer_name
+                  )}
                   {event.organizers?.verification_tier === 'verified' && (
                     <span
                       title="Verified organizer — identity confirmed by AlbaGo"
