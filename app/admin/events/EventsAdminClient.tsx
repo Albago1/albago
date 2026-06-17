@@ -60,15 +60,6 @@ function formatStatus(status: string) {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
-function isAdminRepostable(row: { status: string; date: string }): boolean {
-  if (row.status === 'completed' || row.status === 'cancelled') return true
-  if (row.status === 'published') {
-    const today = new Date().toISOString().slice(0, 10)
-    return row.date < today
-  }
-  return false
-}
-
 export default function EventsAdminClient() {
   const supabase = useMemo(() => createClient(), [])
 
@@ -404,18 +395,16 @@ export default function EventsAdminClient() {
                   </button>
                 )}
 
-                {isAdminRepostable(row) && (
-                  <button
-                    type="button"
-                    disabled={isWorking}
-                    onClick={() => setRepostSource({ id: row.id, title: row.title })}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-3 py-2 text-xs font-semibold text-flame-200 transition hover:bg-flame-500/15"
-                    title="Create a new draft event from this one with a new date"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    Repost
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={isWorking}
+                  onClick={() => setRepostSource({ id: row.id, title: row.title })}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-3 py-2 text-xs font-semibold text-flame-200 transition hover:bg-flame-500/15"
+                  title="Create a new draft event from this one with a new date"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Repost
+                </button>
 
                 <button
                   type="button"
