@@ -352,63 +352,122 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
           <div className="absolute inset-0 bg-grid opacity-50" />
           <div className="absolute inset-0 bg-radial-flame" />
 
-          {/* Flamingo Revolution motif — symbolic silhouette in the hero corner. */}
+          {/* Flamingo Revolution motif — pink silhouette with feather detail. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute right-0 top-20 sm:top-8 lg:-top-2"
+            className="pointer-events-none absolute right-0 top-36 sm:top-24 lg:top-12"
           >
-            <div className="absolute inset-0 -m-10 rounded-full bg-flame-500/10 blur-3xl" />
+            <motion.div
+              className="absolute inset-0 -m-16 rounded-full bg-pink-500/[0.18] blur-3xl"
+              animate={{ opacity: [0.55, 0.9, 0.55], scale: [1, 1.06, 1] }}
+              transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+            />
             <motion.svg
               viewBox="0 0 200 300"
-              fill="currentColor"
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative -mr-10 h-[220px] w-auto text-flame-400/[0.22] sm:-mr-4 sm:h-[380px] lg:h-[460px]"
+              animate={{ y: [0, -10, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative -mr-10 h-[230px] w-auto sm:-mr-4 sm:h-[400px] lg:h-[480px]"
             >
+              <defs>
+                <linearGradient id="flamingo-body" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#fda4af" stopOpacity="0.42" />
+                  <stop offset="100%" stopColor="#ec4899" stopOpacity="0.28" />
+                </linearGradient>
+                <linearGradient id="flamingo-neck" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stopColor="#fda4af" stopOpacity="0.42" />
+                  <stop offset="100%" stopColor="#f9a8d4" stopOpacity="0.5" />
+                </linearGradient>
+                <linearGradient id="flamingo-leg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f9a8d4" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#fb7185" stopOpacity="0.22" />
+                </linearGradient>
+              </defs>
+
               {/* Tail feathers */}
-              <path d="M 22,165 L 0,138 L 10,172 L -4,180 L 22,195 Z" />
+              <path
+                d="M 22,165 L 0,138 L 10,172 L -4,180 L 22,195 Z"
+                fill="url(#flamingo-body)"
+              />
               {/* Body */}
-              <ellipse cx="80" cy="170" rx="58" ry="42" />
+              <ellipse cx="80" cy="170" rx="58" ry="42" fill="url(#flamingo-body)" />
+              {/* Wing patch */}
+              <path
+                d="M 48,162 Q 80,142 112,166 Q 82,184 48,162 Z"
+                fill="#ec4899"
+                fillOpacity={0.16}
+              />
+              {/* Wing feather strokes */}
+              <path
+                d="M 56,156 Q 76,150 100,162 M 54,166 Q 78,162 104,172 M 54,176 Q 78,175 105,180"
+                stroke="#f472b6"
+                strokeWidth={1.4}
+                strokeOpacity={0.45}
+                fill="none"
+                strokeLinecap="round"
+              />
+
               {/* Neck S-curve */}
               <path
                 d="M 115,140 C 155,100 80,80 130,30"
                 fill="none"
-                stroke="currentColor"
+                stroke="url(#flamingo-neck)"
                 strokeWidth={18}
                 strokeLinecap="round"
               />
               {/* Head */}
-              <circle cx="135" cy="28" r="16" />
-              {/* Beak */}
-              <path d="M 150,32 L 178,46 L 152,52 Z" />
+              <circle cx="135" cy="28" r="16" fill="url(#flamingo-neck)" />
+              {/* Beak (upper, pink) */}
+              <path
+                d="M 150,32 L 178,46 L 152,52 Z"
+                fill="#fda4af"
+                fillOpacity={0.55}
+              />
+              {/* Beak (tip, dark) */}
               <path
                 d="M 162,48 L 178,46 L 168,58 Z"
-                fill="black"
-                fillOpacity={0.4}
+                fill="#0a0a0f"
+                fillOpacity={0.6}
               />
               {/* Eye */}
-              <circle cx="138" cy="22" r="2.4" fill="black" fillOpacity={0.55} />
+              <circle cx="138" cy="22" r="2.4" fill="#0a0a0f" fillOpacity={0.7} />
+
               {/* Standing leg */}
-              <rect x="76" y="208" width="5" height="80" rx="2.5" />
-              <ellipse cx="78" cy="290" rx="14" ry="3" />
+              <rect
+                x="76"
+                y="208"
+                width={5}
+                height={80}
+                rx={2.5}
+                fill="url(#flamingo-leg)"
+              />
+              <ellipse
+                cx="78"
+                cy="290"
+                rx={14}
+                ry={3}
+                fill="#ec4899"
+                fillOpacity={0.28}
+              />
               {/* Folded leg */}
               <line
                 x1="100"
                 y1="208"
                 x2="110"
                 y2="248"
-                stroke="currentColor"
+                stroke="#f9a8d4"
                 strokeWidth={5}
                 strokeLinecap="round"
+                strokeOpacity={0.38}
               />
               <line
                 x1="110"
                 y1="248"
                 x2="82"
                 y2="238"
-                stroke="currentColor"
+                stroke="#f9a8d4"
                 strokeWidth={5}
                 strokeLinecap="round"
+                strokeOpacity={0.38}
               />
             </motion.svg>
           </div>
