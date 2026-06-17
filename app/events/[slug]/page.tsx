@@ -33,6 +33,7 @@ import {
   recurrenceLabel,
   upcomingOccurrences,
 } from '@/lib/recurrence'
+import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 type Params = { slug: string }
 
@@ -98,9 +99,44 @@ type EventRecord = {
     website_url: string | null
   } | null
   organizers: {
+    id: string
     slug: string
     verification_tier: 'unverified' | 'established' | 'verified'
+    created_at: string
   } | null
+}
+
+type OrganizerTrustStats = {
+  totalPublished: number
+  upcoming: number
+}
+
+async function fetchOrganizerTrustStats(
+  organizerId: string,
+): Promise<OrganizerTrustStats> {
+  const supabase = await createClient()
+  const [totalRes, upcomingRes] = await Promise.all([
+    supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'published')
+      .eq('organizer_id', organizerId),
+    supabase
+      .from('events')
+      .select(
+        'id, date, time, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+      )
+      .eq('status', 'published')
+      .eq('organizer_id', organizerId)
+      .or(activeEventsOrFilter()),
+  ])
+  const upcoming = (upcomingRes.data ?? []).filter(isEventActive).length
+  return { totalPublished: totalRes.count ?? 0, upcoming }
+}
+
+function formatJoinedShort(ts: string): string {
+  const d = new Date(ts)
+  return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
 
 async function fetchEvent(slug: string): Promise<EventRecord | null> {
@@ -108,7 +144,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( slug, verification_tier )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -285,6 +321,11 @@ export default async function EventDetailPage(
   const hasCoordination =
     isCivic &&
     (event.telegram_link || event.whatsapp_link || event.organizer_contact)
+
+  const registeredOrganizer = event.organizers
+  const trustStats: OrganizerTrustStats | null = registeredOrganizer
+    ? await fetchOrganizerTrustStats(registeredOrganizer.id)
+    : null
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -602,6 +643,43 @@ export default async function EventDetailPage(
                     </span>
                   )}
                 </p>
+              )}
+              {registeredOrganizer && trustStats && (
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                      Joined
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      {formatJoinedShort(registeredOrganizer.created_at)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                      Events
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      {trustStats.totalPublished}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                      Upcoming
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      {trustStats.upcoming}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {registeredOrganizer && (
+                <Link
+                  href={`/organizers/${registeredOrganizer.slug}`}
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-flame-300 transition hover:text-flame-200"
+                >
+                  View organizer profile
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
               )}
               <div className="mt-4 flex flex-wrap gap-3">
                 {event.organizer_phone && (
