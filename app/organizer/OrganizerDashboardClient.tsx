@@ -59,6 +59,7 @@ export default function OrganizerDashboardClient({
   organizer: Organizer
   events: OrganizerEvent[]
 }) {
+  const canRepost = organizer.verification_tier === 'verified'
   const counts = {
     draft: events.filter((e) => e.status === 'draft').length,
     pending_review: events.filter((e) => e.status === 'pending_review').length,
@@ -220,7 +221,7 @@ export default function OrganizerDashboardClient({
             ) : (
               <div className="mt-4 space-y-3">
                 {events.map((event) => {
-                  const repostable = isRepostable(event)
+                  const repostable = canRepost && isRepostable(event)
                   return (
                     <div
                       key={event.id}
