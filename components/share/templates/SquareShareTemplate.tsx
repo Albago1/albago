@@ -1,6 +1,8 @@
 import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
+  FlamingoHalo,
+  FlamingoMotif,
   GridBackdrop,
   categoryLabel,
   ctaLine,
@@ -31,6 +33,25 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
       }}
     >
       <GridBackdrop />
+
+      {/* Flamingo motif — centered behind the foreground content. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <FlamingoHalo size={620} />
+        <div style={{ position: 'relative' }}>
+          <FlamingoMotif width={420} opacity={0.45} />
+        </div>
+      </div>
 
       <div className="relative z-10 flex h-full flex-col px-20 py-20">
         <div className="flex items-center justify-between">
@@ -64,6 +85,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
               fontSize: 120,
               letterSpacing: '-0.04em',
               color: '#ffffff',
+              textShadow: '0 4px 30px rgba(5,5,5,0.85)',
             }}
           >
             {data.city}
@@ -76,6 +98,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
               fontSize: 44,
               letterSpacing: '-0.02em',
               color: 'rgba(255,255,255,0.92)',
+              textShadow: '0 3px 24px rgba(5,5,5,0.85)',
             }}
           >
             {data.title}

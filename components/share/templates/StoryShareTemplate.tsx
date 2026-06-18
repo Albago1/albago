@@ -1,6 +1,8 @@
 import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
+  FlamingoHalo,
+  FlamingoMotif,
   GridBackdrop,
   categoryLabel,
   ctaLine,
@@ -31,6 +33,25 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
       }}
     >
       <GridBackdrop />
+
+      {/* Flamingo motif — centered behind the foreground content. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: '38%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <FlamingoHalo size={900} />
+        <div style={{ position: 'relative' }}>
+          <FlamingoMotif width={620} opacity={0.5} />
+        </div>
+      </div>
 
       <div className="relative z-10 flex h-full flex-col px-20 py-24">
         <div className="flex items-center justify-between">
@@ -64,6 +85,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
               fontSize: 168,
               letterSpacing: '-0.04em',
               color: '#ffffff',
+              textShadow: '0 6px 40px rgba(5,5,5,0.85)',
             }}
           >
             {data.city}
@@ -82,6 +104,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
               fontSize: 64,
               letterSpacing: '-0.02em',
               color: 'rgba(255,255,255,0.92)',
+              textShadow: '0 4px 30px rgba(5,5,5,0.85)',
             }}
           >
             {data.title}
@@ -92,7 +115,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
           <div
             className="grid gap-6 rounded-3xl p-10"
             style={{
-              background: 'rgba(255,255,255,0.04)',
+              background: 'rgba(5,5,5,0.72)',
               border: '1px solid rgba(255,255,255,0.10)',
               backdropFilter: 'blur(20px)',
             }}

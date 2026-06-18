@@ -1,6 +1,8 @@
 import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
+  FlamingoHalo,
+  FlamingoMotif,
   GridBackdrop,
   categoryLabel,
   ctaLine,
@@ -32,6 +34,25 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
       }}
     >
       <GridBackdrop />
+
+      {/* Flamingo motif — centered behind the foreground content. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <FlamingoHalo size={500} />
+        <div style={{ position: 'relative' }}>
+          <FlamingoMotif width={300} opacity={0.38} />
+        </div>
+      </div>
 
       <div className="relative z-10 grid h-full grid-cols-[1fr_auto] items-stretch gap-12 px-16 py-12">
         <div className="flex flex-col">
@@ -65,6 +86,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
               fontSize: 72,
               letterSpacing: '-0.03em',
               color: '#ffffff',
+              textShadow: '0 3px 22px rgba(5,5,5,0.85)',
               display: '-webkit-box',
               WebkitLineClamp: 3,
               WebkitBoxOrient: 'vertical',
