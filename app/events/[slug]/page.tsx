@@ -25,6 +25,8 @@ import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
 import EventGallery from '@/components/EventGallery'
+import ShareEventButton from '@/components/share/ShareEventButton'
+import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
@@ -327,6 +329,21 @@ export default async function EventDetailPage(
     ? await fetchOrganizerTrustStats(registeredOrganizer.id)
     : null
 
+  const shareData: ShareEventData = {
+    title: event.title,
+    slug: event.slug,
+    category: event.category,
+    city: cityLabel,
+    country: countryLabel ?? null,
+    address: event.address ?? venue?.address ?? null,
+    date: event.date,
+    time: event.time,
+    endTime: event.end_time,
+    organizerName: event.organizer_name,
+    isCivic,
+    eventUrl: `https://albago.org/events/${event.slug}`,
+  }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   let initialSaved = false
@@ -457,6 +474,8 @@ export default async function EventDetailPage(
               isAuthenticated={!!user}
               size="md"
             />
+
+            <ShareEventButton data={shareData} />
 
             {directionsHref && (
               <a

@@ -1,0 +1,132 @@
+import type { ShareEventData } from '@/lib/share/types'
+import {
+  AlbaGoWordmark,
+  GridBackdrop,
+  categoryLabel,
+  ctaLine,
+  formatDateForCard,
+  formatTimeRangeForCard,
+} from './shared'
+
+type Props = {
+  data: ShareEventData
+  qrDataUrl: string | null
+  innerRef?: React.RefObject<HTMLDivElement | null>
+}
+
+export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props) {
+  const date = formatDateForCard(data.date)
+  const time = formatTimeRangeForCard(data.time, data.endTime)
+  const isCivic = data.isCivic
+
+  return (
+    <div
+      ref={innerRef}
+      className="relative overflow-hidden text-white"
+      style={{
+        width: 1080,
+        height: 1080,
+        background: '#050505',
+        fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+      }}
+    >
+      <GridBackdrop />
+
+      <div className="relative z-10 flex h-full flex-col px-20 py-20">
+        <div className="flex items-center justify-between">
+          <AlbaGoWordmark size="md" />
+          <div
+            className="rounded-full px-4 py-1.5 text-xs font-bold tracking-[0.18em]"
+            style={{
+              background: isCivic ? 'rgba(238,28,37,0.18)' : 'rgba(255,255,255,0.08)',
+              color: isCivic ? '#ff8a8a' : 'rgba(255,255,255,0.85)',
+              border: isCivic
+                ? '1px solid rgba(238,28,37,0.45)'
+                : '1px solid rgba(255,255,255,0.15)',
+            }}
+          >
+            {categoryLabel(data)}
+          </div>
+        </div>
+
+        <div className="mt-12 flex flex-1 flex-col justify-center">
+          <div
+            className="text-[16px] font-bold uppercase tracking-[0.32em]"
+            style={{ color: '#ff8a8a' }}
+          >
+            {date.month} {date.day} · {date.weekday}
+          </div>
+
+          <h1
+            className="mt-6 leading-[0.92]"
+            style={{
+              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontSize: 120,
+              letterSpacing: '-0.04em',
+              color: '#ffffff',
+            }}
+          >
+            {data.city}
+          </h1>
+
+          <div
+            className="mt-6 max-w-[820px] leading-[1.15]"
+            style={{
+              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontSize: 44,
+              letterSpacing: '-0.02em',
+              color: 'rgba(255,255,255,0.92)',
+            }}
+          >
+            {data.title}
+          </div>
+
+          {(time || data.address) && (
+            <div className="mt-10 flex flex-col gap-3">
+              {time && (
+                <div className="text-[24px] font-semibold text-white/85 tabular-nums">
+                  🕒 {time}
+                </div>
+              )}
+              {data.address && (
+                <div className="max-w-[840px] text-[22px] leading-[1.35] text-white/65">
+                  📍 {data.address}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-end justify-between gap-10">
+          <div className="flex flex-col gap-2">
+            <div
+              className="text-[14px] font-bold uppercase tracking-[0.28em]"
+              style={{ color: '#ff8a8a' }}
+            >
+              {ctaLine(data)}
+            </div>
+            <div className="text-[30px] font-semibold tracking-tight text-white">
+              albago.org
+            </div>
+          </div>
+
+          {qrDataUrl && (
+            <div
+              className="shrink-0 rounded-2xl p-3.5"
+              style={{ background: '#ffffff' }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt="QR code"
+                width={150}
+                height={150}
+                style={{ display: 'block' }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
