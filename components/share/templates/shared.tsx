@@ -23,6 +23,21 @@ export function locationLine(data: ShareEventData): string {
   return `${data.city}${data.country ? `, ${data.country}` : ''}`
 }
 
+/* Short address — keep the first segment of the comma-separated address
+   (usually the street + number or the named landmark). The city + country
+   are already shown big in their own slot, so a full "Street, 10969 Berlin,
+   Germany" line is redundant and wraps badly on the cards.
+
+   "Trafalgar Square, London, UK"            → "Trafalgar Square"
+   "Prinzenstraße 85, 10969 Berlin, Germany" → "Prinzenstraße 85"
+   "Brandenburger Tor"                       → "Brandenburger Tor" */
+export function shortAddress(address: string | null): string | null {
+  if (!address) return null
+  const first = address.split(',')[0]?.trim()
+  if (!first || first.length < 3) return address.trim()
+  return first
+}
+
 export function ctaLine(data: ShareEventData): string {
   return data.isCivic ? 'Details on AlbaGo' : 'Discover more on AlbaGo'
 }

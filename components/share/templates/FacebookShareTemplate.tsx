@@ -9,6 +9,7 @@ import {
   formatDateForCard,
   formatTimeRangeForCard,
   locationLine,
+  shortAddress,
 } from './shared'
 
 type Props = {
@@ -21,6 +22,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
   const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
+  const where = shortAddress(data.address)
 
   return (
     <div
@@ -97,12 +99,17 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
           </h1>
 
           <div className="mt-auto flex flex-col gap-2">
-            <div className="text-[18px] font-semibold text-white/80 tabular-nums">
-              📍 {locationLine(data)}
-              {time && <span className="ml-4 text-white/60">🕒 {time}</span>}
+            {where && (
+              <div className="text-[20px] font-semibold text-white">
+                📍 {where}
+              </div>
+            )}
+            <div className="text-[16px] font-medium text-white/65 tabular-nums">
+              {locationLine(data)}
+              {time && <span className="ml-4 text-white/55">· {time}</span>}
             </div>
             <div
-              className="text-[13px] font-bold uppercase tracking-[0.28em]"
+              className="mt-1 text-[13px] font-bold uppercase tracking-[0.28em]"
               style={{ color: '#ff8a8a' }}
             >
               {ctaLine(data)} · albago.org

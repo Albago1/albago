@@ -8,6 +8,7 @@ import {
   ctaLine,
   formatDateForCard,
   formatTimeRangeForCard,
+  shortAddress,
 } from './shared'
 
 type Props = {
@@ -20,6 +21,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
   const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
+  const where = shortAddress(data.address)
 
   return (
     <div
@@ -104,16 +106,16 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
             {data.title}
           </div>
 
-          {(time || data.address) && (
+          {(time || where) && (
             <div className="mt-10 flex flex-col gap-3">
               {time && (
-                <div className="text-[24px] font-semibold text-white/85 tabular-nums">
+                <div className="text-[26px] font-semibold text-white/85 tabular-nums">
                   🕒 {time}
                 </div>
               )}
-              {data.address && (
-                <div className="max-w-[840px] text-[22px] leading-[1.35] text-white/65">
-                  📍 {data.address}
+              {where && (
+                <div className="max-w-[840px] text-[26px] font-semibold leading-[1.3] text-white">
+                  📍 {where}
                 </div>
               )}
             </div>

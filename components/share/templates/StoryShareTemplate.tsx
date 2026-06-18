@@ -8,6 +8,7 @@ import {
   ctaLine,
   formatDateForCard,
   formatTimeRangeForCard,
+  shortAddress,
 } from './shared'
 
 type Props = {
@@ -20,6 +21,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
   const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
+  const where = shortAddress(data.address)
 
   return (
     <div
@@ -144,7 +146,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
               </div>
             )}
 
-            {data.address && (
+            {where && (
               <div className="flex items-baseline gap-6">
                 <div
                   className="w-[200px] shrink-0 text-[16px] font-bold uppercase tracking-[0.28em]"
@@ -152,7 +154,9 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
                 >
                   Where
                 </div>
-                <div className="text-[28px] leading-[1.3] text-white/85">{data.address}</div>
+                <div className="text-[32px] font-semibold leading-[1.2] text-white">
+                  {where}
+                </div>
               </div>
             )}
           </div>
