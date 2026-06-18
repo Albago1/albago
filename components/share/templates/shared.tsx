@@ -23,19 +23,21 @@ export function locationLine(data: ShareEventData): string {
   return `${data.city}${data.country ? `, ${data.country}` : ''}`
 }
 
-/* Short address — keep the first segment of the comma-separated address
-   (usually the street + number or the named landmark). The city + country
-   are already shown big in their own slot, so a full "Street, 10969 Berlin,
-   Germany" line is redundant and wraps badly on the cards.
+/* Short address — keep everything except the country segment so the reader
+   still gets street + postal + city (the part they actually need on the
+   ground), without the country which is already shown big elsewhere.
 
-   "Trafalgar Square, London, UK"            → "Trafalgar Square"
-   "Prinzenstraße 85, 10969 Berlin, Germany" → "Prinzenstraße 85"
-   "Brandenburger Tor"                       → "Brandenburger Tor" */
+   "Trafalgar Square, London, UK"            → "Trafalgar Square, London"
+   "Prinzenstraße 85, 10969 Berlin, Germany" → "Prinzenstraße 85, 10969 Berlin"
+   "Place de la Bastille, 75011 Paris, FR"   → "Place de la Bastille, 75011 Paris"
+   "Brandenburger Tor"                       → "Brandenburger Tor"
+   "Berlin, Germany"                         → "Berlin, Germany" */
 export function shortAddress(address: string | null): string | null {
   if (!address) return null
-  const first = address.split(',')[0]?.trim()
-  if (!first || first.length < 3) return address.trim()
-  return first
+  const segments = address.split(',').map((s) => s.trim()).filter(Boolean)
+  if (segments.length === 0) return null
+  if (segments.length <= 2) return segments.join(', ')
+  return segments.slice(0, -1).join(', ')
 }
 
 export function ctaLine(data: ShareEventData): string {

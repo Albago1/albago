@@ -98,16 +98,26 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
             {data.title}
           </h1>
 
-          <div className="mt-auto flex flex-col gap-2">
-            {where && (
-              <div className="text-[20px] font-semibold text-white">
-                📍 {where}
+          <div className="mt-auto flex flex-col gap-1.5">
+            {where ? (
+              <>
+                <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-flame-300/80">
+                  Meeting point
+                </div>
+                <div className="text-[22px] font-semibold leading-[1.2] text-white">
+                  📍 {where}
+                </div>
+                <div className="text-[15px] font-medium text-white/60 tabular-nums">
+                  {locationLine(data)}
+                  {time && <span className="ml-3 text-white/50">· {time}</span>}
+                </div>
+              </>
+            ) : (
+              <div className="text-[18px] font-semibold text-white tabular-nums">
+                📍 {locationLine(data)}
+                {time && <span className="ml-4 text-white/60">· {time}</span>}
               </div>
             )}
-            <div className="text-[16px] font-medium text-white/65 tabular-nums">
-              {locationLine(data)}
-              {time && <span className="ml-4 text-white/55">· {time}</span>}
-            </div>
             <div
               className="mt-1 text-[13px] font-bold uppercase tracking-[0.28em]"
               style={{ color: '#ff8a8a' }}

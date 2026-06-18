@@ -152,10 +152,16 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
                   className="w-[200px] shrink-0 text-[16px] font-bold uppercase tracking-[0.28em]"
                   style={{ color: 'rgba(255,255,255,0.45)' }}
                 >
-                  Where
+                  Meeting point
                 </div>
-                <div className="text-[32px] font-semibold leading-[1.2] text-white">
-                  {where}
+                <div className="flex flex-col gap-2">
+                  <div className="text-[34px] font-semibold leading-[1.15] text-white">
+                    {where}
+                  </div>
+                  <div className="text-[22px] text-white/60">
+                    {data.city}
+                    {data.country ? ` · ${data.country}` : ''}
+                  </div>
                 </div>
               </div>
             )}

@@ -106,7 +106,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
             {data.title}
           </div>
 
-          {(time || where) && (
+          {(time || where || data.country) && (
             <div className="mt-10 flex flex-col gap-3">
               {time && (
                 <div className="text-[26px] font-semibold text-white/85 tabular-nums">
@@ -114,8 +114,23 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
                 </div>
               )}
               {where && (
-                <div className="max-w-[840px] text-[26px] font-semibold leading-[1.3] text-white">
-                  📍 {where}
+                <div className="flex max-w-[860px] flex-col gap-1.5">
+                  <div className="text-[12px] font-bold uppercase tracking-[0.28em] text-flame-300/80">
+                    Meeting point
+                  </div>
+                  <div className="text-[28px] font-semibold leading-[1.25] text-white">
+                    📍 {where}
+                  </div>
+                  {data.country && (
+                    <div className="text-[20px] text-white/55">
+                      {data.city} · {data.country}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!where && data.country && (
+                <div className="text-[22px] text-white/60">
+                  📍 {data.city} · {data.country}
                 </div>
               )}
             </div>
