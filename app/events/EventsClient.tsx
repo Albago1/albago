@@ -19,6 +19,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import {
+  formatEventDateLabel,
   isThisWeekend,
   isToday,
   getTodayDateString,
@@ -75,23 +76,6 @@ type PublicEvent = {
 }
 
 const timeFilters: TimeFilter[] = ['all', 'tonight', 'weekend']
-
-function formatEventDateLabel(dateString: string) {
-  const eventDate = new Date(`${dateString}T12:00:00`)
-  const today = new Date(`${getTodayDateString()}T12:00:00`)
-
-  const diffInMs = eventDate.getTime() - today.getTime()
-  const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24))
-
-  if (diffInDays === 0) return 'Tonight'
-  if (diffInDays === 1) return 'Tomorrow'
-
-  return eventDate.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 function getTimeFilterLabel(filter: TimeFilter) {
   if (filter === 'all') return 'All'

@@ -7,6 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
 import type { MapAdapter, MapMarkerInput } from '@/components/map/map.types'
+import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 
 export type ProtestMarker = {
   id: string
@@ -226,11 +227,11 @@ export default function ProtestMap({
               <div className="mt-3 space-y-1.5 text-[12px] text-white/65">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5 text-white/45" />
-                  <span>{selected.date}</span>
+                  <span>{formatEventDateLabel(selected.date)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock3 className="h-3.5 w-3.5 text-white/45" />
-                  <span>{selected.time}</span>
+                  <span>{formatEventTimeLabel(selected.time)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="h-3.5 w-3.5 text-white/45" />

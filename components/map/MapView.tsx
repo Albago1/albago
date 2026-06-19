@@ -12,7 +12,7 @@ import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
 import type { MapAdapter, MapMarkerInput } from '@/components/map/map.types'
-import { isToday, isThisWeekend } from '@/lib/dateFilters'
+import { formatEventDateLabel, formatEventTimeLabel, isToday, isThisWeekend } from '@/lib/dateFilters'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
@@ -783,12 +783,12 @@ export default function MapView() {
               <div className="mt-3 space-y-1.5 text-[12px] text-white/65">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5 text-white/45" />
-                  <span>{selectedCivicEvent.date}</span>
+                  <span>{formatEventDateLabel(selectedCivicEvent.date)}</span>
                 </div>
                 {selectedCivicEvent.time && (
                   <div className="flex items-center gap-2">
                     <Clock3 className="h-3.5 w-3.5 text-white/45" />
-                    <span>{selectedCivicEvent.time}</span>
+                    <span>{formatEventTimeLabel(selectedCivicEvent.time)}</span>
                   </div>
                 )}
                 {(selectedCivicCity || selectedCivicEvent.country) && (
