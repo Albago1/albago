@@ -81,18 +81,21 @@ export function formatProtestDate(iso: string): string {
 export function timeUntilProtest(iso: string, time = '12:00'): string {
   // Postgres `time` columns serialize as "HH:MM:SS"; trim to "HH:MM" first
   // so the concatenated string is a valid ISO timestamp instead of
-  // "2026-06-23T14:00:00:00" (which parses as NaN and renders "NaNm").
+  // "2026-06-23T14:00:00:00" (which parses as NaN).
   const normalized = time.length >= 5 ? time.slice(0, 5) : time
   const target = new Date(`${iso}T${normalized}:00`).getTime()
   const now = Date.now()
   const diff = target - now
   if (diff <= 0) return 'Happening now'
-  const days = Math.floor(diff / 86_400_000)
-  const hours = Math.floor((diff % 86_400_000) / 3_600_000)
-  const minutes = Math.floor((diff % 3_600_000) / 60_000)
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
+  const totalSeconds = Math.floor(diff / 1000)
+  const days = Math.floor(totalSeconds / 86_400)
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (days > 0) return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`
+  return `${pad(minutes)}:${pad(seconds)}`
 }
 
 export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
@@ -110,7 +113,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
     const id = setInterval(() => {
       const d = recurring ? nextOccurrence(asRecurring(event)) ?? event.date : event.date
       setCountdown(timeUntilProtest(d, event.time))
-    }, 60_000)
+    }, 1000)
     return () => clearInterval(id)
   }, [event, recurring])
 
@@ -120,6 +123,17 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
       className="group relative overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-b from-white/[0.04] to-transparent p-6 sm:p-7 transition-all duration-500 hover:border-flame-500/40 hover:-translate-y-0.5"
     >
       <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-flame-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+      {/* Stretched link: clicking anywhere on the card navigates to the
+          event detail page. Sits at z-[1] above the decorative blob but
+          below every content row (z-10) so the inner action buttons
+          (Contact / Telegram / WhatsApp) stay independently clickable. */}
+      <Link
+        href={`/events/${event.slug}`}
+        aria-label={`View ${event.title}`}
+        className="absolute inset-0 z-[1] rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flame-500/60"
+      >
+        <span className="sr-only">View {event.title}</span>
+      </Link>
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="font-display text-2xl text-white truncate">{event.title}</h3>
@@ -129,7 +143,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
           </p>
         </div>
         <div className="text-right shrink-0">
-          <div className="font-mono text-xs text-flame-400">{countdown}</div>
+          <div className="font-mono text-xs text-flame-400 tabular-nums tracking-tight">{countdown}</div>
           <div className="text-[10px] uppercase tracking-wider text-white/35 mt-0.5">until start</div>
         </div>
       </div>
@@ -161,10 +175,10 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
         )}
       </div>
 
-      <div className="relative mt-6 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-5">
+      <div className="relative z-10 mt-6 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-5">
         <Link
           href={`/events/${event.slug}`}
-          className="inline-flex items-center gap-1.5 rounded-full bg-flame-500/15 px-3 py-1.5 text-xs text-flame-200 ring-1 ring-flame-500/30 hover:bg-flame-500/25 transition"
+          className="inline-flex items-center gap-1.5 rounded-full bg-flame-500/15 px-3 py-1.5 text-xs text-flame-200 ring-1 ring-flame-500/30 transition hover:bg-flame-500/25"
         >
           View event
           <ArrowRight className="h-3.5 w-3.5" />
@@ -172,7 +186,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
         {event.organizerContact && (
           <a
             href={`mailto:${event.organizerContact}`}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
+            className="relative inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
           >
             <Megaphone className="h-3.5 w-3.5" />
             Contact
@@ -183,7 +197,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
             href={event.telegramLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
+            className="relative inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
           >
             <Send className="h-3.5 w-3.5" />
             Telegram
@@ -194,7 +208,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
             href={event.whatsappLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
+            className="relative inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 ring-1 ring-white/10 hover:bg-white/[0.08] transition"
           >
             <MessageCircle className="h-3.5 w-3.5" />
             WhatsApp
