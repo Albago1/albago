@@ -28,22 +28,25 @@ export function isThisWeekend(dateString: string) {
   return getWeekendDateStrings().includes(dateString)
 }
 
-// Compact, human label for "YYYY-MM-DD" dates. Returns "Tonight" / "Tomorrow"
-// when close enough, otherwise "Mon, 23 Jun" — matches the style EventsClient
-// already uses. T12:00:00 anchor avoids the UTC-shift off-by-one near midnight.
+// Compact, human label for "YYYY-MM-DD" dates. Returns "Tonight · Mon, 23 Jun"
+// / "Tomorrow · Tue, 24 Jun" when close enough, otherwise "Mon, 23 Jun".
+// Keeping the calendar date next to Tonight/Tomorrow per user feedback —
+// readers need to know which actual day "Tonight" maps to. T12:00:00 anchor
+// avoids the UTC-shift off-by-one near midnight.
 export function formatEventDateLabel(dateString: string): string {
   const eventDate = new Date(`${dateString}T12:00:00`)
   const today = new Date(`${getTodayDateString()}T12:00:00`)
   const diffInDays = Math.round(
     (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   )
-  if (diffInDays === 0) return 'Tonight'
-  if (diffInDays === 1) return 'Tomorrow'
-  return eventDate.toLocaleDateString('en-GB', {
+  const calendar = eventDate.toLocaleDateString('en-GB', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   })
+  if (diffInDays === 0) return `Tonight · ${calendar}`
+  if (diffInDays === 1) return `Tomorrow · ${calendar}`
+  return calendar
 }
 
 // Strip trailing seconds from a Postgres "HH:MM:SS" so 18:00:00 reads 18:00.
