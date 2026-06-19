@@ -1,4 +1,5 @@
 import type { ShareEventData } from './types'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 
 function formatDateLong(iso: string): string {
   const d = new Date(`${iso}T12:00:00`)
@@ -12,7 +13,9 @@ function formatDateLong(iso: string): string {
 
 function formatTime(time: string | null, endTime: string | null): string {
   if (!time) return ''
-  return endTime ? `${time} – ${endTime}` : time
+  const start = formatEventTimeLabel(time)
+  const end = formatEventTimeLabel(endTime)
+  return end ? `${start} – ${end}` : start
 }
 
 function cityHashtag(city: string): string {

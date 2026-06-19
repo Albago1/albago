@@ -36,7 +36,11 @@ function titleizeSlug(slug: string): string {
 }
 
 function formatCountdown(date: string, time: string | null): string {
-  const target = new Date(`${date}T${time ?? '18:00'}:00`).getTime()
+  // Trim trailing seconds on "HH:MM:SS" so the concatenation stays a valid
+  // ISO timestamp — otherwise `${date}T14:00:00:00` parses as NaN.
+  const raw = time ?? '18:00'
+  const normalized = raw.length >= 5 ? raw.slice(0, 5) : raw
+  const target = new Date(`${date}T${normalized}:00`).getTime()
   const now = Date.now()
   const diff = target - now
 

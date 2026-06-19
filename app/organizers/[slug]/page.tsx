@@ -22,6 +22,7 @@ import {
   recurrenceLabel,
 } from '@/lib/recurrence'
 import { getLocationBySlug } from '@/lib/locations'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 
 type Params = { slug: string }
 
@@ -315,7 +316,7 @@ export default async function OrganizerProfilePage(
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 className="h-3.5 w-3.5" />
-                      {event.time}
+                      {formatEventTimeLabel(event.time)}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <MapPin className="h-3.5 w-3.5" />

@@ -17,7 +17,7 @@ import MapPickerButton from '@/components/MapPickerButton'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref } from '@/lib/eventLinks'
-import { getTodayDateString } from '@/lib/dateFilters'
+import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 
 type Params = { slug: string }
@@ -341,7 +341,7 @@ export default async function VenueDetailPage(
                       </span>
                       <span className="inline-flex items-center gap-2">
                         <Clock3 className="h-4 w-4" />
-                        {event.time}
+                        {formatEventTimeLabel(event.time)}
                       </span>
                     </div>
                   </Link>

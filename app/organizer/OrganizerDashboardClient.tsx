@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import { isEventActive } from '@/lib/eventActive'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 import type { Organizer } from '@/types/organizer'
 import type { OrganizerEvent, EventStatus } from '@/types/event'
 
@@ -238,7 +239,7 @@ export default function OrganizerDashboardClient({
                               month: 'short',
                               year: 'numeric',
                             })}
-                            {event.time ? ` Â· ${event.time}` : ''}
+                            {event.time ? ` Â· ${formatEventTimeLabel(event.time)}` : ''}
                             {' Â· '}
                             <span className="capitalize">{event.category}</span>
                           </p>

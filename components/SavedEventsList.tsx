@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Calendar, Clock3, Heart, MapPin } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 
 export type SavedEventCard = {
   id: string
@@ -116,7 +117,7 @@ export default function SavedEventsList({
             </span>
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
-              {event.time}
+              {formatEventTimeLabel(event.time)}
             </span>
             <span className="inline-flex items-center gap-2 text-white/45">
               <MapPin className="h-3.5 w-3.5" />

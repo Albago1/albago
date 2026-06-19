@@ -20,6 +20,7 @@ import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import {
   formatEventDateLabel,
+  formatEventTimeLabel,
   isThisWeekend,
   isToday,
   getTodayDateString,
@@ -897,7 +898,7 @@ function EventsContent() {
 
                   <div className="flex items-center gap-2">
                     <Clock3 className="h-4 w-4" />
-                    <span>{event.time}</span>
+                    <span>{formatEventTimeLabel(event.time)}</span>
                   </div>
 
                   {isRecurring(event) && (

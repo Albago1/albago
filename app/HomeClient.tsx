@@ -26,6 +26,7 @@ import { getLocationBySlug, locations } from '@/lib/locations'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
@@ -1044,7 +1045,7 @@ export default function HomeClient() {
 
                     <div className="flex items-center gap-2">
                       <Clock3 className="h-4 w-4" />
-                      <span>{event.time}</span>
+                      <span>{formatEventTimeLabel(event.time)}</span>
                     </div>
 
                     {place && (

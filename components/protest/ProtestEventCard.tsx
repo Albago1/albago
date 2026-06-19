@@ -18,6 +18,7 @@ import {
   nextOccurrence,
   recurrenceLabel,
 } from '@/lib/recurrence'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 
 export type ProtestEvent = {
   id: string
@@ -78,7 +79,11 @@ export function formatProtestDate(iso: string): string {
 }
 
 export function timeUntilProtest(iso: string, time = '12:00'): string {
-  const target = new Date(`${iso}T${time}:00`).getTime()
+  // Postgres `time` columns serialize as "HH:MM:SS"; trim to "HH:MM" first
+  // so the concatenated string is a valid ISO timestamp instead of
+  // "2026-06-23T14:00:00:00" (which parses as NaN and renders "NaNm").
+  const normalized = time.length >= 5 ? time.slice(0, 5) : time
+  const target = new Date(`${iso}T${normalized}:00`).getTime()
   const now = Date.now()
   const diff = target - now
   if (diff <= 0) return 'Happening now'
@@ -137,7 +142,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
 
       <div className="relative mt-5 grid grid-cols-2 gap-2 text-xs">
         <Meta icon={<Clock3 className="h-3.5 w-3.5" />}>
-          {formatProtestDate(baseDate)} · {event.time}
+          {formatProtestDate(baseDate)} · {formatEventTimeLabel(event.time)}
         </Meta>
         {recurring && (
           <Meta icon={<Repeat className="h-3.5 w-3.5" />}>

@@ -235,9 +235,10 @@ export function nextOccurrenceLabel(
 ): string | null {
   const next = nextOccurrence(ev, from)
   if (!next) return null
-  if (next === from) return ev.time ? `Today · ${ev.time}` : 'Today'
+  const time = ev.time && ev.time.length >= 5 ? ev.time.slice(0, 5) : ev.time
+  if (next === from) return time ? `Today · ${time}` : 'Today'
   if (next === addDays(from, 1)) {
-    return ev.time ? `Tomorrow · ${ev.time}` : 'Tomorrow'
+    return time ? `Tomorrow · ${time}` : 'Tomorrow'
   }
-  return ev.time ? `${isoToShort(next)} · ${ev.time}` : isoToShort(next)
+  return time ? `${isoToShort(next)} · ${time}` : isoToShort(next)
 }

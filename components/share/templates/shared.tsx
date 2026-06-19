@@ -1,4 +1,5 @@
 import type { ShareEventData } from '@/lib/share/types'
+import { formatEventTimeLabel } from '@/lib/dateFilters'
 
 export function formatDateForCard(iso: string): { weekday: string; day: string; month: string } {
   const d = new Date(`${iso}T12:00:00`)
@@ -10,7 +11,9 @@ export function formatDateForCard(iso: string): { weekday: string; day: string; 
 
 export function formatTimeRangeForCard(time: string | null, endTime: string | null): string {
   if (!time) return ''
-  return endTime ? `${time} – ${endTime}` : time
+  const start = formatEventTimeLabel(time)
+  const end = formatEventTimeLabel(endTime)
+  return end ? `${start} – ${end}` : start
 }
 
 export function categoryLabel(data: ShareEventData): string {

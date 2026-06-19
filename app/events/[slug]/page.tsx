@@ -156,7 +156,9 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
 
 function formatTimeRange(time: string | null, endTime: string | null, tz: string | null): string {
   if (!time) return ''
-  const range = endTime ? `${time} → ${endTime}` : time
+  const start = time.length >= 5 ? time.slice(0, 5) : time
+  const end = endTime && endTime.length >= 5 ? endTime.slice(0, 5) : endTime
+  const range = end ? `${start} → ${end}` : start
   if (tz && tz !== 'Europe/Tirane') {
     const short = tz.split('/').pop() ?? tz
     return `${range} (${short})`
