@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { ArrowUpRight, Calendar, Clock3, Flame, MapPin, Users, X } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import FilterBar from '@/components/layout/FilterBar'
@@ -32,6 +34,7 @@ type CivicMapEvent = {
   date: string
   time: string | null
   country: string | null
+  locationSlug: string | null
   lat: number
   lng: number
   expectedAttendees: number | null
@@ -39,6 +42,12 @@ type CivicMapEvent = {
   recurrenceUntil: string | null
   recurrenceDaysOfWeek: number[] | null
   recurrenceExceptions: string[] | null
+}
+
+function formatAttendees(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
+  return String(n)
 }
 
 function fmtLocalIso(d: Date): string {
@@ -147,6 +156,10 @@ export default function MapView() {
   const [civicEvents, setCivicEvents] = useState<CivicMapEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(initialPlaceId)
+  // Event preview popup for civic / direct-pin events (matches /protests
+  // popup pattern — see ProtestMap.tsx). Mutually exclusive with the
+  // PlacePanel: opening one closes the other.
+  const [selectedCivicEvent, setSelectedCivicEvent] = useState<CivicMapEvent | null>(null)
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(initialCategory)
   const [searchQuery, setSearchQuery] = useState('')
@@ -183,7 +196,7 @@ export default function MapView() {
       const civicQuery = supabase
         .from('events')
         .select(
-          'id, slug, title, category, is_civic, date, time, end_time, country, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          'id, slug, title, category, is_civic, date, time, end_time, country, location_slug, lat, lng, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
         )
         .eq('status', 'published')
         .or(activeFilter)
@@ -264,6 +277,7 @@ export default function MapView() {
             time: string | null
             end_time: string | null
             country: string | null
+            location_slug: string | null
             lat: number
             lng: number
             expected_attendees: number | null
@@ -282,6 +296,7 @@ export default function MapView() {
               date: row.date,
               time: row.time,
               country: row.country,
+              locationSlug: row.location_slug,
               lat: row.lat,
               lng: row.lng,
               expectedAttendees: row.expected_attendees,
@@ -455,7 +470,10 @@ export default function MapView() {
       container: mapRef.current,
       center: isWorldwide ? worldCenter : location.center,
       zoom: isWorldwide ? worldZoom : location.zoom,
-      onMapClick: () => setSelectedPlaceId(null),
+      onMapClick: () => {
+        setSelectedPlaceId(null)
+        setSelectedCivicEvent(null)
+      },
       getMarkerClassName,
     })
 
@@ -481,7 +499,10 @@ export default function MapView() {
         eventCount: placeEvents.length,
         hasHighlight: placeEvents.some((event) => event.highlight),
         isSelected: place.id === selectedPlaceId,
-        onClick: () => setSelectedPlaceId(place.id),
+        onClick: () => {
+          setSelectedPlaceId(place.id)
+          setSelectedCivicEvent(null)
+        },
       }
     })
 
@@ -493,12 +514,17 @@ export default function MapView() {
       category: 'civic',
       eventCount: 1,
       hasHighlight: true,
-      isSelected: false,
-      onClick: () => router.push(`/events/${event.slug}`),
+      isSelected: selectedCivicEvent?.id === event.id,
+      onClick: () => {
+        setSelectedCivicEvent(event)
+        setSelectedPlaceId(null)
+        const adapter = mapAdapterRef.current
+        if (adapter) adapter.flyToLocation([event.lng, event.lat], 7)
+      },
     }))
 
     adapter.setMarkers([...placeMarkers, ...civicMarkers])
-    }, [visiblePlaces, selectedPlaceId, filteredEvents, visibleCivicEvents, router])
+    }, [visiblePlaces, selectedPlaceId, selectedCivicEvent, filteredEvents, visibleCivicEvents])
 
   useEffect(() => {
     if (!selectedPlaceId) return
@@ -509,6 +535,14 @@ export default function MapView() {
       setSelectedPlaceId(null)
     }
   }, [selectedPlaceId, visiblePlaces])
+
+  // Drop the civic popup if the filter strips its pin away (mirrors the
+  // protest map cleanup so the card never dangles over an empty viewport).
+  useEffect(() => {
+    if (!selectedCivicEvent) return
+    const stillVisible = visibleCivicEvents.some((e) => e.id === selectedCivicEvent.id)
+    if (!stillVisible) setSelectedCivicEvent(null)
+  }, [selectedCivicEvent, visibleCivicEvents])
 
   useEffect(() => {
     const adapter = mapAdapterRef.current
@@ -524,6 +558,12 @@ export default function MapView() {
   const selectedPlaceEvents = selectedPlace
     ? filteredEvents.filter((event) => event.placeId === selectedPlace.id)
     : []
+
+  // Resolve a human-readable city label for the popup. Falls back to nothing
+  // if the slug isn't in the dynamic location list — country alone still reads.
+  const selectedCivicCity = selectedCivicEvent
+    ? locationOptions.find((o) => o.slug === selectedCivicEvent.locationSlug)?.label ?? null
+    : null
 
   const handleResetFilters = () => {
     setActiveTimeFilter('all')
@@ -704,6 +744,73 @@ export default function MapView() {
             >
               Reset filters
             </button>
+          </div>
+        </div>
+      )}
+
+      {selectedCivicEvent && (
+        <div className="pointer-events-none absolute inset-x-3 bottom-5 z-30 flex justify-center md:bottom-6">
+          <div className="pointer-events-auto relative w-full max-w-sm overflow-hidden rounded-2xl border border-flame-500/40 bg-ink-950/95 shadow-[0_24px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setSelectedCivicEvent(null)}
+              className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-center gap-2">
+                {selectedCivicEvent.isCivic && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-flame-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-flame-300 ring-1 ring-flame-500/30">
+                    <Flame className="h-3 w-3" />
+                    Civic
+                  </span>
+                )}
+                {selectedCivicEvent.expectedAttendees != null && selectedCivicEvent.expectedAttendees > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/75">
+                    <Users className="h-3 w-3" />
+                    {formatAttendees(selectedCivicEvent.expectedAttendees)} expected
+                  </span>
+                )}
+              </div>
+
+              <h3 className="mt-3 pr-7 text-sm font-semibold leading-snug text-white">
+                {selectedCivicEvent.title}
+              </h3>
+
+              <div className="mt-3 space-y-1.5 text-[12px] text-white/65">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-white/45" />
+                  <span>{selectedCivicEvent.date}</span>
+                </div>
+                {selectedCivicEvent.time && (
+                  <div className="flex items-center gap-2">
+                    <Clock3 className="h-3.5 w-3.5 text-white/45" />
+                    <span>{selectedCivicEvent.time}</span>
+                  </div>
+                )}
+                {(selectedCivicCity || selectedCivicEvent.country) && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5 text-white/45" />
+                    <span className="truncate">
+                      {selectedCivicCity ?? ''}
+                      {selectedCivicCity && selectedCivicEvent.country ? ', ' : ''}
+                      {selectedCivicEvent.country ?? ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <Link
+                href={`/events/${selectedCivicEvent.slug}`}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-white shadow-glow-flame transition hover:bg-flame-400"
+              >
+                Open event
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
       )}
