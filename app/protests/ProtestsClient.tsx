@@ -31,6 +31,7 @@ import SafetyPanel from '@/components/protest/SafetyPanel'
 import { createClient } from '@/lib/supabase/browser'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { isEventActive } from '@/lib/eventActive'
+import { getEventTimezone } from '@/lib/timezone'
 
 type RealtimeEventRow = {
   id: string
@@ -94,6 +95,7 @@ function rowToProtestEvent(row: RealtimeEventRow): ProtestEvent {
     recurrenceUntil: row.recurrence_until ?? null,
     recurrenceDaysOfWeek: row.recurrence_days_of_week ?? null,
     recurrenceExceptions: row.recurrence_exceptions ?? null,
+    timezone: getEventTimezone(row.location_slug, row.country),
   }
 }
 

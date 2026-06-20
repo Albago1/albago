@@ -5,6 +5,7 @@ import { getMovementBySlug, MOVEMENTS } from '@/lib/movements'
 import type { ProtestEvent } from '@/components/protest/ProtestEventCard'
 import MovementClient from './MovementClient'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { getEventTimezone } from '@/lib/timezone'
 
 type Params = { slug: string }
 
@@ -117,6 +118,7 @@ export default async function MovementPage(
       whatsappLink: row.whatsapp_link ?? null,
       safetyNotes: row.safety_notes ?? null,
       expectedAttendees: row.expected_attendees ?? null,
+      timezone: getEventTimezone(row.location_slug, row.country),
     }))
   }
 

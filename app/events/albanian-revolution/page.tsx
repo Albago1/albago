@@ -4,6 +4,7 @@ import AlbanianRevolutionClient, {
   type MovementEvent,
 } from './AlbanianRevolutionClient'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { getEventTimezone } from '@/lib/timezone'
 
 export const metadata: Metadata = {
   title: 'Albanian Revolution — Peaceful Worldwide Civic Movement',
@@ -127,6 +128,7 @@ export default async function AlbanianRevolutionPage() {
       whatsappLink: row.whatsapp_link ?? null,
       safetyNotes: row.safety_notes ?? null,
       expectedAttendees: row.expected_attendees ?? null,
+      timezone: getEventTimezone(row.location_slug, row.country),
     }
   })
 

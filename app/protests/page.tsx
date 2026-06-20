@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import ProtestsClient from './ProtestsClient'
 import type { ProtestEvent } from '@/components/protest/ProtestEventCard'
+import { getEventTimezone } from '@/lib/timezone'
 
 // /protests intentionally keeps a 14-day rear window so the "Past" chip and
 // search bar can surface civic gatherings that happened in the last two
@@ -146,6 +147,7 @@ export default async function ProtestsPage() {
       recurrenceUntil: row.recurrence_until ?? null,
       recurrenceDaysOfWeek: row.recurrence_days_of_week ?? null,
       recurrenceExceptions: row.recurrence_exceptions ?? null,
+      timezone: getEventTimezone(row.location_slug, row.country),
     }
   })
 

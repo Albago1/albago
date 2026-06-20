@@ -19,6 +19,7 @@ import {
   recurrenceLabel,
 } from '@/lib/recurrence'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
+import { zonedWallClockToUtcMs } from '@/lib/timezone'
 
 export type ProtestEvent = {
   id: string
@@ -49,6 +50,9 @@ export type ProtestEvent = {
   recurrenceUntil?: string | null
   recurrenceDaysOfWeek?: number[] | null
   recurrenceExceptions?: string[] | null
+  // IANA timezone (e.g. "Europe/Berlin") resolved at the page query layer so
+  // the countdown anchors to the event's local wall-clock, not the viewer's.
+  timezone: string
 }
 
 /** Shim that lets the recurrence helpers accept a ProtestEvent (camelCase). */
@@ -78,12 +82,18 @@ export function formatProtestDate(iso: string): string {
   })
 }
 
-export function timeUntilProtest(iso: string, time = '12:00'): string {
-  // Postgres `time` columns serialize as "HH:MM:SS"; trim to "HH:MM" first
-  // so the concatenated string is a valid ISO timestamp instead of
-  // "2026-06-23T14:00:00:00" (which parses as NaN).
+export function timeUntilProtest(
+  iso: string,
+  time = '12:00',
+  timeZone = 'UTC',
+): string {
+  // Postgres `time` columns serialize as "HH:MM:SS"; trim to "HH:MM" so we
+  // don't feed Intl a malformed wall-clock. The zoned conversion below makes
+  // the countdown identical for every viewer regardless of their browser
+  // timezone — without it, "19:00" was being parsed as viewer-local time, so
+  // a Berlin protest counted down differently for a NY viewer.
   const normalized = time.length >= 5 ? time.slice(0, 5) : time
-  const target = new Date(`${iso}T${normalized}:00`).getTime()
+  const target = zonedWallClockToUtcMs(iso, normalized, timeZone)
   const now = Date.now()
   const diff = target - now
   if (diff <= 0) return 'Happening now'
@@ -106,13 +116,13 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
     ? nextOccurrence(asRecurring(event)) ?? event.date
     : event.date
   const [countdown, setCountdown] = useState<string>(
-    timeUntilProtest(baseDate, event.time),
+    timeUntilProtest(baseDate, event.time, event.timezone),
   )
 
   useEffect(() => {
     const id = setInterval(() => {
       const d = recurring ? nextOccurrence(asRecurring(event)) ?? event.date : event.date
-      setCountdown(timeUntilProtest(d, event.time))
+      setCountdown(timeUntilProtest(d, event.time, event.timezone))
     }, 1000)
     return () => clearInterval(id)
   }, [event, recurring])

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Flame, X, ArrowUpRight } from 'lucide-react'
 import { getLocationBySlug } from '@/lib/locations'
+import { getEventTimezone, zonedWallClockToUtcMs } from '@/lib/timezone'
 
 const DISMISS_KEY = 'albago:live-protests-banner:dismissed-until'
 const DISMISS_FOR_MS = 1000 * 60 * 60 * 12 // 12 hours
@@ -35,12 +36,18 @@ function titleizeSlug(slug: string): string {
   return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function formatCountdown(date: string, time: string | null): string {
-  // Trim trailing seconds on "HH:MM:SS" so the concatenation stays a valid
-  // ISO timestamp — otherwise `${date}T14:00:00:00` parses as NaN.
+function formatCountdown(
+  date: string,
+  time: string | null,
+  timeZone: string,
+): string {
+  // Trim trailing seconds on "HH:MM:SS" so the wall-clock parses cleanly.
+  // We anchor the countdown to the event's timezone — otherwise "18:00" was
+  // being read as the viewer's local time, so the same DB row counted down
+  // differently in Berlin vs New York.
   const raw = time ?? '18:00'
   const normalized = raw.length >= 5 ? raw.slice(0, 5) : raw
-  const target = new Date(`${date}T${normalized}:00`).getTime()
+  const target = zonedWallClockToUtcMs(date, normalized, timeZone)
   const now = Date.now()
   const diff = target - now
 
@@ -79,7 +86,11 @@ export default function LiveProtestsBanner({ protests, totals }: Props) {
   const next = protests[0]
   const cityLabel =
     getLocationBySlug(next.location_slug)?.label ?? titleizeSlug(next.location_slug)
-  const countdown = formatCountdown(next.date, next.time)
+  const countdown = formatCountdown(
+    next.date,
+    next.time,
+    getEventTimezone(next.location_slug, next.country),
+  )
 
   // Prefer worldwide totals (fetched without limit) over the truncated list.
   const totalCount = totals?.count && totals.count > 0 ? totals.count : protests.length
