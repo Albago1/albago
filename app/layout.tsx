@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import Footer from "@/components/layout/Footer";
+import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import { jsonLdScript, organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import "./globals.css";
 
@@ -73,10 +74,11 @@ export default function RootLayout({
         />
         <div className="pointer-events-none fixed inset-0 -z-10 bg-noise" />
         <LanguageProvider>
-          <div className="flex min-h-full flex-1 flex-col">
+          <div className="flex min-h-full flex-1 flex-col pb-16 sm:pb-0">
             <div className="flex-1">{children}</div>
             <Footer />
           </div>
+          <MobileBottomNav />
         </LanguageProvider>
         <Analytics />
         <SpeedInsights />
