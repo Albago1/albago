@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Check, Flame, Loader2, RotateCcw, X } from 'lucide-react'
+import { Check, Flag, Flame, Loader2, RotateCcw, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import {
   PLACARD_CATEGORY_LABELS,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/placards'
 import type { PlacardCategory, PlacardLanguage, PlacardRow } from '@/lib/placards'
 
-type StatusTab = 'pending' | 'approved' | 'rejected'
+type StatusTab = 'pending' | 'approved' | 'rejected' | 'reported'
 
 type Props = {
   initialRows: PlacardRow[]
@@ -27,10 +27,16 @@ export default function AdminPlacardsClient({ initialRows, migrationApplied }: P
       pending: rows.filter((r) => r.status === 'pending').length,
       approved: rows.filter((r) => r.status === 'approved').length,
       rejected: rows.filter((r) => r.status === 'rejected').length,
+      reported: rows.filter((r) => (r.report_count ?? 0) > 0 && r.status !== 'rejected').length,
     }
   }, [rows])
 
-  const filtered = useMemo(() => rows.filter((r) => r.status === tab), [rows, tab])
+  const filtered = useMemo(() => {
+    if (tab === 'reported') {
+      return rows.filter((r) => (r.report_count ?? 0) > 0 && r.status !== 'rejected')
+    }
+    return rows.filter((r) => r.status === tab)
+  }, [rows, tab])
 
   async function moderate(id: string, newStatus: StatusTab, note: string | null = null) {
     setError(null)
@@ -91,8 +97,10 @@ export default function AdminPlacardsClient({ initialRows, migrationApplied }: P
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        {(['pending', 'approved', 'rejected'] as StatusTab[]).map((s) => {
+        {(['pending', 'reported', 'approved', 'rejected'] as StatusTab[]).map((s) => {
           const active = tab === s
+          const isReportedTab = s === 'reported'
+          const hasReports = counts.reported > 0
           return (
             <button
               key={s}
@@ -102,17 +110,29 @@ export default function AdminPlacardsClient({ initialRows, migrationApplied }: P
                 'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
                 active
                   ? 'border-flame-500/55 bg-flame-500/15 text-flame-100'
-                  : 'border-white/10 bg-white/[0.04] text-white/70 hover:text-white',
+                  : isReportedTab && hasReports
+                    ? 'border-flame-500/40 bg-flame-500/[0.08] text-flame-200 hover:text-flame-100'
+                    : 'border-white/10 bg-white/[0.04] text-white/70 hover:text-white',
               ].join(' ')}
             >
+              {isReportedTab && <Flag className="h-3 w-3" />}
               <span>
                 {s === 'pending'
                   ? 'Në pritje'
-                  : s === 'approved'
-                    ? 'Të miratuara'
-                    : 'Të refuzuara'}
+                  : s === 'reported'
+                    ? 'Të raportuara'
+                    : s === 'approved'
+                      ? 'Të miratuara'
+                      : 'Të refuzuara'}
               </span>
-              <span className="rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white/85">
+              <span
+                className={[
+                  'rounded-full px-1.5 text-[10px] font-bold',
+                  isReportedTab && hasReports && !active
+                    ? 'bg-flame-500/25 text-flame-100'
+                    : 'bg-white/10 text-white/85',
+                ].join(' ')}
+              >
                 {counts[s]}
               </span>
             </button>
@@ -196,6 +216,12 @@ export default function AdminPlacardsClient({ initialRows, migrationApplied }: P
                     <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/10 px-2 py-0.5 text-flame-200">
                       <Flame className="h-3 w-3" /> {row.vote_count}
                     </span>
+                    {(row.report_count ?? 0) > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-flame-500/40 bg-flame-500/15 px-2 py-0.5 font-semibold text-flame-200">
+                        <Flag className="h-3 w-3" /> {row.report_count} raport
+                        {row.report_count === 1 ? '' : 'e'}
+                      </span>
+                    )}
                     {row.submitter_name && (
                       <span className="text-white/45">· {row.submitter_name}</span>
                     )}

@@ -29,8 +29,9 @@ export default async function AdminPlacardsPage() {
   const { data, error } = await supabase
     .from('placards')
     .select(
-      'id, slogan, language, categories, city, status, vote_count, submitted_by, submitter_name, admin_note, created_at, updated_at, approved_at, image_url, caption',
+      'id, slogan, language, categories, city, status, vote_count, submitted_by, submitter_name, admin_note, created_at, updated_at, approved_at, image_url, caption, report_count',
     )
+    .order('report_count', { ascending: false })
     .order('created_at', { ascending: false })
 
   const rows = (!error && Array.isArray(data) ? (data as PlacardRow[]) : []) as PlacardRow[]

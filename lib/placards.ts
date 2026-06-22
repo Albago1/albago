@@ -84,6 +84,7 @@ export type PlacardRow = {
   approved_at: string | null
   image_url: string | null
   caption: string | null
+  report_count?: number | null
 }
 
 export function placardFromRow(row: PlacardRow): Placard & { voteCount: number } {

@@ -140,20 +140,30 @@ export default function PlacardUploadModal({ open, onClose, onSubmitted }: Props
       return
     }
 
-    const { error: insertError } = await supabase.from('placards').insert({
-      image_url: url,
-      caption: trimmedCaption || null,
-      slogan: trimmedCaption || null,
-      language,
-      categories: [],
-      city: city.trim() || null,
-      status: 'pending',
-      submitted_by: user.id,
-      submitter_name: submitterName.trim() || null,
+    // Server-side rate-limited path (Phase 24). Direct INSERT is blocked
+    // for photo rows; the RPC enforces 5/hour + 20/day per user.
+    const { error: rpcError } = await supabase.rpc('submit_placard_photo', {
+      p_image_url: url,
+      p_caption: trimmedCaption || null,
+      p_slogan: trimmedCaption || null,
+      p_language: language,
+      p_city: city.trim() || null,
+      p_submitter_name: submitterName.trim() || null,
     })
 
-    if (insertError) {
-      setErrorMessage('Dërgimi dështoi. Provo përsëri.')
+    if (rpcError) {
+      const msg = (rpcError.message || '').toLowerCase()
+      if (msg.includes('rate limit')) {
+        // The RPC raises "Rate limit: max 5 placards per hour..." — show
+        // the friendlier Albanian version.
+        if (msg.includes('hour')) {
+          setErrorMessage('Ke arritur kufirin (5 pankarta në orë). Provo më vonë.')
+        } else {
+          setErrorMessage('Ke arritur kufirin (20 pankarta në ditë). Provo nesër.')
+        }
+      } else {
+        setErrorMessage('Dërgimi dështoi. Provo përsëri.')
+      }
       setStep('editing')
       return
     }

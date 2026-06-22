@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, Download, Flame, MessageCircle, Send, Share2, Wand2 } from 'lucide-react'
+import { Check, Copy, Download, Flag, Flame, MessageCircle, Send, Share2, Wand2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import { PLACARD_CATEGORY_LABELS, PLACARD_LANGUAGE_LABELS } from '@/lib/placards'
 import type { Placard } from '@/lib/placards'
@@ -65,6 +65,8 @@ export default function PlacardCard({
   )
   const [isVoted, setIsVoted] = useState(initialIsVoted)
   const [votePending, setVotePending] = useState(false)
+  const [isReported, setIsReported] = useState(false)
+  const [reportPending, setReportPending] = useState(false)
   const captureRef = useRef<HTMLDivElement | null>(null)
 
   const isPhoto = !!placard.imageUrl
@@ -199,6 +201,43 @@ export default function PlacardCard({
     } finally {
       setVotePending(false)
     }
+  }
+
+  async function handleReport() {
+    if (reportPending || isReported) return
+    if (typeof window !== 'undefined') {
+      const ok = window.confirm(
+        'Raporto këtë pankartë për shqyrtim nga moderatorët?',
+      )
+      if (!ok) return
+    }
+    const supabase = createClient()
+    const { data: userData } = await supabase.auth.getUser()
+    const user = userData?.user
+    if (!user) {
+      router.push('/sign-in?next=/pankartat')
+      return
+    }
+    setReportPending(true)
+    const { error } = await supabase.from('placard_reports').insert({
+      reporter_id: user.id,
+      placard_id: placard.id,
+    })
+    if (error) {
+      const msg = (error.message || '').toLowerCase()
+      // Composite PK collision → user already reported. Treat as success
+      // so the UI reflects their action, even if it's a no-op server-side.
+      if (msg.includes('duplicate') || msg.includes('unique')) {
+        setIsReported(true)
+        flashAction('E ke raportuar tashmë.')
+      } else {
+        flashAction('Raportimi dështoi.')
+      }
+    } else {
+      setIsReported(true)
+      flashAction('Faleminderit — moderatorët do ta shqyrtojnë.')
+    }
+    setReportPending(false)
   }
 
   async function handleShareNative() {
@@ -426,6 +465,23 @@ export default function PlacardCard({
               >
                 <Wand2 className="h-3.5 w-3.5" />
               </Link>
+            )}
+            {isPhoto && (
+              <button
+                type="button"
+                onClick={handleReport}
+                disabled={reportPending || isReported}
+                aria-label="Raporto pankartën"
+                title={isReported ? 'Raportuar' : 'Raporto'}
+                className={[
+                  'inline-flex h-8 w-8 items-center justify-center rounded-full border transition disabled:cursor-not-allowed',
+                  isReported
+                    ? 'border-flame-500/45 bg-flame-500/15 text-flame-200'
+                    : 'border-white/15 bg-white/[0.04] text-white/65 hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100',
+                ].join(' ')}
+              >
+                <Flag className="h-3.5 w-3.5" />
+              </button>
             )}
             <button
               type="button"
