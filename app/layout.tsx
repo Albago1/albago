@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
+import CookieConsent from "@/components/layout/CookieConsent";
 import Footer from "@/components/layout/Footer";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import { jsonLdScript, organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
@@ -80,8 +79,7 @@ export default function RootLayout({
           </div>
           <MobileBottomNav />
         </LanguageProvider>
-        <Analytics />
-        <SpeedInsights />
+        <CookieConsent />
       </body>
     </html>
   );

@@ -20,6 +20,7 @@ const resourceLinks = [
   { href: '/pankartat/krijo', label: 'Placard editor' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
 ]
 
 export default function Footer() {

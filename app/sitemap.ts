@@ -23,6 +23,7 @@ const STATIC_ROUTES: Array<{
   { path: '/submit-event', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/become-organizer', changeFrequency: 'monthly', priority: 0.5 },
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
+  { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/sign-in', changeFrequency: 'yearly', priority: 0.2 },
   { path: '/sign-up', changeFrequency: 'yearly', priority: 0.2 },
 ]
