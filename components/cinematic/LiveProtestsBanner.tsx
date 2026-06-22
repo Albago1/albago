@@ -118,7 +118,7 @@ export default function LiveProtestsBanner({ protests, totals }: Props) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 40, scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-          className="fixed bottom-4 left-1/2 z-40 w-[min(92vw,420px)] -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] left-1/2 z-40 w-[min(92vw,420px)] -translate-x-1/2 sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
         >
           {/* Outer flame halo */}
           <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[3rem] bg-flame-500/20 blur-3xl" />
