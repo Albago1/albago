@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
+import Footer from "@/components/layout/Footer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -62,7 +63,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-ink-950 text-white">
         <div className="pointer-events-none fixed inset-0 -z-10 bg-noise" />
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <div className="flex min-h-full flex-1 flex-col">
+            <div className="flex-1">{children}</div>
+            <Footer />
+          </div>
+        </LanguageProvider>
         <Analytics />
         <SpeedInsights />
       </body>
