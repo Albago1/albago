@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, Download, Flame, MessageCircle, Send, Share2, Wand2 } from 'lucide-react'
@@ -222,12 +223,12 @@ export default function PlacardCard({
         <div
           className="relative aspect-square overflow-hidden bg-black/40"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={placard.imageUrl}
+          <Image
+            src={placard.imageUrl!}
             alt={displayText || 'Pankartë e ngarkuar nga komuniteti'}
-            loading="lazy"
-            className="h-full w-full object-cover"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
           />
           {placard.city && (
             <div className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/85 backdrop-blur">

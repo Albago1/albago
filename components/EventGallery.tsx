@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Image from 'next/image'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 
 type Props = {
@@ -60,14 +61,16 @@ export default function EventGallery({ urls, alt }: Props) {
         <button
           type="button"
           onClick={() => setActiveIndex(0)}
-          className="group block w-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]"
+          className="group relative block aspect-[16/9] w-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]"
           aria-label={`Open ${alt} in fullscreen`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={hero}
             alt={alt}
-            className="aspect-[16/9] w-full cursor-zoom-in object-cover transition group-hover:opacity-95"
+            fill
+            sizes="(max-width: 768px) 100vw, 720px"
+            priority
+            className="cursor-zoom-in object-cover transition group-hover:opacity-95"
           />
         </button>
 
@@ -78,14 +81,15 @@ export default function EventGallery({ urls, alt }: Props) {
                 key={`${url}-${i}`}
                 type="button"
                 onClick={() => setActiveIndex(i + 1)}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
+                className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
                 aria-label={`Open photo ${i + 2} in fullscreen`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={url}
                   alt={`${alt} — photo ${i + 2}`}
-                  className="aspect-[4/3] w-full cursor-zoom-in object-cover transition hover:opacity-90"
+                  fill
+                  sizes="(max-width: 768px) 25vw, 180px"
+                  className="cursor-zoom-in object-cover transition hover:opacity-90"
                 />
               </button>
             ))}
