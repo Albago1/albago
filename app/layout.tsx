@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import Footer from "@/components/layout/Footer";
+import { jsonLdScript, organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,7 +27,7 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://albago.com',
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://albago.org',
   ),
   title: {
     template: '%s | AlbaGo',
@@ -62,6 +63,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-ink-950 text-white">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteSchema()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationSchema()) }}
+        />
         <div className="pointer-events-none fixed inset-0 -z-10 bg-noise" />
         <LanguageProvider>
           <div className="flex min-h-full flex-1 flex-col">

@@ -82,7 +82,7 @@ export default async function Image({ params }: { params: Promise<Params> }) {
             color: 'rgba(255,255,255,0.55)',
           }}
         >
-          <span>albago.com/movements/{slug}</span>
+          <span>albago.org/movements/{slug}</span>
           <span>Peaceful · Lawful · Worldwide</span>
         </div>
       </div>

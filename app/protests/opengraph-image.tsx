@@ -84,7 +84,7 @@ export default async function Image() {
             color: 'rgba(255,255,255,0.55)',
           }}
         >
-          <span>albago.com/protests</span>
+          <span>albago.org/protests</span>
           <span>Peaceful · Lawful · Family-friendly</span>
         </div>
       </div>

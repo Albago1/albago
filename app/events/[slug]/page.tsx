@@ -36,6 +36,8 @@ import {
   upcomingOccurrences,
 } from '@/lib/recurrence'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { getEventTimezone } from '@/lib/timezone'
+import { eventSchema, jsonLdScript, type EventForSchema } from '@/lib/seo/jsonLd'
 
 type Params = { slug: string }
 
@@ -263,6 +265,10 @@ export async function generateMetadata(
   }
 
   const description = (event.description ?? '').slice(0, 160)
+  const ogImages = [
+    ...(event.gallery_urls ?? []),
+    ...(event.banner_url ? [event.banner_url] : []),
+  ].filter((url, idx, arr) => !!url && arr.indexOf(url) === idx)
 
   return {
     title: `${event.title} — AlbaGo`,
@@ -271,6 +277,13 @@ export async function generateMetadata(
       title: event.title,
       description,
       type: 'article',
+      ...(ogImages.length > 0 ? { images: ogImages.slice(0, 4) } : {}),
+    },
+    twitter: {
+      card: ogImages.length > 0 ? 'summary_large_image' : 'summary',
+      title: event.title,
+      description,
+      ...(ogImages.length > 0 ? { images: [ogImages[0]] } : {}),
     },
   }
 }
@@ -341,6 +354,37 @@ export default async function EventDetailPage(
     eventUrl: `https://albago.org/events/${event.slug}`,
   }
 
+  const eventImages = [
+    ...(event.gallery_urls ?? []),
+    ...(event.banner_url ? [event.banner_url] : []),
+  ].filter((url, idx, arr) => !!url && arr.indexOf(url) === idx)
+
+  const schemaEvent: EventForSchema = {
+    slug: event.slug,
+    title: event.title,
+    description: event.description,
+    date: event.date,
+    time: event.time,
+    endTime: event.end_time,
+    timezone: event.timezone ?? getEventTimezone(event.location_slug, event.country),
+    locationName: venue?.name ?? event.address ?? null,
+    address: event.address ?? venue?.address ?? null,
+    city: cityLabel,
+    country: countryLabel ?? null,
+    lat: directionsLat,
+    lng: directionsLng,
+    isOnline: event.is_online ?? false,
+    onlineUrl: event.online_url,
+    images: eventImages,
+    organizerName: event.organizer_name,
+    organizerUrl: event.organizers
+      ? `https://albago.org/organizers/${event.organizers.slug}`
+      : event.organizer_website,
+    isCivic,
+    category: event.category,
+    expectedAttendees: event.expected_attendees,
+  }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   let initialSaved = false
@@ -356,6 +400,10 @@ export default async function EventDetailPage(
 
   return (
     <main className="min-h-screen bg-ink-950 text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(eventSchema(schemaEvent)) }}
+      />
       <LandingNavbar />
 
       <section className="relative overflow-hidden px-4 pb-12 pt-32">

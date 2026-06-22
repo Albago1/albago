@@ -23,6 +23,7 @@ import {
 } from '@/lib/recurrence'
 import { getLocationBySlug } from '@/lib/locations'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
+import { jsonLdScript, organizerOrgSchema } from '@/lib/seo/jsonLd'
 
 type Params = { slug: string }
 
@@ -164,8 +165,22 @@ export default async function OrganizerProfilePage(
   const { upcoming, totalPublished } = await fetchOrganizerEvents(organizer.id)
   const isVerified = organizer.verification_tier === 'verified'
 
+  const orgSchema = organizerOrgSchema({
+    slug: organizer.slug,
+    name: organizer.display_name,
+    bio: organizer.bio,
+    website: organizer.website_url,
+    email: organizer.contact_email,
+    createdAt: organizer.created_at,
+    verified: isVerified,
+  })
+
   return (
     <main className="min-h-screen bg-ink-950 text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(orgSchema) }}
+      />
       <LandingNavbar />
 
       <section className="relative overflow-hidden px-4 pb-12 pt-32">

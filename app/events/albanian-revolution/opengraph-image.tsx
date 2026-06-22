@@ -84,7 +84,7 @@ export default async function Image() {
             color: 'rgba(255,255,255,0.55)',
           }}
         >
-          <span>albago.com/events/albanian-revolution</span>
+          <span>albago.org/events/albanian-revolution</span>
           <span>Add your city.</span>
         </div>
       </div>

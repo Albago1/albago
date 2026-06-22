@@ -83,7 +83,7 @@ export default async function Image() {
             color: 'rgba(255,255,255,0.55)',
           }}
         >
-          <span>albago.com</span>
+          <span>albago.org</span>
           <span>Live · Mobile-first · Premium</span>
         </div>
       </div>
