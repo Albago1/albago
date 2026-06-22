@@ -1,8 +1,9 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, Download, Flame, MessageCircle, Send, Share2 } from 'lucide-react'
+import { Check, Copy, Download, Flame, MessageCircle, Send, Share2, Wand2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import { PLACARD_CATEGORY_LABELS, PLACARD_LANGUAGE_LABELS } from '@/lib/placards'
 import type { Placard } from '@/lib/placards'
@@ -22,6 +23,18 @@ const SHARE_URL_BASE = 'https://albago.org/pankartat'
 
 function shareText(placard: Placard): string {
   return `Kam gjetur këtë pankartë në AlbaGo: "${placard.slogan}" — ${SHARE_URL_BASE}`
+}
+
+function remixHref(placard: Placard): string {
+  const params = new URLSearchParams()
+  params.set('text', placard.slogan)
+  params.set('lang', placard.language)
+  const allowed = placard.categories.filter(
+    (c) => c !== 'short' && c !== 'powerful',
+  )
+  if (allowed.length > 0) params.set('categories', allowed.slice(0, 2).join(','))
+  if (placard.city) params.set('city', placard.city)
+  return `/pankartat/krijo?${params.toString()}`
 }
 
 export default function PlacardCard({
@@ -318,6 +331,14 @@ export default function PlacardCard({
           </button>
 
           <div className="ml-auto flex items-center gap-1.5">
+            <Link
+              href={remixHref(placard)}
+              aria-label="Remix në editor"
+              title="Hap në editor"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-white/80 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+            </Link>
             <button
               type="button"
               onClick={handleShareWhatsApp}

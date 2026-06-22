@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, Download, Loader2, Send, Square as SquareIcon, Smartphone } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import { PlacardSquare, PlacardStory } from '@/components/placards/PlacardTemplate'
@@ -15,6 +16,24 @@ import {
 } from '@/lib/placards'
 import type { Placard, PlacardCategory, PlacardLanguage } from '@/lib/placards'
 
+const VALID_LANGUAGES: PlacardLanguage[] = ['sq', 'en', 'de']
+
+function parseLanguageParam(value: string | null): PlacardLanguage {
+  return VALID_LANGUAGES.includes(value as PlacardLanguage)
+    ? (value as PlacardLanguage)
+    : 'sq'
+}
+
+function parseCategoriesParam(value: string | null): PlacardCategory[] {
+  if (!value) return []
+  const allowed = new Set<string>(PLACARD_SUBMIT_CATEGORY_KEYS)
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => allowed.has(s))
+    .slice(0, 2) as PlacardCategory[]
+}
+
 type Props = { submitEnabled: boolean }
 
 type Format = 'square' | 'story'
@@ -22,10 +41,17 @@ type Format = 'square' | 'story'
 const PLACEHOLDER = 'Mesazhi yt këtu'
 
 export default function KrijoClient({ submitEnabled }: Props) {
-  const [slogan, setSlogan] = useState('')
-  const [language, setLanguage] = useState<PlacardLanguage>('sq')
-  const [categories, setCategories] = useState<PlacardCategory[]>([])
-  const [city, setCity] = useState('')
+  const searchParams = useSearchParams()
+  const [slogan, setSlogan] = useState(() =>
+    (searchParams?.get('text') ?? '').slice(0, SLOGAN_MAX_LENGTH + 20),
+  )
+  const [language, setLanguage] = useState<PlacardLanguage>(() =>
+    parseLanguageParam(searchParams?.get('lang') ?? null),
+  )
+  const [categories, setCategories] = useState<PlacardCategory[]>(() =>
+    parseCategoriesParam(searchParams?.get('categories') ?? null),
+  )
+  const [city, setCity] = useState(() => (searchParams?.get('city') ?? '').slice(0, 80))
   const [previewFormat, setPreviewFormat] = useState<Format>('square')
   const [downloading, setDownloading] = useState<Format | null>(null)
   const [renderFormat, setRenderFormat] = useState<Format | null>(null)

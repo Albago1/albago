@@ -124,6 +124,16 @@ export default function PlacardSubmitModal({
       setErrorMessage(`Mesazhi duhet të jetë mes ${SLOGAN_MIN_LENGTH} dhe ${SLOGAN_MAX_LENGTH} karaktereve.`)
       return
     }
+    if (typeof window !== 'undefined') {
+      const lastRaw = window.localStorage.getItem('albago:placard-last-submit')
+      const last = lastRaw ? Number(lastRaw) : 0
+      const since = Date.now() - last
+      if (last > 0 && since < 30_000) {
+        const wait = Math.ceil((30_000 - since) / 1000)
+        setErrorMessage(`Prit ${wait}s para se të dërgosh përsëri.`)
+        return
+      }
+    }
     setStep('submitting')
     const supabase = createClient()
     const { data: userData } = await supabase.auth.getUser()
@@ -157,6 +167,9 @@ export default function PlacardSubmitModal({
       return
     }
 
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('albago:placard-last-submit', String(Date.now()))
+    }
     setStep('success')
   }
 
