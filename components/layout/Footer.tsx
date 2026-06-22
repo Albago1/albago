@@ -11,13 +11,17 @@ const exploreLinks = [
 
 const communityLinks = [
   { href: '/become-organizer', label: 'Become an organizer' },
+  { href: '/organizers', label: 'Organizers' },
   { href: '/submit-event', label: 'Submit an event' },
   { href: '/volunteer', label: 'Volunteer' },
   { href: '/sign-in', label: 'Sign in' },
 ]
 
 const resourceLinks = [
-  { href: '/pankartat/krijo', label: 'Placard editor' },
+  { href: '/about', label: 'About' },
+  { href: '/faq', label: 'FAQ' },
+  { href: '/press', label: 'Press' },
+  { href: '/contact', label: 'Contact' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
