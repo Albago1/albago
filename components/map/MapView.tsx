@@ -139,7 +139,20 @@ export default function MapView() {
   // Default to the worldwide view so the map opens onto the actual current
   // events (civic protests everywhere) instead of the city-scoped Tirana
   // venue map most visitors never asked for.
-  const locationSlug = searchParams.get('location') || 'all'
+  //
+  // We hold the picked slug in state, not derived from URL — `router.replace`
+  // updates the URL but the useSearchParams re-render can lag behind the
+  // synchronous flyToLocation call inside handleLocationChange, which left
+  // the filter label / data fetch stuck on the *previous* city even after
+  // the map flew to the new one. State keeps the UI in lockstep with the
+  // user's pick; the URL is still mirrored as a side-effect so deep links
+  // and back/forward still work.
+  const urlLocationSlug = searchParams.get('location') || 'all'
+  const [locationSlug, setLocationSlug] = useState<string>(urlLocationSlug)
+  useEffect(() => {
+    // External URL change (deep link, back/forward) → re-sync state.
+    setLocationSlug(urlLocationSlug)
+  }, [urlLocationSlug])
   const isWorldwide = locationSlug === 'all'
   const initialCountry = searchParams.get('country')
   const location = getLocationBySlug(locationSlug)
@@ -627,6 +640,10 @@ export default function MapView() {
   }
 
   const handleLocationChange = (slug: string, center?: [number, number]) => {
+    // Update local state first so the filter label, data fetch, and every
+    // downstream useMemo re-key against the new slug on this render — don't
+    // wait for the URL roundtrip.
+    setLocationSlug(slug)
     const params = new URLSearchParams()
     params.set('location', slug)
     if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
