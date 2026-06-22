@@ -98,9 +98,11 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, display_name')
     .eq('id', user.id)
     .maybeSingle()
+
+  const greetingName = (profile?.display_name as string | undefined) || user.email
 
   // â€” Admin view â€”
   if (profile?.role === 'admin') {
@@ -156,7 +158,7 @@ export default async function DashboardPage() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold">Dashboard</h1>
-                <p className="mt-0.5 text-sm text-white/45">{user.email}</p>
+                <p className="mt-0.5 text-sm text-white/45">{greetingName}</p>
               </div>
             </div>
 
