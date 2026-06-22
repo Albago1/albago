@@ -17,6 +17,7 @@ export type SavedEventCard = {
   price: string | null
   location_label: string
   venue_name: string | null
+  saved_at?: string
 }
 
 function getCategoryTone(category?: string) {

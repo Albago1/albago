@@ -1,4 +1,5 @@
 ﻿import type { Metadata } from 'next'
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -11,6 +12,7 @@ import {
   Clock,
   Compass,
   FileText,
+  Flame,
   Heart,
   Image as ImageIcon,
   LayoutDashboard,
@@ -27,6 +29,8 @@ import MyPlacardsList, {
   type MyPlacardCard,
 } from '@/components/dashboard/MyPlacardsList'
 import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
+import Sparkline from '@/components/dashboard/Sparkline'
+import TrendBadge from '@/components/dashboard/TrendBadge'
 import { getLocationBySlug } from '@/lib/locations'
 import { fetchOrganizer } from '@/lib/organizers'
 import { isEventActive } from '@/lib/eventActive'
@@ -86,7 +90,37 @@ async function fetchSavedEventCards(
       price: row.events.price,
       location_label: getLocationBySlug(row.events.location_slug).label,
       venue_name: row.events.places?.name ?? null,
+      saved_at: row.saved_at,
     }))
+}
+
+function bucketDatesByDay(dates: string[], daysBack: number): number[] {
+  const buckets = Array.from({ length: daysBack }, () => 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  for (const raw of dates) {
+    if (!raw) continue
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) continue
+    d.setHours(0, 0, 0, 0)
+    const days = Math.round((today.getTime() - d.getTime()) / 86_400_000)
+    if (days < 0 || days >= daysBack) continue
+    buckets[daysBack - 1 - days] += 1
+  }
+  return buckets
+}
+
+function relativeDay(iso: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  d.setHours(0, 0, 0, 0)
+  const days = Math.round((today.getTime() - d.getTime()) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
 export const metadata: Metadata = {
@@ -343,31 +377,88 @@ export default async function DashboardPage() {
   }
   const savedEventUpdates = prefs.saved_event_updates !== false
 
-  const stats = [
-    {
-      label: 'Saved events',
-      value: savedEvents.length,
-      icon: Heart,
-      href: '#saved-upcoming',
-    },
-    {
-      label: 'Event submissions',
-      value: userSubmissions.length,
-      icon: Send,
-      href: '#my-submissions',
-    },
-    {
-      label: 'Placards uploaded',
-      value: myPlacards.length,
-      icon: ImageIcon,
-      href: '#my-placards',
-    },
-  ]
+  const totalLikes = myPlacards.reduce((sum, p) => sum + p.voteCount, 0)
+  const approvedPlacards = myPlacards.filter((p) => p.status === 'approved').length
+
+  // 14-day buckets for sparklines on the KPI tiles.
+  const savesSpark = bucketDatesByDay(
+    savedEvents.map((s) => s.saved_at ?? ''),
+    14,
+  )
+  const submissionsSpark = bucketDatesByDay(
+    userSubmissions.map((s) => s.created_at),
+    14,
+  )
+  const placardsSpark = bucketDatesByDay(
+    myPlacards.map((p) => p.createdAt),
+    14,
+  )
+
+  // Trend = last 7 days vs prior 7. asAbsolute on tiles since user counts
+  // are small enough that "+1" reads better than "+100%".
+  function splitTrend(arr: number[]) {
+    const half = Math.floor(arr.length / 2)
+    return {
+      prior: arr.slice(0, half).reduce((a, b) => a + b, 0),
+      recent: arr.slice(half).reduce((a, b) => a + b, 0),
+    }
+  }
+  const savesTrend = splitTrend(savesSpark)
+  const submissionsTrend = splitTrend(submissionsSpark)
+  const placardsTrend = splitTrend(placardsSpark)
+
+  // Recent activity feed: merge saves + submissions + placards by their
+  // respective timestamp. Last 6.
+  type Activity =
+    | { kind: 'save'; id: string; title: string; at: string; href: string }
+    | { kind: 'submission'; id: string; title: string; at: string; href: string; status: string }
+    | { kind: 'placard'; id: string; caption: string | null; imageUrl: string; at: string; status: string }
+  const activity: Activity[] = []
+  for (const s of savedEvents) {
+    if (s.saved_at) {
+      activity.push({
+        kind: 'save',
+        id: `s-${s.id}`,
+        title: s.title,
+        at: s.saved_at,
+        href: `/events/${s.slug}`,
+      })
+    }
+  }
+  for (const sub of userSubmissions) {
+    activity.push({
+      kind: 'submission',
+      id: `u-${sub.id}`,
+      title: sub.title,
+      at: sub.created_at,
+      href: '/dashboard#my-submissions',
+      status: sub.status,
+    })
+  }
+  for (const p of myPlacards) {
+    activity.push({
+      kind: 'placard',
+      id: `p-${p.id}`,
+      caption: p.caption,
+      imageUrl: p.imageUrl,
+      at: p.createdAt,
+      status: p.status,
+    })
+  }
+  activity.sort((a, b) => (a.at < b.at ? 1 : -1))
+  const recentActivity = activity.slice(0, 6)
 
   const friendlyName = firstName(
     profile?.display_name as string | undefined,
     user.email?.split('@')[0] ?? 'there',
   )
+
+  const heroSubtitle =
+    upcomingSaved.length === 0
+      ? savedEvents.length === 0
+        ? 'No events on your calendar yet'
+        : `${pastSaved.length} past · save one for what's coming up`
+      : `${upcomingSaved.length === 1 ? 'event' : 'events'} on your calendar · ${pastSaved.length} past`
 
   return (
     <>
@@ -399,26 +490,115 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Stat strip */}
-          <div className="mt-8 grid grid-cols-3 gap-3">
-            {stats.map((stat) => {
-              const Icon = stat.icon
-              return (
-                <a
-                  key={stat.label}
-                  href={stat.href}
-                  className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/15 hover:bg-white/[0.05] sm:p-6"
-                >
-                  <Icon className="h-5 w-5 text-flame-400 sm:h-6 sm:w-6" />
-                  <div className="mt-3 text-3xl font-bold text-white sm:text-4xl">
-                    {stat.value}
-                  </div>
-                  <div className="mt-1 text-[11px] text-white/55 sm:text-xs">
-                    {stat.label}
-                  </div>
-                </a>
-              )
-            })}
+          {/* HERO — your personal headline number */}
+          <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
+            <div className="flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-flame-300">
+                  Your calendar
+                </p>
+                <p className="mt-3 font-display text-6xl leading-none tracking-tight text-white sm:text-7xl">
+                  {upcomingSaved.length}
+                </p>
+                <p className="mt-3 text-sm text-white/55">{heroSubtitle}</p>
+              </div>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <TrendBadge
+                  current={savesTrend.recent}
+                  previous={savesTrend.prior}
+                  asAbsolute
+                  label="saves last 7 days"
+                />
+                <Sparkline
+                  values={savesSpark}
+                  width={140}
+                  height={36}
+                  color="rgba(238,28,37,0.55)"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* KPI row with sparklines */}
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <a
+              href="#saved-upcoming"
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/15 hover:bg-white/[0.05]"
+            >
+              <div className="flex items-center justify-between">
+                <Heart className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={savesTrend.recent}
+                  previous={savesTrend.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {savedEvents.length}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Saved events</p>
+              <div className="mt-2">
+                <Sparkline values={savesSpark} width={120} height={22} />
+              </div>
+            </a>
+
+            <a
+              href="#my-submissions"
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/15 hover:bg-white/[0.05]"
+            >
+              <div className="flex items-center justify-between">
+                <Send className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={submissionsTrend.recent}
+                  previous={submissionsTrend.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {userSubmissions.length}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Submissions</p>
+              <div className="mt-2">
+                <Sparkline values={submissionsSpark} width={120} height={22} />
+              </div>
+            </a>
+
+            <a
+              href="#my-placards"
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/15 hover:bg-white/[0.05]"
+            >
+              <div className="flex items-center justify-between">
+                <ImageIcon className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={placardsTrend.recent}
+                  previous={placardsTrend.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {myPlacards.length}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Placards</p>
+              <div className="mt-2">
+                <Sparkline values={placardsSpark} width={120} height={22} />
+              </div>
+            </a>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <Flame className="h-4 w-4 text-flame-300" />
+                <span className="text-[11px] text-white/35">earned</span>
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {totalLikes}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">
+                Likes on your placards
+              </p>
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                {approvedPlacards} approved
+              </div>
+            </div>
           </div>
 
           {/* Quick actions */}
@@ -471,6 +651,144 @@ export default async function DashboardPage() {
             </div>
             <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
           </Link>
+
+          {/* Recent activity + Your placards visual */}
+          <div className="mt-10 grid gap-6 lg:grid-cols-5">
+            <section className="lg:col-span-3">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                Recent activity
+              </h2>
+              {recentActivity.length === 0 ? (
+                <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
+                  Save an event, submit one, or upload a placard — your trail
+                  shows up here.
+                </div>
+              ) : (
+                <ul className="mt-4 space-y-1.5">
+                  {recentActivity.map((a) => {
+                    if (a.kind === 'save') {
+                      return (
+                        <li
+                          key={a.id}
+                          className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                        >
+                          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-flame-500/10 text-flame-300">
+                            <Heart className="h-3.5 w-3.5" />
+                          </span>
+                          <Link
+                            href={a.href}
+                            className="min-w-0 flex-1 truncate text-sm font-semibold text-white hover:text-flame-200"
+                          >
+                            Saved {a.title}
+                          </Link>
+                          <span className="flex-shrink-0 text-[11px] text-white/45">
+                            {relativeDay(a.at)}
+                          </span>
+                        </li>
+                      )
+                    }
+                    if (a.kind === 'submission') {
+                      return (
+                        <li
+                          key={a.id}
+                          className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                        >
+                          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/70">
+                            <Send className="h-3.5 w-3.5" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={a.href}
+                              className="block truncate text-sm font-semibold text-white hover:text-flame-200"
+                            >
+                              Submitted {a.title}
+                            </Link>
+                            <p className="text-[11px] text-white/45 capitalize">
+                              {a.status}
+                            </p>
+                          </div>
+                          <span className="flex-shrink-0 text-[11px] text-white/45">
+                            {relativeDay(a.at)}
+                          </span>
+                        </li>
+                      )
+                    }
+                    return (
+                      <li
+                        key={a.id}
+                        className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                      >
+                        <span className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-lg bg-black/40">
+                          <Image
+                            src={a.imageUrl}
+                            alt={a.caption ?? 'Placard'}
+                            fill
+                            sizes="28px"
+                            className="object-cover"
+                          />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href="#my-placards"
+                            className="block truncate text-sm font-semibold text-white hover:text-flame-200"
+                          >
+                            Uploaded {a.caption || 'a placard'}
+                          </Link>
+                          <p className="text-[11px] capitalize text-white/45">
+                            {a.status}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 text-[11px] text-white/45">
+                          {relativeDay(a.at)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="lg:col-span-2">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                Your placards
+              </h2>
+              {myPlacards.length === 0 ? (
+                <Link
+                  href="/pankartat"
+                  className="mt-4 flex flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center transition hover:border-flame-500/30 hover:bg-flame-500/[0.04]"
+                >
+                  <Camera className="h-6 w-6 text-white/35" />
+                  <p className="text-sm font-semibold text-white">
+                    Upload your first
+                  </p>
+                  <p className="text-[11px] text-white/45">Auto-moderated</p>
+                </Link>
+              ) : (
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {myPlacards.slice(0, 6).map((p) => (
+                    <a
+                      key={p.id}
+                      href="#my-placards"
+                      className="relative block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/40 transition hover:border-white/25"
+                    >
+                      <Image
+                        src={p.imageUrl}
+                        alt={p.caption ?? 'Placard'}
+                        fill
+                        sizes="120px"
+                        className="object-cover"
+                      />
+                      {p.status !== 'approved' && (
+                        <div className="absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-center text-[9px] font-bold uppercase tracking-wide text-white/85 backdrop-blur">
+                          {p.status}
+                        </div>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
 
           {/* Saved — Upcoming */}
           <section id="saved-upcoming" className="mt-10 scroll-mt-24">

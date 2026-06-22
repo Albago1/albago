@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   ArrowRight,
   BadgeCheck,
@@ -7,31 +8,77 @@ import {
   CalendarCheck,
   Clock,
   Flag,
+  Globe,
   HandHeart,
   Image as ImageIcon,
   Inbox,
   LayoutDashboard,
+  MapPin,
   Megaphone,
   Send,
   ShieldCheck,
+  TrendingUp,
   Users as UsersIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import Sparkline from '@/components/dashboard/Sparkline'
+import TrendBadge from '@/components/dashboard/TrendBadge'
 
 export const metadata: Metadata = {
   title: 'Admin · AlbaGo',
 }
 
-// Admin gate is handled by app/admin/layout.tsx — this page just renders.
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 type CountResult = { count: number | null; error: { message: string } | null }
-
 function safeCount(res: CountResult | null | undefined): number {
   if (!res || res.error) return 0
   return res.count ?? 0
+}
+
+function bucketDatesByDay(dates: string[], daysBack: number): number[] {
+  const buckets = Array.from({ length: daysBack }, () => 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  for (const raw of dates) {
+    if (!raw) continue
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) continue
+    d.setHours(0, 0, 0, 0)
+    const days = Math.round((today.getTime() - d.getTime()) / 86_400_000)
+    if (days < 0 || days >= daysBack) continue
+    buckets[daysBack - 1 - days] += 1
+  }
+  return buckets
+}
+
+function splitTrend(arr: number[]) {
+  const half = Math.floor(arr.length / 2)
+  return {
+    prior: arr.slice(0, half).reduce((a, b) => a + b, 0),
+    recent: arr.slice(half).reduce((a, b) => a + b, 0),
+  }
+}
+
+function relativeDay(iso: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  d.setHours(0, 0, 0, 0)
+  const days = Math.round((today.getTime() - d.getTime()) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+function formatNumberCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
+  return String(n)
 }
 
 export default async function AdminHomePage() {
@@ -42,10 +89,10 @@ export default async function AdminHomePage() {
     String(today.getMonth() + 1).padStart(2, '0'),
     String(today.getDate()).padStart(2, '0'),
   ].join('-')
+  const fourteenDaysAgo = new Date(today.getTime() - 14 * 86_400_000).toISOString()
 
-  // Every count is a head-only query so the wire stays small. Each one is
-  // wrapped so a missing table (e.g. placard_reports before Phase 24 applied)
-  // doesn't blow up the whole page — we just show 0.
+  // Counts (head-only, no row payload) + sparkline source data + recent
+  // activity, all in parallel.
   const [
     publishedEvents,
     upcomingEvents,
@@ -55,6 +102,12 @@ export default async function AdminHomePage() {
     pendingOrganizers,
     newVolunteers,
     totalUsers,
+    eventsTimeline,
+    profilesTimeline,
+    recentPlacards,
+    recentSubmissions,
+    recentOrganizerApps,
+    publishedEventsList,
   ] = await Promise.all([
     supabase
       .from('events')
@@ -86,9 +139,36 @@ export default async function AdminHomePage() {
       .from('volunteer_signups')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'new'),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('events')
+      .select('created_at')
+      .gte('created_at', fourteenDaysAgo),
     supabase
       .from('profiles')
-      .select('id', { count: 'exact', head: true }),
+      .select('created_at')
+      .gte('created_at', fourteenDaysAgo),
+    supabase
+      .from('placards')
+      .select('id, image_url, caption, created_at, status, submitter_name')
+      .not('image_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(8),
+    supabase
+      .from('event_submissions')
+      .select('id, title, created_at, status')
+      .order('created_at', { ascending: false })
+      .limit(8),
+    supabase
+      .from('organizers')
+      .select('id, display_name, created_at, id_review_status')
+      .eq('id_review_status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(8),
+    supabase
+      .from('events')
+      .select('location_slug, country, expected_attendees')
+      .eq('status', 'published'),
   ])
 
   const counts = {
@@ -109,110 +189,144 @@ export default async function AdminHomePage() {
     counts.newVolunteers +
     counts.reportedPlacards
 
-  const kpis = [
-    {
-      label: 'Published events',
-      value: counts.publishedEvents,
-      icon: Calendar,
-      tone: 'text-flame-400',
-    },
-    {
-      label: 'Upcoming events',
-      value: counts.upcomingEvents,
-      icon: CalendarCheck,
-      tone: 'text-flame-400',
-    },
-    {
-      label: 'Registered users',
-      value: counts.totalUsers,
-      icon: UsersIcon,
-      tone: 'text-flame-400',
-    },
-    {
-      label: 'Awaiting action',
-      value: totalPending,
-      icon: Inbox,
-      tone: totalPending > 0 ? 'text-amber-400' : 'text-white/65',
-    },
-  ]
+  const eventsSpark = bucketDatesByDay(
+    ((eventsTimeline.data as Array<{ created_at: string }> | null) ?? []).map(
+      (r) => r.created_at,
+    ),
+    14,
+  )
+  const usersSpark = bucketDatesByDay(
+    ((profilesTimeline.data as Array<{ created_at: string }> | null) ?? []).map(
+      (r) => r.created_at,
+    ),
+    14,
+  )
+  const eventsTrend = splitTrend(eventsSpark)
+  const usersTrend = splitTrend(usersSpark)
+
+  // Aggregate platform reach from the published events list
+  type PubEventRow = {
+    location_slug: string | null
+    country: string | null
+    expected_attendees: number | null
+  }
+  const pubEvents = (publishedEventsList.data as PubEventRow[] | null) ?? []
+  const totalExpected = pubEvents.reduce(
+    (s, e) => s + (e.expected_attendees ?? 0),
+    0,
+  )
+  const distinctCities = new Set(
+    pubEvents.map((e) => e.location_slug).filter(Boolean),
+  ).size
+  const distinctCountries = new Set(
+    pubEvents.map((e) => e.country).filter(Boolean),
+  ).size
+
+  // Top cities by event count
+  const cityMap = new Map<string, { country: string; count: number; expected: number }>()
+  for (const e of pubEvents) {
+    const key = e.location_slug ?? ''
+    if (!key) continue
+    const existing = cityMap.get(key)
+    if (existing) {
+      existing.count += 1
+      existing.expected += e.expected_attendees ?? 0
+    } else {
+      cityMap.set(key, {
+        country: e.country ?? '',
+        count: 1,
+        expected: e.expected_attendees ?? 0,
+      })
+    }
+  }
+  const topCities = Array.from(cityMap.entries())
+    .map(([slug, v]) => ({ slug, ...v }))
+    .sort((a, b) => b.count - a.count || b.expected - a.expected)
+    .slice(0, 5)
+
+  // Recent activity: merge placards, submissions, organizer applications
+  type Activity =
+    | {
+        kind: 'placard'
+        id: string
+        title: string
+        imageUrl: string | null
+        at: string
+        status: string
+      }
+    | { kind: 'submission'; id: string; title: string; at: string; status: string }
+    | { kind: 'organizer'; id: string; title: string; at: string }
+  const acts: Activity[] = []
+  for (const p of (recentPlacards.data ?? []) as Array<{
+    id: string
+    image_url: string | null
+    caption: string | null
+    submitter_name: string | null
+    created_at: string
+    status: string
+  }>) {
+    acts.push({
+      kind: 'placard',
+      id: `p-${p.id}`,
+      title: p.caption || p.submitter_name || 'Placard upload',
+      imageUrl: p.image_url,
+      at: p.created_at,
+      status: p.status,
+    })
+  }
+  for (const s of (recentSubmissions.data ?? []) as Array<{
+    id: string
+    title: string
+    created_at: string
+    status: string
+  }>) {
+    acts.push({
+      kind: 'submission',
+      id: `s-${s.id}`,
+      title: s.title,
+      at: s.created_at,
+      status: s.status,
+    })
+  }
+  for (const o of (recentOrganizerApps.data ?? []) as Array<{
+    id: string
+    display_name: string
+    created_at: string
+  }>) {
+    acts.push({
+      kind: 'organizer',
+      id: `o-${o.id}`,
+      title: o.display_name || 'Organizer application',
+      at: o.created_at,
+    })
+  }
+  acts.sort((a, b) => (a.at < b.at ? 1 : -1))
+  const recent = acts.slice(0, 8)
 
   type Tile = {
     href: string
     title: string
-    description: string
     icon: typeof Inbox
     pending?: number
     pendingLabel?: string
-    accentWhenPending?: boolean
   }
 
   const tiles: Tile[] = [
-    {
-      href: '/admin/queue',
-      title: 'Moderation queue',
-      description:
-        'Unified review of community submissions and live events — approve, edit, archive, repost.',
-      icon: Inbox,
-      pending: counts.pendingSubmissions,
-      pendingLabel: 'pending',
-      accentWhenPending: true,
-    },
-    {
-      href: '/admin/events',
-      title: 'Events',
-      description: 'Every event in the system. Filter by status, search, and edit.',
-      icon: Megaphone,
-    },
-    {
-      href: '/admin/organizers',
-      title: 'Organizers',
-      description:
-        'Approve verification, see established / verified tiers, manage profiles.',
-      icon: BadgeCheck,
-      pending: counts.pendingOrganizers,
-      pendingLabel: 'awaiting review',
-      accentWhenPending: true,
-    },
-    {
-      href: '/admin/placards',
-      title: 'Placards',
-      description: 'Approve / reject community-uploaded photos. Triage reports.',
-      icon: ImageIcon,
-      pending: counts.pendingPlacards + counts.reportedPlacards,
-      pendingLabel:
-        counts.reportedPlacards > 0
-          ? `${counts.pendingPlacards} pending · ${counts.reportedPlacards} reported`
-          : 'pending',
-      accentWhenPending: true,
-    },
-    {
-      href: '/admin/volunteers',
-      title: 'Volunteers',
-      description: 'New signups, contact status, retire decided rows.',
-      icon: HandHeart,
-      pending: counts.newVolunteers,
-      pendingLabel: 'new',
-      accentWhenPending: true,
-    },
-    {
-      href: '/admin/users',
-      title: 'Users',
-      description: 'Roles, account state, granted admin / organizer rights.',
-      icon: UsersIcon,
-    },
-    {
-      href: '/admin/share-batch',
-      title: 'Share batch',
-      description: 'One-click ZIP of share posters for every upcoming civic event.',
-      icon: Send,
-    },
+    { href: '/admin/queue', title: 'Moderation queue', icon: Inbox, pending: counts.pendingSubmissions, pendingLabel: 'pending' },
+    { href: '/admin/placards', title: 'Placards', icon: ImageIcon, pending: counts.pendingPlacards + counts.reportedPlacards, pendingLabel: counts.reportedPlacards > 0 ? `${counts.pendingPlacards} new · ${counts.reportedPlacards} reported` : 'pending' },
+    { href: '/admin/organizers', title: 'Organizers', icon: BadgeCheck, pending: counts.pendingOrganizers, pendingLabel: 'awaiting review' },
+    { href: '/admin/volunteers', title: 'Volunteers', icon: HandHeart, pending: counts.newVolunteers, pendingLabel: 'new' },
+    { href: '/admin/events', title: 'Events', icon: Megaphone },
+    { href: '/admin/users', title: 'Users', icon: UsersIcon },
+    { href: '/admin/share-batch', title: 'Share batch', icon: Send },
   ]
 
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-ink-950 px-6 pb-16 pt-24 text-white">
+      <main className="min-h-screen bg-ink-950 px-4 pb-16 pt-24 text-white sm:px-6">
         <div className="mx-auto max-w-5xl">
+          {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
@@ -221,11 +335,10 @@ export default async function AdminHomePage() {
               <div>
                 <h1 className="text-3xl font-bold">Admin</h1>
                 <p className="mt-0.5 text-sm text-white/45">
-                  Platform health and moderation entry point
+                  Platform health · moderation
                 </p>
               </div>
             </div>
-
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/admin/queue"
@@ -239,7 +352,7 @@ export default async function AdminHomePage() {
                 <Inbox className="h-4 w-4" />
                 {totalPending > 0
                   ? `${totalPending} awaiting action`
-                  : 'Open moderation queue'}
+                  : 'Open queue'}
               </Link>
               <Link
                 href="/dashboard"
@@ -251,93 +364,327 @@ export default async function AdminHomePage() {
             </div>
           </div>
 
-          {/* KPI strip */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {kpis.map(({ label, value, icon: Icon, tone }) => (
-              <div
-                key={label}
-                className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
-              >
-                <Icon className={`h-5 w-5 ${tone}`} />
-                <div className={`mt-3 text-3xl font-bold ${tone}`}>{value}</div>
-                <div className="mt-1 text-[11px] text-white/55 sm:text-xs">
-                  {label}
-                </div>
+          {/* HERO — total expected attendance across the platform */}
+          <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
+            <div className="flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-flame-300">
+                  Platform reach
+                </p>
+                <p className="mt-3 font-display text-6xl leading-none tracking-tight text-white sm:text-7xl">
+                  {formatNumberCompact(totalExpected)}
+                </p>
+                <p className="mt-3 text-sm text-white/55">
+                  expected attendance across{' '}
+                  <span className="font-semibold text-white/85">
+                    {counts.publishedEvents}
+                  </span>{' '}
+                  published events ·{' '}
+                  <span className="font-semibold text-white/85">
+                    {distinctCities}
+                  </span>{' '}
+                  {distinctCities === 1 ? 'city' : 'cities'} ·{' '}
+                  <span className="font-semibold text-white/85">
+                    {distinctCountries}
+                  </span>{' '}
+                  {distinctCountries === 1 ? 'country' : 'countries'}
+                </p>
               </div>
-            ))}
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <TrendBadge
+                  current={eventsTrend.recent}
+                  previous={eventsTrend.prior}
+                  asAbsolute
+                  label="events created last 7d"
+                />
+                <Sparkline values={eventsSpark} width={140} height={36} />
+              </div>
+            </div>
+          </section>
+
+          {/* KPI row with sparklines */}
+          <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <Calendar className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={eventsTrend.recent}
+                  previous={eventsTrend.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {counts.publishedEvents}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Published</p>
+              <div className="mt-2">
+                <Sparkline values={eventsSpark} width={120} height={22} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <CalendarCheck className="h-4 w-4 text-flame-300" />
+                <span className="text-[11px] text-white/35">live</span>
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {counts.upcomingEvents}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Upcoming</p>
+              <div className="mt-2 text-[10px] uppercase tracking-wide text-white/40">
+                {counts.publishedEvents - counts.upcomingEvents} past
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <UsersIcon className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={usersTrend.recent}
+                  previous={usersTrend.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {counts.totalUsers}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Users</p>
+              <div className="mt-2">
+                <Sparkline values={usersSpark} width={120} height={22} />
+              </div>
+            </div>
+
+            <div
+              className={[
+                'rounded-2xl border p-4',
+                totalPending > 0
+                  ? 'border-amber-500/30 bg-amber-500/[0.06]'
+                  : 'border-white/10 bg-white/[0.03]',
+              ].join(' ')}
+            >
+              <div className="flex items-center justify-between">
+                <Clock
+                  className={`h-4 w-4 ${totalPending > 0 ? 'text-amber-300' : 'text-white/55'}`}
+                />
+                <span className="text-[11px] text-white/35">queue</span>
+              </div>
+              <p
+                className={`mt-3 text-2xl font-bold tabular-nums ${totalPending > 0 ? 'text-amber-300' : 'text-white'}`}
+              >
+                {totalPending}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Awaiting action</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wide">
+                {counts.pendingSubmissions > 0 && (
+                  <span className="text-white/55">
+                    {counts.pendingSubmissions} sub
+                  </span>
+                )}
+                {counts.pendingPlacards > 0 && (
+                  <span className="text-white/55">
+                    {counts.pendingPlacards} pl
+                  </span>
+                )}
+                {counts.reportedPlacards > 0 && (
+                  <span className="text-flame-300">
+                    {counts.reportedPlacards} rep
+                  </span>
+                )}
+                {counts.pendingOrganizers > 0 && (
+                  <span className="text-white/55">
+                    {counts.pendingOrganizers} org
+                  </span>
+                )}
+                {counts.newVolunteers > 0 && (
+                  <span className="text-white/55">
+                    {counts.newVolunteers} vol
+                  </span>
+                )}
+                {totalPending === 0 && (
+                  <span className="text-white/35">All clear</span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Top cities + Recent activity */}
+          <div className="mt-10 grid gap-6 lg:grid-cols-5">
+            <section className="lg:col-span-3">
+              <div className="flex items-end justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Top cities
+                </h2>
+                <span className="text-xs text-white/35">
+                  by published events
+                </span>
+              </div>
+              {topCities.length === 0 ? (
+                <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
+                  No published events with city data yet.
+                </div>
+              ) : (
+                <ol className="mt-4 space-y-2">
+                  {topCities.map((c, i) => (
+                    <li
+                      key={c.slug}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+                    >
+                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-flame-500/15 text-xs font-bold tabular-nums text-flame-300">
+                        {i + 1}
+                      </span>
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.02]">
+                        <MapPin className="h-4 w-4 text-white/40" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold capitalize text-white">
+                          {c.slug.replace(/-/g, ' ')}
+                        </p>
+                        <p className="truncate text-[11px] text-white/45">
+                          {c.country || '—'}
+                          {c.expected > 0 && (
+                            <>
+                              {' · '}
+                              {formatNumberCompact(c.expected)} expected
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 text-sm font-bold tabular-nums text-flame-300">
+                        {c.count}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+
+            <section className="lg:col-span-2">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                Recent activity
+              </h2>
+              {recent.length === 0 ? (
+                <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
+                  Nothing yet.
+                </div>
+              ) : (
+                <ul className="mt-4 space-y-1.5">
+                  {recent.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                    >
+                      {a.kind === 'placard' && a.imageUrl ? (
+                        <span className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-lg bg-black/40">
+                          <Image
+                            src={a.imageUrl}
+                            alt="Placard"
+                            fill
+                            sizes="28px"
+                            className="object-cover"
+                          />
+                        </span>
+                      ) : (
+                        <span
+                          className={[
+                            'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
+                            a.kind === 'organizer'
+                              ? 'bg-flame-500/10 text-flame-300'
+                              : 'bg-white/[0.06] text-white/70',
+                          ].join(' ')}
+                        >
+                          {a.kind === 'organizer' ? (
+                            <BadgeCheck className="h-3.5 w-3.5" />
+                          ) : (
+                            <Send className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={
+                            a.kind === 'placard'
+                              ? '/admin/placards'
+                              : a.kind === 'organizer'
+                                ? '/admin/organizers'
+                                : '/admin/queue'
+                          }
+                          className="block truncate text-xs font-semibold text-white hover:text-flame-200"
+                        >
+                          {a.title}
+                        </Link>
+                        <p className="text-[11px] text-white/45 capitalize">
+                          {a.kind === 'placard'
+                            ? `Placard · ${a.status}`
+                            : a.kind === 'organizer'
+                              ? 'Organizer application'
+                              : `Submission · ${a.status}`}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 text-[11px] text-white/45">
+                        {relativeDay(a.at)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
 
-          {/* Tile grid */}
+          {/* Tile grid — demoted, just navigation */}
           <section className="mt-10">
             <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-              Areas
+              All areas
             </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {tiles.map((tile) => {
                 const Icon = tile.icon
                 const hasPending = (tile.pending ?? 0) > 0
-                const accent = hasPending && tile.accentWhenPending
                 return (
                   <Link
                     key={tile.href}
                     href={tile.href}
                     className={[
-                      'group block rounded-3xl border p-5 transition',
-                      accent
+                      'group flex items-center justify-between rounded-2xl border px-4 py-3 transition',
+                      hasPending
                         ? 'border-amber-500/25 bg-amber-500/[0.06] hover:border-amber-500/40 hover:bg-amber-500/[0.10]'
                         : 'border-white/10 bg-white/[0.03] hover:border-white/15 hover:bg-white/[0.05]',
                     ].join(' ')}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={[
-                            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border',
-                            accent
-                              ? 'border-amber-500/30 bg-amber-500/15 text-amber-300'
-                              : 'border-white/10 bg-white/[0.04] text-flame-300',
-                          ].join(' ')}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-white">
-                            {tile.title}
-                          </h3>
-                          <p className="mt-1 text-sm leading-snug text-white/55">
-                            {tile.description}
-                          </p>
-                        </div>
-                      </div>
-                      <ArrowRight className="mt-1 h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
-                    </div>
-                    {hasPending && (
-                      <div className="mt-4 flex items-center gap-2 text-xs">
-                        <span
-                          className={[
-                            'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold',
-                            accent
-                              ? 'border-amber-500/40 bg-amber-500/15 text-amber-200'
-                              : 'border-white/10 bg-white/[0.04] text-white/85',
-                          ].join(' ')}
-                        >
-                          {tile.title === 'Placards' &&
-                          counts.reportedPlacards > 0 ? (
-                            <Flag className="h-3 w-3" />
+                    <div className="flex items-center gap-3">
+                      <Icon
+                        className={`h-4 w-4 ${hasPending ? 'text-amber-300' : 'text-flame-300'}`}
+                      />
+                      <span className="text-sm font-semibold text-white">
+                        {tile.title}
+                      </span>
+                      {hasPending && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+                          {tile.title === 'Placards' && counts.reportedPlacards > 0 ? (
+                            <Flag className="h-2.5 w-2.5" />
                           ) : (
-                            <Clock className="h-3 w-3" />
+                            <Clock className="h-2.5 w-2.5" />
                           )}
-                          <span>
-                            {tile.pending} {tile.pendingLabel}
-                          </span>
+                          {tile.pending} {tile.pendingLabel}
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
                   </Link>
                 )
               })}
             </div>
           </section>
+
+          {/* Reach mini-legend */}
+          {distinctCountries > 0 && (
+            <div className="mt-8 flex items-center gap-2 text-xs text-white/45">
+              <Globe className="h-3.5 w-3.5" />
+              Active in {distinctCountries}{' '}
+              {distinctCountries === 1 ? 'country' : 'countries'} ·{' '}
+              {distinctCities} {distinctCities === 1 ? 'city' : 'cities'}
+            </div>
+          )}
         </div>
       </main>
     </>
