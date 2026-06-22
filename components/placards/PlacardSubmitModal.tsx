@@ -13,21 +13,45 @@ import {
 } from '@/lib/placards'
 import type { PlacardCategory, PlacardLanguage } from '@/lib/placards'
 
-type Props = { open: boolean; onClose: () => void }
+type Props = {
+  open: boolean
+  onClose: () => void
+  initialSlogan?: string
+  initialLanguage?: PlacardLanguage
+  initialCategories?: PlacardCategory[]
+  initialCity?: string
+}
 
 type FormStep = 'editing' | 'submitting' | 'success'
 
-export default function PlacardSubmitModal({ open, onClose }: Props) {
+export default function PlacardSubmitModal({
+  open,
+  onClose,
+  initialSlogan = '',
+  initialLanguage = 'sq',
+  initialCategories,
+  initialCity = '',
+}: Props) {
   const [step, setStep] = useState<FormStep>('editing')
-  const [slogan, setSlogan] = useState('')
-  const [language, setLanguage] = useState<PlacardLanguage>('sq')
-  const [categories, setCategories] = useState<PlacardCategory[]>([])
-  const [city, setCity] = useState('')
+  const [slogan, setSlogan] = useState(initialSlogan)
+  const [language, setLanguage] = useState<PlacardLanguage>(initialLanguage)
+  const [categories, setCategories] = useState<PlacardCategory[]>(initialCategories ?? [])
+  const [city, setCity] = useState(initialCity)
   const [submitterName, setSubmitterName] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [isAuthed, setIsAuthed] = useState(false)
   const sloganRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setSlogan(initialSlogan)
+    setLanguage(initialLanguage)
+    setCategories(initialCategories ?? [])
+    setCity(initialCity)
+    setStep('editing')
+    setErrorMessage(null)
+  }, [open, initialSlogan, initialLanguage, initialCategories, initialCity])
 
   useEffect(() => {
     if (!open) return

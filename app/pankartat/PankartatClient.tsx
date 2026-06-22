@@ -127,18 +127,13 @@ export default function PankartatClient({
               <Sparkles className="h-4 w-4" />
               Shfleto Pankartat
             </button>
-            <button
-              type="button"
-              disabled
-              title="Së shpejti — krijo pankartën tënde"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/55"
+            <Link
+              href="/pankartat/krijo"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100"
             >
               <ArrowDownToLine className="h-4 w-4" />
               Krijo Pankartën Tënde
-              <span className="rounded-full bg-white/10 px-2 py-0 text-[10px] uppercase tracking-wide text-white/55">
-                Së shpejti
-              </span>
-            </button>
+            </Link>
             <button
               type="button"
               onClick={() => setSubmitOpen(true)}
