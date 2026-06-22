@@ -1,9 +1,11 @@
 import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
+  DateHero,
   FlamingoHalo,
   FlamingoMotif,
   GridBackdrop,
+  bilingualLabel,
   categoryLabel,
   ctaLine,
   formatDateForCard,
@@ -72,13 +74,8 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
           </div>
         </div>
 
-        <div className="mt-32 flex flex-col gap-8">
-          <div
-            className="text-[18px] font-bold uppercase tracking-[0.32em]"
-            style={{ color: '#ff8a8a' }}
-          >
-            {date.month} {date.day}
-          </div>
+        <div className="mt-24 flex flex-col gap-8">
+          <DateHero iso={data.date} isCivic={isCivic} scale="lg" />
 
           <h1
             className="leading-[0.95]"
@@ -124,10 +121,10 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
           >
             <div className="flex items-baseline gap-6">
               <div
-                className="w-[200px] shrink-0 text-[16px] font-bold uppercase tracking-[0.28em]"
+                className="w-[260px] shrink-0 text-[16px] font-bold uppercase tracking-[0.24em]"
                 style={{ color: 'rgba(255,255,255,0.45)' }}
               >
-                Date
+                {bilingualLabel('Data', 'Date', isCivic)}
               </div>
               <div className="text-[34px] font-semibold text-white">
                 {date.weekday}, {date.day} {date.month}
@@ -137,10 +134,10 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
             {time && (
               <div className="flex items-baseline gap-6">
                 <div
-                  className="w-[200px] shrink-0 text-[16px] font-bold uppercase tracking-[0.28em]"
+                  className="w-[260px] shrink-0 text-[16px] font-bold uppercase tracking-[0.24em]"
                   style={{ color: 'rgba(255,255,255,0.45)' }}
                 >
-                  Time
+                  {bilingualLabel('Ora', 'Time', isCivic)}
                 </div>
                 <div className="text-[34px] font-semibold text-white tabular-nums">{time}</div>
               </div>
@@ -149,10 +146,10 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
             {where && (
               <div className="flex items-baseline gap-6">
                 <div
-                  className="w-[200px] shrink-0 text-[16px] font-bold uppercase tracking-[0.28em]"
+                  className="w-[260px] shrink-0 text-[16px] font-bold uppercase tracking-[0.24em]"
                   style={{ color: 'rgba(255,255,255,0.45)' }}
                 >
-                  Meeting point
+                  {bilingualLabel('Pika e takimit', 'Meeting point', isCivic)}
                 </div>
                 <div className="flex flex-col gap-2">
                   <div className="text-[34px] font-semibold leading-[1.15] text-white">
@@ -180,7 +177,9 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
               </div>
               {data.organizerName && (
                 <div className="mt-2 text-[20px] text-white/55">
-                  {isCivic ? 'Organized by' : 'Hosted by'} · {data.organizerName}
+                  {isCivic
+                    ? `Organizuar nga · Organized by · ${data.organizerName}`
+                    : `Hosted by · ${data.organizerName}`}
                 </div>
               )}
             </div>

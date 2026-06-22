@@ -1,12 +1,13 @@
 import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
+  DateHero,
   FlamingoHalo,
   FlamingoMotif,
   GridBackdrop,
+  bilingualLabel,
   categoryLabel,
   ctaLine,
-  formatDateForCard,
   formatTimeRangeForCard,
   locationLine,
   shortAddress,
@@ -19,7 +20,6 @@ type Props = {
 }
 
 export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Props) {
-  const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
   const where = shortAddress(data.address)
@@ -56,13 +56,17 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
         </div>
       </div>
 
-      <div className="relative z-10 grid h-full grid-cols-[1fr_auto] items-stretch gap-12 px-16 py-12">
+      <div className="relative z-10 grid h-full grid-cols-[auto_1fr_auto] items-stretch gap-10 px-16 py-12">
+        <div className="flex flex-col justify-center">
+          <DateHero iso={data.date} isCivic={isCivic} scale="sm" />
+        </div>
+
         <div className="flex flex-col">
           <AlbaGoWordmark size="sm" />
 
-          <div className="mt-8 flex items-center gap-3">
+          <div className="mt-6">
             <div
-              className="rounded-full px-3 py-1 text-[11px] font-bold tracking-[0.18em]"
+              className="inline-block rounded-full px-3 py-1 text-[11px] font-bold tracking-[0.18em]"
               style={{
                 background: isCivic ? 'rgba(238,28,37,0.18)' : 'rgba(255,255,255,0.08)',
                 color: isCivic ? '#ff8a8a' : 'rgba(255,255,255,0.85)',
@@ -73,16 +77,10 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
             >
               {categoryLabel(data)}
             </div>
-            <div
-              className="text-[14px] font-bold uppercase tracking-[0.28em]"
-              style={{ color: '#ff8a8a' }}
-            >
-              {date.weekday}, {date.day} {date.month}
-            </div>
           </div>
 
           <h1
-            className="mt-6 leading-[0.95]"
+            className="mt-5 leading-[0.95]"
             style={{
               fontFamily: "'Instrument Serif', Georgia, serif",
               fontSize: 72,
@@ -101,8 +99,8 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
           <div className="mt-auto flex flex-col gap-1.5">
             {where ? (
               <>
-                <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-flame-300/80">
-                  Meeting point
+                <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-flame-300/80">
+                  {bilingualLabel('Pika e takimit', 'Meeting point', isCivic)}
                 </div>
                 <div className="text-[22px] font-semibold leading-[1.2] text-white">
                   📍 {where}
@@ -153,7 +151,9 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
               letterSpacing: '-0.02em',
             }}
           >
-            <div className="text-white/55">Scan to open</div>
+            <div className="text-white/55">
+              {isCivic ? 'Skano · Scan to open' : 'Scan to open'}
+            </div>
             <div className="text-white">{data.city}</div>
           </div>
         </div>

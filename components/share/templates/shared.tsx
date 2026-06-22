@@ -9,6 +9,89 @@ export function formatDateForCard(iso: string): { weekday: string; day: string; 
   return { weekday, day, month }
 }
 
+const MONTHS_SQ = [
+  'JANAR', 'SHKURT', 'MARS', 'PRILL', 'MAJ', 'QERSHOR',
+  'KORRIK', 'GUSHT', 'SHTATOR', 'TETOR', 'NËNTOR', 'DHJETOR',
+]
+const WEEKDAYS_SQ = [
+  'E DIEL', 'E HËNË', 'E MARTË', 'E MËRKURË', 'E ENJTE', 'E PREMTE', 'E SHTUNË',
+]
+
+export function bilingualLabel(sq: string, en: string, isCivic: boolean): string {
+  return isCivic ? `${sq} · ${en}` : en
+}
+
+/* Date hero block — big day number + month / weekday underneath. When civic,
+   month + weekday are bilingual (Albanian · English) to match caption tone.
+   Three scales tuned to the three templates' canvas sizes. */
+export function DateHero({
+  iso,
+  isCivic,
+  scale,
+}: {
+  iso: string
+  isCivic: boolean
+  scale: 'sm' | 'md' | 'lg'
+}) {
+  const d = new Date(`${iso}T12:00:00`)
+  const day = d.toLocaleDateString('en-GB', { day: 'numeric' })
+  const monthEn = d.toLocaleDateString('en-GB', { month: 'long' }).toUpperCase()
+  const weekdayEn = d.toLocaleDateString('en-GB', { weekday: 'long' }).toUpperCase()
+  const monthSq = MONTHS_SQ[d.getMonth()]
+  const weekdaySq = WEEKDAYS_SQ[d.getDay()]
+
+  const numberSize = scale === 'lg' ? 180 : scale === 'md' ? 130 : 90
+  const monthSize = scale === 'lg' ? 28 : scale === 'md' ? 22 : 16
+  const weekdaySize = scale === 'lg' ? 22 : scale === 'md' ? 18 : 13
+  const gap = scale === 'sm' ? 6 : 12
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        lineHeight: 1,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "'Instrument Serif', Georgia, serif",
+          fontSize: numberSize,
+          lineHeight: 0.82,
+          letterSpacing: '-0.04em',
+          color: '#ff5757',
+          textShadow: '0 6px 32px rgba(238,28,37,0.55)',
+        }}
+      >
+        {day}
+      </div>
+      <div
+        style={{
+          marginTop: gap + 4,
+          fontSize: monthSize,
+          fontWeight: 800,
+          letterSpacing: '0.20em',
+          color: '#ffffff',
+        }}
+      >
+        {isCivic ? `${monthSq} · ${monthEn}` : monthEn}
+      </div>
+      <div
+        style={{
+          marginTop: 4,
+          fontSize: weekdaySize,
+          fontWeight: 600,
+          letterSpacing: '0.24em',
+          color: 'rgba(255,255,255,0.6)',
+        }}
+      >
+        {isCivic ? `${weekdaySq} · ${weekdayEn}` : weekdayEn}
+      </div>
+    </div>
+  )
+}
+
 export function formatTimeRangeForCard(time: string | null, endTime: string | null): string {
   if (!time) return ''
   const start = formatEventTimeLabel(time)
@@ -17,7 +100,7 @@ export function formatTimeRangeForCard(time: string | null, endTime: string | nu
 }
 
 export function categoryLabel(data: ShareEventData): string {
-  if (data.isCivic) return 'CONFIRMED PROTEST'
+  if (data.isCivic) return 'PROTESTË E KONFIRMUAR · CONFIRMED PROTEST'
   const c = (data.category || 'EVENT').toUpperCase()
   return c
 }
@@ -44,7 +127,7 @@ export function shortAddress(address: string | null): string | null {
 }
 
 export function ctaLine(data: ShareEventData): string {
-  return data.isCivic ? 'Details on AlbaGo' : 'Discover more on AlbaGo'
+  return data.isCivic ? 'Detajet në AlbaGo · Details on AlbaGo' : 'Discover more on AlbaGo'
 }
 
 /* AlbaGo wordmark — matches LandingNavbar exactly: red rounded square with

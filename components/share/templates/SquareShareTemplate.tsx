@@ -1,12 +1,13 @@
 import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
+  DateHero,
   FlamingoHalo,
   FlamingoMotif,
   GridBackdrop,
+  bilingualLabel,
   categoryLabel,
   ctaLine,
-  formatDateForCard,
   formatTimeRangeForCard,
   shortAddress,
 } from './shared'
@@ -18,7 +19,6 @@ type Props = {
 }
 
 export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props) {
-  const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
   const where = shortAddress(data.address)
@@ -72,16 +72,11 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
           </div>
         </div>
 
-        <div className="mt-12 flex flex-1 flex-col justify-center">
-          <div
-            className="text-[16px] font-bold uppercase tracking-[0.32em]"
-            style={{ color: '#ff8a8a' }}
-          >
-            {date.month} {date.day} · {date.weekday}
-          </div>
+        <div className="mt-10 flex flex-1 flex-col justify-center">
+          <DateHero iso={data.date} isCivic={isCivic} scale="md" />
 
           <h1
-            className="mt-6 leading-[0.92]"
+            className="mt-8 leading-[0.92]"
             style={{
               fontFamily: "'Instrument Serif', Georgia, serif",
               fontSize: 120,
@@ -115,8 +110,8 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
               )}
               {where && (
                 <div className="flex max-w-[860px] flex-col gap-1.5">
-                  <div className="text-[12px] font-bold uppercase tracking-[0.28em] text-flame-300/80">
-                    Meeting point
+                  <div className="text-[12px] font-bold uppercase tracking-[0.24em] text-flame-300/80">
+                    {bilingualLabel('Pika e takimit', 'Meeting point', isCivic)}
                   </div>
                   <div className="text-[28px] font-semibold leading-[1.25] text-white">
                     📍 {where}
