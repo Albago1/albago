@@ -38,6 +38,7 @@ import { getLocationBySlug, defaultLocationSlug, type LocationOption } from '@/l
 import { useLocations } from '@/lib/useLocations'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { getEventTimezone, zonedWallClockToUtcMs } from '@/lib/timezone'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend'
@@ -123,16 +124,18 @@ function resolveLocation(
   }
 }
 
+function eventInstantMs(e: PublicEvent, date = e.date): number {
+  const hhmm = e.time?.slice(0, 5) ?? '00:00'
+  const tz = getEventTimezone(e.location_slug, e.country)
+  return zonedWallClockToUtcMs(date, hhmm, tz)
+}
+
 function sortEventsByPriority(list: PublicEvent[]) {
   return [...list].sort((a, b) => {
     if (Boolean(a.highlight) !== Boolean(b.highlight)) {
       return a.highlight ? -1 : 1
     }
-
-    const aDateTime = new Date(`${a.date}T${a.time}`)
-    const bDateTime = new Date(`${b.date}T${b.time}`)
-
-    return aDateTime.getTime() - bDateTime.getTime()
+    return eventInstantMs(a) - eventInstantMs(b)
   })
 }
 
@@ -418,18 +421,14 @@ function EventsContent() {
     const effectiveDate = (e: PublicEvent) =>
       isRecurring(e) ? nextOccurrence(e, today) ?? e.date : e.date
     if (sortBy === 'date-asc') {
-      return [...filteredEvents].sort((a, b) => {
-        const da = new Date(`${effectiveDate(a)}T${a.time}`).getTime()
-        const db = new Date(`${effectiveDate(b)}T${b.time}`).getTime()
-        return da - db
-      })
+      return [...filteredEvents].sort(
+        (a, b) => eventInstantMs(a, effectiveDate(a)) - eventInstantMs(b, effectiveDate(b)),
+      )
     }
     if (sortBy === 'date-desc') {
-      return [...filteredEvents].sort((a, b) => {
-        const da = new Date(`${effectiveDate(a)}T${a.time}`).getTime()
-        const db = new Date(`${effectiveDate(b)}T${b.time}`).getTime()
-        return db - da
-      })
+      return [...filteredEvents].sort(
+        (a, b) => eventInstantMs(b, effectiveDate(b)) - eventInstantMs(a, effectiveDate(a)),
+      )
     }
     return sortEventsByPriority(filteredEvents)
   }, [filteredEvents, sortBy])

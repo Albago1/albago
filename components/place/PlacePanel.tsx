@@ -18,6 +18,9 @@ type PlacePanelProps = {
 const CLOSE_DRAG_THRESHOLD = 120
 
 function sortEvents(events: Event[]) {
+  // All events at one venue share the same timezone, so the naive parse here
+  // gives the same absolute-time skew to every entry and relative order is
+  // preserved. No need for zonedWallClockToUtcMs in this list.
   return [...events].sort((a, b) => {
     if (Boolean(a.highlight) !== Boolean(b.highlight)) {
       return a.highlight ? -1 : 1

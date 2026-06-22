@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
@@ -276,75 +276,119 @@ export default function VolunteerClient({ movementSlug }: Props) {
 
                 <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label={t('volunteer_name_label')} required>
-                    <input
-                      type="text"
-                      required
-                      maxLength={80}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Ana K."
-                      className={inputClass}
-                    />
+                    {({ id }) => (
+                      <input
+                        id={id}
+                        name="volunteer-name"
+                        type="text"
+                        autoComplete="name"
+                        required
+                        maxLength={80}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Ana K."
+                        className={inputClass}
+                      />
+                    )}
                   </Field>
                   <Field label={t('volunteer_email_label')} required>
-                    <input
-                      type="email"
-                      required
-                      maxLength={120}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="ana@example.com"
-                      className={inputClass}
-                    />
+                    {({ id }) => (
+                      <input
+                        id={id}
+                        name="volunteer-email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        maxLength={120}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="ana@example.com"
+                        className={inputClass}
+                      />
+                    )}
                   </Field>
                   <Field label={t('volunteer_city_label')} required>
-                    <input
-                      type="text"
-                      required
-                      maxLength={80}
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Tirana"
-                      className={inputClass}
-                    />
+                    {({ id }) => (
+                      <input
+                        id={id}
+                        name="volunteer-city"
+                        type="text"
+                        autoComplete="address-level2"
+                        required
+                        maxLength={80}
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        placeholder="Tirana"
+                        className={inputClass}
+                      />
+                    )}
                   </Field>
                   <Field label={t('volunteer_country_label')}>
-                    <input
-                      type="text"
-                      maxLength={80}
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      placeholder="Albania"
-                      className={inputClass}
-                    />
+                    {({ id }) => (
+                      <input
+                        id={id}
+                        name="volunteer-country"
+                        type="text"
+                        autoComplete="country-name"
+                        maxLength={80}
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        placeholder="Albania"
+                        className={inputClass}
+                      />
+                    )}
                   </Field>
                   <Field label={t('volunteer_phone_label')} className="sm:col-span-2">
-                    <input
-                      type="tel"
-                      maxLength={40}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+355 …"
-                      className={inputClass}
-                    />
+                    {({ id }) => (
+                      <input
+                        id={id}
+                        name="volunteer-phone"
+                        type="tel"
+                        autoComplete="tel"
+                        maxLength={40}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+355 …"
+                        className={inputClass}
+                      />
+                    )}
                   </Field>
                   <Field label={t('volunteer_note_label')} className="sm:col-span-2">
-                    <textarea
-                      maxLength={600}
-                      rows={4}
-                      value={availabilityNote}
-                      onChange={(e) => setAvailabilityNote(e.target.value)}
-                      placeholder={t('volunteer_note_placeholder')}
-                      className={`${inputClass} resize-none`}
-                    />
-                    <div className="mt-1 text-right text-[11px] text-white/40">
-                      {availabilityNote.length}/600
-                    </div>
+                    {({ id }) => {
+                      const counterId = `${id}-counter`
+                      return (
+                        <>
+                          <textarea
+                            id={id}
+                            name="volunteer-note"
+                            maxLength={600}
+                            rows={4}
+                            value={availabilityNote}
+                            onChange={(e) => setAvailabilityNote(e.target.value)}
+                            placeholder={t('volunteer_note_placeholder')}
+                            aria-describedby={counterId}
+                            className={`${inputClass} resize-none`}
+                          />
+                          <div
+                            id={counterId}
+                            aria-live="polite"
+                            className="mt-1 text-right text-[11px] text-white/40"
+                          >
+                            <span className="sr-only">Characters used: </span>
+                            {availabilityNote.length}/600
+                          </div>
+                        </>
+                      )
+                    }}
                   </Field>
                 </div>
 
                 {error && (
-                  <div className="mt-5 rounded-2xl border border-flame-500/30 bg-flame-500/[0.06] p-4 text-sm text-flame-200">
+                  <div
+                    role="alert"
+                    aria-live="assertive"
+                    className="mt-5 rounded-2xl border border-flame-500/30 bg-flame-500/[0.06] p-4 text-sm text-flame-200"
+                  >
                     {error}
                     {needsMigration && (
                       <p className="mt-2 text-xs text-white/60">
@@ -437,15 +481,22 @@ function Field({
   label: string
   required?: boolean
   className?: string
-  children: React.ReactNode
+  children: (props: { id: string; describedBy?: string }) => React.ReactNode
 }) {
+  const id = useId()
   return (
-    <label className={`block ${className ?? ''}`}>
-      <span className="kicker mb-1.5 block">
+    <div className={`block ${className ?? ''}`}>
+      <label htmlFor={id} className="kicker mb-1.5 block">
         {label}
-        {required && <span className="text-flame-400"> *</span>}
-      </span>
-      {children}
-    </label>
+        {required && (
+          <span className="text-flame-400" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
+        {required && <span className="sr-only"> required</span>}
+      </label>
+      {children({ id })}
+    </div>
   )
 }
