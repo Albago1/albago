@@ -50,8 +50,20 @@ export default function PlacardFilters({
         })}
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-white/55">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-white/55">
         <span className="font-semibold uppercase tracking-[0.22em]">Rendit:</span>
+        <button
+          type="button"
+          onClick={() => onSortChange('popular')}
+          className={[
+            'rounded-full border px-2.5 py-1 font-semibold transition',
+            sort === 'popular'
+              ? 'border-white/30 bg-white/10 text-white'
+              : 'border-white/10 bg-transparent text-white/55 hover:text-white',
+          ].join(' ')}
+        >
+          Më të votuarat
+        </button>
         <button
           type="button"
           onClick={() => onSortChange('newest')}

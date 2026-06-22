@@ -16,6 +16,7 @@ export type Placard = {
   categories: PlacardCategory[]
   city?: string
   submittedAt: string
+  voteCount?: number
 }
 
 export const PLACARD_LANGUAGE_LABELS: Record<PlacardLanguage, { label: string; flag: string }> = {
@@ -48,7 +49,46 @@ export const PLACARD_FILTER_ORDER: Array<{ key: string; label: string }> = [
   { key: 'cat:powerful', label: 'Të fuqishme' },
 ]
 
-export type PlacardSort = 'newest' | 'shortest'
+export type PlacardSort = 'newest' | 'shortest' | 'popular'
+
+export const PLACARD_SUBMIT_CATEGORY_KEYS: PlacardCategory[] = [
+  'flamingo-revolution',
+  'vjosa-narta',
+  'diaspora',
+  'korrupsioni',
+  'satire',
+]
+
+export const SLOGAN_MIN_LENGTH = 3
+export const SLOGAN_MAX_LENGTH = 140
+
+export type PlacardRow = {
+  id: string
+  slogan: string
+  language: string
+  categories: string[] | null
+  city: string | null
+  status: string
+  vote_count: number
+  submitted_by: string | null
+  submitter_name: string | null
+  admin_note: string | null
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+}
+
+export function placardFromRow(row: PlacardRow): Placard & { voteCount: number } {
+  return {
+    id: row.id,
+    slogan: row.slogan,
+    language: (row.language as PlacardLanguage) ?? 'sq',
+    categories: ((row.categories ?? []) as PlacardCategory[]).filter(Boolean),
+    city: row.city ?? undefined,
+    submittedAt: row.created_at,
+    voteCount: row.vote_count ?? 0,
+  } as Placard & { voteCount: number }
+}
 
 export const SEED_PLACARDS: Placard[] = [
   {
@@ -173,8 +213,18 @@ export function filterPlacards(list: Placard[], filterKey: string): Placard[] {
 
 export function sortPlacards(list: Placard[], sort: PlacardSort): Placard[] {
   const copy = [...list]
-  if (sort === 'shortest') copy.sort((a, b) => a.slogan.length - b.slogan.length)
-  else copy.sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))
+  if (sort === 'shortest') {
+    copy.sort((a, b) => a.slogan.length - b.slogan.length)
+  } else if (sort === 'popular') {
+    copy.sort((a, b) => {
+      const av = a.voteCount ?? 0
+      const bv = b.voteCount ?? 0
+      if (av !== bv) return bv - av
+      return a.submittedAt < b.submittedAt ? 1 : -1
+    })
+  } else {
+    copy.sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))
+  }
   return copy
 }
 

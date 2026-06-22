@@ -1,12 +1,20 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Check, Copy, Download, MessageCircle, Send, Share2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Check, Copy, Download, Flame, MessageCircle, Send, Share2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/browser'
 import { PLACARD_CATEGORY_LABELS, PLACARD_LANGUAGE_LABELS } from '@/lib/placards'
 import type { Placard } from '@/lib/placards'
 import { PlacardSquare, PlacardStory } from './PlacardTemplate'
 
-type Props = { placard: Placard }
+type Props = {
+  placard: Placard
+  voteCount?: number
+  isVoted?: boolean
+  voteEnabled?: boolean
+  onVoteChange?: (delta: number, voted: boolean) => void
+}
 
 type DownloadFormat = 'square' | 'story'
 
@@ -16,11 +24,23 @@ function shareText(placard: Placard): string {
   return `Kam gjetur këtë pankartë në AlbaGo: "${placard.slogan}" — ${SHARE_URL_BASE}`
 }
 
-export default function PlacardCard({ placard }: Props) {
+export default function PlacardCard({
+  placard,
+  voteCount: initialVoteCount,
+  isVoted: initialIsVoted = false,
+  voteEnabled = false,
+  onVoteChange,
+}: Props) {
+  const router = useRouter()
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState<DownloadFormat | null>(null)
   const [renderFormat, setRenderFormat] = useState<DownloadFormat | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [voteCount, setVoteCount] = useState(
+    initialVoteCount ?? placard.voteCount ?? 0,
+  )
+  const [isVoted, setIsVoted] = useState(initialIsVoted)
+  const [votePending, setVotePending] = useState(false)
   const captureRef = useRef<HTMLDivElement | null>(null)
 
   const lang = PLACARD_LANGUAGE_LABELS[placard.language]
@@ -84,6 +104,52 @@ export default function PlacardCard({ placard }: Props) {
   function handleShareTelegram() {
     const url = `https://t.me/share/url?url=${encodeURIComponent(SHARE_URL_BASE)}&text=${encodeURIComponent(`"${placard.slogan}" — Pankartë në AlbaGo`)}`
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function handleVote() {
+    if (!voteEnabled) {
+      flashAction('Votimi do të vihet në funksion pasi databaza të aktivizohet.')
+      return
+    }
+    if (votePending) return
+    const supabase = createClient()
+    const { data: userData } = await supabase.auth.getUser()
+    const user = userData?.user
+    if (!user) {
+      router.push('/sign-in?next=/pankartat')
+      return
+    }
+    setVotePending(true)
+    const wasVoted = isVoted
+    const nextVoted = !wasVoted
+    const delta = nextVoted ? 1 : -1
+    setIsVoted(nextVoted)
+    setVoteCount((c) => Math.max(0, c + delta))
+    onVoteChange?.(delta, nextVoted)
+
+    try {
+      if (nextVoted) {
+        const { error } = await supabase.from('placard_votes').insert({
+          user_id: user.id,
+          placard_id: placard.id,
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('placard_votes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('placard_id', placard.id)
+        if (error) throw error
+      }
+    } catch {
+      setIsVoted(wasVoted)
+      setVoteCount((c) => Math.max(0, c - delta))
+      onVoteChange?.(-delta, wasVoted)
+      flashAction('Votimi dështoi.')
+    } finally {
+      setVotePending(false)
+    }
   }
 
   async function handleShareNative() {
@@ -203,6 +269,25 @@ export default function PlacardCard({ placard }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleVote}
+            disabled={votePending}
+            className={[
+              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50',
+              isVoted
+                ? 'border-flame-500/55 bg-flame-500/15 text-flame-100'
+                : 'border-white/15 bg-white/[0.04] text-white/85 hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100',
+            ].join(' ')}
+            title={isVoted ? 'Hiq votën' : 'Voto'}
+          >
+            <Flame className={['h-3.5 w-3.5', isVoted ? 'text-flame-300' : ''].join(' ')} />
+            <span>{isVoted ? 'Votuar' : 'Voto'}</span>
+            <span className="rounded-full bg-white/10 px-1.5 py-0 text-[10px] font-bold text-white/85 tabular-nums">
+              {voteCount}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={handleCopy}

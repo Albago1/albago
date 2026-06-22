@@ -7,6 +7,7 @@ import { ArrowDownToLine, Flame, MessageSquareText, Sparkles } from 'lucide-reac
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import PlacardCard from '@/components/placards/PlacardCard'
 import PlacardFilters from '@/components/placards/PlacardFilters'
+import PlacardSubmitModal from '@/components/placards/PlacardSubmitModal'
 import {
   PLACARD_CATEGORY_LABELS,
   PLACARD_FILTER_ORDER,
@@ -18,11 +19,22 @@ import {
 } from '@/lib/placards'
 import type { Placard, PlacardSort } from '@/lib/placards'
 
-type Props = { placards: Placard[] }
+type Props = {
+  placards: Placard[]
+  votedIds?: string[]
+  submitEnabled?: boolean
+}
 
-export default function PankartatClient({ placards }: Props) {
+export default function PankartatClient({
+  placards: initialPlacards,
+  votedIds = [],
+  submitEnabled = false,
+}: Props) {
   const [filterKey, setFilterKey] = useState<string>('all')
-  const [sort, setSort] = useState<PlacardSort>('newest')
+  const [sort, setSort] = useState<PlacardSort>(submitEnabled ? 'popular' : 'newest')
+  const [submitOpen, setSubmitOpen] = useState(false)
+  const [placards, setPlacards] = useState<Placard[]>(initialPlacards)
+  const [votedSet, setVotedSet] = useState<Set<string>>(new Set(votedIds))
 
   const filtered = useMemo(() => {
     return sortPlacards(filterPlacards(placards, filterKey), sort)
@@ -45,6 +57,20 @@ export default function PankartatClient({ placards }: Props) {
 
   function scrollToLibrary() {
     document.getElementById('placard-library')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  function handleVoteChange(id: string, delta: number, voted: boolean) {
+    setPlacards((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, voteCount: Math.max(0, (p.voteCount ?? 0) + delta) } : p,
+      ),
+    )
+    setVotedSet((prev) => {
+      const next = new Set(prev)
+      if (voted) next.add(id)
+      else next.delete(id)
+      return next
+    })
   }
 
   return (
@@ -115,15 +141,27 @@ export default function PankartatClient({ placards }: Props) {
             </button>
             <button
               type="button"
-              disabled
-              title="Së shpejti — dërgo një mesazh të ri për shqyrtim"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/55"
+              onClick={() => setSubmitOpen(true)}
+              disabled={!submitEnabled}
+              title={
+                submitEnabled
+                  ? 'Dërgo një mesazh të ri për shqyrtim'
+                  : 'Submisionet do të vihen në funksion pasi databaza të aktivizohet'
+              }
+              className={[
+                'inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold transition',
+                submitEnabled
+                  ? 'border-white/15 bg-white/[0.04] text-white/85 hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100'
+                  : 'border-white/10 bg-white/[0.03] text-white/45',
+              ].join(' ')}
             >
               <MessageSquareText className="h-4 w-4" />
               Dërgo Mesazh
-              <span className="rounded-full bg-white/10 px-2 py-0 text-[10px] uppercase tracking-wide text-white/55">
-                Së shpejti
-              </span>
+              {!submitEnabled && (
+                <span className="rounded-full bg-white/10 px-2 py-0 text-[10px] uppercase tracking-wide text-white/55">
+                  Së shpejti
+                </span>
+              )}
             </button>
           </motion.div>
         </div>
@@ -183,12 +221,21 @@ export default function PankartatClient({ placards }: Props) {
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((p) => (
-                <PlacardCard key={p.id} placard={p} />
+                <PlacardCard
+                  key={p.id}
+                  placard={p}
+                  voteCount={p.voteCount ?? 0}
+                  isVoted={votedSet.has(p.id)}
+                  voteEnabled={submitEnabled}
+                  onVoteChange={(delta, voted) => handleVoteChange(p.id, delta, voted)}
+                />
               ))}
             </div>
           )}
         </div>
       </section>
+
+      <PlacardSubmitModal open={submitOpen} onClose={() => setSubmitOpen(false)} />
 
       {/* Languages legend */}
       <section className="px-5 sm:px-8 pb-24">
