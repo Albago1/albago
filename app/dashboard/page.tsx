@@ -231,7 +231,7 @@ export default async function DashboardPage() {
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             <Link
-              href="/admin"
+              href="/admin/queue"
               className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/15 hover:bg-white/[0.05]"
             >
               <div>
