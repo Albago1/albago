@@ -135,22 +135,45 @@ export default function AdminPlacardsClient({ initialRows, migrationApplied }: P
           filtered.map((row) => {
             const cats = (row.categories ?? []) as PlacardCategory[]
             const lang = PLACARD_LANGUAGE_LABELS[row.language as PlacardLanguage]
+            const text = row.caption?.trim() || row.slogan?.trim() || ''
             return (
               <div
                 key={row.id}
-                className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.02] p-5 sm:flex-row sm:items-center"
+                className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.02] p-5 sm:flex-row sm:items-start"
               >
-                <div className="min-w-0 flex-1">
-                  <p
-                    className="text-white"
-                    style={{
-                      fontFamily: "'Instrument Serif', Georgia, serif",
-                      fontSize: 24,
-                      lineHeight: 1.15,
-                    }}
+                {row.image_url && (
+                  <a
+                    href={row.image_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40 sm:w-40 sm:flex-shrink-0"
                   >
-                    {row.slogan}
-                  </p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={row.image_url}
+                      alt={text || 'Pankartë e ngarkuar'}
+                      className="h-40 w-full object-cover sm:h-40"
+                      loading="lazy"
+                    />
+                  </a>
+                )}
+                <div className="min-w-0 flex-1">
+                  {text ? (
+                    <p
+                      className="text-white"
+                      style={{
+                        fontFamily: "'Instrument Serif', Georgia, serif",
+                        fontSize: 24,
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {text}
+                    </p>
+                  ) : (
+                    <p className="text-sm italic text-white/45">
+                      Pa përshkrim — vetëm foto.
+                    </p>
+                  )}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-white/55">
                     {lang && (
                       <span className="rounded-full bg-white/[0.05] px-2 py-0.5 font-semibold uppercase tracking-wide">

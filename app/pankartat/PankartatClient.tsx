@@ -3,11 +3,11 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowDownToLine, Flame, MessageSquareText, Sparkles } from 'lucide-react'
+import { Camera, Flame, Sparkles } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import PlacardCard from '@/components/placards/PlacardCard'
 import PlacardFilters from '@/components/placards/PlacardFilters'
-import PlacardSubmitModal from '@/components/placards/PlacardSubmitModal'
+import PlacardUploadModal from '@/components/placards/PlacardUploadModal'
 import {
   PLACARD_CATEGORY_LABELS,
   PLACARD_FILTER_ORDER,
@@ -32,7 +32,7 @@ export default function PankartatClient({
 }: Props) {
   const [filterKey, setFilterKey] = useState<string>('all')
   const [sort, setSort] = useState<PlacardSort>(submitEnabled ? 'popular' : 'newest')
-  const [submitOpen, setSubmitOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [placards, setPlacards] = useState<Placard[]>(initialPlacards)
   const [votedSet, setVotedSet] = useState<Set<string>>(new Set(votedIds))
 
@@ -110,7 +110,8 @@ export default function PankartatClient({
             transition={{ duration: 0.8, delay: 0.1 }}
             className="mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-white/65"
           >
-            Zgjidh mesazhin tënd, shkarko pankartën dhe bëhu pjesë e zërit të revolucionit.
+            Ngarko pankartën që ke ngritur në protestë. Galeri e gjallë e zërave të
+            vërtetë nga rrugët shqiptare dhe diaspora.
           </motion.p>
 
           <motion.div
@@ -121,42 +122,35 @@ export default function PankartatClient({
           >
             <button
               type="button"
-              onClick={scrollToLibrary}
-              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_30px_-4px_rgba(238,28,37,0.55)] transition hover:bg-flame-500/90"
-            >
-              <Sparkles className="h-4 w-4" />
-              Shfleto Pankartat
-            </button>
-            <Link
-              href="/pankartat/krijo"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100"
-            >
-              <ArrowDownToLine className="h-4 w-4" />
-              Krijo Pankartën Tënde
-            </Link>
-            <button
-              type="button"
-              onClick={() => setSubmitOpen(true)}
+              onClick={() => setUploadOpen(true)}
               disabled={!submitEnabled}
               title={
                 submitEnabled
-                  ? 'Dërgo një mesazh të ri për shqyrtim'
-                  : 'Submisionet do të vihen në funksion pasi databaza të aktivizohet'
+                  ? 'Ngarko një foto të pankartës tënde'
+                  : 'Ngarkimi do të vihet në funksion pasi databaza të aktivizohet'
               }
               className={[
-                'inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold transition',
+                'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition',
                 submitEnabled
-                  ? 'border-white/15 bg-white/[0.04] text-white/85 hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100'
-                  : 'border-white/10 bg-white/[0.03] text-white/45',
+                  ? 'bg-flame-500 text-white shadow-[0_0_30px_-4px_rgba(238,28,37,0.55)] hover:bg-flame-500/90'
+                  : 'border border-white/10 bg-white/[0.03] text-white/45',
               ].join(' ')}
             >
-              <MessageSquareText className="h-4 w-4" />
-              Dërgo Mesazh
+              <Camera className="h-4 w-4" />
+              Ngarko Pankartën Tënde
               {!submitEnabled && (
                 <span className="rounded-full bg-white/10 px-2 py-0 text-[10px] uppercase tracking-wide text-white/55">
                   Së shpejti
                 </span>
               )}
+            </button>
+            <button
+              type="button"
+              onClick={scrollToLibrary}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100"
+            >
+              <Sparkles className="h-4 w-4" />
+              Shfleto Galerinë
             </button>
           </motion.div>
         </div>
@@ -185,10 +179,10 @@ export default function PankartatClient({
         <div className="mx-auto max-w-7xl">
           <div className="mb-6 flex flex-col gap-1">
             <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-              Biblioteka e mesazheve
+              Galeria e pankartave
             </h2>
             <p className="text-sm text-white/55">
-              Shkarko si poster për print, ose si grafikë gati për Instagram, WhatsApp dhe Telegram.
+              Foto reale të pankartave nga protestat. Pëlqe, shkarko, ndaj në WhatsApp ose Telegram.
             </p>
           </div>
 
@@ -230,15 +224,15 @@ export default function PankartatClient({
         </div>
       </section>
 
-      <PlacardSubmitModal open={submitOpen} onClose={() => setSubmitOpen(false)} />
+      <PlacardUploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       {/* Languages legend */}
       <section className="px-5 sm:px-8 pb-24">
         <div className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/[0.02] p-8">
-          <h3 className="text-lg font-semibold text-white">Gjuhët e mbështetura</h3>
+          <h3 className="text-lg font-semibold text-white">Gjuhët në galeri</h3>
           <p className="mt-2 text-sm text-white/55">
-            Çdo pankartë ka markën AlbaGo dhe linkun e drejtpërdrejtë te kjo bibliotekë.
-            Përdor cilëndo gjuhë që përshtatet me audiencën tënde.
+            Filtro pankartat sipas gjuhës së mesazhit të shkruar. Çdo pankartë vjen
+            nga një protestues i vërtetë.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             {Object.entries(PLACARD_LANGUAGE_LABELS).map(([key, info]) => (

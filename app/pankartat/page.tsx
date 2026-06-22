@@ -6,11 +6,11 @@ import PankartatClient from './PankartatClient'
 export const metadata: Metadata = {
   title: 'Pankartat e Revolucionit — AlbaGo',
   description:
-    'Zgjidh mesazhin tënd, shkarko pankartën dhe bëhu pjesë e zërit të revolucionit. Bibliotekë e kuruar e mesazheve për protestat shqiptare dhe diasporën.',
+    'Galeri e gjallë e pankartave nga protestat shqiptare dhe diaspora. Ngarko foton e pankartës tënde, pëlqe dhe ndaj mesazhet e të tjerëve.',
   openGraph: {
     title: 'Pankartat e Revolucionit — AlbaGo',
     description:
-      'Bibliotekë e kuruar e mesazheve për protestat shqiptare. Shkarko, kopjo, ndaj.',
+      'Galeri e gjallë e pankartave nga protestat shqiptare dhe diaspora.',
     type: 'website',
   },
 }
@@ -26,7 +26,7 @@ export default async function PankartatPage() {
   const res = await supabase
     .from('placards')
     .select(
-      'id, slogan, language, categories, city, status, vote_count, submitted_by, submitter_name, admin_note, created_at, updated_at, approved_at',
+      'id, slogan, language, categories, city, status, vote_count, submitted_by, submitter_name, admin_note, created_at, updated_at, approved_at, image_url, caption',
     )
     .eq('status', 'approved')
     .order('vote_count', { ascending: false })

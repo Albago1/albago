@@ -17,7 +17,13 @@ export type Placard = {
   city?: string
   submittedAt: string
   voteCount?: number
+  imageUrl?: string
+  caption?: string
+  submitterName?: string
 }
+
+export const PLACARD_PHOTO_BUCKET = 'placard-photos'
+export const CAPTION_MAX_LENGTH = 140
 
 export const PLACARD_LANGUAGE_LABELS: Record<PlacardLanguage, { label: string; flag: string }> = {
   sq: { label: 'Shqip', flag: '🇦🇱' },
@@ -64,7 +70,7 @@ export const SLOGAN_MAX_LENGTH = 140
 
 export type PlacardRow = {
   id: string
-  slogan: string
+  slogan: string | null
   language: string
   categories: string[] | null
   city: string | null
@@ -76,17 +82,22 @@ export type PlacardRow = {
   created_at: string
   updated_at: string
   approved_at: string | null
+  image_url: string | null
+  caption: string | null
 }
 
 export function placardFromRow(row: PlacardRow): Placard & { voteCount: number } {
   return {
     id: row.id,
-    slogan: row.slogan,
+    slogan: row.slogan ?? row.caption ?? '',
     language: (row.language as PlacardLanguage) ?? 'sq',
     categories: ((row.categories ?? []) as PlacardCategory[]).filter(Boolean),
     city: row.city ?? undefined,
     submittedAt: row.created_at,
     voteCount: row.vote_count ?? 0,
+    imageUrl: row.image_url ?? undefined,
+    caption: row.caption ?? undefined,
+    submitterName: row.submitter_name ?? undefined,
   } as Placard & { voteCount: number }
 }
 
