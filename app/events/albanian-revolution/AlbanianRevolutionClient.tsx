@@ -264,7 +264,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
               <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-flame-500" />
             </span>
-            <span className="text-white/80">Peaceful Â· Lawful Â· Worldwide</span>
+            <span className="text-white/80">Peaceful · Lawful · Worldwide</span>
           </motion.div>
 
           <motion.h1
@@ -727,7 +727,7 @@ function MovementCounter({ target }: { target: number }) {
               <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-flame-500" />
             </span>
-            <span className="text-white/80">Live Â· updating now</span>
+            <span className="text-white/80">Live · updating now</span>
           </div>
         </Reveal>
         <Reveal delay={0.1}>

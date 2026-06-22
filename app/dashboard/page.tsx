@@ -355,7 +355,7 @@ export default async function DashboardPage() {
                     <div>
                       <p className="font-semibold text-white">{sub.title}</p>
                       <p className="mt-1 text-sm text-white/50">
-                        {sub.venue_name} Â· {sub.date}
+                        {sub.venue_name} · {sub.date}
                       </p>
                     </div>
 

@@ -179,7 +179,7 @@ export default async function VenueDetailPage(
     savedIds = new Set((savedRows ?? []).map((r) => r.event_id))
   }
 
-  const cityLine = [venue.address, venue.city ?? location.label].filter(Boolean).join(' Â· ')
+  const cityLine = [venue.address, venue.city ?? location.label].filter(Boolean).join(' · ')
 
   return (
     <main className="min-h-screen bg-ink-950 text-white">

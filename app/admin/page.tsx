@@ -5,7 +5,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import AdminClient from './AdminClient'
 
 export const metadata: Metadata = {
-  title: 'Admin Â· Review Submissions',
+  title: 'Admin · Review Submissions',
 }
 
 export default async function AdminPage() {

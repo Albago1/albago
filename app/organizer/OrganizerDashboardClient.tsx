@@ -239,8 +239,8 @@ export default function OrganizerDashboardClient({
                               month: 'short',
                               year: 'numeric',
                             })}
-                            {event.time ? ` Â· ${formatEventTimeLabel(event.time)}` : ''}
-                            {' Â· '}
+                            {event.time ? ` · ${formatEventTimeLabel(event.time)}` : ''}
+                            {' · '}
                             <span className="capitalize">{event.category}</span>
                           </p>
                         </div>
