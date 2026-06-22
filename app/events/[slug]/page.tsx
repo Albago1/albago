@@ -154,16 +154,11 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   return (data as EventRecord | null) ?? null
 }
 
-function formatTimeRange(time: string | null, endTime: string | null, tz: string | null): string {
+function formatTimeRange(time: string | null, endTime: string | null): string {
   if (!time) return ''
   const start = time.length >= 5 ? time.slice(0, 5) : time
   const end = endTime && endTime.length >= 5 ? endTime.slice(0, 5) : endTime
-  const range = end ? `${start} → ${end}` : start
-  if (tz && tz !== 'Europe/Tirane') {
-    const short = tz.split('/').pop() ?? tz
-    return `${range} (${short})`
-  }
-  return range
+  return end ? `${start} → ${end}` : start
 }
 
 function socialHref(platform: string, value: string): string {
@@ -417,7 +412,7 @@ export default async function EventDetailPage(
 
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
-              {formatTimeRange(event.time, event.end_time, event.timezone)}
+              {formatTimeRange(event.time, event.end_time)}
             </span>
 
             {isRecurring(event) && (
