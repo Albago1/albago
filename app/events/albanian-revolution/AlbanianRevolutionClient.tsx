@@ -166,7 +166,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
       setSearchCenter({
         lat: local.lat,
         lng: local.lng,
-        label: local.placeName?.split('â€”')[0]?.trim() || local.country,
+        label: local.placeName?.split('—')[0]?.trim() || local.country,
       })
       setSearching(false)
       return
@@ -197,7 +197,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
           setSearchCenter(null)
         }
       } catch {
-        // Aborted or network error â€” silently ignore.
+        // Aborted or network error — silently ignore.
       } finally {
         setSearching(false)
       }
@@ -286,9 +286,9 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
             transition={{ duration: 0.9, delay: 0.2 }}
             className="mt-10 max-w-2xl text-lg leading-relaxed text-white/65"
           >
-            A worldwide civic campaign coordinated through AlbaGo â€” for the peaceful, lawful
+            A worldwide civic campaign coordinated through AlbaGo — for the peaceful, lawful
             organization of Albanian protests and movements. Find a square near you, organize
-            your city, or stand with the diaspora â€” calmly, openly, together.
+            your city, or stand with the diaspora — calmly, openly, together.
           </motion.p>
 
           <motion.div
@@ -383,7 +383,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
           <Reveal delay={0.2}>
             <p className="mt-8 mx-auto max-w-2xl text-lg leading-relaxed text-white/65">
               This is not a campaign of anger. It is a campaign of attention. Peaceful gatherings,
-              lawful organization, kind conduct in public squares â€” coordinated worldwide through
+              lawful organization, kind conduct in public squares — coordinated worldwide through
               AlbaGo so every voice can be counted, and every city can find its people.
             </p>
           </Reveal>
@@ -410,7 +410,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
         </div>
       </section>
 
-      {/* Movement counter â€” live ticking number */}
+      {/* Movement counter — live ticking number */}
       <MovementCounter target={stats.attending} />
 
       {/* Featured cities */}
@@ -468,7 +468,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
         </div>
       </section>
 
-      {/* Find your square â€” unified search, map, and gathering list */}
+      {/* Find your square — unified search, map, and gathering list */}
       <section className="relative py-24 sm:py-32 px-5 sm:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-10 sm:mb-12 flex flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -496,7 +496,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Find a city or country â€” try Milano, Berlin, New Yorkâ€¦"
+                  placeholder="Find a city or country — try Milano, Berlin, New York…"
                   className="w-full rounded-xl bg-ink-950/60 border border-white/[0.06] py-3 pl-11 pr-10 text-sm text-white placeholder:text-white/35 focus:border-flame-500/50 focus:outline-none focus:ring-2 focus:ring-flame-500/20 transition"
                 />
                 {searching && (
@@ -578,8 +578,8 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
               </h3>
               <p className="mt-4 text-sm sm:text-base text-white/65 max-w-md mx-auto">
                 {searchCenter
-                  ? 'We found your city on the map above. Be the first to register a peaceful gathering there â€” AlbaGo will help you organize it, safely and lawfully.'
-                  : 'Be the first to register a peaceful gathering for your city. AlbaGo will help you organize it â€” safely and lawfully.'}
+                  ? 'We found your city on the map above. Be the first to register a peaceful gathering there — AlbaGo will help you organize it, safely and lawfully.'
+                  : 'Be the first to register a peaceful gathering for your city. AlbaGo will help you organize it — safely and lawfully.'}
               </p>
               <div className="mt-7 flex flex-wrap justify-center gap-3">
                 <CinematicLink href="/submit-event" variant="primary" size="md">
@@ -674,7 +674,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
             </h2>
             <p className="max-w-2xl text-lg leading-relaxed text-white/70">
               Whether you have ten people or ten thousand, register your gathering and AlbaGo will
-              help you organize, communicate, and stay safe â€” peacefully.
+              help you organize, communicate, and stay safe — peacefully.
             </p>
             <div className="flex flex-wrap gap-3">
               <CinematicLink href="/events?category=civic" variant="primary" size="lg">
@@ -764,7 +764,7 @@ function ShareButton() {
   const onClick = async () => {
     if (typeof window === 'undefined') return
     const url = window.location.href
-    const title = 'Albanian Revolution â€” AlbaGo'
+    const title = 'Albanian Revolution — AlbaGo'
     try {
       if (navigator.share) {
         await navigator.share({ title, url })
@@ -774,7 +774,7 @@ function ShareButton() {
       setDone(true)
       setTimeout(() => setDone(false), 1800)
     } catch {
-      // user cancelled â€” silent
+      // user cancelled — silent
     }
   }
 

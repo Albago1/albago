@@ -291,7 +291,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
       setSearchCenter({
         lat: local.lat,
         lng: local.lng,
-        label: local.placeName?.split('â€”')[0]?.trim() || local.country,
+        label: local.placeName?.split('—')[0]?.trim() || local.country,
       })
       setSearching(false)
       return
@@ -326,7 +326,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
           setSearchCenter(null)
         }
       } catch {
-        // aborted or network error â€” silent
+        // aborted or network error — silent
       } finally {
         setSearching(false)
       }
@@ -348,7 +348,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
     <div className="relative min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
-      {/* Hero â€” compact directory header */}
+      {/* Hero — compact directory header */}
       <section className="relative isolate overflow-hidden pt-28 sm:pt-32">
         <div className="absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-grid opacity-50" />
@@ -814,7 +814,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
         </div>
       </section>
 
-      {/* Safety & legality â€” shared component */}
+      {/* Safety & legality — shared component */}
       <section className="relative px-5 pb-16 sm:px-8">
         <div className="mx-auto max-w-5xl">
           <SafetyPanel compact />

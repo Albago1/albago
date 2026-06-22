@@ -86,7 +86,7 @@ export default function OnboardingClient({ email }: { email: string }) {
           {/* Progress */}
           <div className="pb-8 pt-6">
             <p className="mb-3 text-xs text-white/40">
-              Step {step} of 3 â€” {STEP_LABELS[step - 1]}
+              Step {step} of 3 — {STEP_LABELS[step - 1]}
             </p>
             <div className="flex gap-1.5">
               {[1, 2, 3].map(n => (
@@ -169,7 +169,7 @@ export default function OnboardingClient({ email }: { email: string }) {
               <div>
                 <h1 className="text-3xl font-bold">About your events</h1>
                 <p className="mt-2 text-sm text-white/50">
-                  Help us understand your events. All optional â€” skip anything that doesn&apos;t apply.
+                  Help us understand your events. All optional — skip anything that doesn&apos;t apply.
                 </p>
               </div>
 
@@ -329,7 +329,7 @@ export default function OnboardingClient({ email }: { email: string }) {
                   onClick={handleSubmit}
                   className="h-12 flex-[2] rounded-2xl bg-flame-500 text-sm font-semibold transition hover:bg-flame-400 disabled:opacity-60"
                 >
-                  {isSubmitting ? 'Creating accountâ€¦' : 'Get started'}
+                  {isSubmitting ? 'Creating account…' : 'Get started'}
                 </button>
               </div>
             </div>

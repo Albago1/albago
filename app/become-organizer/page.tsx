@@ -11,7 +11,7 @@ const VALUE_PROPS = [
   {
     icon: Calendar,
     title: 'Publish in minutes',
-    desc: 'Create an event, add your details, and go live â€” no lengthy approval wait.',
+    desc: 'Create an event, add your details, and go live — no lengthy approval wait.',
   },
   {
     icon: Users,
@@ -51,7 +51,7 @@ export default function BecomeOrganizerPage() {
               href="/onboarding/organizer"
               className="inline-flex items-center gap-2 rounded-xl bg-flame-500 px-8 py-3.5 text-base font-semibold text-white transition hover:bg-flame-400"
             >
-              Get started â€” it&apos;s free
+              Get started — it&apos;s free
             </Link>
 
             <p className="mt-4 text-xs text-white/30">

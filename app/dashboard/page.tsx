@@ -104,7 +104,7 @@ export default async function DashboardPage() {
 
   const greetingName = (profile?.display_name as string | undefined) || user.email
 
-  // â€” Admin view â€”
+  // — Admin view —
   if (profile?.role === 'admin') {
     const [eventsRes, pendingRes, placesRes, savedEvents] = await Promise.all([
       supabase
@@ -248,7 +248,7 @@ export default async function DashboardPage() {
     )
   }
 
-  // â€” Regular user view â€”
+  // — Regular user view —
   const [submissionsRes, savedEvents, organizer] = await Promise.all([
     supabase
       .from('event_submissions')

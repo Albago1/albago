@@ -94,7 +94,7 @@ function getCategoryTone(category?: string) {
   if (value === 'bar') return 'bg-fuchsia-500/20 text-fuchsia-300'
   if (value === 'club') return 'bg-violet-500/20 text-violet-300'
   if (value === 'restaurant') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'cafÃ©' || value === 'cafe') return 'bg-sky-500/20 text-sky-300'
+  if (value === 'café' || value === 'cafe') return 'bg-sky-500/20 text-sky-300'
   if (value === 'nightlife') return 'bg-fuchsia-500/20 text-fuchsia-300'
   if (value === 'music') return 'bg-violet-500/20 text-violet-300'
   if (value === 'sports' || value === 'sport') return 'bg-emerald-500/20 text-emerald-300'
@@ -130,7 +130,7 @@ export async function generateMetadata(
   const venue = await fetchVenue(slug)
 
   if (!venue) {
-    return { title: 'Venue not found â€” AlbaGo' }
+    return { title: 'Venue not found — AlbaGo' }
   }
 
   const fallback =
@@ -140,7 +140,7 @@ export async function generateMetadata(
   const description = (venue.description ?? fallback).slice(0, 160)
 
   return {
-    title: `${venue.name} â€” AlbaGo`,
+    title: `${venue.name} — AlbaGo`,
     description,
     openGraph: {
       title: venue.name,
