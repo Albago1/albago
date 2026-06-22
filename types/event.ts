@@ -67,4 +67,7 @@ export type OrganizerEvent = {
   recurrence_until: string | null
   recurrence_days_of_week: number[] | null
   recurrence_exceptions: string[] | null
+  expected_attendees: number | null
+  address: string | null
+  is_civic: boolean | null
 }
