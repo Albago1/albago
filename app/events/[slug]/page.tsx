@@ -366,7 +366,12 @@ export default async function EventDetailPage(
     date: event.date,
     time: event.time,
     endTime: event.end_time,
-    timezone: event.timezone ?? getEventTimezone(event.location_slug, event.country),
+    // Always derive timezone from location, not from event.timezone — many
+    // legacy rows have a stale 'Europe/Tirane' default that misrepresents
+    // non-Albanian events. getEventTimezone(slug, country) is the canonical
+    // source of truth across the rest of the codebase (LiveProtestsBanner,
+    // protests page, movement pages).
+    timezone: getEventTimezone(event.location_slug, event.country),
     locationName: venue?.name ?? event.address ?? null,
     address: event.address ?? venue?.address ?? null,
     city: cityLabel,
