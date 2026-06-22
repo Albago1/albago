@@ -368,6 +368,13 @@ export default function MapView() {
     const today = todayIso()
     const weekend = getWeekendIsoRange()
     const week = getWeekIsoRange()
+    // Resolve human-readable city labels lazily so search can match
+    // "berlin" / "tirana" against location_slug → city label, not just
+    // the bare slug.
+    const slugToCity = new Map<string, string>()
+    for (const opt of locationOptions) {
+      slugToCity.set(opt.slug, opt.label.toLowerCase())
+    }
     return civicEvents.filter((event) => {
       // Category chip: 'all' = everything; 'civic' = is_civic events
       // regardless of stored category; anything else matches event.category.
@@ -399,13 +406,16 @@ export default function MapView() {
               : hasOccurrenceInRange(recurringShape, weekend.from, weekend.to)
       const countryMatch =
         !countryFilter || (event.country ?? '').trim() === countryFilter
+      const cityLabel = event.locationSlug ? slugToCity.get(event.locationSlug) ?? '' : ''
       const searchMatch =
         normalizedSearch.length === 0 ||
         event.title.toLowerCase().includes(normalizedSearch) ||
-        (event.country ?? '').toLowerCase().includes(normalizedSearch)
+        (event.country ?? '').toLowerCase().includes(normalizedSearch) ||
+        cityLabel.includes(normalizedSearch) ||
+        (event.locationSlug ?? '').toLowerCase().includes(normalizedSearch)
       return timeMatch && countryMatch && searchMatch
     })
-  }, [civicEvents, activeCategory, activeTimeFilter, searchQuery, countryFilter])
+  }, [civicEvents, activeCategory, activeTimeFilter, searchQuery, countryFilter, locationOptions])
 
   const availableOptionChips = useMemo(() => {
     const allOptions = places.flatMap((place) => place.options ?? [])
@@ -463,6 +473,47 @@ export default function MapView() {
   const hasNoResults =
     !isLoading && visiblePlaces.length === 0 && visibleCivicEvents.length === 0
 
+  // Re-fit the map around every currently-visible marker (places + civic
+  // pins). Mirrors ProtestMap.resetView so closing a popup snaps the
+  // viewport back instead of staying zoomed in on whatever pin was just
+  // dismissed. Kept as a ref-backed callback so it's stable across renders
+  // and the maplibre `onMapClick` handler doesn't go stale.
+  const visiblePlacesRef = useRef(visiblePlaces)
+  const visibleCivicEventsRef = useRef(visibleCivicEvents)
+  useEffect(() => {
+    visiblePlacesRef.current = visiblePlaces
+  }, [visiblePlaces])
+  useEffect(() => {
+    visibleCivicEventsRef.current = visibleCivicEvents
+  }, [visibleCivicEvents])
+
+  const resetMapView = () => {
+    const adapter = mapAdapterRef.current
+    if (!adapter) return
+    const coords: [number, number][] = []
+    visiblePlacesRef.current.forEach((p) => coords.push([p.lng, p.lat]))
+    visibleCivicEventsRef.current.forEach((e) => coords.push([e.lng, e.lat]))
+    if (coords.length > 0) {
+      adapter.fitBounds(coords, {
+        padding: 80,
+        maxZoom: coords.length === 1 ? 11 : isWorldwide ? 5.5 : 9,
+      })
+      return
+    }
+    if (isWorldwide) {
+      adapter.flyToLocation(worldCenter, worldZoom)
+    } else {
+      const center = dynamicMatch?.center ?? location.center
+      const zoom = dynamicMatch?.zoom ?? location.zoom
+      adapter.flyToLocation(center, zoom)
+    }
+  }
+
+  const closeCivicPopup = () => {
+    setSelectedCivicEvent(null)
+    resetMapView()
+  }
+
   useEffect(() => {
     if (!mapRef.current || mapAdapterRef.current) return
 
@@ -471,8 +522,10 @@ export default function MapView() {
       center: isWorldwide ? worldCenter : location.center,
       zoom: isWorldwide ? worldZoom : location.zoom,
       onMapClick: () => {
+        const hadSelection = selectedPlaceId !== null || selectedCivicEvent !== null
         setSelectedPlaceId(null)
         setSelectedCivicEvent(null)
+        if (hadSelection) resetMapView()
       },
       getMarkerClassName,
     })
@@ -716,11 +769,11 @@ export default function MapView() {
         <div className="pointer-events-none absolute inset-x-3 bottom-4 z-20 md:left-4 md:bottom-4 md:w-[380px]">
           <div className="pointer-events-auto rounded-3xl border border-white/10 bg-ink-950/92 p-4 text-white shadow-2xl backdrop-blur-xl">
             <p className="text-sm font-semibold text-white">
-              No places match these filters
+              No matches for these filters
             </p>
             <p className="mt-1 text-sm leading-6 text-white/60">
-              Try another search, time, category, or tag to see more places and
-              events {isWorldwide ? 'worldwide' : `in ${location.label}`}.
+              Try a different search, time, category, or country to surface more
+              events and venues {isWorldwide ? 'worldwide' : `in ${location.label}`}.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -754,7 +807,7 @@ export default function MapView() {
             <button
               type="button"
               aria-label="Close"
-              onClick={() => setSelectedCivicEvent(null)}
+              onClick={closeCivicPopup}
               className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
@@ -819,7 +872,10 @@ export default function MapView() {
         place={selectedPlace}
         events={selectedPlaceEvents}
         isMobile={isMobile}
-        onClose={() => setSelectedPlaceId(null)}
+        onClose={() => {
+          setSelectedPlaceId(null)
+          resetMapView()
+        }}
       />
     </div>
   )

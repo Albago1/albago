@@ -156,9 +156,19 @@ function DesktopFilterBar(props: FilterBarProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder="Search places..."
-                className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
+                placeholder="Search events, cities, venues..."
+                className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-9 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => onSearchQueryChange('')}
+                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
 
             <div className="relative shrink-0">
@@ -387,6 +397,7 @@ function MobileFilterBar(props: FilterBarProps) {
     activeLocationSlug,
     locationOptions,
     visiblePlacesCount,
+    visibleEventsCount,
     availableOptionChips,
     onTimeFilterChange,
     onCategoryChange,
@@ -395,6 +406,13 @@ function MobileFilterBar(props: FilterBarProps) {
     onLocationChange,
     onReset,
   } = props
+  const totalResults = visiblePlacesCount + visibleEventsCount
+  const resultsLabel =
+    totalResults === 0
+      ? 'No results'
+      : totalResults === 1
+        ? '1 result'
+        : `${totalResults} results`
 
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
@@ -458,9 +476,19 @@ function MobileFilterBar(props: FilterBarProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder="Search places..."
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20 focus:bg-white/[0.06]"
+                placeholder="Search events, cities, venues..."
+                className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-11 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20 focus:bg-white/[0.06]"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => onSearchQueryChange('')}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
 
             <button
@@ -491,8 +519,8 @@ function MobileFilterBar(props: FilterBarProps) {
                   </button>
                 ))}
 
-                <div className="shrink-0 rounded-full border border-white/10 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
-                  {visiblePlacesCount} found
+                <div className="shrink-0 rounded-full border border-flame-500/30 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
+                  {resultsLabel}
                 </div>
               </>
             ) : (
@@ -505,8 +533,8 @@ function MobileFilterBar(props: FilterBarProps) {
                   Explore
                 </button>
 
-                <div className="shrink-0 rounded-full border border-white/10 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
-                  {visiblePlacesCount} found
+                <div className="shrink-0 rounded-full border border-flame-500/30 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
+                  {resultsLabel}
                 </div>
               </>
             )}
@@ -568,9 +596,19 @@ function MobileFilterBar(props: FilterBarProps) {
                       onChange={(event) =>
                         onSearchQueryChange(event.target.value)
                       }
-                      placeholder="Search places..."
-                      className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35"
+                      placeholder="Search events, cities, venues..."
+                      className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-11 text-sm text-white outline-none placeholder:text-white/35"
                     />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        aria-label="Clear search"
+                        onClick={() => onSearchQueryChange('')}
+                        className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
