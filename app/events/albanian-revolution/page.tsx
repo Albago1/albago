@@ -6,6 +6,11 @@ import AlbanianRevolutionClient, {
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { getEventTimezone } from '@/lib/timezone'
 
+// Always render on every request — the page filters by today's date and
+// counts upcoming events, so any cached HTML goes stale within hours.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export const metadata: Metadata = {
   title: 'Albanian Revolution — Peaceful Worldwide Civic Movement',
   description:
