@@ -21,11 +21,14 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   Users,
   XCircle,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import ShareModal from '@/components/share/ShareModal'
+import Sparkline from '@/components/dashboard/Sparkline'
+import TrendBadge from '@/components/dashboard/TrendBadge'
 import { isEventActive } from '@/lib/eventActive'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 import { nextOccurrence, todayIso } from '@/lib/recurrence'
@@ -89,6 +92,31 @@ function eventToShareData(
   }
 }
 
+/**
+ * Bucket events into N daily slots ending at "today" using the given date
+ * accessor. Returns an array of counts, oldest → newest, length = daysBack.
+ */
+function bucketByDay(
+  events: OrganizerEvent[],
+  daysBack: number,
+  accessor: (e: OrganizerEvent) => string | null,
+): number[] {
+  const buckets = Array.from({ length: daysBack }, () => 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  for (const e of events) {
+    const raw = accessor(e)
+    if (!raw) continue
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) continue
+    d.setHours(0, 0, 0, 0)
+    const days = Math.round((today.getTime() - d.getTime()) / 86_400_000)
+    if (days < 0 || days >= daysBack) continue
+    buckets[daysBack - 1 - days] += 1
+  }
+  return buckets
+}
+
 type EventRowProps = {
   event: OrganizerEvent
   organizer: Organizer
@@ -98,22 +126,22 @@ type EventRowProps = {
 function EventRow({ event, organizer, canRepost }: EventRowProps) {
   const [shareOpen, setShareOpen] = useState(false)
   const repostable = canRepost && isRepostable(event)
-  const isPublishedAndEditable = event.status === 'draft' || event.status === 'rejected'
+  const isEditable = event.status === 'draft' || event.status === 'rejected'
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-start sm:p-5">
+    <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-start">
       {event.banner_url ? (
-        <div className="relative h-24 w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40 sm:h-20 sm:w-32 sm:flex-shrink-0">
+        <div className="relative h-24 w-full overflow-hidden rounded-xl border border-white/10 bg-black/40 sm:h-20 sm:w-28 sm:flex-shrink-0">
           <Image
             src={event.banner_url}
             alt={event.title}
             fill
-            sizes="(max-width: 640px) 100vw, 128px"
+            sizes="(max-width: 640px) 100vw, 112px"
             className="object-cover"
           />
         </div>
       ) : (
-        <div className="hidden h-20 w-32 flex-shrink-0 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] sm:flex">
+        <div className="hidden h-20 w-28 flex-shrink-0 items-center justify-center rounded-xl border border-dashed border-white/10 bg-white/[0.02] sm:flex">
           <Calendar className="h-5 w-5 text-white/25" />
         </div>
       )}
@@ -143,7 +171,7 @@ function EventRow({ event, organizer, canRepost }: EventRowProps) {
         </div>
 
         {event.status === 'rejected' && event.admin_note && (
-          <div className="mt-3 rounded-2xl border border-red-500/15 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300">
+          <div className="mt-3 rounded-xl border border-red-500/15 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300">
             <span className="font-semibold">Feedback: </span>
             {event.admin_note}
           </div>
@@ -159,7 +187,7 @@ function EventRow({ event, organizer, canRepost }: EventRowProps) {
               View
             </Link>
           )}
-          {isPublishedAndEditable && (
+          {isEditable && (
             <Link
               href={`/organizer/create?draft=${event.id}`}
               className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
@@ -210,8 +238,6 @@ export default function OrganizerDashboardClient({
 }) {
   const canRepost = organizer.verification_tier === 'verified'
 
-  // Pre-compute everything once. Server-fetched events are ordered by
-  // created_at desc; we want chronological by event date for upcoming.
   const upcoming = useMemo(
     () =>
       events
@@ -234,43 +260,107 @@ export default function OrganizerDashboardClient({
   const inFlight = useMemo(
     () =>
       events.filter(
-        (e) => e.status === 'draft' || e.status === 'pending_review' || e.status === 'rejected',
+        (e) =>
+          e.status === 'draft' ||
+          e.status === 'pending_review' ||
+          e.status === 'rejected',
       ),
     [events],
   )
+  const published = useMemo(
+    () => events.filter((e) => e.status === 'published'),
+    [events],
+  )
 
-  const counts = {
-    draft: events.filter((e) => e.status === 'draft').length,
-    pending_review: events.filter((e) => e.status === 'pending_review').length,
-    published: events.filter((e) => e.status === 'published').length,
-    rejected: events.filter((e) => e.status === 'rejected').length,
-  }
-
-  // Audience: aggregate every published event into a one-line story
+  // Hero stat: total expected across published events. Subtitle: cities · countries.
   const audience = useMemo(() => {
-    const published = events.filter((e) => e.status === 'published')
     const expected = published.reduce(
       (sum, e) => sum + (e.expected_attendees ?? 0),
       0,
     )
-    const cities = new Set(published.map((e) => e.location_slug).filter(Boolean))
-      .size
-    const countries = new Set(published.map((e) => e.country).filter(Boolean))
-      .size
-    return { expected, cities, countries, total: published.length }
+    const cities = new Set(published.map((e) => e.location_slug).filter(Boolean)).size
+    const countries = new Set(published.map((e) => e.country).filter(Boolean)).size
+    return { expected, cities, countries }
+  }, [published])
+
+  // Sparklines: 14 daily buckets ending today. Counts: events created /
+  // published / expected attendees per day. Trend = sum of last 7 vs prior 7.
+  const created14 = useMemo(
+    () => bucketByDay(events, 14, (e) => e.created_at),
+    [events],
+  )
+  const published14 = useMemo(
+    () => bucketByDay(events, 14, (e) => e.published_at),
+    [events],
+  )
+
+  const trend = useMemo(() => {
+    function split(arr: number[]) {
+      const half = Math.floor(arr.length / 2)
+      const prior = arr.slice(0, half).reduce((a, b) => a + b, 0)
+      const recent = arr.slice(half).reduce((a, b) => a + b, 0)
+      return { prior, recent }
+    }
+    const c = split(created14)
+    const p = split(published14)
+    // Expected attendees delta: total added by events whose published_at falls
+    // in the recent half vs the prior half.
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const halfStart = new Date(today)
+    halfStart.setDate(today.getDate() - 7)
+    const fourteenStart = new Date(today)
+    fourteenStart.setDate(today.getDate() - 14)
+    let expRecent = 0
+    let expPrior = 0
+    for (const e of events) {
+      if (!e.published_at) continue
+      const d = new Date(e.published_at)
+      d.setHours(0, 0, 0, 0)
+      const attend = e.expected_attendees ?? 0
+      if (d >= halfStart && d <= today) expRecent += attend
+      else if (d >= fourteenStart && d < halfStart) expPrior += attend
+    }
+    return {
+      created: c,
+      publishedDelta: p,
+      expected: { recent: expRecent, prior: expPrior },
+    }
+  }, [created14, published14, events])
+
+  // Top-performing leaderboard: highest expected_attendees among published.
+  const topEvents = useMemo(
+    () =>
+      [...published]
+        .sort((a, b) => (b.expected_attendees ?? 0) - (a.expected_attendees ?? 0))
+        .slice(0, 5),
+    [published],
+  )
+
+  // Recent activity feed: last 6 state changes by updated_at desc.
+  type ActivityKind = 'created' | 'published' | 'updated'
+  const activity = useMemo(() => {
+    type Entry = { id: string; title: string; kind: ActivityKind; at: string; slug: string }
+    const entries: Entry[] = []
+    for (const e of events) {
+      entries.push({ id: `c-${e.id}`, title: e.title, kind: 'created', at: e.created_at, slug: e.slug })
+      if (e.published_at) {
+        entries.push({ id: `p-${e.id}`, title: e.title, kind: 'published', at: e.published_at, slug: e.slug })
+      }
+    }
+    return entries.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 6)
   }, [events])
 
-  // "Next event" — the upcoming one closest to today. Respect recurrence so
-  // a daily series counted as today/tomorrow shows correctly.
+  // Next-event pinned card.
   const nextEventInfo = useMemo(() => {
     const today = todayIso()
     let bestEvent: OrganizerEvent | null = null
     let bestDate: string | null = null
     for (const e of upcoming) {
-      const nextDate = nextOccurrence(e, today)
-      if (!nextDate) continue
-      if (!bestDate || nextDate < bestDate) {
-        bestDate = nextDate
+      const d = nextOccurrence(e, today)
+      if (!d) continue
+      if (!bestDate || d < bestDate) {
+        bestDate = d
         bestEvent = e
       }
     }
@@ -278,50 +368,23 @@ export default function OrganizerDashboardClient({
     const todayD = new Date(`${today}T00:00:00`)
     const targetD = new Date(`${bestDate}T00:00:00`)
     const daysUntil = Math.round(
-      (targetD.getTime() - todayD.getTime()) / (24 * 60 * 60 * 1000),
+      (targetD.getTime() - todayD.getTime()) / 86_400_000,
     )
     return { event: bestEvent, date: bestDate, daysUntil }
   }, [upcoming])
 
-  const statusCounts = [
-    {
-      label: 'Drafts',
-      value: counts.draft,
-      icon: FileText,
-      active: counts.draft > 0,
-      activeBg: 'bg-white/[0.06] border-white/15',
-    },
-    {
-      label: 'Pending',
-      value: counts.pending_review,
-      icon: Clock,
-      active: counts.pending_review > 0,
-      activeBg: 'bg-amber-500/[0.07] border-amber-500/15',
-      activeColor: 'text-amber-400',
-    },
-    {
-      label: 'Published',
-      value: counts.published,
-      icon: CheckCircle2,
-      active: counts.published > 0,
-      activeBg: 'bg-flame-500/[0.07] border-flame-500/15',
-      activeColor: 'text-flame-400',
-    },
-    {
-      label: 'Rejected',
-      value: counts.rejected,
-      icon: XCircle,
-      active: counts.rejected > 0,
-      activeBg: 'bg-red-500/[0.07] border-red-500/15',
-      activeColor: 'text-red-400',
-    },
-  ]
+  const counts = {
+    draft: events.filter((e) => e.status === 'draft').length,
+    pending_review: events.filter((e) => e.status === 'pending_review').length,
+    published: published.length,
+    rejected: events.filter((e) => e.status === 'rejected').length,
+  }
 
   return (
     <>
       <LandingNavbar />
-      <main className="min-h-screen bg-ink-950 px-6 pb-16 pt-24 text-white">
-        <div className="mx-auto max-w-3xl">
+      <main className="min-h-screen bg-ink-950 px-4 pb-16 pt-24 text-white sm:px-6">
+        <div className="mx-auto max-w-5xl">
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -366,40 +429,133 @@ export default function OrganizerDashboardClient({
             </div>
           </div>
 
-          {/* Audience strip — the headline number for an organizer */}
-          {audience.total > 0 && (
-            <div className="mt-8 grid grid-cols-3 gap-3">
-              <div className="rounded-3xl border border-flame-500/25 bg-flame-500/[0.06] p-4 sm:p-5">
-                <Users className="h-5 w-5 text-flame-300" />
-                <div className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+          {/* HERO — display-weight expected number */}
+          <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
+            <div className="flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-flame-300">
+                  Audience this run
+                </p>
+                <p className="mt-3 font-display text-6xl leading-none tracking-tight text-white sm:text-7xl">
                   {formatNumberCompact(audience.expected)}
-                </div>
-                <div className="mt-1 text-[11px] text-white/55 sm:text-xs">
-                  People expected
-                </div>
+                </p>
+                <p className="mt-3 text-sm text-white/55">
+                  {audience.expected === 0 ? (
+                    'No expected attendance set yet'
+                  ) : (
+                    <>
+                      across{' '}
+                      <span className="font-semibold text-white/85">
+                        {audience.cities} {audience.cities === 1 ? 'city' : 'cities'}
+                      </span>{' '}
+                      ·{' '}
+                      <span className="font-semibold text-white/85">
+                        {audience.countries} {audience.countries === 1 ? 'country' : 'countries'}
+                      </span>
+                    </>
+                  )}
+                </p>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-                <MapPin className="h-5 w-5 text-flame-300" />
-                <div className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-                  {audience.cities}
-                </div>
-                <div className="mt-1 text-[11px] text-white/55 sm:text-xs">
-                  {audience.cities === 1 ? 'City' : 'Cities'}
-                </div>
-              </div>
-              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-                <Globe className="h-5 w-5 text-flame-300" />
-                <div className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-                  {audience.countries}
-                </div>
-                <div className="mt-1 text-[11px] text-white/55 sm:text-xs">
-                  {audience.countries === 1 ? 'Country' : 'Countries'}
-                </div>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <TrendBadge
+                  current={trend.expected.recent}
+                  previous={trend.expected.prior}
+                  label="last 7 days"
+                />
+                <Sparkline
+                  values={created14}
+                  width={140}
+                  height={36}
+                  color="rgba(238,28,37,0.55)"
+                />
               </div>
             </div>
-          )}
+          </section>
 
-          {/* Verification progress — what's the next tier and how close */}
+          {/* KPI row with sparklines */}
+          <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <Calendar className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={trend.created.recent}
+                  previous={trend.created.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {events.length}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Total events</p>
+              <div className="mt-2">
+                <Sparkline values={created14} width={120} height={22} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <CheckCircle2 className="h-4 w-4 text-flame-300" />
+                <TrendBadge
+                  current={trend.publishedDelta.recent}
+                  previous={trend.publishedDelta.prior}
+                  asAbsolute
+                />
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {counts.published}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">Published</p>
+              <div className="mt-2">
+                <Sparkline values={published14} width={120} height={22} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <MapPin className="h-4 w-4 text-flame-300" />
+                <span className="text-[11px] text-white/35">reach</span>
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {audience.cities}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">
+                {audience.cities === 1 ? 'City' : 'Cities'}
+              </p>
+              <div className="mt-2 flex items-center gap-1">
+                <Globe className="h-3 w-3 text-white/35" />
+                <span className="text-[11px] text-white/45">
+                  {audience.countries} {audience.countries === 1 ? 'country' : 'countries'}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between">
+                <Clock className="h-4 w-4 text-amber-300" />
+                <span className="text-[11px] text-white/35">need action</span>
+              </div>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
+                {counts.pending_review + counts.draft + counts.rejected}
+              </p>
+              <p className="mt-0.5 text-[11px] text-white/55">In progress</p>
+              <div className="mt-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide">
+                {counts.draft > 0 && (
+                  <span className="text-white/55">{counts.draft} draft</span>
+                )}
+                {counts.pending_review > 0 && (
+                  <span className="text-amber-300">{counts.pending_review} pending</span>
+                )}
+                {counts.rejected > 0 && (
+                  <span className="text-red-300">{counts.rejected} rejected</span>
+                )}
+                {counts.draft + counts.pending_review + counts.rejected === 0 && (
+                  <span className="text-white/35">All clear</span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Verification progress */}
           {organizer.verification_tier === 'unverified' && (
             <Link
               href="/organizer/verification"
@@ -417,8 +573,7 @@ export default function OrganizerDashboardClient({
                         : `${counts.published} of ${ESTABLISHED_THRESHOLD} published events to reach Established`}
                     </p>
                     <p className="mt-1 text-xs text-white/55">
-                      Established organizers publish instantly without admin
-                      review. Apply for the Verified badge for public trust.
+                      Established organizers publish instantly without admin review.
                     </p>
                   </div>
                 </div>
@@ -435,7 +590,7 @@ export default function OrganizerDashboardClient({
             </Link>
           )}
 
-          {/* Next event pinned card */}
+          {/* Next event */}
           {nextEventInfo && (
             <div className="mt-6 rounded-3xl border border-flame-500/25 bg-gradient-to-br from-flame-500/[0.08] to-transparent p-5">
               <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-flame-300">
@@ -472,30 +627,129 @@ export default function OrganizerDashboardClient({
             </div>
           )}
 
-          {/* Status counts (drafts / pending / published / rejected) */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {statusCounts.map(({ label, value, icon: Icon, active, activeBg, activeColor }) => (
-              <div
-                key={label}
-                className={`rounded-3xl border p-4 ${
-                  active && activeBg ? activeBg : 'border-white/10 bg-white/[0.03]'
-                }`}
-              >
-                <Icon
-                  className={`h-5 w-5 ${active ? activeColor ?? 'text-white' : 'text-white/55'}`}
-                />
-                <div
-                  className={`mt-3 text-3xl font-bold ${active ? activeColor ?? 'text-white' : 'text-white/65'}`}
-                >
-                  {value}
-                </div>
-                <div className="mt-1 text-xs text-white/45">{label}</div>
+          {/* Top performing + Recent activity, side by side on desktop */}
+          <div className="mt-10 grid gap-6 lg:grid-cols-5">
+            {/* Top performing — 3/5 */}
+            <section className="lg:col-span-3">
+              <div className="flex items-end justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Top events
+                </h2>
+                <span className="text-xs text-white/35">by expected attendance</span>
               </div>
-            ))}
+              {topEvents.length === 0 ? (
+                <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
+                  Publish an event with an expected-attendance estimate to see your top performers here.
+                </div>
+              ) : (
+                <ol className="mt-4 space-y-2">
+                  {topEvents.map((e, i) => (
+                    <li
+                      key={e.id}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+                    >
+                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-flame-500/15 text-xs font-bold text-flame-300 tabular-nums">
+                        {i + 1}
+                      </span>
+                      {e.banner_url ? (
+                        <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                          <Image
+                            src={e.banner_url}
+                            alt={e.title}
+                            fill
+                            sizes="40px"
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.02]">
+                          <Calendar className="h-4 w-4 text-white/30" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-white">
+                          {e.title}
+                        </p>
+                        <p className="truncate text-[11px] text-white/45">
+                          {e.location_slug}
+                          {e.country ? ` · ${e.country}` : ''}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 text-sm font-bold tabular-nums text-flame-300">
+                        {formatNumberCompact(e.expected_attendees ?? 0)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+
+            {/* Recent activity — 2/5 */}
+            <section className="lg:col-span-2">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                Recent activity
+              </h2>
+              {activity.length === 0 ? (
+                <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
+                  Nothing yet.
+                </div>
+              ) : (
+                <ul className="mt-4 space-y-1.5">
+                  {activity.map((a) => {
+                    const when = new Date(a.at)
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const dayDiff = Math.round(
+                      (today.getTime() - when.setHours(0, 0, 0, 0)) / 86_400_000,
+                    )
+                    const whenLabel =
+                      dayDiff === 0
+                        ? 'Today'
+                        : dayDiff === 1
+                          ? 'Yesterday'
+                          : dayDiff < 7
+                            ? `${dayDiff}d ago`
+                            : new Date(a.at).toLocaleDateString('en-GB', {
+                                day: 'numeric',
+                                month: 'short',
+                              })
+                    return (
+                      <li
+                        key={a.id}
+                        className="flex items-start gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                      >
+                        <span
+                          className={[
+                            'mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full',
+                            a.kind === 'published'
+                              ? 'bg-flame-400'
+                              : a.kind === 'created'
+                                ? 'bg-white/40'
+                                : 'bg-amber-400',
+                          ].join(' ')}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={`/events/${a.slug}`}
+                            className="block truncate text-xs font-semibold text-white hover:text-flame-200"
+                          >
+                            {a.title}
+                          </Link>
+                          <p className="text-[11px] text-white/45">
+                            {a.kind === 'published' ? 'Published' : 'Created'} · {whenLabel}
+                          </p>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
           </div>
 
-          {/* Upcoming events */}
-          <section id="upcoming-events" className="mt-10">
+          {/* Events lists */}
+          <section className="mt-10">
             <div className="flex items-end justify-between gap-3">
               <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
                 Upcoming events
@@ -534,7 +788,6 @@ export default function OrganizerDashboardClient({
             )}
           </section>
 
-          {/* In-flight (drafts, pending, rejected) */}
           {inFlight.length > 0 && (
             <section className="mt-10">
               <div className="flex items-end justify-between gap-3">
@@ -556,7 +809,6 @@ export default function OrganizerDashboardClient({
             </section>
           )}
 
-          {/* Past */}
           {past.length > 0 && (
             <section className="mt-10">
               <div className="flex items-end justify-between gap-3">
@@ -577,6 +829,32 @@ export default function OrganizerDashboardClient({
               </div>
             </section>
           )}
+
+          {/* Status reference, demoted from headline tile to bottom legend */}
+          <section className="mt-10">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+              Status breakdown
+            </h2>
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                { label: 'Drafts', value: counts.draft, icon: FileText, color: 'text-white/65' },
+                { label: 'Pending', value: counts.pending_review, icon: Clock, color: counts.pending_review > 0 ? 'text-amber-300' : 'text-white/65' },
+                { label: 'Published', value: counts.published, icon: CheckCircle2, color: 'text-flame-300' },
+                { label: 'Rejected', value: counts.rejected, icon: XCircle, color: counts.rejected > 0 ? 'text-red-300' : 'text-white/65' },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <div
+                  key={label}
+                  className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+                >
+                  <Icon className={`h-4 w-4 ${color}`} />
+                  <div>
+                    <p className={`text-lg font-bold tabular-nums ${color}`}>{value}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-white/45">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </main>
     </>
