@@ -133,6 +133,19 @@ export default function MovementClient({ movement, events, migrationApplied }: P
               </span>
             </div>
           </Reveal>
+
+          <Reveal delay={0.3}>
+            <div className="mt-6">
+              <Link
+                href="/pankartat"
+                className="inline-flex items-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 px-4 py-2 text-sm font-semibold text-flame-100 transition hover:border-flame-500/60 hover:bg-flame-500/15"
+              >
+                <Flame className="h-4 w-4" />
+                <span>Pankartat e Revolucionit</span>
+                <span className="text-flame-200/70">→</span>
+              </Link>
+            </div>
+          </Reveal>
         </div>
       </section>
 

@@ -9,6 +9,7 @@ import {
   CalendarRange,
   ChevronDown,
   Compass,
+  Flame,
   Globe2,
   Heart,
   History,
@@ -543,6 +544,22 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                 </span>
               </>
             )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.3 }}
+            className="mt-6"
+          >
+            <Link
+              href="/pankartat"
+              className="inline-flex items-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 px-4 py-2 text-sm font-semibold text-flame-100 transition hover:border-flame-500/60 hover:bg-flame-500/15"
+            >
+              <Flame className="h-4 w-4" />
+              <span>Pankartat e Revolucionit</span>
+              <span className="text-flame-200/70">→</span>
+            </Link>
           </motion.div>
         </div>
       </section>
