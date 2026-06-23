@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import LandingNavbar from '@/components/layout/LandingNavbar'
 import AdminPlacardsClient from './AdminPlacardsClient'
 import type { PlacardRow } from '@/lib/placards'
 
@@ -38,11 +37,8 @@ export default async function AdminPlacardsPage() {
   const migrationApplied = !error
 
   return (
-    <>
-      <LandingNavbar />
-      <main className="min-h-screen bg-ink-950 px-6 pb-16 pt-24 text-white">
-        <AdminPlacardsClient initialRows={rows} migrationApplied={migrationApplied} />
-      </main>
-    </>
+    <div className="px-4 py-6 sm:px-6">
+      <AdminPlacardsClient initialRows={rows} migrationApplied={migrationApplied} />
+    </div>
   )
 }

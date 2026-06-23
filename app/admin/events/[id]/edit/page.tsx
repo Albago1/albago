@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import LandingNavbar from '@/components/layout/LandingNavbar'
 import { createClient } from '@/lib/supabase/server'
 import EditEventClient, { type EditableEvent } from './EditEventClient'
 
@@ -41,11 +40,8 @@ export default async function AdminEditEventPage({
   if (error || !event) notFound()
 
   return (
-    <>
-      <LandingNavbar />
-      <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
-        <EditEventClient initial={event as EditableEvent} />
-      </main>
-    </>
+    <div className="px-4 py-6 sm:px-6">
+      <EditEventClient initial={event as EditableEvent} />
+    </div>
   )
 }

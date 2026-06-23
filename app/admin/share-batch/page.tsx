@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
-import LandingNavbar from '@/components/layout/LandingNavbar'
 import type { ShareEventData } from '@/lib/share/types'
 import ShareBatchClient from './ShareBatchClient'
 
@@ -89,38 +88,32 @@ export default async function ShareBatchPage() {
   })
 
   return (
-    <>
-      <LandingNavbar />
-      <main className="min-h-screen bg-ink-950 px-6 pb-16 pt-24 text-white">
-        <div className="mx-auto max-w-4xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
-            Admin
-          </p>
-          <h1
-            className="display-text mt-2 text-4xl leading-tight sm:text-5xl"
-            style={{ letterSpacing: '-0.03em' }}
-          >
-            Share batch
-          </h1>
-          <p className="mt-3 text-sm text-white/65">
-            Generate branded reel (1080×1920) and post (1080×1080) PNGs plus copy-ready
-            captions for every upcoming protest. Bundles everything into a single ZIP.
-          </p>
-          <p className="mt-1 text-xs text-white/45">
-            Window: events from{' '}
-            <span className="font-semibold text-flame-200">{since}</span> onward · is_civic
-            = true · status = published
-          </p>
+    <div className="px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-4xl">
+        <h2
+          className="display-text text-3xl leading-tight sm:text-4xl"
+          style={{ letterSpacing: '-0.03em' }}
+        >
+          Share batch
+        </h2>
+        <p className="mt-3 text-sm text-white/65">
+          Generate branded reel (1080×1920) and post (1080×1080) PNGs plus copy-ready
+          captions for every upcoming protest. Bundles everything into a single ZIP.
+        </p>
+        <p className="mt-1 text-xs text-white/45">
+          Window: events from{' '}
+          <span className="font-semibold text-flame-200">{since}</span> onward · is_civic
+          = true · status = published
+        </p>
 
-          {error && (
-            <p className="mt-4 rounded-2xl border border-flame-500/30 bg-flame-500/[0.08] px-4 py-3 text-sm text-flame-200">
-              Could not load events: {error.message}
-            </p>
-          )}
+        {error && (
+          <p className="mt-4 rounded-2xl border border-flame-500/30 bg-flame-500/[0.08] px-4 py-3 text-sm text-flame-200">
+            Could not load events: {error.message}
+          </p>
+        )}
 
-          <ShareBatchClient protests={protests} />
-        </div>
-      </main>
-    </>
+        <ShareBatchClient protests={protests} />
+      </div>
+    </div>
   )
 }

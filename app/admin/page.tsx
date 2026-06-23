@@ -12,16 +12,13 @@ import {
   HandHeart,
   Image as ImageIcon,
   Inbox,
-  LayoutDashboard,
   MapPin,
   Megaphone,
   Send,
-  ShieldCheck,
   TrendingUp,
   Users as UsersIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import LandingNavbar from '@/components/layout/LandingNavbar'
 import Sparkline from '@/components/dashboard/Sparkline'
 import TrendBadge from '@/components/dashboard/TrendBadge'
 
@@ -322,50 +319,36 @@ export default async function AdminHomePage() {
   ]
 
   return (
-    <>
-      <LandingNavbar />
-      <main className="min-h-screen bg-ink-950 px-4 pb-16 pt-24 text-white sm:px-6">
-        <div className="mx-auto max-w-5xl">
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <ShieldCheck className="h-5 w-5 text-flame-400" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">Admin</h1>
-                <p className="mt-0.5 text-sm text-white/45">
-                  Platform health · moderation
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/admin/queue"
-                className={[
-                  'inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition',
-                  totalPending > 0
-                    ? 'bg-flame-500 text-white shadow-[0_0_24px_-6px_rgba(238,28,37,0.55)] hover:bg-flame-400'
-                    : 'border border-white/15 bg-white/[0.04] text-white/85 hover:bg-white/[0.08] hover:text-white',
-                ].join(' ')}
-              >
-                <Inbox className="h-4 w-4" />
-                {totalPending > 0
-                  ? `${totalPending} awaiting action`
-                  : 'Open queue'}
-              </Link>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                My dashboard
-              </Link>
-            </div>
+    <div className="px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-7xl">
+        {/* Tight top action — single CTA, no duplicate page title (shell top bar shows "Overview") */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-flame-300">
+              Platform health
+            </p>
+            <p className="mt-1 text-xs text-white/45">
+              Live counts, top cities, recent activity
+            </p>
           </div>
+          <Link
+            href="/admin/queue"
+            className={[
+              'inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition',
+              totalPending > 0
+                ? 'bg-flame-500 text-white shadow-[0_0_24px_-6px_rgba(238,28,37,0.55)] hover:bg-flame-400'
+                : 'border border-white/15 bg-white/[0.04] text-white/85 hover:bg-white/[0.08] hover:text-white',
+            ].join(' ')}
+          >
+            <Inbox className="h-3.5 w-3.5" />
+            {totalPending > 0
+              ? `${totalPending} awaiting action`
+              : 'Open queue'}
+          </Link>
+        </div>
 
-          {/* HERO — total expected attendance across the platform */}
-          <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
+        {/* HERO — total expected attendance across the platform */}
+        <section className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-flame-300">
@@ -676,17 +659,16 @@ export default async function AdminHomePage() {
             </div>
           </section>
 
-          {/* Reach mini-legend */}
-          {distinctCountries > 0 && (
-            <div className="mt-8 flex items-center gap-2 text-xs text-white/45">
-              <Globe className="h-3.5 w-3.5" />
-              Active in {distinctCountries}{' '}
-              {distinctCountries === 1 ? 'country' : 'countries'} ·{' '}
-              {distinctCities} {distinctCities === 1 ? 'city' : 'cities'}
-            </div>
-          )}
-        </div>
-      </main>
-    </>
+        {/* Reach mini-legend */}
+        {distinctCountries > 0 && (
+          <div className="mt-8 flex items-center gap-2 text-xs text-white/45">
+            <Globe className="h-3.5 w-3.5" />
+            Active in {distinctCountries}{' '}
+            {distinctCountries === 1 ? 'country' : 'countries'} ·{' '}
+            {distinctCities} {distinctCities === 1 ? 'city' : 'cities'}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
