@@ -62,6 +62,16 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
+      <head>
+        {/* No-flash theme bootstrap. Runs synchronously before paint so the
+            page doesn't flicker from dark → light or back on reload. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('albago-theme');if(t==='light'){document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-ink-950 text-white">
         <script
           type="application/ld+json"

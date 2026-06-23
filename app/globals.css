@@ -2,7 +2,8 @@
 
 :root {
   /* AlbaGo cinematic theme — flame on ink, inherited from the Albanian
-     Revolution visual identity. Applied globally across every page. */
+     Revolution visual identity. Dark is the default. Light is opt-in via
+     <html data-theme="light"> and the ThemeToggle in the navbar. */
   --background: #050505;
   --foreground: #ededed;
   --albago-ink: #050505;
@@ -24,6 +25,32 @@
   --ink-700: #17171a;
   --ink-600: #1f1f23;
   --ink-500: #2a2a30;
+
+  /* Semantic tokens — use these in new components so the page reacts
+     to the theme toggle without per-class overrides. */
+  --surface: #050505;            /* page background */
+  --surface-elev: #0a0a0b;       /* opaque card */
+  --surface-elev-2: #101012;     /* deeper stack */
+  --fg: #ededed;                 /* primary text */
+  --fg-muted: rgba(255, 255, 255, 0.65);
+  --fg-faint: rgba(255, 255, 255, 0.42);
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --albago-ink: #0a0a0a;
+
+  --surface: #ffffff;
+  --surface-elev: #fafafa;
+  --surface-elev-2: #f4f4f5;
+  --fg: #0a0a0a;
+  --fg-muted: rgba(10, 10, 10, 0.66);
+  --fg-faint: rgba(10, 10, 10, 0.45);
+  --line: rgba(10, 10, 10, 0.10);
+  --line-strong: rgba(10, 10, 10, 0.18);
 }
 
 @theme inline {
@@ -50,6 +77,16 @@
   --color-ink-700: var(--ink-700);
   --color-ink-600: var(--ink-600);
   --color-ink-500: var(--ink-500);
+
+  /* Semantic colors → utilities like bg-surface, text-fg, border-line */
+  --color-surface: var(--surface);
+  --color-surface-elev: var(--surface-elev);
+  --color-surface-elev-2: var(--surface-elev-2);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
 }
 
 * {
@@ -62,7 +99,7 @@ html {
 }
 
 html, body {
-  background: var(--ink-950);
+  background: var(--surface);
   color: var(--foreground);
   font-feature-settings: 'ss01', 'cv01', 'cv11';
   font-family: var(--font-geist-sans), system-ui, sans-serif;
@@ -72,20 +109,19 @@ body {
   min-height: 100vh;
 }
 
-/* Cinematic selection + scrollbar — applied globally. */
 ::selection {
   background: rgba(238, 28, 37, 0.45);
   color: #fff;
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: #0a0a0b; }
+::-webkit-scrollbar-track { background: var(--surface-elev); }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a30;
+  background: var(--line-strong);
   border-radius: 999px;
-  border: 2px solid #0a0a0b;
+  border: 2px solid var(--surface-elev);
 }
-::-webkit-scrollbar-thumb:hover { background: #ee1c25; }
+::-webkit-scrollbar-thumb:hover { background: var(--flame-500); }
 
 *:focus-visible {
   outline: 2px solid rgba(238, 28, 37, 0.7);
@@ -182,4 +218,98 @@ body {
   .shine-text, .animate-ping-soft, .animate-marquee {
     animation: none !important;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Light theme — site-wide overrides.
+   The cinematic dark site uses hardcoded utility classes everywhere
+   (bg-ink-950, text-white, bg-white/[0.03] etc). Rather than sweep
+   every component, [data-theme="light"] re-paints those utility
+   classes against an ink-on-white palette. Brand red stays unchanged
+   in both themes — it's the constant of the brand.
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="light"] .bg-ink-950 { background-color: #ffffff !important; }
+[data-theme="light"] .bg-ink-900 { background-color: #fafafa !important; }
+[data-theme="light"] .bg-ink-800 { background-color: #f4f4f5 !important; }
+[data-theme="light"] .bg-ink-700 { background-color: #e7e7e9 !important; }
+
+[data-theme="light"] .text-white { color: #0a0a0a !important; }
+[data-theme="light"] .text-white\/95 { color: rgba(10, 10, 10, 0.95) !important; }
+[data-theme="light"] .text-white\/85 { color: rgba(10, 10, 10, 0.85) !important; }
+[data-theme="light"] .text-white\/75 { color: rgba(10, 10, 10, 0.75) !important; }
+[data-theme="light"] .text-white\/70 { color: rgba(10, 10, 10, 0.70) !important; }
+[data-theme="light"] .text-white\/65 { color: rgba(10, 10, 10, 0.66) !important; }
+[data-theme="light"] .text-white\/60 { color: rgba(10, 10, 10, 0.60) !important; }
+[data-theme="light"] .text-white\/55 { color: rgba(10, 10, 10, 0.55) !important; }
+[data-theme="light"] .text-white\/50 { color: rgba(10, 10, 10, 0.50) !important; }
+[data-theme="light"] .text-white\/45 { color: rgba(10, 10, 10, 0.45) !important; }
+[data-theme="light"] .text-white\/40 { color: rgba(10, 10, 10, 0.40) !important; }
+[data-theme="light"] .text-white\/35 { color: rgba(10, 10, 10, 0.35) !important; }
+
+[data-theme="light"] .bg-white { background-color: #0a0a0a !important; }
+[data-theme="light"] .bg-white\/5 { background-color: rgba(10, 10, 10, 0.04) !important; }
+[data-theme="light"] .bg-white\/10 { background-color: rgba(10, 10, 10, 0.06) !important; }
+[data-theme="light"] .bg-white\/15 { background-color: rgba(10, 10, 10, 0.08) !important; }
+[data-theme="light"] .bg-white\/20 { background-color: rgba(10, 10, 10, 0.10) !important; }
+[data-theme="light"] .bg-white\/\[0\.02\] { background-color: rgba(10, 10, 10, 0.02) !important; }
+[data-theme="light"] .bg-white\/\[0\.03\] { background-color: rgba(10, 10, 10, 0.025) !important; }
+[data-theme="light"] .bg-white\/\[0\.04\] { background-color: rgba(10, 10, 10, 0.035) !important; }
+[data-theme="light"] .bg-white\/\[0\.05\] { background-color: rgba(10, 10, 10, 0.04) !important; }
+[data-theme="light"] .bg-white\/\[0\.06\] { background-color: rgba(10, 10, 10, 0.05) !important; }
+[data-theme="light"] .bg-white\/\[0\.08\] { background-color: rgba(10, 10, 10, 0.07) !important; }
+[data-theme="light"] .bg-white\/\[0\.10\] { background-color: rgba(10, 10, 10, 0.085) !important; }
+
+[data-theme="light"] .border-white { border-color: #0a0a0a !important; }
+[data-theme="light"] .border-white\/5 { border-color: rgba(10, 10, 10, 0.06) !important; }
+[data-theme="light"] .border-white\/10 { border-color: rgba(10, 10, 10, 0.10) !important; }
+[data-theme="light"] .border-white\/15 { border-color: rgba(10, 10, 10, 0.14) !important; }
+[data-theme="light"] .border-white\/20 { border-color: rgba(10, 10, 10, 0.18) !important; }
+[data-theme="light"] .border-white\/\[0\.06\] { border-color: rgba(10, 10, 10, 0.07) !important; }
+[data-theme="light"] .border-white\/\[0\.08\] { border-color: rgba(10, 10, 10, 0.08) !important; }
+[data-theme="light"] .border-white\/\[0\.10\] { border-color: rgba(10, 10, 10, 0.10) !important; }
+
+[data-theme="light"] .placeholder-white\/35::placeholder { color: rgba(10, 10, 10, 0.40) !important; }
+[data-theme="light"] .placeholder-white\/40::placeholder { color: rgba(10, 10, 10, 0.45) !important; }
+[data-theme="light"] .placeholder-white\/50::placeholder { color: rgba(10, 10, 10, 0.55) !important; }
+
+[data-theme="light"] .kicker { color: rgba(10, 10, 10, 0.55); }
+[data-theme="light"] .hairline,
+[data-theme="light"] .hairline-b,
+[data-theme="light"] .hairline-t { border-color: rgba(10, 10, 10, 0.08); }
+
+[data-theme="light"] .bg-grid {
+  background-image:
+    linear-gradient(rgba(10, 10, 10, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 10, 10, 0.05) 1px, transparent 1px);
+}
+
+[data-theme="light"] .bg-noise {
+  background-image:
+    radial-gradient(ellipse at 0% 0%, rgba(238, 28, 37, 0.06), transparent 50%),
+    radial-gradient(ellipse at 100% 100%, rgba(238, 28, 37, 0.04), transparent 50%);
+}
+
+[data-theme="light"] .bg-radial-flame {
+  background-image:
+    radial-gradient(60% 60% at 50% 0%, rgba(238, 28, 37, 0.12) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+[data-theme="light"] .shine-text {
+  background: linear-gradient(
+    90deg,
+    rgba(10, 10, 10, 0.55) 0%,
+    #0a0a0a 25%,
+    #ee1c25 50%,
+    #0a0a0a 75%,
+    rgba(10, 10, 10, 0.55) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+[data-theme="light"] *:focus-visible {
+  outline-color: rgba(238, 28, 37, 0.8);
 }

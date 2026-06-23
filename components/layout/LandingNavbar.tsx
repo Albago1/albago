@@ -17,6 +17,7 @@ import {
   Flame,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
+import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
 
@@ -146,6 +147,7 @@ export default function LandingNavbar() {
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <LanguageSwitcher />
 
           {userEmail ? (
@@ -230,7 +232,8 @@ export default function LandingNavbar() {
 
       {mobileMenuOpen && (
         <div className="border-t border-white/10 bg-ink-950 px-4 pb-4 pt-3 md:hidden">
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex items-center justify-end gap-2">
+            <ThemeToggle />
             <div className="scale-90 origin-right">
               <LanguageSwitcher />
             </div>
