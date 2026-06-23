@@ -236,7 +236,9 @@ body {
 
 [data-theme="light"] .text-white { color: #0a0a0a !important; }
 [data-theme="light"] .text-white\/95 { color: rgba(10, 10, 10, 0.95) !important; }
+[data-theme="light"] .text-white\/90 { color: rgba(10, 10, 10, 0.90) !important; }
 [data-theme="light"] .text-white\/85 { color: rgba(10, 10, 10, 0.85) !important; }
+[data-theme="light"] .text-white\/80 { color: rgba(10, 10, 10, 0.80) !important; }
 [data-theme="light"] .text-white\/75 { color: rgba(10, 10, 10, 0.75) !important; }
 [data-theme="light"] .text-white\/70 { color: rgba(10, 10, 10, 0.70) !important; }
 [data-theme="light"] .text-white\/65 { color: rgba(10, 10, 10, 0.66) !important; }
@@ -246,6 +248,44 @@ body {
 [data-theme="light"] .text-white\/45 { color: rgba(10, 10, 10, 0.45) !important; }
 [data-theme="light"] .text-white\/40 { color: rgba(10, 10, 10, 0.40) !important; }
 [data-theme="light"] .text-white\/35 { color: rgba(10, 10, 10, 0.35) !important; }
+[data-theme="light"] .text-white\/30 { color: rgba(10, 10, 10, 0.30) !important; }
+[data-theme="light"] .text-white\/25 { color: rgba(10, 10, 10, 0.25) !important; }
+[data-theme="light"] .text-white\/20 { color: rgba(10, 10, 10, 0.22) !important; }
+
+/* Pale flame text washes out on white — bias to deeper flame in light mode. */
+[data-theme="light"] .text-flame-100 { color: #a30b13 !important; }
+[data-theme="light"] .text-flame-200 { color: #cc0e17 !important; }
+[data-theme="light"] .text-flame-300 { color: #cc0e17 !important; }
+[data-theme="light"] .text-flame-400 { color: #ee1c25 !important; }
+
+/* SOLID flame backgrounds: text stays white. Without this, the global
+   text-white → ink override above would paint CTA labels black on red. */
+[data-theme="light"] .bg-flame-500,
+[data-theme="light"] .bg-flame-400,
+[data-theme="light"] .bg-flame-600,
+[data-theme="light"] .bg-flame-700 {
+  color: #ffffff;
+}
+[data-theme="light"] .bg-flame-500.text-white,
+[data-theme="light"] .bg-flame-400.text-white,
+[data-theme="light"] .bg-flame-600.text-white,
+[data-theme="light"] .bg-flame-700.text-white,
+[data-theme="light"] .bg-flame-500 .text-white,
+[data-theme="light"] .bg-flame-400 .text-white,
+[data-theme="light"] .bg-flame-600 .text-white,
+[data-theme="light"] .bg-flame-700 .text-white {
+  color: #ffffff !important;
+}
+[data-theme="light"] .bg-flame-500 .text-white\/95,
+[data-theme="light"] .bg-flame-500 .text-white\/85,
+[data-theme="light"] .bg-flame-500 .text-white\/75,
+[data-theme="light"] .bg-flame-500 .text-white\/65,
+[data-theme="light"] .bg-flame-400 .text-white\/95,
+[data-theme="light"] .bg-flame-400 .text-white\/85,
+[data-theme="light"] .bg-flame-400 .text-white\/75,
+[data-theme="light"] .bg-flame-400 .text-white\/65 {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
 
 [data-theme="light"] .bg-white { background-color: #0a0a0a !important; }
 [data-theme="light"] .bg-white\/5 { background-color: rgba(10, 10, 10, 0.04) !important; }
@@ -268,6 +308,25 @@ body {
 [data-theme="light"] .border-white\/\[0\.06\] { border-color: rgba(10, 10, 10, 0.07) !important; }
 [data-theme="light"] .border-white\/\[0\.08\] { border-color: rgba(10, 10, 10, 0.08) !important; }
 [data-theme="light"] .border-white\/\[0\.10\] { border-color: rgba(10, 10, 10, 0.10) !important; }
+
+[data-theme="light"] .ring-white\/5 { --tw-ring-color: rgba(10, 10, 10, 0.06) !important; }
+[data-theme="light"] .ring-white\/10 { --tw-ring-color: rgba(10, 10, 10, 0.10) !important; }
+[data-theme="light"] .ring-white\/15 { --tw-ring-color: rgba(10, 10, 10, 0.14) !important; }
+[data-theme="light"] .ring-white\/20 { --tw-ring-color: rgba(10, 10, 10, 0.18) !important; }
+[data-theme="light"] .ring-white\/\[0\.06\] { --tw-ring-color: rgba(10, 10, 10, 0.07) !important; }
+[data-theme="light"] .ring-white\/\[0\.08\] { --tw-ring-color: rgba(10, 10, 10, 0.08) !important; }
+[data-theme="light"] .ring-white\/\[0\.10\] { --tw-ring-color: rgba(10, 10, 10, 0.10) !important; }
+
+[data-theme="light"] .divide-white\/5 > * + * { border-color: rgba(10, 10, 10, 0.06) !important; }
+[data-theme="light"] .divide-white\/10 > * + * { border-color: rgba(10, 10, 10, 0.10) !important; }
+[data-theme="light"] .divide-white\/\[0\.06\] > * + * { border-color: rgba(10, 10, 10, 0.07) !important; }
+
+/* Dark overlays: most stay translucent dark in light too (modal backdrops),
+   but very dark plates (bg-black/20..40) read better as light tints. */
+[data-theme="light"] .bg-black\/20 { background-color: rgba(255, 255, 255, 0.45) !important; }
+[data-theme="light"] .bg-black\/30 { background-color: rgba(255, 255, 255, 0.55) !important; }
+[data-theme="light"] .bg-black\/40 { background-color: rgba(10, 10, 10, 0.08) !important; }
+/* bg-black/50, /60, /70 are backdrops/scrims — keep dark for contrast */
 
 [data-theme="light"] .placeholder-white\/35::placeholder { color: rgba(10, 10, 10, 0.40) !important; }
 [data-theme="light"] .placeholder-white\/40::placeholder { color: rgba(10, 10, 10, 0.45) !important; }
