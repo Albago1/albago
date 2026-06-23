@@ -29,7 +29,7 @@ const FACTS = [
   { label: 'Founded', value: '2026' },
   { label: 'Based in', value: 'Albania · Europe' },
   { label: 'Built on', value: 'Next.js · Supabase · Vercel' },
-  { label: 'License', value: 'Free to use' },
+  { label: 'Pricing', value: 'Free to use' },
 ]
 
 const TAGLINES = [
@@ -143,7 +143,6 @@ export default function PressPage() {
                 src="/AlbaGo_AG_Logo.svg"
                 alt="AlbaGo logo on light"
                 className="h-24 w-auto"
-                style={{ filter: 'invert(1)' }}
               />
               <a
                 href="/AlbaGo_AG_Logo.svg"

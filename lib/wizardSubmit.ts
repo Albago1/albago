@@ -106,13 +106,22 @@ export async function submitCommunityEvent(
     recurrence_exceptions: draft.recurrence_exceptions,
   }
 
-  const { data, error } = await supabase
-    .from('event_submissions')
-    .insert(submission)
-    .select('id')
-    .single()
+  const { data, error } = await supabase.rpc('submit_event_submission', {
+    p_payload: submission,
+  })
 
   if (error) {
+    if (/function .*submit_event_submission.* does not exist/i.test(error.message)) {
+      return {
+        id: null,
+        error:
+          'Database is missing Phase 25 RPC. Apply docs/seeds/phase-25-event-submission-rate-limits.sql in Supabase.',
+      }
+    }
+    if (/rate limit/i.test(error.message)) {
+      // Surface the RPC's rate-limit message verbatim — it already reads well.
+      return { id: null, error: error.message }
+    }
     if (/column .* does not exist/i.test(error.message)) {
       return {
         id: null,
@@ -129,7 +138,7 @@ export async function submitCommunityEvent(
     return { id: null, error: error.message }
   }
 
-  return { id: (data?.id as string) ?? 'submitted', error: null }
+  return { id: (data as string | null) ?? 'submitted', error: null }
 }
 
 /**

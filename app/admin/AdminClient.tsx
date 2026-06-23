@@ -385,55 +385,61 @@ export default function AdminClient() {
       }
     }
 
-    const { error: eventError } = await supabase.from('events').insert({
-      title: s.title,
-      slug,
-      place_id: s.place_id ?? null,
-      category: s.category,
-      description: s.description,
-      date: s.date,
-      time: s.time,
-      end_time: s.end_time ?? null,
-      timezone: s.timezone ?? null,
-      price: s.price ?? null,
-      highlight: false,
-      status: 'published',
-      country: s.country,
-      region: s.region,
-      location_slug: s.location_slug,
-      lat: s.lat ?? null,
-      lng: s.lng ?? null,
-      address: s.address ?? null,
-      is_online: s.is_online ?? false,
-      online_url: s.online_url ?? null,
-      tags: s.tags ?? [],
-      language: s.language ?? 'en',
-      banner_url: s.banner_url ?? null,
-      organizer_name: s.organizer_name ?? null,
-      organizer_phone: s.organizer_phone ?? null,
-      organizer_website: s.organizer_website ?? null,
-      organizer_socials: s.organizer_socials ?? null,
-      recurrence: s.recurrence ?? 'none',
-      recurrence_until: s.recurrence_until ?? null,
-      recurrence_days_of_week: s.recurrence_days_of_week ?? [],
-      recurrence_exceptions: s.recurrence_exceptions ?? [],
-      ...(isCivic && {
-        event_type: s.event_type ?? 'protest',
-        is_civic: true,
-        featured_movement_slug: s.featured_movement_slug ?? null,
-        organizer_contact: s.organizer_contact ?? s.contact_email,
-        telegram_link: s.telegram_link ?? null,
-        whatsapp_link: s.whatsapp_link ?? null,
-        safety_notes: s.safety_notes ?? null,
-        expected_attendees: s.expected_attendees ?? null,
-      }),
-    })
+    const { data: insertedEvent, error: eventError } = await supabase
+      .from('events')
+      .insert({
+        title: s.title,
+        slug,
+        place_id: s.place_id ?? null,
+        category: s.category,
+        description: s.description,
+        date: s.date,
+        time: s.time,
+        end_time: s.end_time ?? null,
+        timezone: s.timezone ?? null,
+        price: s.price ?? null,
+        highlight: false,
+        status: 'published',
+        country: s.country,
+        region: s.region,
+        location_slug: s.location_slug,
+        lat: s.lat ?? null,
+        lng: s.lng ?? null,
+        address: s.address ?? null,
+        is_online: s.is_online ?? false,
+        online_url: s.online_url ?? null,
+        tags: s.tags ?? [],
+        language: s.language ?? 'en',
+        banner_url: s.banner_url ?? null,
+        organizer_name: s.organizer_name ?? null,
+        organizer_phone: s.organizer_phone ?? null,
+        organizer_website: s.organizer_website ?? null,
+        organizer_socials: s.organizer_socials ?? null,
+        organizer_contact: s.organizer_contact ?? s.contact_email ?? null,
+        recurrence: s.recurrence ?? 'none',
+        recurrence_until: s.recurrence_until ?? null,
+        recurrence_days_of_week: s.recurrence_days_of_week ?? [],
+        recurrence_exceptions: s.recurrence_exceptions ?? [],
+        ...(isCivic && {
+          event_type: s.event_type ?? 'protest',
+          is_civic: true,
+          featured_movement_slug: s.featured_movement_slug ?? null,
+          telegram_link: s.telegram_link ?? null,
+          whatsapp_link: s.whatsapp_link ?? null,
+          safety_notes: s.safety_notes ?? null,
+          expected_attendees: s.expected_attendees ?? null,
+        }),
+      })
+      .select('id')
+      .single()
 
     if (eventError) {
       setActionId(null)
       setMessage(`Publish error: ${eventError.message}`)
       return
     }
+
+    const newEventId = (insertedEvent as { id: string } | null)?.id ?? null
 
     const { error: subError } = await supabase
       .from('event_submissions')
@@ -445,6 +451,18 @@ export default function AdminClient() {
       setMessage(`Approve error: ${subError.message}`)
       return
     }
+
+    // Fire-and-forget: tell the organizer their event is live. Failure here
+    // shouldn't block the admin's flow — they already see the success state.
+    if (newEventId) {
+      const contactEmail = s.organizer_contact ?? s.contact_email ?? null
+      void fetch('/api/admin/notify-event-published', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: newEventId, contactEmail }),
+      }).catch(() => {})
+    }
+
     await fetchAll()
   }
 
@@ -485,6 +503,12 @@ export default function AdminClient() {
         setMessage(`${label} failed: ${error.message}`)
         return
       }
+      // Fire-and-forget organizer notification
+      void fetch('/api/admin/notify-event-published', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: row.rowId }),
+      }).catch(() => {})
       await fetchAll()
       return
     }
@@ -504,6 +528,16 @@ export default function AdminClient() {
       }
       setMessage(`${label} failed: ${error.message}`)
       return
+    }
+    // If a non-organizer event flips to 'published' via admin_update_event,
+    // also notify (organizer_contact field on the event row provides the
+    // recipient when there's no organizer_id linkage).
+    if (nextStatus === 'published') {
+      void fetch('/api/admin/notify-event-published', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: row.rowId }),
+      }).catch(() => {})
     }
     await fetchAll()
   }
