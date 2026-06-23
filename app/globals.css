@@ -234,6 +234,30 @@ body {
 [data-theme="light"] .bg-ink-800 { background-color: #f4f4f5 !important; }
 [data-theme="light"] .bg-ink-700 { background-color: #e7e7e9 !important; }
 
+/* Translucent ink variants — used by the fixed navbar, the admin shell,
+   sticky toolbars, and dropdown panels. Compile as separate classes so
+   the solid overrides above don't catch them. */
+[data-theme="light"] .bg-ink-950\/55 { background-color: rgba(255, 255, 255, 0.78) !important; }
+[data-theme="light"] .bg-ink-950\/60 { background-color: rgba(255, 255, 255, 0.82) !important; }
+[data-theme="light"] .bg-ink-950\/70 { background-color: rgba(255, 255, 255, 0.86) !important; }
+[data-theme="light"] .bg-ink-950\/75 { background-color: rgba(255, 255, 255, 0.88) !important; }
+[data-theme="light"] .bg-ink-950\/80 { background-color: rgba(255, 255, 255, 0.90) !important; }
+[data-theme="light"] .bg-ink-950\/85 { background-color: rgba(255, 255, 255, 0.92) !important; }
+[data-theme="light"] .bg-ink-950\/90 { background-color: rgba(255, 255, 255, 0.94) !important; }
+[data-theme="light"] .bg-ink-950\/95 { background-color: rgba(255, 255, 255, 0.96) !important; }
+[data-theme="light"] .bg-ink-900\/55 { background-color: rgba(250, 250, 250, 0.78) !important; }
+[data-theme="light"] .bg-ink-900\/80 { background-color: rgba(250, 250, 250, 0.90) !important; }
+[data-theme="light"] .bg-ink-900\/90 { background-color: rgba(250, 250, 250, 0.94) !important; }
+[data-theme="light"] .bg-ink-900\/95 { background-color: rgba(250, 250, 250, 0.96) !important; }
+[data-theme="light"] .bg-ink-800\/80 { background-color: rgba(244, 244, 245, 0.90) !important; }
+[data-theme="light"] .bg-ink-800\/90 { background-color: rgba(244, 244, 245, 0.94) !important; }
+
+/* text-black flips to white in light mode — paired with the bg-white →
+   ink flip above, so "active pill" patterns invert cleanly. */
+[data-theme="light"] .text-black { color: #ffffff !important; }
+[data-theme="light"] .text-black\/85 { color: rgba(255, 255, 255, 0.85) !important; }
+[data-theme="light"] .text-black\/65 { color: rgba(255, 255, 255, 0.65) !important; }
+
 [data-theme="light"] .text-white { color: #0a0a0a !important; }
 [data-theme="light"] .text-white\/95 { color: rgba(10, 10, 10, 0.95) !important; }
 [data-theme="light"] .text-white\/90 { color: rgba(10, 10, 10, 0.90) !important; }
