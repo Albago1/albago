@@ -258,6 +258,21 @@ body {
 [data-theme="light"] .text-black\/85 { color: rgba(255, 255, 255, 0.85) !important; }
 [data-theme="light"] .text-black\/65 { color: rgba(255, 255, 255, 0.65) !important; }
 
+/* Explicit-light surfaces (bg-white + text-ink-*) stay white in light mode.
+   Used by the Google sign-in/sign-up button and any "explicitly light card"
+   pattern. Without this, the broad bg-white → ink override paints the
+   button background black while text-ink-950 (a constant #050505 in both
+   themes) stays dark — yielding black-on-dark = unreadable. The compound
+   selector wins on specificity over the bare .bg-white rule. */
+[data-theme="light"] .bg-white.text-ink-950,
+[data-theme="light"] .bg-white.text-ink-900,
+[data-theme="light"] .bg-white.text-ink-800 {
+  background-color: #ffffff !important;
+}
+[data-theme="light"] .hover\:bg-white\/90:hover { background-color: #f4f4f5 !important; }
+[data-theme="light"] .hover\:bg-white\/80:hover { background-color: #f0f0f1 !important; }
+[data-theme="light"] .hover\:bg-white\/95:hover { background-color: #f7f7f8 !important; }
+
 [data-theme="light"] .text-white { color: #0a0a0a !important; }
 [data-theme="light"] .text-white\/95 { color: rgba(10, 10, 10, 0.95) !important; }
 [data-theme="light"] .text-white\/90 { color: rgba(10, 10, 10, 0.90) !important; }
