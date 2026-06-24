@@ -11,6 +11,7 @@ import {
   Send,
   Share2,
   Smartphone,
+  Video,
   X,
 } from 'lucide-react'
 
@@ -43,6 +44,7 @@ type Props = {
 }
 
 type DownloadFormat = 'story' | 'square' | 'facebook'
+type VideoDuration = 15 | 30
 
 export default function ShareModal({ open, onClose, data }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
@@ -54,6 +56,9 @@ export default function ShareModal({ open, onClose, data }: Props) {
   const [copied, setCopied] = useState<'link' | 'caption' | null>(null)
   const [downloading, setDownloading] = useState<DownloadFormat | null>(null)
   const [downloaded, setDownloaded] = useState<DownloadFormat | null>(null)
+  const [recordingDuration, setRecordingDuration] = useState<VideoDuration | null>(null)
+  const [recordedDuration, setRecordedDuration] = useState<VideoDuration | null>(null)
+  const [recordProgress, setRecordProgress] = useState(0)
   const [showHint, setShowHint] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -172,6 +177,50 @@ export default function ShareModal({ open, onClose, data }: Props) {
       setDownloading(null)
     }
   }, [data.slug])
+
+  const triggerVideoDownload = useCallback(
+    async (duration: VideoDuration) => {
+      if (recordingDuration !== null) return
+      setError(null)
+      setRecordingDuration(duration)
+      setRecordProgress(0)
+      try {
+        const node = storyRef.current
+        if (!node) throw new Error('Template not ready')
+        const { recordPosterVideo } = await import('@/lib/share/recordPosterVideo')
+        const { blob, ext } = await recordPosterVideo({
+          node,
+          durationSec: duration,
+          onProgress: (frac) => setRecordProgress(frac),
+        })
+        const safeSlug = (data.slug || 'event').replace(/[^a-z0-9-]/gi, '-').toLowerCase()
+        const filename = `albago-${safeSlug}-reel-${duration}s.${ext}`
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.download = filename
+        link.href = url
+        link.click()
+        setTimeout(() => URL.revokeObjectURL(url), 4000)
+        setRecordedDuration(duration)
+        setShowHint(true)
+        setTimeout(
+          () => setRecordedDuration((c) => (c === duration ? null : c)),
+          2400,
+        )
+      } catch (e) {
+        console.error(e)
+        const msg =
+          e instanceof Error && e.message
+            ? e.message
+            : 'Could not record the video — try again.'
+        setError(msg)
+      } finally {
+        setRecordingDuration(null)
+        setRecordProgress(0)
+      }
+    },
+    [data.slug, recordingDuration],
+  )
 
   if (!open) return null
 
@@ -347,12 +396,62 @@ export default function ShareModal({ open, onClose, data }: Props) {
               </button>
             </div>
 
+            <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              Download as Reel video
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {([15, 30] as const).map((sec) => {
+                const isRecording = recordingDuration === sec
+                const isDone = recordedDuration === sec
+                const disabled =
+                  qrLoading || downloading !== null ||
+                  (recordingDuration !== null && recordingDuration !== sec)
+                return (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => triggerVideoDownload(sec)}
+                    disabled={disabled}
+                    className="group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isRecording && (
+                      <div
+                        className="absolute inset-y-0 left-0 bg-flame-500/15 transition-[width] duration-150"
+                        style={{ width: `${Math.round(recordProgress * 100)}%` }}
+                        aria-hidden
+                      />
+                    )}
+                    <div className="relative flex h-10 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-b from-flame-500/40 to-flame-700/30 text-flame-200">
+                      {isRecording ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : isDone ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-300" />
+                      ) : (
+                        <Video className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                    <div className="relative min-w-0">
+                      <p className="text-sm font-semibold text-white">{sec}s Reel</p>
+                      <p className="text-[11px] text-white/50">
+                        {isRecording
+                          ? `Recording ${Math.round(recordProgress * sec)}s / ${sec}s`
+                          : '9:16 · video'}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-[11px] text-white/40">
+              Records in real time — wait for the file to download before posting.
+            </p>
+
             {showHint && (
               <div className="mt-3 flex items-start gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3.5 py-2.5 text-[12px] text-emerald-100">
                 <Download className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
                 <p>
-                  Upload this image to Instagram Story, TikTok, Facebook or WhatsApp and paste
-                  the copied caption.
+                  Upload this image or video to Instagram Story/Reel, TikTok, Facebook or
+                  WhatsApp and paste the copied caption.
                 </p>
               </div>
             )}
