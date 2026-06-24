@@ -90,8 +90,8 @@ begin
          then (p_payload->>'place_id')::uuid
          else null end,
     v_date::date,
-    nullif(p_payload->>'time', ''),
-    nullif(p_payload->>'end_time', ''),
+    nullif(p_payload->>'time', '')::time,
+    nullif(p_payload->>'end_time', '')::time,
     nullif(p_payload->>'timezone', ''),
     coalesce(nullif(p_payload->>'category', ''), 'culture'),
     nullif(p_payload->>'price', ''),
@@ -135,7 +135,7 @@ begin
          then (p_payload->>'expected_attendees')::integer
          else null end,
     coalesce(nullif(p_payload->>'recurrence', ''), 'none'),
-    nullif(p_payload->>'recurrence_until', ''),
+    nullif(p_payload->>'recurrence_until', '')::date,
     case when jsonb_typeof(p_payload->'recurrence_days_of_week') = 'array'
          then array(select (jsonb_array_elements_text(p_payload->'recurrence_days_of_week'))::integer)::integer[]
          else '{}'::integer[] end,
