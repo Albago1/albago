@@ -140,8 +140,8 @@ begin
          then array(select (jsonb_array_elements_text(p_payload->'recurrence_days_of_week'))::integer)::integer[]
          else '{}'::integer[] end,
     case when jsonb_typeof(p_payload->'recurrence_exceptions') = 'array'
-         then array(select jsonb_array_elements_text(p_payload->'recurrence_exceptions'))::text[]
-         else '{}'::text[] end
+         then array(select jsonb_array_elements_text(p_payload->'recurrence_exceptions')::date)
+         else '{}'::date[] end
   )
   returning id into new_id;
 
