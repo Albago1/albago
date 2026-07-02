@@ -155,10 +155,15 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
     initialStepAppliedRef.current = true
     if (!initialStepKey) return
     const idx = activeSteps.findIndex((s) => s.key === initialStepKey)
+    if (idx < 0) return
+    // Never jump past a step the draft doesn't satisfy yet — otherwise an
+    // incomplete draft could reach Review and submit without validation.
+    const firstInvalid = activeSteps.findIndex((s) => s.validate(draft) !== null)
+    const target = firstInvalid >= 0 ? Math.min(firstInvalid, idx) : idx
     // One-shot jump once the wizard's persisted draft has finished loading.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (idx >= 0) setStepIndex(idx)
-  }, [hydrated, initialStepKey, activeSteps])
+    setStepIndex(target)
+  }, [hydrated, initialStepKey, activeSteps, draft])
 
   const activeStep = activeSteps[stepIndex] ?? activeSteps[0]
   const isLast = stepIndex >= activeSteps.length - 1

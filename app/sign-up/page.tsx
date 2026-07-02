@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Eye,
@@ -31,9 +31,18 @@ function GoogleLogo() {
   )
 }
 
-export default function SignUpPage() {
+function SignUpForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? '/dashboard'
   const supabase = createClient()
+
+  const safeNext =
+    next.startsWith('/') &&
+    !next.startsWith('//') &&
+    !next.startsWith('/\\')
+      ? next
+      : '/dashboard'
 
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
@@ -60,7 +69,7 @@ export default function SignUpPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
       },
     })
     if (error) {
@@ -79,7 +88,7 @@ export default function SignUpPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
         data: {
           display_name: trimmedName,
           full_name: trimmedName,
@@ -95,7 +104,7 @@ export default function SignUpPage() {
     }
 
     if (data.session) {
-      router.push('/dashboard')
+      router.push(safeNext)
       router.refresh()
       return
     }
@@ -112,7 +121,7 @@ export default function SignUpPage() {
       type: 'signup',
       email: submittedEmail,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
       },
     })
 
@@ -333,7 +342,7 @@ export default function SignUpPage() {
               <p className="mt-6 text-center text-sm text-white/55">
                 Already a member?{' '}
                 <Link
-                  href="/sign-in"
+                  href={`/sign-in?next=${encodeURIComponent(safeNext)}`}
                   className="font-semibold text-flame-400 transition hover:text-flame-300"
                 >
                   Sign in
@@ -348,5 +357,13 @@ export default function SignUpPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense>
+      <SignUpForm />
+    </Suspense>
   )
 }

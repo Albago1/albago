@@ -188,7 +188,10 @@ function SignInForm() {
 
           <p className="mt-6 text-center text-sm text-white/55">
             New to AlbaGo?{' '}
-            <Link href="/sign-up" className="font-semibold text-flame-400 transition hover:text-flame-300">
+            <Link
+              href={`/sign-up?next=${encodeURIComponent(safeNext)}`}
+              className="font-semibold text-flame-400 transition hover:text-flame-300"
+            >
               Create an account
             </Link>
           </p>
