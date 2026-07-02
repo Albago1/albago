@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import SubmitErrorModal from './SubmitErrorModal'
 import type { EventDraft } from '@/types/eventDraft'
 import { useEventDraft } from '@/types/eventDraft'
 import EventTypeStep from './steps/EventTypeStep'
@@ -15,7 +16,9 @@ import ReviewStep from './steps/ReviewStep'
 
 export type WizardSubmit = (draft: EventDraft) => Promise<
   | { id: string; error: null }
-  | { id: null; error: string }
+  // { id: null, error: null } means the caller handled the outcome itself
+  // (e.g. showed its own auth gate) — the wizard keeps the draft and stays put.
+  | { id: null; error: string | null }
 >
 
 export type WizardMode = 'community' | 'organizer'
@@ -206,8 +209,10 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
       return
     }
 
-    clearPersisted()
-    if (result.id) onSuccess?.(result.id)
+    if (result.id) {
+      clearPersisted()
+      onSuccess?.(result.id)
+    }
   }
 
   const handleBack = () => {
@@ -273,10 +278,17 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
         )}
       </div>
 
-      {(stepError || submitError) && (
+      {stepError && (
         <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
-          {stepError || submitError}
+          {stepError}
         </div>
+      )}
+
+      {submitError && (
+        <SubmitErrorModal
+          message={submitError}
+          onDismiss={() => setSubmitError(null)}
+        />
       )}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">

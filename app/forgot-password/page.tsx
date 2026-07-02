@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Loader2,
@@ -11,8 +12,16 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? '/'
+  const safeNext =
+    next.startsWith('/') &&
+    !next.startsWith('//') &&
+    !next.startsWith('/\\')
+      ? next
+      : '/'
 
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -25,8 +34,12 @@ export default function ForgotPasswordPage() {
     setMessage(null)
     setErrorMessage(null)
 
+    // The reset email lands on /reset-password, which forwards the user to
+    // `next` after they set a new password — so someone who started on
+    // /submit-event picks up right where they left off.
+    const resetPath = `/reset-password?next=${encodeURIComponent(safeNext)}`
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(resetPath)}`,
     })
 
     setIsLoading(false)
@@ -45,7 +58,7 @@ export default function ForgotPasswordPage() {
     <main className="min-h-screen bg-ink-950 px-4 py-16 text-white">
       <div className="mx-auto w-full max-w-md">
         <Link
-          href="/sign-in"
+          href={`/sign-in?next=${encodeURIComponent(safeNext)}`}
           className="mb-8 inline-flex items-center gap-1.5 text-sm text-white/55 transition hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -112,12 +125,23 @@ export default function ForgotPasswordPage() {
 
           <p className="mt-6 text-center text-sm text-white/55">
             Remembered it?{' '}
-            <Link href="/sign-in" className="font-semibold text-flame-400 transition hover:text-flame-300">
+            <Link
+              href={`/sign-in?next=${encodeURIComponent(safeNext)}`}
+              className="font-semibold text-flame-400 transition hover:text-flame-300"
+            >
               Sign in
             </Link>
           </p>
         </div>
       </div>
     </main>
+  )
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense>
+      <ForgotPasswordForm />
+    </Suspense>
   )
 }

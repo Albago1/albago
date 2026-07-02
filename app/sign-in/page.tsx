@@ -134,7 +134,7 @@ function SignInForm() {
                   Password
                 </span>
                 <Link
-                  href="/forgot-password"
+                  href={`/forgot-password?next=${encodeURIComponent(safeNext)}`}
                   className="text-xs text-white/55 transition hover:text-white"
                 >
                   Forgot?

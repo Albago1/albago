@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Loader2,
@@ -13,8 +13,16 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? '/dashboard'
+  const safeNext =
+    next.startsWith('/') &&
+    !next.startsWith('//') &&
+    !next.startsWith('/\\')
+      ? next
+      : '/dashboard'
   const supabase = createClient()
 
   const [password, setPassword] = useState('')
@@ -58,9 +66,9 @@ export default function ResetPasswordPage() {
       return
     }
 
-    setMessage('Password updated. Redirecting to your dashboard...')
+    setMessage('Password updated. Taking you back...')
     setTimeout(() => {
-      router.push('/dashboard')
+      router.push(safeNext)
       router.refresh()
     }, 1200)
   }
@@ -172,5 +180,13 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }

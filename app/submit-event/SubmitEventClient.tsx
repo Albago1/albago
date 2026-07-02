@@ -1,9 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CheckCircle2, CloudUpload, LogIn, UserPlus } from 'lucide-react'
+import {
+  CheckCircle2,
+  CloudUpload,
+  LogIn,
+  PencilLine,
+  UserPlus,
+} from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
 import { submitCommunityEvent } from '@/lib/wizardSubmit'
@@ -14,15 +20,21 @@ import type { EventDraft } from '@/types/eventDraft'
 // instead of step 1 of a wizard they already filled in.
 const RETURN_PATH = '/submit-event?resume=1'
 
+type GateVariant = 'intro' | 'final'
+
 export default function SubmitEventClient() {
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
   const resumeAtReview = searchParams.get('resume') === '1'
 
   const [submittedId, setSubmittedId] = useState<string | null>(null)
-  // null = still checking; the banner and gate only render once we know.
+  // null = still checking; signed-out UI only renders once we know.
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null)
-  const [showAuthGate, setShowAuthGate] = useState(false)
+  const [gate, setGate] = useState<GateVariant | null>(null)
+
+  // Greet signed-out visitors once per page visit with the dismissible intro
+  // popup, so the sign-in requirement is never a surprise at the end.
+  const introShownRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +49,8 @@ export default function SubmitEventClient() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthed(!!session?.user)
-      if (session?.user) setShowAuthGate(false)
+      // Signed in (this tab or another) → both gates are moot.
+      if (session?.user) setGate(null)
     })
 
     return () => {
@@ -46,15 +59,24 @@ export default function SubmitEventClient() {
     }
   }, [supabase])
 
+  useEffect(() => {
+    if (introShownRef.current) return
+    if (isAuthed !== false) return
+    // Returning from sign-in/sign-up they're authed; this only covers a user
+    // who came back signed-out (e.g. abandoned the auth page).
+    introShownRef.current = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGate((current) => current ?? 'intro')
+  }, [isAuthed])
+
   const handleSubmit = async (draft: EventDraft) => {
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) {
-      setShowAuthGate(true)
-      // The gate replaces the wizard, so this message is a fallback that
-      // normally never renders.
-      return { id: null, error: 'Sign in to submit your event.' }
+      setGate('final')
+      // Outcome handled here (auth gate modal) — the wizard keeps the draft.
+      return { id: null, error: null }
     }
     return submitCommunityEvent(supabase, draft)
   }
@@ -94,53 +116,6 @@ export default function SubmitEventClient() {
     )
   }
 
-  if (showAuthGate) {
-    return (
-      <div className="mx-auto max-w-3xl">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
-            <LogIn className="h-6 w-6 text-flame-300" />
-          </div>
-          <h2 className="mt-5 text-2xl font-bold text-white">
-            Sign in to submit your event
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/60">
-            Your event is ready to go — we just need to know who&apos;s
-            submitting it so we can follow up when it&apos;s published.
-          </p>
-          <p className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium text-emerald-200">
-            <CloudUpload className="h-3.5 w-3.5" />
-            Your draft is saved on this device — it&apos;ll be waiting when you
-            get back.
-          </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link
-              href={`/sign-in?next=${encodeURIComponent(RETURN_PATH)}`}
-              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
-            >
-              <LogIn className="h-4 w-4" />
-              Sign in
-            </Link>
-            <Link
-              href={`/sign-up?next=${encodeURIComponent(RETURN_PATH)}`}
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
-            >
-              <UserPlus className="h-4 w-4" />
-              Create account
-            </Link>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAuthGate(false)}
-            className="mt-6 text-xs text-white/45 transition hover:text-white/75"
-          >
-            Back to your draft
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="mx-auto max-w-3xl">
       {isAuthed === false && (
@@ -158,12 +133,128 @@ export default function SubmitEventClient() {
           </Link>
         </div>
       )}
+
       <EventCreationWizard
         mode="community"
         onSubmit={handleSubmit}
         onSuccess={(id) => setSubmittedId(id)}
         initialStepKey={resumeAtReview ? 'review' : undefined}
       />
+
+      {gate && (
+        <AuthGateModal variant={gate} onDismiss={() => setGate(null)} />
+      )}
+    </div>
+  )
+}
+
+function AuthGateModal({
+  variant,
+  onDismiss,
+}: {
+  variant: GateVariant
+  onDismiss: () => void
+}) {
+  const isIntro = variant === 'intro'
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onDismiss])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      role={isIntro ? 'dialog' : 'alertdialog'}
+      aria-modal="true"
+      aria-labelledby="auth-gate-title"
+    >
+      {isIntro ? (
+        // Intro is informational — clicking outside closes it.
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={onDismiss}
+          className="absolute inset-0 cursor-default bg-ink-950/85 backdrop-blur-sm"
+        />
+      ) : (
+        // Final gate: signing in is required to finish, so the only ways out
+        // are the explicit buttons below (or Escape).
+        <div className="absolute inset-0 bg-ink-950/85 backdrop-blur-sm" />
+      )}
+      <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-ink-900 p-8 text-center shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
+          {isIntro ? (
+            <PencilLine className="h-6 w-6 text-flame-300" />
+          ) : (
+            <LogIn className="h-6 w-6 text-flame-300" />
+          )}
+        </div>
+        <h2 id="auth-gate-title" className="mt-5 text-xl font-bold text-white">
+          {isIntro ? 'Start now, sign in later' : 'Sign in to submit'}
+        </h2>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-white/65">
+          {isIntro
+            ? "Fill in your event now — you'll sign in at the end to submit it."
+            : "Your event is ready — just sign in and it's done."}
+        </p>
+        <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium text-emerald-200">
+          <CloudUpload className="h-3.5 w-3.5" />
+          {isIntro
+            ? 'Your draft saves automatically.'
+            : "Everything is saved — you'll continue where you left off."}
+        </p>
+        <div className="mt-7 flex flex-wrap justify-center gap-3">
+          {isIntro ? (
+            <>
+              <button
+                type="button"
+                onClick={onDismiss}
+                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+              >
+                <PencilLine className="h-4 w-4" />
+                Start my event
+              </button>
+              <Link
+                href={`/sign-in?next=${encodeURIComponent(RETURN_PATH)}`}
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href={`/sign-in?next=${encodeURIComponent(RETURN_PATH)}`}
+                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in
+              </Link>
+              <Link
+                href={`/sign-up?next=${encodeURIComponent(RETURN_PATH)}`}
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
+              >
+                <UserPlus className="h-4 w-4" />
+                Create account
+              </Link>
+            </>
+          )}
+        </div>
+        {!isIntro && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="mt-6 text-xs text-white/45 transition hover:text-white/75"
+          >
+            Back to your draft
+          </button>
+        )}
+      </div>
     </div>
   )
 }

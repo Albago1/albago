@@ -5,6 +5,15 @@ export type SubmitResult =
   | { id: string; error: null }
   | { id: null; error: string }
 
+// Users should never see RPC names, seed-file paths, or RLS advice. Log the
+// technical detail for debugging and hand back one calm, generic message.
+const GENERIC_SUBMIT_ERROR =
+  "Something went wrong on our side and your event wasn't submitted. Your draft is safe — please try again in a moment, or reach us via the contact page if it keeps happening."
+
+function logSubmitError(context: string, error: { message: string; code?: string }) {
+  console.error(`[${context}]`, error.code ?? '', error.message)
+}
+
 function trim(s: string | null | undefined): string | null {
   if (s == null) return null
   const t = s.trim()
@@ -111,31 +120,12 @@ export async function submitCommunityEvent(
   })
 
   if (error) {
-    if (/function .*submit_event_submission.* does not exist/i.test(error.message)) {
-      return {
-        id: null,
-        error:
-          'Database is missing Phase 25 RPC. Apply docs/seeds/phase-25-event-submission-rate-limits.sql in Supabase.',
-      }
-    }
     if (/rate limit/i.test(error.message)) {
       // Surface the RPC's rate-limit message verbatim — it already reads well.
       return { id: null, error: error.message }
     }
-    if (/column .* does not exist/i.test(error.message)) {
-      return {
-        id: null,
-        error:
-          'Database is missing Phase 13 columns on event_submissions. Apply docs/seeds/phase-13-event-rich-data.sql in Supabase.',
-      }
-    }
-    if (error.code === '42501') {
-      return {
-        id: null,
-        error: 'Server refused the insert. Check the event_submissions RLS policies.',
-      }
-    }
-    return { id: null, error: error.message }
+    logSubmitError('submitCommunityEvent', error)
+    return { id: null, error: GENERIC_SUBMIT_ERROR }
   }
 
   return { id: (data as string | null) ?? 'submitted', error: null }
@@ -215,21 +205,8 @@ export async function submitOrganizerDraft(
         error: 'Complete organizer onboarding before creating events.',
       }
     }
-    if (error.code === '42501' || /permission denied/i.test(error.message)) {
-      return {
-        id: null,
-        error:
-          'Server refused the request. GRANT EXECUTE may be missing for organizer_create_event_v2.',
-      }
-    }
-    if (/function .* does not exist/i.test(error.message)) {
-      return {
-        id: null,
-        error:
-          'organizer_create_event_v2 RPC is missing. Apply docs/seeds/phase-13-event-rich-data.sql in Supabase.',
-      }
-    }
-    return { id: null, error: error.message }
+    logSubmitError('submitOrganizerDraft', error)
+    return { id: null, error: GENERIC_SUBMIT_ERROR }
   }
 
   return { id: data as string, error: null }
