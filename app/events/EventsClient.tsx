@@ -1,22 +1,25 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUpDown,
   Calendar,
-  CalendarRange,
   Clock3,
   Flame,
   MapPin,
   Repeat,
-  Search,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SaveEventButton from '@/components/SaveEventButton'
+import EventsFilterBar, {
+  type SearchSuggestion,
+  type SortBy,
+  type TimeFilter,
+} from '@/components/events/EventsFilterBar'
+import { getCategoryTone } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import {
   formatEventDateLabel,
@@ -34,24 +37,12 @@ import {
   recurrenceLabel,
 } from '@/lib/recurrence'
 import { createClient } from '@/lib/supabase/browser'
-import { getLocationBySlug, defaultLocationSlug, type LocationOption } from '@/lib/locations'
+import { getLocationBySlug, type LocationOption } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { getEventTimezone, zonedWallClockToUtcMs } from '@/lib/timezone'
 import { useRouter, useSearchParams } from 'next/navigation'
-
-type TimeFilter = 'all' | 'tonight' | 'weekend'
-
-type SortBy = 'featured' | 'date-asc' | 'date-desc'
-
-const SORT_OPTIONS: { value: SortBy; label: string }[] = [
-  { value: 'featured', label: 'Featured first' },
-  { value: 'date-asc', label: 'Soonest first' },
-  { value: 'date-desc', label: 'Latest first' },
-]
-
-const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic'] as const
 
 type PublicEvent = {
   id: string
@@ -75,29 +66,6 @@ type PublicEvent = {
   recurrence_until?: string | null
   recurrence_days_of_week?: number[] | null
   recurrence_exceptions?: string[] | null
-}
-
-const timeFilters: TimeFilter[] = ['all', 'tonight', 'weekend']
-
-function getTimeFilterLabel(filter: TimeFilter) {
-  if (filter === 'all') return 'All'
-  if (filter === 'tonight') return 'Tonight'
-  return 'This Weekend'
-}
-
-function getCategoryTone(category?: string) {
-  if (!category) return 'bg-white/10 text-white/80'
-
-  const value = category.toLowerCase()
-
-  if (value === 'nightlife') return 'bg-fuchsia-500/20 text-fuchsia-300'
-  if (value === 'music') return 'bg-violet-500/20 text-violet-300'
-  if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
-  if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
-  if (value === 'food') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
-
-  return 'bg-white/10 text-white/80'
 }
 
 function titleizeSlug(slug: string): string {
@@ -192,11 +160,9 @@ function EventsContent() {
   const [placeNames, setPlaceNames] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; category: string; location_slug: string }>>([])
-  const [isSuggestOpen, setIsSuggestOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
   const [isAuth, setIsAuth] = useState(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
-  const searchWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -234,16 +200,6 @@ function EventsContent() {
     return () => clearTimeout(timer)
   }, [searchQuery, supabase])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
-        setIsSuggestOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
   const isSearchMode = debouncedSearch.trim().length > 0
 
   useEffect(() => {
@@ -264,6 +220,7 @@ function EventsContent() {
         setIsLoading(false)
 
         if (error) {
+          console.error('[events] search fetch failed:', error.message)
           setErrorMessage(error.message)
           return
         }
@@ -304,6 +261,7 @@ function EventsContent() {
         setIsLoading(false)
 
         if (eventsRes.error) {
+          console.error('[events] fetch failed:', eventsRes.error.message)
           setErrorMessage(eventsRes.error.message)
           return
         }
@@ -369,7 +327,15 @@ function EventsContent() {
     })
   }
 
-  const clearTags = () => setActiveTags(new Set())
+  const clearAllFilters = () => {
+    setActiveLocationSlug('all')
+    setActiveCategory('all')
+    setActiveTimeFilter('all')
+    setActiveTags(new Set())
+    setSortBy('featured')
+    setDateFrom('')
+    setDateTo('')
+  }
 
   const filteredEvents = useMemo(() => {
     const weekendDates = getWeekendDateStrings()
@@ -442,7 +408,7 @@ function EventsContent() {
     <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
 
-      <section className="relative overflow-hidden px-4 pb-12 pt-32">
+      <section className="relative overflow-hidden px-4 pb-10 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute inset-0 bg-grid opacity-40" />
           <div className="absolute inset-0 bg-radial-flame" />
@@ -477,7 +443,7 @@ function EventsContent() {
           </h1>
 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
-            Browse what's happening now, then jump straight into the map when
+            Browse what&rsquo;s happening now, then jump straight into the map when
             you want location context.
           </p>
 
@@ -498,253 +464,73 @@ function EventsContent() {
               {t('tonight')}
             </Link>
           </div>
-
-          {!isSearchMode && (
-            <div className="mt-6">
-              <label className="text-sm font-medium text-white/60">
-                Location
-              </label>
-
-              <select
-                value={activeLocationSlug}
-                onChange={(event) => setActiveLocationSlug(event.target.value)}
-                className="mt-2 h-12 w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 px-4 text-sm text-white outline-none"
-              >
-                <option value="all">All cities · Worldwide</option>
-                {locationOptions.map((location) => (
-                  <option key={location.slug} value={location.slug}>
-                    {location.label} · {location.country}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="mt-4 max-w-sm">
-            <label className="text-sm font-medium text-white/60">
-              Search
-            </label>
-
-            <div className="relative mt-2" ref={searchWrapperRef}>
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-
-              <input
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                  setIsSuggestOpen(true)
-                }}
-                onFocus={() => { if (searchQuery.trim()) setIsSuggestOpen(true) }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    setIsSuggestOpen(false)
-                    setDebouncedSearch(searchQuery)
-                  }
-                }}
-                placeholder="Search events, music, food..."
-                className="h-12 w-full rounded-2xl border border-white/10 bg-ink-900 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35"
-              />
-
-              {isSuggestOpen && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-3xl border border-white/10 bg-ink-900 shadow-2xl">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery(s.title)
-                        setIsSuggestOpen(false)
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/[0.06]"
-                    >
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${getCategoryTone(s.category)}`}>
-                        {s.category}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate font-medium text-white">{s.title}</span>
-                      <span className="shrink-0 text-xs text-white/35">
-                        {resolveLocation(s.location_slug, locationOptions).label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {isSearchMode && (
-              <p className="mt-2 text-xs text-white/40">Showing results across all cities</p>
-            )}
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-2">
-            {timeFilters.map((filter) => {
-              const isActive = activeTimeFilter === filter
-
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setActiveTimeFilter(filter)}
-                  className={[
-                    'rounded-full px-4 py-2 text-sm font-medium transition',
-                    isActive
-                      ? 'bg-white text-black'
-                      : 'border border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/[0.08] hover:text-white',
-                  ].join(' ')}
-                >
-                  {getTimeFilterLabel(filter)}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveCategory(cat)}
-                  className={[
-                    'rounded-full px-4 py-2 text-sm font-medium capitalize transition',
-                    isActive
-                      ? 'bg-flame-500 text-white shadow-glow-flame'
-                      : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
-                  ].join(' ')}
-                >
-                  {cat === 'all' ? 'All categories' : cat}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-            <CalendarRange className="h-3.5 w-3.5 text-white/45" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
-              Date range
-            </p>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white outline-none focus:border-white/25"
-              aria-label="From date"
-            />
-            <span className="text-xs text-white/35">→</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white outline-none focus:border-white/25"
-              aria-label="To date"
-            />
-            {hasDateRange && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFrom('')
-                  setDateTo('')
-                }}
-                className="ml-auto text-[11px] font-semibold uppercase tracking-[0.14em] text-flame-300 transition hover:text-flame-200"
-              >
-                Clear dates
-              </button>
-            )}
-            {hasDateRange && (
-              <p className="basis-full text-[11px] text-white/40">
-                Overriding the time filter chips above while a date range is set.
-              </p>
-            )}
-          </div>
-
-          {availableTags.length > 0 && (
-            <div className="mt-3">
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
-                  Tags
-                </p>
-                {activeTags.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearTags}
-                    className="text-[11px] font-semibold uppercase tracking-[0.14em] text-flame-300 transition hover:text-flame-200"
-                  >
-                    Clear ({activeTags.size})
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {availableTags.map(({ tag, count }) => {
-                  const isActive = activeTags.has(tag)
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTag(tag)}
-                      aria-pressed={isActive}
-                      className={[
-                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
-                        isActive
-                          ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/50'
-                          : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
-                      ].join(' ')}
-                    >
-                      {tag}
-                      <span
-                        className={[
-                          'rounded-full px-1.5 text-[10px]',
-                          isActive ? 'bg-flame-500/30 text-flame-50' : 'bg-white/[0.06] text-white/45',
-                        ].join(' ')}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
-      <section className="px-4 pb-20">
+      <EventsFilterBar
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearchSubmit={() => setDebouncedSearch(searchQuery)}
+        suggestions={suggestions}
+        onPickSuggestion={(s) => setSearchQuery(s.title)}
+        isSearchMode={isSearchMode}
+        locationOptions={locationOptions}
+        activeLocationSlug={activeLocationSlug}
+        onLocationChange={setActiveLocationSlug}
+        timeFilter={activeTimeFilter}
+        onTimeFilterChange={setActiveTimeFilter}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateRangeChange={(from, to) => {
+          setDateFrom(from)
+          setDateTo(to)
+        }}
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+        availableTags={availableTags}
+        activeTags={activeTags}
+        onToggleTag={toggleTag}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+        resultCount={sortedEvents.length}
+        isLoading={isLoading}
+        onClearAll={clearAllFilters}
+      />
+
+      <section className="px-4 pb-20 pt-6">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/75">
-              <span className="font-semibold text-white">{sortedEvents.length}</span>{' '}
-              {sortedEvents.length === 1 ? 'event' : 'events'}
-            </div>
-
-            <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75">
-              <ArrowUpDown className="h-3.5 w-3.5 text-white/45" />
-              <span className="font-semibold uppercase tracking-[0.14em] text-white/45">
-                Sort
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortBy)}
-                className="bg-transparent text-xs font-medium text-white outline-none"
-                aria-label="Sort events"
-              >
-                {SORT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-ink-900">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {isLoading && (
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-white/60">
-              Loading events...
+          {isLoading && !errorMessage && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="animate-pulse rounded-3xl border border-white/10 bg-white/[0.03] p-5"
+                  style={{ animationDelay: `${i * 120}ms` }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-2">
+                      <div className="h-6 w-20 rounded-full bg-white/[0.06]" />
+                      <div className="h-6 w-14 rounded-full bg-white/[0.06]" />
+                    </div>
+                    <div className="h-6 w-24 rounded-full bg-white/[0.06]" />
+                  </div>
+                  <div className="mt-4 h-6 w-3/4 rounded-lg bg-white/[0.08]" />
+                  <div className="mt-3 h-4 w-1/2 rounded bg-white/[0.05]" />
+                  <div className="mt-4 h-4 w-full rounded bg-white/[0.05]" />
+                  <div className="mt-2 h-4 w-2/3 rounded bg-white/[0.05]" />
+                </div>
+              ))}
             </div>
           )}
 
           {errorMessage && (
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-red-200">
-              {errorMessage}
+            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+              <p className="text-base font-semibold text-red-200">
+                Couldn&rsquo;t load events
+              </p>
+              <p className="mt-1 text-sm text-red-200/70">
+                Check your connection and try again.
+              </p>
             </div>
           )}
 
@@ -786,143 +572,145 @@ function EventsContent() {
                     No events match this filter yet
                   </p>
                   <p className="mt-2 text-sm text-white/55">
-                    Try another time filter or jump into the map to explore places.
+                    Try another date or category, or jump into the map to explore places.
                   </p>
                 </>
               )}
             </div>
           )}
 
-          <motion.div layout className="grid gap-4 lg:grid-cols-2">
-            <AnimatePresence mode="popLayout">
-            {sortedEvents.map((event) => (
-              <motion.div
-                key={event.id}
-                layout
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.6 }}
-                whileHover={{ y: -3 }}
-              >
-              <Link
-                href={`/events/${event.slug}`}
-                className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.06] hover:shadow-[0_20px_50px_rgba(238,28,37,0.18)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${getCategoryTone(
-                        event.category
-                      )}`}
-                    >
-                      {event.category}
-                    </span>
-
-                    {event.price && (
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
-                        {event.price}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {event.highlight && (
-                      <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                        Hot
-                      </span>
-                    )}
-
-                    <SaveEventButton
-                      eventId={event.id}
-                      initialSaved={savedIds.has(event.id)}
-                      isAuthenticated={isAuth}
-                    />
-
-                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-white/70">
-                      {isRecurring(event)
-                        ? nextOccurrenceLabel(event) ??
-                          formatEventDateLabel(event.date)
-                        : formatEventDateLabel(event.date)}
-                    </span>
-                  </div>
-                </div>
-
-                <h2 className="mt-4 text-xl font-semibold leading-tight text-white">
-                  {event.title}
-                </h2>
-
-                {event.tags && event.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {event.tags.slice(0, 4).map((t) => (
+          {!isLoading && !errorMessage && (
+            <motion.div layout className="grid gap-4 lg:grid-cols-2">
+              <AnimatePresence mode="popLayout">
+              {sortedEvents.map((event) => (
+                <motion.div
+                  key={event.id}
+                  layout
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.6 }}
+                  whileHover={{ y: -3 }}
+                >
+                <Link
+                  href={`/events/${event.slug}`}
+                  className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.06] hover:shadow-[0_20px_50px_rgba(238,28,37,0.18)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
-                        key={t}
-                        className="rounded-full bg-flame-500/[0.08] px-2 py-0.5 text-[10px] text-flame-100 ring-1 ring-flame-500/25"
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getCategoryTone(
+                          event.category
+                        )}`}
                       >
-                        {t}
+                        {event.category}
                       </span>
-                    ))}
-                    {event.tags.length > 4 && (
-                      <span className="text-[10px] text-white/35">
-                        +{event.tags.length - 4}
+
+                      {event.price && (
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
+                          {event.price}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {event.highlight && (
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                          Hot
+                        </span>
+                      )}
+
+                      <SaveEventButton
+                        eventId={event.id}
+                        initialSaved={savedIds.has(event.id)}
+                        isAuthenticated={isAuth}
+                      />
+
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-white/70">
+                        {isRecurring(event)
+                          ? nextOccurrenceLabel(event) ??
+                            formatEventDateLabel(event.date)
+                          : formatEventDateLabel(event.date)}
                       </span>
-                    )}
-                  </div>
-                )}
-
-                {event.place_id && (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-white/55">
-                    <MapPin className="h-4 w-4" />
-                    <span>{placeNames.get(event.place_id) ?? 'Unknown venue'}</span>
-                  </div>
-                )}
-
-                {isSearchMode && (
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-white/35">
-                    <MapPin className="h-3 w-3" />
-                    {resolveLocation(event.location_slug, locationOptions).label}
-                  </div>
-                )}
-
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/60">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      {isRecurring(event)
-                        ? nextOccurrenceLabel(event) ??
-                          formatEventDateLabel(event.date)
-                        : formatEventDateLabel(event.date)}
-                    </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Clock3 className="h-4 w-4" />
-                    <span>{formatEventTimeLabel(event.time)}</span>
-                  </div>
+                  <h2 className="mt-4 text-xl font-semibold leading-tight text-white">
+                    {event.title}
+                  </h2>
 
-                  {isRecurring(event) && (
-                    <div className="flex items-center gap-2 text-flame-300">
-                      <Repeat className="h-4 w-4" />
-                      <span>{recurrenceLabel(event)}</span>
+                  {event.tags && event.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {event.tags.slice(0, 4).map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full bg-flame-500/[0.08] px-2 py-0.5 text-[10px] text-flame-100 ring-1 ring-flame-500/25"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                      {event.tags.length > 4 && (
+                        <span className="text-[10px] text-white/35">
+                          +{event.tags.length - 4}
+                        </span>
+                      )}
                     </div>
                   )}
-                </div>
 
-                <p className="mt-4 text-sm leading-6 text-white/65">
-                  {event.description}
-                </p>
+                  {event.place_id && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-white/55">
+                      <MapPin className="h-4 w-4" />
+                      <span>{placeNames.get(event.place_id) ?? 'Unknown venue'}</span>
+                    </div>
+                  )}
 
-                <div className="mt-5">
-                  <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
-                    View event
-                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-              </Link>
-              </motion.div>
-            ))}
-            </AnimatePresence>
-          </motion.div>
+                  {isSearchMode && (
+                    <div className="mt-1 flex items-center gap-1.5 text-xs text-white/35">
+                      <MapPin className="h-3 w-3" />
+                      {resolveLocation(event.location_slug, locationOptions).label}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/60">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>
+                        {isRecurring(event)
+                          ? nextOccurrenceLabel(event) ??
+                            formatEventDateLabel(event.date)
+                          : formatEventDateLabel(event.date)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Clock3 className="h-4 w-4" />
+                      <span>{formatEventTimeLabel(event.time)}</span>
+                    </div>
+
+                    {isRecurring(event) && (
+                      <div className="flex items-center gap-2 text-flame-300">
+                        <Repeat className="h-4 w-4" />
+                        <span>{recurrenceLabel(event)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="mt-4 text-sm leading-6 text-white/65">
+                    {event.description}
+                  </p>
+
+                  <div className="mt-5">
+                    <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
+                      View event
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </span>
+                  </div>
+                </Link>
+                </motion.div>
+              ))}
+              </AnimatePresence>
+            </motion.div>
+          )}
         </div>
       </section>
     </main>
