@@ -3,27 +3,16 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  Clock3,
-  Flame,
-  MapPin,
-  Repeat,
-} from 'lucide-react'
+import { ArrowLeft, Flame, MapPin } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
-import SaveEventButton from '@/components/SaveEventButton'
 import EventsFilterBar, {
   type SearchSuggestion,
   type SortBy,
   type TimeFilter,
 } from '@/components/events/EventsFilterBar'
-import { getCategoryTone } from '@/components/events/categoryMeta'
+import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import {
-  formatEventDateLabel,
-  formatEventTimeLabel,
   isThisWeekend,
   isToday,
   getTodayDateString,
@@ -33,8 +22,6 @@ import {
   hasOccurrenceInRange,
   isRecurring,
   nextOccurrence,
-  nextOccurrenceLabel,
-  recurrenceLabel,
 } from '@/lib/recurrence'
 import { createClient } from '@/lib/supabase/browser'
 import { getLocationBySlug, type LocationOption } from '@/lib/locations'
@@ -43,30 +30,6 @@ import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { getEventTimezone, zonedWallClockToUtcMs } from '@/lib/timezone'
 import { useRouter, useSearchParams } from 'next/navigation'
-
-type PublicEvent = {
-  id: string
-  title: string
-  slug: string
-  place_id: string | null
-  category: string
-  description: string
-  date: string
-  time: string
-  price: string | null
-  highlight: boolean | null
-  status: string
-  location_slug: string
-  country: string
-  region: string | null
-  tags?: string[] | null
-  is_online?: boolean | null
-  banner_url?: string | null
-  recurrence?: string | null
-  recurrence_until?: string | null
-  recurrence_days_of_week?: number[] | null
-  recurrence_exceptions?: string[] | null
-}
 
 function titleizeSlug(slug: string): string {
   return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -500,24 +463,20 @@ function EventsContent() {
       <section className="px-4 pb-20 pt-6">
         <div className="mx-auto max-w-6xl">
           {isLoading && !errorMessage && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {Array.from({ length: 6 }).map((_, i) => (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 9 }).map((_, i) => (
                 <div
                   key={i}
-                  className="animate-pulse rounded-3xl border border-white/10 bg-white/[0.03] p-5"
-                  style={{ animationDelay: `${i * 120}ms` }}
+                  className="animate-pulse overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]"
+                  style={{ animationDelay: `${i * 100}ms` }}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex gap-2">
-                      <div className="h-6 w-20 rounded-full bg-white/[0.06]" />
-                      <div className="h-6 w-14 rounded-full bg-white/[0.06]" />
-                    </div>
-                    <div className="h-6 w-24 rounded-full bg-white/[0.06]" />
+                  <div className="aspect-[16/10] w-full bg-white/[0.06]" />
+                  <div className="p-4">
+                    <div className="h-5 w-3/4 rounded-lg bg-white/[0.08]" />
+                    <div className="mt-2 h-5 w-1/2 rounded-lg bg-white/[0.08]" />
+                    <div className="mt-3 h-4 w-2/3 rounded bg-white/[0.05]" />
+                    <div className="mt-5 h-4 w-1/3 rounded bg-white/[0.05]" />
                   </div>
-                  <div className="mt-4 h-6 w-3/4 rounded-lg bg-white/[0.08]" />
-                  <div className="mt-3 h-4 w-1/2 rounded bg-white/[0.05]" />
-                  <div className="mt-4 h-4 w-full rounded bg-white/[0.05]" />
-                  <div className="mt-2 h-4 w-2/3 rounded bg-white/[0.05]" />
                 </div>
               ))}
             </div>
@@ -580,7 +539,7 @@ function EventsContent() {
           )}
 
           {!isLoading && !errorMessage && (
-            <motion.div layout className="grid gap-4 lg:grid-cols-2">
+            <motion.div layout className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <AnimatePresence mode="popLayout">
               {sortedEvents.map((event) => (
                 <motion.div
@@ -590,122 +549,19 @@ function EventsContent() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.6 }}
-                  whileHover={{ y: -3 }}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="h-full"
                 >
-                <Link
-                  href={`/events/${event.slug}`}
-                  className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.06] hover:shadow-[0_20px_50px_rgba(238,28,37,0.18)]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getCategoryTone(
-                          event.category
-                        )}`}
-                      >
-                        {event.category}
-                      </span>
-
-                      {event.price && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
-                          {event.price}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {event.highlight && (
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                          Hot
-                        </span>
-                      )}
-
-                      <SaveEventButton
-                        eventId={event.id}
-                        initialSaved={savedIds.has(event.id)}
-                        isAuthenticated={isAuth}
-                      />
-
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-white/70">
-                        {isRecurring(event)
-                          ? nextOccurrenceLabel(event) ??
-                            formatEventDateLabel(event.date)
-                          : formatEventDateLabel(event.date)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <h2 className="mt-4 text-xl font-semibold leading-tight text-white">
-                    {event.title}
-                  </h2>
-
-                  {event.tags && event.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {event.tags.slice(0, 4).map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full bg-flame-500/[0.08] px-2 py-0.5 text-[10px] text-flame-100 ring-1 ring-flame-500/25"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                      {event.tags.length > 4 && (
-                        <span className="text-[10px] text-white/35">
-                          +{event.tags.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {event.place_id && (
-                    <div className="mt-2 flex items-center gap-2 text-sm text-white/55">
-                      <MapPin className="h-4 w-4" />
-                      <span>{placeNames.get(event.place_id) ?? 'Unknown venue'}</span>
-                    </div>
-                  )}
-
-                  {isSearchMode && (
-                    <div className="mt-1 flex items-center gap-1.5 text-xs text-white/35">
-                      <MapPin className="h-3 w-3" />
-                      {resolveLocation(event.location_slug, locationOptions).label}
-                    </div>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/60">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      <span>
-                        {isRecurring(event)
-                          ? nextOccurrenceLabel(event) ??
-                            formatEventDateLabel(event.date)
-                          : formatEventDateLabel(event.date)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4" />
-                      <span>{formatEventTimeLabel(event.time)}</span>
-                    </div>
-
-                    {isRecurring(event) && (
-                      <div className="flex items-center gap-2 text-flame-300">
-                        <Repeat className="h-4 w-4" />
-                        <span>{recurrenceLabel(event)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="mt-4 text-sm leading-6 text-white/65">
-                    {event.description}
-                  </p>
-
-                  <div className="mt-5">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
-                      View event
-                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                    </span>
-                  </div>
-                </Link>
+                  <EventCard
+                    event={event}
+                    venueName={
+                      event.place_id ? placeNames.get(event.place_id) ?? null : null
+                    }
+                    cityLabel={resolveLocation(event.location_slug, locationOptions).label}
+                    isAuthenticated={isAuth}
+                    initialSaved={savedIds.has(event.id)}
+                  />
                 </motion.div>
               ))}
               </AnimatePresence>
