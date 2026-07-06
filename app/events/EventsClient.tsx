@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, Flame, MapPin } from 'lucide-react'
@@ -24,6 +24,7 @@ import {
   nextOccurrence,
 } from '@/lib/recurrence'
 import { createClient } from '@/lib/supabase/browser'
+import { trackInteraction } from '@/lib/track'
 import { getLocationBySlug, type LocationOption } from '@/lib/locations'
 import { useLocations } from '@/lib/useLocations'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
@@ -53,6 +54,44 @@ function resolveLocation(
     center: [0, 0],
     zoom: 12.5,
   }
+}
+
+/** Lowercase + strip diacritics so "Durres" matches "Durrës". */
+function normalizePlaceText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+}
+
+type PlaceMatch =
+  | { kind: 'city'; slug: string }
+  | { kind: 'country'; country: string }
+
+/**
+ * If the search text IS a known city or country name, the user is asking
+ * "what's happening there" — return the location so the caller can filter
+ * by place instead of full-text matching the words.
+ */
+function matchKnownPlace(
+  query: string,
+  locations: LocationOption[],
+): PlaceMatch | null {
+  const nq = normalizePlaceText(query)
+  if (nq.length < 3) return null
+  for (const loc of locations) {
+    if (loc.slug === 'all') continue
+    if (loc.slug === nq || normalizePlaceText(loc.label) === nq) {
+      return { kind: 'city', slug: loc.slug }
+    }
+  }
+  for (const loc of locations) {
+    if (loc.country && normalizePlaceText(loc.country) === nq) {
+      return { kind: 'country', country: loc.country }
+    }
+  }
+  return null
 }
 
 function eventInstantMs(e: PublicEvent, date = e.date): number {
@@ -146,6 +185,24 @@ function EventsContent() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
+  // Analytics: city picks and search demand. City fires on change only (not
+  // the landing default); search fires per settled (debounced) query.
+  const cityTrackReadyRef = useRef(false)
+  useEffect(() => {
+    if (!cityTrackReadyRef.current) {
+      cityTrackReadyRef.current = true
+      return
+    }
+    if (activeLocationSlug === 'all') return
+    trackInteraction('city_search', { city: activeLocationSlug })
+  }, [activeLocationSlug])
+
+  useEffect(() => {
+    const q = debouncedSearch.trim()
+    if (!q) return
+    trackInteraction('search_query', { meta: { q: q.slice(0, 120) } })
+  }, [debouncedSearch])
+
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSuggestions([])
@@ -171,12 +228,29 @@ function EventsContent() {
       setErrorMessage(null)
 
       if (debouncedSearch.trim()) {
-        const { data, error } = await supabase
+        const q = debouncedSearch.trim()
+        // Typing a known place name ("Albania", "Tirana", "Berlin") means
+        // "events THERE" — filter by location instead of matching the word
+        // inside titles/descriptions (which pulled in Rome/Köln protests
+        // whose text mentions Albania).
+        const place = matchKnownPlace(q, locationOptions)
+        let query = supabase
           .from('events')
           .select('*')
           .eq('status', 'published')
           .or(activeEventsOrFilter())
-          .textSearch('search_vector', debouncedSearch.trim(), { type: 'plain', config: 'simple' })
+        if (place?.kind === 'city') {
+          query = query.eq('location_slug', place.slug)
+        } else if (place?.kind === 'country') {
+          query = query.ilike('country', place.country)
+        } else {
+          query = query.textSearch('search_vector', q, { type: 'plain', config: 'simple' })
+          // Text search respects the picked city instead of going global.
+          if (activeLocationSlug !== 'all') {
+            query = query.eq('location_slug', activeLocationSlug)
+          }
+        }
+        const { data, error } = await query
           .order('date', { ascending: true })
           .limit(60)
 
@@ -238,7 +312,7 @@ function EventsContent() {
     }
 
     fetchEvents()
-  }, [supabase, activeLocationSlug, debouncedSearch])
+  }, [supabase, activeLocationSlug, debouncedSearch, locationOptions])
 
   useEffect(() => {
     const params = new URLSearchParams()
