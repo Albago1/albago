@@ -1,34 +1,38 @@
+'use client'
+
 import Link from 'next/link'
 import { MapPin } from 'lucide-react'
-
-const exploreLinks = [
-  { href: '/events', label: 'Events' },
-  { href: '/protests', label: 'Protests' },
-  { href: '/map', label: 'Map' },
-  { href: '/pankartat', label: 'Pankartat' },
-  { href: '/events/albanian-revolution', label: 'Albanian Revolution' },
-]
-
-const communityLinks = [
-  { href: '/become-organizer', label: 'Become an organizer' },
-  { href: '/organizers', label: 'Organizers' },
-  { href: '/submit-event', label: 'Submit an event' },
-  { href: '/volunteer', label: 'Volunteer' },
-  { href: '/sign-in', label: 'Sign in' },
-]
-
-const resourceLinks = [
-  { href: '/about', label: 'About' },
-  { href: '/faq', label: 'FAQ' },
-  { href: '/press', label: 'Press' },
-  { href: '/contact', label: 'Contact' },
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/privacy', label: 'Privacy' },
-  { href: '/terms', label: 'Terms' },
-]
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 export default function Footer() {
-  const year = new Date().getFullYear()
+  const { t } = useLanguage()
+
+  const exploreLinks = [
+    { href: '/events', label: t('nav_events') },
+    { href: '/protests', label: t('nav_protests') },
+    { href: '/map', label: t('nav_map') },
+    { href: '/pankartat', label: 'Pankartat' },
+    { href: '/events/albanian-revolution', label: t('footer_link_revolution') },
+  ]
+
+  const communityLinks = [
+    { href: '/become-organizer', label: t('footer_link_become_organizer') },
+    { href: '/organizers', label: t('footer_link_organizers') },
+    { href: '/submit-event', label: t('nav_submit_event') },
+    { href: '/volunteer', label: t('footer_link_volunteer') },
+    { href: '/sign-in', label: t('sign_in') },
+  ]
+
+  const resourceLinks = [
+    { href: '/about', label: t('footer_link_about') },
+    { href: '/faq', label: t('footer_link_faq') },
+    { href: '/press', label: t('footer_link_press') },
+    { href: '/contact', label: t('footer_link_contact') },
+    { href: '/dashboard', label: t('nav_dashboard') },
+    { href: '/privacy', label: t('footer_link_privacy') },
+    { href: '/terms', label: t('footer_link_terms') },
+  ]
+
   return (
     <footer className="relative mt-auto border-t border-white/10 bg-ink-950/80 text-white">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-flame-500/40 to-transparent" />
@@ -47,25 +51,22 @@ export default function Footer() {
               </span>
             </Link>
             <p className="max-w-sm text-sm leading-relaxed text-white/55">
-              A live worldwide directory for events, nightlife, and peaceful civic
-              gatherings. Coordinated through AlbaGo.
+              {t('footer_tagline')}
             </p>
-            <div className="text-xs text-white/40">
-              Peaceful · Lawful · Family-friendly
-            </div>
+            <div className="text-xs text-white/40">{t('footer_values')}</div>
           </div>
 
-          <FooterColumn title="Explore" links={exploreLinks} />
-          <FooterColumn title="Community" links={communityLinks} />
-          <FooterColumn title="Resources" links={resourceLinks} />
+          <FooterColumn title={t('footer_explore')} links={exploreLinks} />
+          <FooterColumn title={t('footer_community')} links={communityLinks} />
+          <FooterColumn title={t('footer_resources')} links={resourceLinks} />
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-white/5 pt-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
-          <span>© {year} AlbaGo. All rights reserved.</span>
+          <span>{t('footer_rights')}</span>
           <span>
-            Built for the diaspora ·{' '}
+            {t('footer_built')} ·{' '}
             <Link href="/protests" className="underline-offset-2 hover:text-white hover:underline">
-              For the land, for the people, for Albania
+              {t('footer_motto')}
             </Link>
           </span>
         </div>

@@ -26,9 +26,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(defaultLanguage)
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY) as Language | null
+    let saved = window.localStorage.getItem(STORAGE_KEY)
+    // "al" was our old code for Albanian before switching to ISO "sq"
+    if (saved === "al") {
+      saved = "sq"
+      window.localStorage.setItem(STORAGE_KEY, saved)
+    }
     if (saved && saved in translations) {
-      setLanguageState(saved)
+      setLanguageState(saved as Language)
     }
   }, [])
 

@@ -70,7 +70,7 @@ export default function PlacePanel({
       en: 'en-GB',
       de: 'de-DE',
       es: 'es-ES',
-      al: 'sq-AL',
+      sq: 'sq-AL',
     } as const
 
     return eventDate.toLocaleDateString(localeMap[language], {

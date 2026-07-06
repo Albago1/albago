@@ -15,8 +15,10 @@ import {
   X,
 } from 'lucide-react'
 import MiniCalendar from './MiniCalendar'
-import { CATEGORIES, CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
+import { CATEGORIES, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
 import { getTodayDateString } from '@/lib/dateFilters'
+import { languageLocales } from '@/lib/i18n/config'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import type { LocationOption } from '@/lib/locations'
 
 export type TimeFilter = 'all' | 'tonight' | 'weekend'
@@ -30,10 +32,10 @@ export type SearchSuggestion = {
   location_slug: string
 }
 
-const SORT_OPTIONS: { value: SortBy; label: string; hint: string }[] = [
-  { value: 'featured', label: 'Featured first', hint: 'Highlights, then soonest' },
-  { value: 'date-asc', label: 'Soonest first', hint: 'Earliest date on top' },
-  { value: 'date-desc', label: 'Latest first', hint: 'Furthest date on top' },
+const SORT_OPTIONS: { value: SortBy; labelKey: string; hintKey: string }[] = [
+  { value: 'featured', labelKey: 'filter_sort_featured', hintKey: 'filter_sort_featured_hint' },
+  { value: 'date-asc', labelKey: 'filter_sort_soonest', hintKey: 'filter_sort_soonest_hint' },
+  { value: 'date-desc', labelKey: 'filter_sort_latest', hintKey: 'filter_sort_latest_hint' },
 ]
 
 function addDays(dateStr: string, days: number): string {
@@ -43,8 +45,8 @@ function addDays(dateStr: string, days: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-function shortDate(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-GB', {
+function shortDate(dateStr: string, locale: string): string {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString(locale, {
     day: 'numeric',
     month: 'short',
   })
@@ -122,6 +124,9 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
     onClearAll,
   } = props
 
+  const { t, language } = useLanguage()
+  const locale = languageLocales[language]
+
   const [openPanel, setOpenPanel] = useState<PanelId>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [isSuggestOpen, setIsSuggestOpen] = useState(false)
@@ -183,20 +188,21 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
   const dateValue = useMemo(() => {
     if (hasRange) {
       if (dateFrom === tomorrowStr && dateTo === tomorrowStr) {
-        return `Tomorrow · ${shortDate(tomorrowStr)}`
+        return `${t('tomorrow')} · ${shortDate(tomorrowStr, locale)}`
       }
-      if (dateFrom === todayStr && dateTo === next7EndStr) return 'Next 7 days'
-      if (dateFrom && !dateTo) return `From ${shortDate(dateFrom)}`
-      if (!dateFrom && dateTo) return `Until ${shortDate(dateTo)}`
-      if (dateFrom === dateTo) return shortDate(dateFrom)
-      return `${shortDate(dateFrom)} – ${shortDate(dateTo)}`
+      if (dateFrom === todayStr && dateTo === next7EndStr) return t('filter_next_7_days')
+      if (dateFrom && !dateTo) return `${t('filter_from')} ${shortDate(dateFrom, locale)}`
+      if (!dateFrom && dateTo) return `${t('filter_until')} ${shortDate(dateTo, locale)}`
+      if (dateFrom === dateTo) return shortDate(dateFrom, locale)
+      return `${shortDate(dateFrom, locale)} – ${shortDate(dateTo, locale)}`
     }
-    if (timeFilter === 'tonight') return `Tonight · ${shortDate(todayStr)}`
-    if (timeFilter === 'weekend') return 'This weekend'
+    if (timeFilter === 'tonight') return `${t('tonight')} · ${shortDate(todayStr, locale)}`
+    if (timeFilter === 'weekend') return t('filter_this_weekend')
     return null
-  }, [hasRange, dateFrom, dateTo, timeFilter, todayStr, tomorrowStr, next7EndStr])
+  }, [hasRange, dateFrom, dateTo, timeFilter, todayStr, tomorrowStr, next7EndStr, t, locale])
 
-  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortBy)?.label ?? 'Sort'
+  const sortOption = SORT_OPTIONS.find((o) => o.value === sortBy)
+  const sortLabel = sortOption ? t(sortOption.labelKey) : t('filter_sort')
 
   type Chip = { key: string; label: string; onRemove: () => void }
   const chips = useMemo(() => {
@@ -217,7 +223,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
     if (activeCategory !== 'all') {
       list.push({
         key: 'category',
-        label: capitalize(activeCategory),
+        label: categoryLabel(activeCategory, t),
         onRemove: () => onCategoryChange('all'),
       })
     }
@@ -229,7 +235,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
     }
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLocationSlug, locationLabel, dateValue, activeCategory, activeTags, sortBy, sortLabel])
+  }, [activeLocationSlug, locationLabel, dateValue, activeCategory, activeTags, sortBy, sortLabel, t])
 
   const activeFilterCount = chips.length
 
@@ -265,14 +271,14 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                     onSearchSubmit()
                   }
                 }}
-                placeholder="Search events, music, food..."
-                aria-label="Search events"
+                placeholder={t('filter_search_placeholder')}
+                aria-label={t('filter_search_events')}
                 className="h-11 w-full rounded-full border border-white/10 bg-white/[0.04] pl-11 pr-9 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/25 focus:bg-white/[0.06]"
               />
               {searchQuery !== '' && (
                 <button
                   type="button"
-                  aria-label="Clear search"
+                  aria-label={t('filter_clear_search')}
                   onClick={() => {
                     onSearchQueryChange('')
                     setIsSuggestOpen(false)
@@ -305,7 +311,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${getCategoryTone(s.category)}`}
                         >
-                          {s.category}
+                          {categoryLabel(s.category, t)}
                         </span>
                         <span className="min-w-0 flex-1 truncate font-medium text-white">
                           {s.title}
@@ -324,12 +330,12 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             <div className="relative hidden md:block">
               <FilterTrigger
                 icon={MapPin}
-                label="City"
-                value={isSearchMode ? 'All cities' : locationLabel}
+                label={t('filter_city')}
+                value={isSearchMode ? t('filter_all_cities') : locationLabel}
                 isActive={!isSearchMode && activeLocationSlug !== 'all'}
                 isOpen={openPanel === 'location'}
                 disabled={isSearchMode}
-                title={isSearchMode ? 'Search covers all cities' : undefined}
+                title={isSearchMode ? t('filter_search_covers_all') : undefined}
                 onClick={() => togglePanel('location')}
               />
               <AnimatePresence>
@@ -349,7 +355,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             <div className="relative hidden md:block">
               <FilterTrigger
                 icon={CalendarDays}
-                label="Date"
+                label={t('filter_date')}
                 value={dateValue}
                 isActive={dateValue !== null}
                 isOpen={openPanel === 'date'}
@@ -373,7 +379,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             <div className="relative hidden md:block">
               <FilterTrigger
                 icon={ArrowUpDown}
-                label="Sort"
+                label={t('filter_sort')}
                 value={sortBy !== 'featured' ? sortLabel : null}
                 isActive={sortBy !== 'featured'}
                 isOpen={openPanel === 'sort'}
@@ -402,12 +408,14 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-                    Loading
+                    {t('filter_loading')}
                   </span>
                 ) : (
                   <>
                     <span className="font-semibold text-white">{resultCount}</span>
-                    <span className="ml-1">{resultCount === 1 ? 'event' : 'events'}</span>
+                    <span className="ml-1">
+                      {resultCount === 1 ? t('event_singular') : t('event_plural')}
+                    </span>
                   </>
                 )}
               </span>
@@ -418,7 +426,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                   onClick={onClearAll}
                   className="hidden whitespace-nowrap text-xs font-semibold uppercase tracking-[0.14em] text-white/50 underline-offset-4 transition hover:text-white hover:underline md:block"
                 >
-                  Clear all
+                  {t('filter_clear_all')}
                 </button>
               )}
 
@@ -428,7 +436,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                 className="relative inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white md:hidden"
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                Filters
+                {t('filter_filters')}
                 {activeFilterCount > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-flame-500 text-[10px] font-bold text-white shadow-glow-flame">
                     {activeFilterCount}
@@ -458,7 +466,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                     ].join(' ')}
                   >
                     <Icon className="h-4 w-4" />
-                    {cat === 'all' ? 'All' : cat}
+                    {categoryLabel(cat, t)}
                   </button>
                 )
               })}
@@ -474,7 +482,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             <div className="flex w-max items-center gap-1.5">
               <span className="inline-flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
                 <Tag className="h-3.5 w-3.5" />
-                Tags
+                {t('filter_tags')}
               </span>
               {availableTags.map(({ tag, count }) => {
                 const isActive = activeTags.has(tag)
@@ -542,7 +550,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                   onClick={onClearAll}
                   className="ml-1 text-xs font-semibold text-white/50 underline-offset-4 transition hover:text-white hover:underline"
                 >
-                  Clear all
+                  {t('filter_clear_all')}
                 </button>
               </div>
             </motion.div>
@@ -565,7 +573,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             <motion.div
               role="dialog"
               aria-modal="true"
-              aria-label="Event filters"
+              aria-label={t('filter_filters')}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -574,10 +582,10 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             >
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <span className="w-8" aria-hidden />
-                <p className="text-sm font-semibold text-white">Filters</p>
+                <p className="text-sm font-semibold text-white">{t('filter_filters')}</p>
                 <button
                   type="button"
-                  aria-label="Close filters"
+                  aria-label={t('filter_close_filters')}
                   onClick={() => setIsSheetOpen(false)}
                   className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/[0.08] hover:text-white"
                 >
@@ -587,7 +595,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
 
               <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
                 <section>
-                  <SheetHeading>When</SheetHeading>
+                  <SheetHeading>{t('filter_when')}</SheetHeading>
                   <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02]">
                     <WhenPicker
                       timeFilter={timeFilter}
@@ -601,7 +609,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
 
                 {!isSearchMode && (
                   <section>
-                    <SheetHeading>City</SheetHeading>
+                    <SheetHeading>{t('filter_city')}</SheetHeading>
                     <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
                       <LocationPicker
                         options={locationOptions}
@@ -613,7 +621,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                 )}
 
                 <section>
-                  <SheetHeading>Category</SheetHeading>
+                  <SheetHeading>{t('filter_category')}</SheetHeading>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {CATEGORIES.map((cat) => {
                       const Icon = CATEGORY_ICONS[cat]
@@ -632,7 +640,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                           ].join(' ')}
                         >
                           <Icon className="h-4 w-4" />
-                          {cat === 'all' ? 'All' : cat}
+                          {categoryLabel(cat, t)}
                         </button>
                       )
                     })}
@@ -641,7 +649,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
 
                 {availableTags.length > 0 && (
                   <section>
-                    <SheetHeading>Tags</SheetHeading>
+                    <SheetHeading>{t('filter_tags')}</SheetHeading>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {availableTags.map(({ tag, count }) => {
                         const isActive = activeTags.has(tag)
@@ -677,7 +685,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                 )}
 
                 <section>
-                  <SheetHeading>Sort</SheetHeading>
+                  <SheetHeading>{t('filter_sort')}</SheetHeading>
                   <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
                     <SortPicker sortBy={sortBy} onSelect={onSortChange} />
                   </div>
@@ -690,7 +698,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                   onClick={onClearAll}
                   className="shrink-0 text-sm font-semibold text-white/60 underline-offset-4 transition hover:text-white hover:underline"
                 >
-                  Clear all
+                  {t('filter_clear_all')}
                 </button>
                 <button
                   type="button"
@@ -698,8 +706,8 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                   className="ml-auto flex-1 rounded-full bg-flame-500 px-6 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
                 >
                   {isLoading
-                    ? 'Loading…'
-                    : `Show ${resultCount} ${resultCount === 1 ? 'event' : 'events'}`}
+                    ? `${t('filter_loading')}…`
+                    : `${t('filter_show')} ${resultCount} ${resultCount === 1 ? t('event_singular') : t('event_plural')}`}
                 </button>
               </div>
             </motion.div>
@@ -806,6 +814,7 @@ function LocationPicker({
   onSelect: (slug: string) => void
   autoFocus?: boolean
 }) {
+  const { t } = useLanguage()
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
   const filtered = q
@@ -820,8 +829,8 @@ function LocationPicker({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search city or country..."
-            aria-label="Search cities"
+            placeholder={t('filter_search_city_placeholder')}
+            aria-label={t('filter_search_city_placeholder')}
             autoFocus={autoFocus}
             className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/25"
           />
@@ -831,8 +840,8 @@ function LocationPicker({
         {!q && (
           <LocationRow
             icon={Globe}
-            label="All cities"
-            sub="Worldwide"
+            label={t('filter_all_cities')}
+            sub={t('filter_worldwide')}
             active={activeSlug === 'all'}
             onClick={() => onSelect('all')}
           />
@@ -849,7 +858,7 @@ function LocationPicker({
         ))}
         {filtered.length === 0 && (
           <p className="px-3 py-6 text-center text-sm text-white/40">
-            No city matches &ldquo;{query}&rdquo;
+            {t('filter_no_city_match')} &ldquo;{query}&rdquo;
           </p>
         )}
       </div>
@@ -904,6 +913,7 @@ function WhenPicker({
   dateTo: string
   onDateRangeChange: (from: string, to: string) => void
 }) {
+  const { t } = useLanguage()
   const todayStr = getTodayDateString()
   const tomorrowStr = addDays(todayStr, 1)
   const next7EndStr = addDays(todayStr, 7)
@@ -912,7 +922,7 @@ function WhenPicker({
   const presets: { key: string; label: string; active: boolean; apply: () => void }[] = [
     {
       key: 'any',
-      label: 'Any date',
+      label: t('filter_any_date'),
       active: !hasRange && timeFilter === 'all',
       apply: () => {
         onTimeFilterChange('all')
@@ -921,7 +931,7 @@ function WhenPicker({
     },
     {
       key: 'tonight',
-      label: 'Tonight',
+      label: t('tonight'),
       active: !hasRange && timeFilter === 'tonight',
       apply: () => {
         onTimeFilterChange('tonight')
@@ -930,7 +940,7 @@ function WhenPicker({
     },
     {
       key: 'tomorrow',
-      label: 'Tomorrow',
+      label: t('tomorrow'),
       active: dateFrom === tomorrowStr && dateTo === tomorrowStr,
       apply: () => {
         onTimeFilterChange('all')
@@ -939,7 +949,7 @@ function WhenPicker({
     },
     {
       key: 'weekend',
-      label: 'This weekend',
+      label: t('filter_this_weekend'),
       active: !hasRange && timeFilter === 'weekend',
       apply: () => {
         onTimeFilterChange('weekend')
@@ -948,7 +958,7 @@ function WhenPicker({
     },
     {
       key: 'week',
-      label: 'Next 7 days',
+      label: t('filter_next_7_days'),
       active: dateFrom === todayStr && dateTo === next7EndStr,
       apply: () => {
         onTimeFilterChange('all')
@@ -995,7 +1005,7 @@ function WhenPicker({
           onClick={() => onDateRangeChange('', '')}
           className="mt-2 w-full rounded-xl border border-white/10 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-flame-300 transition hover:bg-white/[0.04] hover:text-flame-200"
         >
-          Clear dates
+          {t('filter_clear_dates')}
         </button>
       )}
     </div>
@@ -1009,6 +1019,7 @@ function SortPicker({
   sortBy: SortBy
   onSelect: (value: SortBy) => void
 }) {
+  const { t } = useLanguage()
   return (
     <div className="p-1.5">
       {SORT_OPTIONS.map((opt) => (
@@ -1022,8 +1033,8 @@ function SortPicker({
           ].join(' ')}
         >
           <span>
-            <span className="block font-medium">{opt.label}</span>
-            <span className="block text-xs text-white/40">{opt.hint}</span>
+            <span className="block font-medium">{t(opt.labelKey)}</span>
+            <span className="block text-xs text-white/40">{t(opt.hintKey)}</span>
           </span>
           {opt.value === sortBy && <Check className="h-4 w-4 shrink-0 text-flame-400" />}
         </button>

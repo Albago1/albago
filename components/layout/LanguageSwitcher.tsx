@@ -12,7 +12,7 @@ const LANGUAGE_META: Record<Language, { native: string; code: string }> = {
   en: { native: 'English', code: 'EN' },
   de: { native: 'Deutsch', code: 'DE' },
   es: { native: 'Español', code: 'ES' },
-  al: { native: 'Shqip', code: 'AL' },
+  sq: { native: 'Shqip', code: 'SQ' },
 }
 
 export default function LanguageSwitcher({

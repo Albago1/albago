@@ -19,6 +19,15 @@ export const CATEGORIES = [
   'civic',
 ] as const
 
+// Translated display label for a category slug. Unknown slugs (legacy data)
+// fall back to a capitalized version of the raw value.
+export function categoryLabel(category: string, t: (key: string) => string): string {
+  const c = category?.toLowerCase() ?? ''
+  if (c === 'all') return t('filter_all')
+  if ((CATEGORIES as readonly string[]).includes(c)) return t(`category_${c}`)
+  return c.charAt(0).toUpperCase() + c.slice(1)
+}
+
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   all: Sparkles,
   nightlife: Martini,

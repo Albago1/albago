@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Calendar, Compass, Home, Megaphone } from 'lucide-react'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 type NavItem = {
   href: string
-  label: string
+  labelKey: string
   icon: typeof Home
   match: (pathname: string) => boolean
 }
@@ -14,19 +15,19 @@ type NavItem = {
 const items: NavItem[] = [
   {
     href: '/',
-    label: 'Home',
+    labelKey: 'nav_home',
     icon: Home,
     match: (p) => p === '/',
   },
   {
     href: '/events',
-    label: 'Events',
+    labelKey: 'nav_events',
     icon: Calendar,
     match: (p) => p === '/events' || p.startsWith('/events/'),
   },
   {
     href: '/protests',
-    label: 'Protests',
+    labelKey: 'nav_protests',
     icon: Megaphone,
     match: (p) =>
       p === '/protests' ||
@@ -36,7 +37,7 @@ const items: NavItem[] = [
   },
   {
     href: '/map',
-    label: 'Map',
+    labelKey: 'nav_map',
     icon: Compass,
     match: (p) => p === '/map',
   },
@@ -47,6 +48,7 @@ const items: NavItem[] = [
 const SUPPRESS_PREFIXES = ['/admin', '/dashboard', '/organizer', '/onboarding', '/sign-in', '/sign-up', '/forgot-password', '/reset-password', '/auth']
 
 export default function MobileBottomNav() {
+  const { t } = useLanguage()
   const pathname = usePathname() ?? '/'
   if (SUPPRESS_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return null
@@ -84,7 +86,7 @@ export default function MobileBottomNav() {
                 >
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="leading-none">{item.label}</span>
+                <span className="leading-none">{t(item.labelKey)}</span>
               </Link>
             </li>
           )

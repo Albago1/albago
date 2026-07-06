@@ -2,13 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-
-const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+import { languageLocales } from '@/lib/i18n/config'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 function pad(n: number) {
   return String(n).padStart(2, '0')
@@ -32,6 +27,18 @@ type MiniCalendarProps = {
  * end, hovering previews the tentative range. Past dates are disabled.
  */
 export default function MiniCalendar({ from, to, onChange }: MiniCalendarProps) {
+  const { t, language } = useLanguage()
+  const locale = languageLocales[language]
+
+  // Monday-first two-letter weekday headers in the active language.
+  const weekdayLabels = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(locale, { weekday: 'short' })
+    // 2024-01-01 is a Monday.
+    return Array.from({ length: 7 }, (_, i) =>
+      fmt.format(new Date(2024, 0, 1 + i)).replace('.', '').slice(0, 2),
+    )
+  }, [locale])
+
   const todayStr = useMemo(() => toDateString(new Date()), [])
   const initial = from ? new Date(`${from}T00:00:00`) : new Date()
   const [viewYear, setViewYear] = useState(initial.getFullYear())
@@ -81,20 +88,21 @@ export default function MiniCalendar({ from, to, onChange }: MiniCalendarProps) 
           type="button"
           onClick={() => goToMonth(-1)}
           disabled={!canGoPrev}
-          aria-label="Previous month"
+          aria-label={t('cal_prev_month')}
           className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
 
         <p className="text-sm font-semibold text-white">
-          {MONTH_NAMES[viewMonth]} {viewYear}
+          {new Date(viewYear, viewMonth, 1).toLocaleDateString(locale, { month: 'long' })}{' '}
+          {viewYear}
         </p>
 
         <button
           type="button"
           onClick={() => goToMonth(1)}
-          aria-label="Next month"
+          aria-label={t('cal_next_month')}
           className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/[0.08] hover:text-white"
         >
           <ChevronRight className="h-4 w-4" />
@@ -102,9 +110,9 @@ export default function MiniCalendar({ from, to, onChange }: MiniCalendarProps) 
       </div>
 
       <div className="mt-2 grid grid-cols-7 text-center">
-        {WEEKDAY_LABELS.map((w) => (
+        {weekdayLabels.map((w, i) => (
           <span
-            key={w}
+            key={`${w}-${i}`}
             className="py-1 text-[10px] font-semibold uppercase tracking-wide text-white/35"
           >
             {w}

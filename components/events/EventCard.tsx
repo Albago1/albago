@@ -4,7 +4,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowUpRight, Clock3, MapPin, Repeat } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
-import { CATEGORY_GRADIENTS, CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { CATEGORY_GRADIENTS, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 import { isRecurring, nextOccurrenceLabel, recurrenceLabel } from '@/lib/recurrence'
 
@@ -52,6 +53,7 @@ export default function EventCard({
   isAuthenticated,
   initialSaved,
 }: EventCardProps) {
+  const { t } = useLanguage()
   const category = event.category?.toLowerCase() ?? ''
   const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
   const gradient = CATEGORY_GRADIENTS[category] ?? 'from-white/10 via-ink-900 to-ink-950'
@@ -93,11 +95,11 @@ export default function EventCard({
             <span
               className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize backdrop-blur-md ${getCategoryTone(event.category)}`}
             >
-              {event.category}
+              {categoryLabel(event.category, t)}
             </span>
             {event.highlight && (
               <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                Hot
+                {t('hot')}
               </span>
             )}
           </div>
