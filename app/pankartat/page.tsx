@@ -13,6 +13,7 @@ export const metadata: Metadata = {
       'Galeri e gjallë e pankartave nga protestat shqiptare dhe diaspora.',
     type: 'website',
   },
+  robots: { index: false, follow: false },
 }
 
 export default async function PankartatPage() {

@@ -306,9 +306,6 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
             <CinematicLink href="/volunteer?movement=albanian-revolution" variant="ghost" size="lg">
               Volunteer
             </CinematicLink>
-            <CinematicLink href="/pankartat" variant="ghost" size="lg">
-              Pankartat e Revolucionit
-            </CinematicLink>
           </motion.div>
 
           <motion.div

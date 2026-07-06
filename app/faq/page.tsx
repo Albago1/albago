@@ -116,20 +116,6 @@ const FAQS: Faq[] = [
     ),
   },
   {
-    q: 'How does Pankartat work?',
-    a: (
-      <>
-        Pankartat is a community gallery of real protest placards. Bring your
-        sign to a demonstration, snap a phone photo, upload it at{' '}
-        <Link href="/pankartat" className="text-flame-300 hover:underline">
-          /pankartat
-        </Link>
-        . An admin reviews it briefly, then it joins the public wall where
-        anyone can like, download, and share it.
-      </>
-    ),
-  },
-  {
     q: 'Who can see my data?',
     a: (
       <>

@@ -438,7 +438,7 @@ function EventsContent() {
 
   const isAllCities = activeLocationSlug === 'all'
   const activeLocation = resolveLocation(activeLocationSlug, locationOptions)
-  const headerCity = isAllCities ? 'Worldwide' : activeLocation.label
+  const headerCity = isAllCities ? t('filter_worldwide') : activeLocation.label
   const headerCountry = isAllCities ? '' : activeLocation.country
 
   return (
@@ -459,13 +459,13 @@ function EventsContent() {
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white/75 transition hover:bg-white/[0.08] hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            {t('events_back')}
           </Link>
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2 text-sm text-flame-300">
             <MapPin className="h-4 w-4" />
             {isSearchMode
-              ? 'All cities'
+              ? t('filter_all_cities')
               : headerCountry
                 ? `${headerCity}, ${headerCountry}`
                 : headerCity}
@@ -473,15 +473,14 @@ function EventsContent() {
 
           <h1 className="display-text mt-6 text-5xl sm:text-7xl lg:text-[88px] leading-[0.95] tracking-tight">
             {isSearchMode
-              ? `Results for "${debouncedSearch}"`
+              ? `${t('events_results_for')} "${debouncedSearch}"`
               : isAllCities
-                ? 'All events'
-                : `All events in ${headerCity}`}
+                ? t('events_all_events')
+                : `${t('events_all_events_in')} ${headerCity}`}
           </h1>
 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
-            Browse what&rsquo;s happening now, then jump straight into the map when
-            you want location context.
+            {t('events_hero_sub')}
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -559,10 +558,10 @@ function EventsContent() {
           {errorMessage && (
             <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center">
               <p className="text-base font-semibold text-red-200">
-                Couldn&rsquo;t load events
+                {t('events_error_title')}
               </p>
               <p className="mt-1 text-sm text-red-200/70">
-                Check your connection and try again.
+                {t('events_error_hint')}
               </p>
             </div>
           )}
@@ -572,19 +571,19 @@ function EventsContent() {
               {isSearchMode ? (
                 <>
                   <p className="text-base font-semibold text-white">
-                    No events match &ldquo;{debouncedSearch}&rdquo;
+                    {t('events_empty_search_title')} &ldquo;{debouncedSearch}&rdquo;
                   </p>
                   <p className="mt-2 text-sm text-white/55">
-                    Try a different keyword, or clear the search to browse a city.
+                    {t('events_empty_search_hint')}
                   </p>
                 </>
               ) : !locationOptions.some((l) => l.slug === activeLocationSlug) ? (
                 <>
                   <p className="text-base font-semibold text-white">
-                    No upcoming events near you yet
+                    {t('events_empty_near_title')}
                   </p>
                   <p className="mt-2 text-sm text-white/55">
-                    AlbaGo is just getting started — try one of our featured cities.
+                    {t('events_empty_near_hint')}
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     {locationOptions.slice(0, 4).map((loc) => (
@@ -602,10 +601,10 @@ function EventsContent() {
               ) : (
                 <>
                   <p className="text-base font-semibold text-white">
-                    No events match this filter yet
+                    {t('events_empty_filter_title')}
                   </p>
                   <p className="mt-2 text-sm text-white/55">
-                    Try another date or category, or jump into the map to explore places.
+                    {t('events_empty_filter_hint')}
                   </p>
                 </>
               )}

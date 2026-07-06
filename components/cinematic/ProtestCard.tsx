@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { ArrowUpRight, Clock3, Flame, MapPin, Users } from 'lucide-react'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { languageLocales } from '@/lib/i18n/config'
 
 export type ProtestCardData = {
   id: string
@@ -31,10 +33,12 @@ export default function ProtestCard({
   protest: ProtestCardData
   cityLabel: string
 }) {
+  const { language, t } = useLanguage()
+  const locale = languageLocales[language]
   const d = new Date(`${protest.date}T00:00:00`)
   const day = d.getDate()
-  const month = d.toLocaleDateString('en-GB', { month: 'short' })
-  const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' })
+  const month = d.toLocaleDateString(locale, { month: 'short' })
+  const weekday = d.toLocaleDateString(locale, { weekday: 'short' })
 
   return (
     <Link
@@ -60,12 +64,12 @@ export default function ProtestCard({
           <div className="flex flex-col items-end gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/20 px-2.5 py-1 text-[11px] font-semibold text-flame-200 ring-1 ring-flame-500/40 backdrop-blur-md">
               <Flame className="h-3 w-3" />
-              Civic
+              {t('protest_civic')}
             </span>
             {protest.expected_attendees != null && protest.expected_attendees > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-ink-950/60 px-2.5 py-1 text-[11px] font-medium text-white/80 backdrop-blur-md">
                 <Users className="h-3 w-3" />
-                {formatExpected(protest.expected_attendees)} expected
+                {formatExpected(protest.expected_attendees)} {t('protest_expected')}
               </span>
             )}
           </div>

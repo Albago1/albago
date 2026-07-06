@@ -532,7 +532,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
                 <span className="h-3 w-px bg-white/15" />
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 ring-1 ring-emerald-500/30"
-                  title="Auto-updating as new protests are published"
+                  title={t('protests_live_tooltip')}
                 >
                   <span className="relative inline-flex h-2 w-2 items-center justify-center">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />

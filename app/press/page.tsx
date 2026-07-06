@@ -206,7 +206,6 @@ export default function PressPage() {
               { href: '/protests', label: 'Protest directory' },
               { href: '/map', label: 'Interactive map' },
               { href: '/events', label: 'Event discovery' },
-              { href: '/pankartat', label: 'Pankartat photo wall' },
               {
                 href: '/events/albanian-revolution',
                 label: 'Albanian Revolution hub',

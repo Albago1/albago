@@ -23,7 +23,6 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
-import ProtestCard from '@/components/cinematic/ProtestCard'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import { CATEGORY_GRADIENTS } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -179,16 +178,7 @@ export default function HomeClient() {
   const [isLocating, setIsLocating] = useState(false)
   const [featuredEvents, setFeaturedEvents] = useState<PublicEvent[]>([])
   const [upcomingProtests, setUpcomingProtests] = useState<
-    Array<{
-      id: string
-      slug: string
-      title: string
-      date: string
-      time: string | null
-      location_slug: string
-      country: string
-      expected_attendees: number | null
-    }>
+    Array<PublicEvent & { expected_attendees: number | null }>
   >([])
   const [protestTotals, setProtestTotals] = useState<{
     count: number
@@ -322,9 +312,7 @@ export default function HomeClient() {
           .or(activeFilter),
         supabase
           .from('events')
-          .select(
-            'id, slug, title, date, time, end_time, location_slug, country, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
-          )
+          .select('*')
           .eq('status', 'published')
           .eq('is_civic', true)
           .or(activeFilter)
@@ -386,21 +374,16 @@ export default function HomeClient() {
       }
 
       if (protestsRes.data) {
-        const activeProtests = (protestsRes.data as Array<{
-          id: string
-          slug: string
-          title: string
-          date: string
-          time: string | null
-          end_time: string | null
-          location_slug: string
-          country: string
-          expected_attendees: number | null
-          recurrence: string | null
-          recurrence_until: string | null
-          recurrence_days_of_week: number[] | null
-          recurrence_exceptions: string[] | null
-        }>).filter(isEventActive).slice(0, 6)
+        const activeProtests = (protestsRes.data as Array<
+          PublicEvent & {
+            expected_attendees: number | null
+            end_time: string | null
+            recurrence: string | null
+            recurrence_until: string | null
+            recurrence_days_of_week: number[] | null
+            recurrence_exceptions: string[] | null
+          }
+        >).filter(isEventActive).slice(0, 6)
         setUpcomingProtests(activeProtests)
       }
 
@@ -757,7 +740,7 @@ export default function HomeClient() {
                       router.push(buildSearchUrl('/events', activeLocationSlug, searchQuery))
                     }
                   }}
-                  placeholder="Search events, clubs, food..."
+                  placeholder={t('home_search_placeholder')}
                   className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none placeholder:text-white/35"
                 />
               </div>
@@ -769,7 +752,7 @@ export default function HomeClient() {
                   {suggestCats.length > 0 && (
                     <>
                       <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30">
-                        {isTyping ? 'Category' : 'Explore'}
+                        {isTyping ? t('home_suggest_category') : t('home_suggest_explore')}
                       </p>
                       {suggestCats.map((cat) => {
                         const Icon = cat.icon
@@ -784,7 +767,7 @@ export default function HomeClient() {
                               <Icon className="h-3.5 w-3.5" />
                             </span>
                             <span className="capitalize font-medium text-white">{cat.value}</span>
-                            <span className="ml-auto text-[10px] uppercase tracking-wide text-white/30">Category</span>
+                            <span className="ml-auto text-[10px] uppercase tracking-wide text-white/30">{t('home_suggest_category')}</span>
                           </Link>
                         )
                       })}
@@ -796,7 +779,7 @@ export default function HomeClient() {
                     <>
                       <div className="mx-4 border-t border-white/[0.06]" />
                       <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30">
-                        {isTyping ? 'Events' : 'Upcoming'}
+                        {isTyping ? t('events') : t('home_suggest_upcoming')}
                       </p>
                       {(isTyping ? suggestEvents : defaultEvents).map((ev) => (
                         <Link
@@ -815,7 +798,7 @@ export default function HomeClient() {
                             </span>
                           )}
                           {!isTyping && (
-                            <span className="ml-auto text-[10px] uppercase tracking-wide text-white/30">Event</span>
+                            <span className="ml-auto text-[10px] uppercase tracking-wide text-white/30">{t('home_suggest_event')}</span>
                           )}
                         </Link>
                       ))}
@@ -827,7 +810,7 @@ export default function HomeClient() {
                     <>
                       <div className="mx-4 border-t border-white/[0.06]" />
                       <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30">
-                        {isTyping ? 'Cities' : 'Browse by city'}
+                        {isTyping ? t('cities') : t('home_suggest_browse_city')}
                       </p>
                       {suggestLocs.map((loc) => (
                         <Link
@@ -883,7 +866,7 @@ export default function HomeClient() {
                       setIsLocationOpen(false)
                     }
                   }}
-                  placeholder="Choose a location"
+                  placeholder={t('home_location_placeholder')}
                   className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/35"
                 />
               </div>
@@ -897,7 +880,7 @@ export default function HomeClient() {
                     className="flex w-full items-center gap-3 px-4 py-4 text-sm text-white/80 transition hover:bg-white/[0.06] disabled:opacity-60"
                   >
                     <MapPin className="h-5 w-5 text-flame-400" />
-                    <span>{isLocating ? 'Detecting...' : 'Use my current location'}</span>
+                    <span>{isLocating ? t('home_detecting') : t('home_use_my_location')}</span>
                   </button>
 
                   <div className="border-t border-white/10" />
@@ -929,7 +912,7 @@ export default function HomeClient() {
 
                   {matchingLocations.length === 0 && (
                     <div className="px-4 py-4 text-sm text-white/45">
-                      No saved location yet. Search will still continue.
+                      {t('home_no_saved_location')}
                     </div>
                   )}
                 </div>
@@ -941,12 +924,12 @@ export default function HomeClient() {
               className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-flame-500 px-6 text-sm font-semibold text-white transition hover:bg-flame-400"
             >
               <Search className="h-5 w-5" />
-              Search
+              {t('home_search_button')}
             </Link>
           </div>
 
           <p className="mt-3 px-2 text-left text-sm text-white/45">
-            Search by event, place, category, city, coast, or country.
+            {t('home_search_hint')}
           </p>
         </div>
 
@@ -976,7 +959,7 @@ export default function HomeClient() {
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5">
-            <span className="text-sm text-white/45">Quick locations:</span>
+            <span className="text-sm text-white/45">{t('home_quick_locations')}</span>
 
             {locationOptions.slice(0, 6).map((location) => (
               <button
@@ -1002,7 +985,7 @@ export default function HomeClient() {
                 href="/events"
                 className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white/60 transition hover:bg-white/[0.06] hover:text-white"
               >
-                +{locationOptions.length - 6} more
+                +{locationOptions.length - 6} {t('home_more')}
               </Link>
             )}
 
@@ -1020,7 +1003,7 @@ export default function HomeClient() {
       <section className="border-y border-white/10 bg-white/[0.02] py-10">
         <div className="mx-auto max-w-6xl px-4">
           <p className="mb-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
-            Across the platform
+            {t('home_across_platform')}
           </p>
           <div className="flex items-center justify-around">
             <div className="text-center">
@@ -1057,10 +1040,10 @@ export default function HomeClient() {
 
               <div>
                 <h2 className="display-text text-3xl text-white sm:text-5xl">
-                  Featured events
+                  {t('home_featured_events')}
                 </h2>
                 <p className="mt-2 text-sm text-white/55">
-                  A quick look at what’s happening now
+                  {t('home_featured_sub')}
                 </p>
               </div>
             </div>
@@ -1069,7 +1052,7 @@ export default function HomeClient() {
               href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
               className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
             >
-              View all
+              {t('view_all')}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -1109,10 +1092,10 @@ export default function HomeClient() {
 
             <div>
               <h2 className="display-text text-3xl text-white sm:text-5xl">
-                Browse by category
+                {t('home_browse_category')}
               </h2>
               <p className="mt-2 text-sm text-white/55">
-                Pick a vibe — the counters are live across the whole platform
+                {t('home_browse_category_sub')}
               </p>
             </div>
           </div>
@@ -1149,7 +1132,7 @@ export default function HomeClient() {
                           <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-75" />
                           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-flame-500" />
                         </span>
-                        {liveCount} live
+                        {liveCount} {t('home_live')}
                       </span>
                     )}
                   </div>
@@ -1179,10 +1162,10 @@ export default function HomeClient() {
 
                 <div>
                   <h2 className="display-text text-3xl text-white sm:text-5xl">
-                    Venues in {resolvedLocation.label}
+                    {t('home_venues_in')} {resolvedLocation.label}
                   </h2>
                   <p className="mt-2 text-sm text-white/55">
-                    Places worth walking into
+                    {t('home_venues_sub')}
                   </p>
                 </div>
               </div>
@@ -1260,10 +1243,10 @@ export default function HomeClient() {
 
               <div>
                 <h2 className="display-text text-3xl text-white sm:text-5xl">
-                  Upcoming protests
+                  {t('home_upcoming_protests')}
                 </h2>
                 <p className="mt-2 text-sm text-white/55">
-                  The next peaceful gatherings happening worldwide
+                  {t('home_upcoming_protests_sub')}
                 </p>
               </div>
             </div>
@@ -1272,7 +1255,7 @@ export default function HomeClient() {
               href="/protests"
               className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
             >
-              View all
+              {t('view_all')}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -1280,34 +1263,41 @@ export default function HomeClient() {
           {upcomingProtests.length === 0 ? (
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center backdrop-blur-md">
               <p className="text-base font-semibold text-white">
-                No upcoming protests yet
+                {t('home_no_protests')}
               </p>
               <p className="mt-2 text-sm text-white/55">
-                When organizers post peaceful gatherings, they will show here.
+                {t('home_no_protests_hint')}
               </p>
               <Link
                 href="/submit-event"
                 className="mt-5 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
               >
                 <Flame className="h-4 w-4" />
-                Post one
+                {t('home_post_one')}
               </Link>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {upcomingProtests.map((protest) => (
-                <motion.div
-                  key={protest.id}
-                  whileHover={{ y: -4 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="h-full"
-                >
-                  <ProtestCard
-                    protest={protest}
-                    cityLabel={cityLabelFor(protest.location_slug)}
-                  />
-                </motion.div>
-              ))}
+              {upcomingProtests.map((protest) => {
+                const place = allPlaces.find((item) => item.id === protest.place_id)
+
+                return (
+                  <motion.div
+                    key={protest.id}
+                    whileHover={{ y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="h-full"
+                  >
+                    <EventCard
+                      event={protest}
+                      venueName={place?.name ?? null}
+                      cityLabel={cityLabelFor(protest.location_slug)}
+                      isAuthenticated={isAuth}
+                      initialSaved={savedIds.has(protest.id)}
+                    />
+                  </motion.div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -1326,18 +1316,17 @@ export default function HomeClient() {
               <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/75">
                   <span className="h-1.5 w-1.5 rounded-full bg-flame-500" />
-                  Featured movement
+                  {t('protests_spotlight_label')}
                 </div>
                 <h2 className="mt-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                  Albanian Revolution — a peaceful worldwide civic movement
+                  {t('home_movement_title')}
                 </h2>
                 <p className="mt-3 text-base leading-7 text-white/65">
-                  Coordinated gatherings across cities and continents. Peaceful, lawful, and
-                  open to everyone. Find a square near you or organize your city.
+                  {t('home_movement_body')}
                 </p>
               </div>
               <span className="inline-flex items-center gap-2 self-start rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition group-hover:bg-white/90">
-                Enter the campaign
+                {t('home_enter_campaign')}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </span>
             </div>

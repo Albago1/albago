@@ -13,6 +13,7 @@ import {
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
 import { trackInteraction } from '@/lib/track'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { submitCommunityEvent } from '@/lib/wizardSubmit'
 import type { EventDraft } from '@/types/eventDraft'
 
@@ -24,6 +25,7 @@ const RETURN_PATH = '/submit-event?resume=1'
 type GateVariant = 'intro' | 'final'
 
 export default function SubmitEventClient() {
+  const { t } = useLanguage()
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
   const resumeAtReview = searchParams.get('resume') === '1'
@@ -94,28 +96,27 @@ export default function SubmitEventClient() {
         <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/[0.06] p-8 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-300" />
           <h2 className="mt-4 text-2xl font-bold text-white">
-            Submission received
+            {t('submit_received_title')}
           </h2>
           <p className="mt-2 text-sm text-emerald-100/80">
-            Thanks — your event is in the moderation queue. We&apos;ll review it
-            shortly and notify you when it&apos;s published.
+            {t('submit_received_body')}
           </p>
           <p className="mt-3 text-xs text-white/45">
-            Reference: <span className="font-mono">{submittedId}</span>
+            {t('submit_reference')} <span className="font-mono">{submittedId}</span>
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
               href="/events"
               className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
             >
-              Browse events
+              {t('submit_browse_events')}
             </Link>
             <button
               type="button"
               onClick={() => setSubmittedId(null)}
               className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
             >
-              Submit another
+              {t('submit_another')}
             </button>
           </div>
         </div>
@@ -128,15 +129,14 @@ export default function SubmitEventClient() {
       {isAuthed === false && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-flame-500/25 bg-flame-500/[0.08] px-4 py-3">
           <p className="text-sm text-white/80">
-            You&apos;ll need to sign in to submit — your draft saves
-            automatically on this device as you go.
+            {t('submit_signin_banner')}
           </p>
           <Link
             href={`/sign-in?next=${encodeURIComponent(RETURN_PATH)}`}
             className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-white/[0.10]"
           >
             <LogIn className="h-3.5 w-3.5" />
-            Sign in now
+            {t('submit_sign_in_now')}
           </Link>
         </div>
       )}
@@ -168,6 +168,7 @@ function AuthGateModal({
   variant: GateVariant
   onDismiss: () => void
 }) {
+  const { t } = useLanguage()
   const isIntro = variant === 'intro'
 
   useEffect(() => {
@@ -207,18 +208,14 @@ function AuthGateModal({
           )}
         </div>
         <h2 id="auth-gate-title" className="mt-5 text-xl font-bold text-white">
-          {isIntro ? 'Start now, sign in later' : 'Sign in to submit'}
+          {isIntro ? t('submit_gate_intro_title') : t('submit_gate_signin_title')}
         </h2>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-white/65">
-          {isIntro
-            ? "Fill in your event now — you'll sign in at the end to submit it."
-            : "Your event is ready — just sign in and it's done."}
+          {isIntro ? t('submit_gate_intro_body') : t('submit_gate_signin_body')}
         </p>
         <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium text-emerald-200">
           <CloudUpload className="h-3.5 w-3.5" />
-          {isIntro
-            ? 'Your draft saves automatically.'
-            : "Everything is saved — you'll continue where you left off."}
+          {isIntro ? t('submit_gate_draft_saves') : t('submit_gate_saved_all')}
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           {isIntro ? (
@@ -229,14 +226,14 @@ function AuthGateModal({
                 className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
               >
                 <PencilLine className="h-4 w-4" />
-                Start my event
+                {t('submit_start_my_event')}
               </button>
               <Link
                 href={`/sign-in?next=${encodeURIComponent(RETURN_PATH)}`}
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
               >
                 <LogIn className="h-4 w-4" />
-                Sign in
+                {t('submit_sign_in')}
               </Link>
             </>
           ) : (
@@ -246,14 +243,14 @@ function AuthGateModal({
                 className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
               >
                 <LogIn className="h-4 w-4" />
-                Sign in
+                {t('submit_sign_in')}
               </Link>
               <Link
                 href={`/sign-up?next=${encodeURIComponent(RETURN_PATH)}`}
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
               >
                 <UserPlus className="h-4 w-4" />
-                Create account
+                {t('submit_create_account')}
               </Link>
             </>
           )}
@@ -264,7 +261,7 @@ function AuthGateModal({
             onClick={onDismiss}
             className="mt-6 text-xs text-white/45 transition hover:text-white/75"
           >
-            Back to your draft
+            {t('submit_back_to_draft')}
           </button>
         )}
       </div>

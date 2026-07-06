@@ -200,9 +200,8 @@ export default async function AboutPage() {
                 Real photos, real people
               </h3>
               <p className="mt-2 text-sm leading-6 text-white/65">
-                Pankartat — our protest placard gallery — only accepts real
-                photos uploaded by people who were there. No generators, no
-                stock. Authenticity is the product.
+                Photos on AlbaGo come from real people who were actually
+                there. No generators, no stock. Authenticity is the product.
               </p>
             </div>
           </div>

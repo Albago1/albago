@@ -11,7 +11,6 @@ export default function Footer() {
     { href: '/events', label: t('nav_events') },
     { href: '/protests', label: t('nav_protests') },
     { href: '/map', label: t('nav_map') },
-    { href: '/pankartat', label: 'Pankartat' },
     { href: '/events/albanian-revolution', label: t('footer_link_revolution') },
   ]
 

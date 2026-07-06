@@ -32,6 +32,7 @@ function XGlyph({ className }: { className?: string }) {
 }
 import type { ShareEventData } from '@/lib/share/types'
 import { trackInteraction } from '@/lib/track'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { buildCaption, buildShortText } from '@/lib/share/captions'
 import { generateQrDataUrl } from '@/lib/share/qr'
 import StoryShareTemplate from './templates/StoryShareTemplate'
@@ -48,6 +49,7 @@ type DownloadFormat = 'story' | 'square' | 'facebook'
 type VideoDuration = 15 | 30
 
 export default function ShareModal({ open, onClose, data }: Props) {
+  const { t } = useLanguage()
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrLoading, setQrLoading] = useState(true)
 
@@ -261,8 +263,8 @@ export default function ShareModal({ open, onClose, data }: Props) {
                 <Share2 className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Share this event</p>
-                <p className="text-[11px] text-white/45">Spread the word in seconds</p>
+                <p className="text-sm font-semibold">{t('share_event_title')}</p>
+                <p className="text-[11px] text-white/45">{t('share_event_sub')}</p>
               </div>
             </div>
             <button
@@ -285,12 +287,12 @@ export default function ShareModal({ open, onClose, data }: Props) {
                 {copied === 'link' ? (
                   <>
                     <Check className="h-4 w-4 text-emerald-400" />
-                    Link copied
+                    {t('share_link_copied')}
                   </>
                 ) : (
                   <>
                     <Copy className="h-4 w-4" />
-                    Copy link
+                    {t('share_copy_link')}
                   </>
                 )}
               </button>
@@ -301,13 +303,13 @@ export default function ShareModal({ open, onClose, data }: Props) {
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2.5 text-sm font-semibold text-flame-100 transition hover:bg-flame-500/20"
                 >
                   <Smartphone className="h-4 w-4" />
-                  Quick share
+                  {t('share_title')}
                 </button>
               )}
             </div>
 
             <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Send to a platform
+              {t('share_send_platform')}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <a
@@ -353,7 +355,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
             </div>
 
             <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Download share image
+              {t('share_download_image')}
             </p>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <button
@@ -419,7 +421,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
             </div>
 
             <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Download as Reel video
+              {t('share_download_reel')}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {([15, 30] as const).map((sec) => {
@@ -480,7 +482,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
 
             <div className="mt-6 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                Caption
+                {t('share_caption')}
               </p>
               <button
                 type="button"
@@ -490,12 +492,12 @@ export default function ShareModal({ open, onClose, data }: Props) {
                 {copied === 'caption' ? (
                   <>
                     <Check className="h-3.5 w-3.5" />
-                    Copied
+                    {t('share_caption_copied')}
                   </>
                 ) : (
                   <>
                     <Copy className="h-3.5 w-3.5" />
-                    Copy caption
+                    {t('share_copy_caption')}
                   </>
                 )}
               </button>

@@ -141,14 +141,6 @@ export default function EdiRamaBerlinClient({ pageUrl, pdfUrl }: Props) {
               <Share2 className="h-4 w-4" />
               {t('er_cta_share')}
             </button>
-
-            <Link
-              href="/pankartat"
-              className="inline-flex items-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 px-5 py-3 text-sm font-semibold text-flame-100 transition hover:border-flame-500/60 hover:bg-flame-500/15"
-            >
-              <Flame className="h-4 w-4" />
-              Pankartat e Revolucionit
-            </Link>
           </div>
         </div>
       </section>
