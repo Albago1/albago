@@ -204,9 +204,9 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // /protests/edi-rama-berlin
     er_eyebrow: "Berlin · 16 June 2026",
-    er_hero_title: "Edi Rama in Berlin — peaceful protest information",
+    er_hero_title: "Edi Rama in Berlin — 16 June 2026",
     er_hero_subtitle:
-      "Albanian Prime Minister Edi Rama is expected as keynote speaker at the Annual Conference of the Ost-Ausschuss der Deutschen Wirtschaft in Berlin on 16 June 2026. This page brings together the confirmed date, address and official programme so that Albanians in Germany and neighbouring countries can organise a peaceful, lawful gathering connected to the Albanian Revolution and the Flamingo Revolution.",
+      "Albanian Prime Minister Edi Rama is expected as keynote speaker at the Annual Conference of the Ost-Ausschuss der Deutschen Wirtschaft in Berlin on 16 June 2026. Below is the confirmed date, address, official programme and the original invitation PDF — so anyone organising the Albanian Revolution / Flamingo Revolution presence in Berlin works from the same source.",
     er_back: "Back to protests",
 
     er_cta_directions: "Open in Google Maps",
@@ -226,18 +226,12 @@ export const translations: Record<Language, Record<string, string>> = {
     er_info_t3: "Move to Club Prince Charles",
     er_info_t3_note: "approximate",
 
-    er_why_label: "Why people are gathering",
-    er_why_title: "A peaceful Albanian civic call",
+    er_why_label: "Context",
+    er_why_title: "Why this date matters",
     er_why_p1:
-      "Across Europe, Albanians are organising peaceful gatherings under the banner of the Albanian Revolution and the Flamingo Revolution — a diaspora-led civic movement asking for accountability, transparency and democratic renewal in Albania.",
+      "Across Europe, Albanians are organising under the banner of the Albanian Revolution and the Flamingo Revolution — a diaspora-led movement demanding accountability, transparency and democratic change in Albania.",
     er_why_p2:
-      "Berlin matters because Edi Rama's official engagements abroad are some of the few moments when Albanian citizens living outside the country can publicly express their position to their own head of government.",
-    er_why_p3:
-      "If you choose to come, please come peacefully — and bring others who will do the same. The strength of this movement is its calm, its discipline and its civic intent.",
-
-    er_pledge_title: "Peaceful pledge",
-    er_pledge_body:
-      "No violence. No insults. No property damage. We stand for peaceful, lawful civic expression — respecting German law and the safety of every participant, journalist and bystander. Anyone calling for violence is acting outside this gathering.",
+      "Berlin matters because Edi Rama's official engagements abroad are some of the few moments when Albanians living outside the country can stand directly in front of their own head of government.",
 
     er_program_label: "Official programme",
     er_program_title: "Edi Rama is listed in the conference programme",
@@ -265,7 +259,7 @@ export const translations: Record<Language, Record<string, string>> = {
     er_share_copied: "Link copied",
     er_share_native: "Share…",
     er_share_caption:
-      "Edi Rama is expected in Berlin on 16 June 2026 — peaceful protest information from AlbaGo.",
+      "Edi Rama is in Berlin on 16 June 2026. Date, address and the original conference invitation: AlbaGo.",
   },
 
   de: {
@@ -472,9 +466,9 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // /protests/edi-rama-berlin
     er_eyebrow: "Berlin · 16. Juni 2026",
-    er_hero_title: "Edi Rama in Berlin — Informationen für eine friedliche Kundgebung",
+    er_hero_title: "Edi Rama in Berlin — 16. Juni 2026",
     er_hero_subtitle:
-      "Der albanische Ministerpräsident Edi Rama wird am 16. Juni 2026 als Hauptredner bei der Jahresveranstaltung des Ost-Ausschusses der Deutschen Wirtschaft in Berlin erwartet. Diese Seite stellt das bestätigte Datum, die Adresse und das offizielle Programm zur Verfügung, damit Albanerinnen und Albaner in Deutschland und in den Nachbarländern eine friedliche und rechtmäßige Versammlung im Rahmen der Albanischen Revolution und der Flamingo-Revolution organisieren können.",
+      "Der albanische Ministerpräsident Edi Rama wird am 16. Juni 2026 als Hauptredner bei der Jahresveranstaltung des Ost-Ausschusses der Deutschen Wirtschaft in Berlin erwartet. Unten finden sich das bestätigte Datum, die Adresse, das offizielle Programm und die Originaleinladung als PDF — damit alle, die die Präsenz der Albanischen Revolution / Flamingo-Revolution in Berlin organisieren, von derselben Quelle ausgehen.",
     er_back: "Zurück zu den Protesten",
 
     er_cta_directions: "In Google Maps öffnen",
@@ -494,18 +488,12 @@ export const translations: Record<Language, Record<string, string>> = {
     er_info_t3: "Wechsel zum Club Prince Charles",
     er_info_t3_note: "ungefähr",
 
-    er_why_label: "Warum Menschen sich versammeln",
-    er_why_title: "Ein friedlicher albanischer Bürgerappell",
+    er_why_label: "Kontext",
+    er_why_title: "Warum dieses Datum zählt",
     er_why_p1:
-      "In ganz Europa organisieren Albanerinnen und Albaner friedliche Versammlungen unter dem Banner der Albanischen Revolution und der Flamingo-Revolution — einer von der Diaspora getragenen Bürgerbewegung, die Rechenschaft, Transparenz und demokratische Erneuerung in Albanien fordert.",
+      "In ganz Europa organisieren sich Albanerinnen und Albaner unter dem Banner der Albanischen Revolution und der Flamingo-Revolution — einer von der Diaspora getragenen Bewegung, die Rechenschaft, Transparenz und demokratischen Wandel in Albanien fordert.",
     er_why_p2:
-      "Berlin ist wichtig, weil die offiziellen Auftritte von Edi Rama im Ausland zu den seltenen Gelegenheiten gehören, bei denen albanische Bürgerinnen und Bürger im Exil ihre Haltung direkt gegenüber ihrem eigenen Regierungschef öffentlich zum Ausdruck bringen können.",
-    er_why_p3:
-      "Wenn Sie kommen möchten — bitte friedlich. Bringen Sie andere mit, die das gleiche Versprechen geben. Die Stärke dieser Bewegung liegt in ihrer Ruhe, ihrer Disziplin und ihrem bürgerlichen Ernst.",
-
-    er_pledge_title: "Friedlich-Versprechen",
-    er_pledge_body:
-      "Keine Gewalt. Keine Beleidigungen. Keine Sachbeschädigung. Wir stehen für friedlichen, rechtmäßigen Bürgerausdruck — unter Achtung des deutschen Rechts und der Sicherheit jeder Teilnehmerin, jedes Teilnehmers, jeder Journalistin und jedes Passanten. Wer zu Gewalt aufruft, gehört nicht zu dieser Kundgebung.",
+      "Berlin ist wichtig, weil die offiziellen Auftritte von Edi Rama im Ausland zu den seltenen Gelegenheiten gehören, bei denen Albanerinnen und Albaner im Ausland direkt vor ihrem eigenen Regierungschef stehen können.",
 
     er_program_label: "Offizielles Programm",
     er_program_title: "Edi Rama steht im Konferenzprogramm",
@@ -533,7 +521,7 @@ export const translations: Record<Language, Record<string, string>> = {
     er_share_copied: "Link kopiert",
     er_share_native: "Teilen…",
     er_share_caption:
-      "Edi Rama wird am 16. Juni 2026 in Berlin erwartet — Informationen zu einer friedlichen Kundgebung von AlbaGo.",
+      "Edi Rama ist am 16. Juni 2026 in Berlin. Datum, Adresse und die Originaleinladung der Konferenz: AlbaGo.",
   },
 
   es: {

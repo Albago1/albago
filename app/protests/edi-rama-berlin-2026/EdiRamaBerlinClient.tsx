@@ -15,7 +15,6 @@ import {
   MessageCircle,
   Send,
   Share2,
-  Shield,
   Megaphone,
   Users,
 } from 'lucide-react'
@@ -237,22 +236,6 @@ export default function EdiRamaBerlinClient({ pageUrl, pdfUrl }: Props) {
           <div className="mt-6 space-y-5 text-base leading-7 text-white/75">
             <p>{t('er_why_p1')}</p>
             <p>{t('er_why_p2')}</p>
-            <p>{t('er_why_p3')}</p>
-          </div>
-
-          {/* Peaceful pledge */}
-          <div className="mt-8 rounded-3xl border border-flame-500/30 bg-flame-500/[0.06] p-6 backdrop-blur-md">
-            <div className="flex items-start gap-3">
-              <Shield className="mt-0.5 h-5 w-5 shrink-0 text-flame-300" />
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300">
-                  {t('er_pledge_title')}
-                </p>
-                <p className="mt-2 text-sm leading-7 text-white/80">
-                  {t('er_pledge_body')}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
