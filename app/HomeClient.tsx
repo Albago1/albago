@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import {
   Flame,
@@ -10,23 +11,26 @@ import {
   Moon,
   Music2,
   ArrowRight,
+  ArrowUpRight,
+  BadgeCheck,
   UtensilsCrossed,
   Trophy,
   Palette,
   Calendar,
-  Clock3,
   Search,
   Megaphone,
+  Sparkles,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
+import ProtestCard from '@/components/cinematic/ProtestCard'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
+import { CATEGORY_GRADIENTS } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
-import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import type { Place } from '@/types/place'
 
@@ -201,6 +205,7 @@ export default function HomeClient() {
     location_slug: string
     country: string
     place_id: string | null
+    category: string | null
     date: string
     time: string | null
     end_time: string | null
@@ -311,7 +316,7 @@ export default function HomeClient() {
         supabase
           .from('events')
           .select(
-            'id, location_slug, country, place_id, date, time, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, status',
+            'id, location_slug, country, place_id, category, date, time, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, status',
           )
           .eq('status', 'published')
           .or(activeFilter),
@@ -457,6 +462,7 @@ export default function HomeClient() {
                 location_slug: newRow.location_slug as string,
                 country: newRow.country as string,
                 place_id: (newRow.place_id as string | null) ?? null,
+                category: (newRow.category as string | null) ?? null,
                 date: newRow.date as string,
                 time: (newRow.time as string | null) ?? null,
                 end_time: (newRow.end_time as string | null) ?? null,
@@ -622,6 +628,30 @@ export default function HomeClient() {
           .filter((id): id is string => !!id),
       ).size,
     [activeGlobalEvents],
+  )
+
+  // Live events per category — drives the "N live" badges on the showcase
+  // tiles and re-derives on every realtime change / wall-clock tick.
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const e of activeGlobalEvents) {
+      const c = (e.category ?? '').toLowerCase()
+      if (c) counts.set(c, (counts.get(c) ?? 0) + 1)
+    }
+    return counts
+  }, [activeGlobalEvents])
+
+  // Venues for the active city, verified first. No popularity signal yet, so
+  // verification + name is the most honest "trending" we can offer.
+  const trendingPlaces = useMemo(
+    () =>
+      [...allPlaces]
+        .sort((a, b) => {
+          if (Boolean(a.verified) !== Boolean(b.verified)) return a.verified ? -1 : 1
+          return a.name.localeCompare(b.name)
+        })
+        .slice(0, 8),
+    [allPlaces],
   )
 
   // getLocationBySlug() falls back to Tirana for unknown slugs, so resolve
@@ -1052,6 +1082,157 @@ export default function HomeClient() {
         </div>
       </section>
 
+      {/* ── Browse by category (Fever-style showcase tiles) ── */}
+      <section className="px-4 pb-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-8 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+              <Sparkles className="h-5 w-5 text-flame-400" />
+            </div>
+
+            <div>
+              <h2 className="display-text text-3xl text-white sm:text-5xl">
+                Browse by category
+              </h2>
+              <p className="mt-2 text-sm text-white/55">
+                Pick a vibe — the counters are live across the whole platform
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+            {categories.map((category) => {
+              const Icon = category.icon
+              const liveCount = categoryCounts.get(category.value) ?? 0
+              const gradient =
+                CATEGORY_GRADIENTS[category.value] ?? 'from-white/10 via-ink-900 to-ink-950'
+
+              return (
+                <Link
+                  key={category.value}
+                  href={`/events?location=${activeLocationSlug}&category=${category.value}`}
+                  className="group relative block aspect-[16/10] overflow-hidden rounded-3xl border border-white/10 transition hover:border-white/25 sm:aspect-[16/9]"
+                >
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-br ${gradient} transition duration-500 ease-out group-hover:scale-105`}
+                  />
+                  <div className="absolute inset-0 bg-grid opacity-25" />
+                  <Icon
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-5 -right-4 h-24 w-24 rotate-12 text-white/[0.07] transition duration-500 group-hover:scale-110 group-hover:text-white/[0.12]"
+                  />
+
+                  <div className="absolute inset-x-4 top-4 flex items-start justify-between">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-ink-950/50 backdrop-blur-md">
+                      <Icon className="h-4 w-4 text-white/85" />
+                    </span>
+                    {liveCount > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-950/60 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur-md">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-flame-500" />
+                        </span>
+                        {liveCount} live
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="absolute inset-x-4 bottom-4 flex items-end justify-between">
+                    <span className="text-lg font-semibold text-white sm:text-xl">
+                      {t(category.labelKey)}
+                    </span>
+                    <ArrowUpRight className="h-4 w-4 text-white/40 opacity-0 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white group-hover:opacity-100" />
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Trending venues rail ── */}
+      {trendingPlaces.length > 0 && (
+        <section className="px-4 pb-20">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-8 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <MapPin className="h-5 w-5 text-flame-400" />
+                </div>
+
+                <div>
+                  <h2 className="display-text text-3xl text-white sm:text-5xl">
+                    Venues in {resolvedLocation.label}
+                  </h2>
+                  <p className="mt-2 text-sm text-white/55">
+                    Places worth walking into
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href={`/map?location=${activeLocationSlug}`}
+                className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
+              >
+                {t('open_map')}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="-mx-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex w-max gap-4">
+                {trendingPlaces.map((place) => (
+                  <Link
+                    key={place.id}
+                    href={`/places/${place.slug}`}
+                    className="group w-60 shrink-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.05]"
+                  >
+                    <div className="relative aspect-[4/3] overflow-hidden">
+                      {place.imageUrl ? (
+                        <Image
+                          src={place.imageUrl}
+                          alt={place.name}
+                          fill
+                          sizes="240px"
+                          unoptimized={!place.imageUrl.includes('.supabase.co')}
+                          className="object-cover transition duration-500 ease-out group-hover:scale-105"
+                        />
+                      ) : (
+                        <div
+                          className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${
+                            CATEGORY_GRADIENTS[place.category?.toLowerCase() ?? ''] ??
+                            'from-white/10 via-ink-900 to-ink-950'
+                          } transition duration-500 ease-out group-hover:scale-105`}
+                        >
+                          <MapPin className="h-8 w-8 text-white/20" />
+                        </div>
+                      )}
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-950/70 via-transparent to-transparent" />
+                      {place.verified && (
+                        <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-ink-950/60 backdrop-blur-md">
+                          <BadgeCheck className="h-4 w-4 text-flame-400" />
+                        </span>
+                      )}
+                      {place.category && (
+                        <span
+                          className={`absolute bottom-3 left-3 rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize backdrop-blur-md ${getCategoryTone(place.category)}`}
+                        >
+                          {place.category}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <p className="truncate font-semibold text-white">{place.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-white/45">{place.city}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="px-4 pb-20">
         <div className="mx-auto max-w-6xl">
           <div className="mb-8 flex items-center justify-between gap-4">
@@ -1096,64 +1277,20 @@ export default function HomeClient() {
               </Link>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {upcomingProtests.map((protest) => {
-                const cityLabel = cityLabelFor(protest.location_slug)
-                return (
-                  <Link
-                    key={protest.id}
-                    href={`/events/${protest.slug}`}
-                    className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.05]"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/15 px-3 py-1 text-xs font-semibold text-flame-300 ring-1 ring-flame-500/30">
-                        <Flame className="h-3 w-3" />
-                        Civic
-                      </span>
-                      {protest.expected_attendees != null && protest.expected_attendees > 0 && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/75">
-                          {protest.expected_attendees >= 1000
-                            ? `${(protest.expected_attendees / 1000).toFixed(1)}k expected`
-                            : `${protest.expected_attendees} expected`}
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="mt-4 text-xl font-semibold leading-tight text-white">
-                      {protest.title}
-                    </h3>
-
-                    <div className="mt-4 space-y-2 text-sm text-white/55">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        <span>{formatEventDateLabel(protest.date)}</span>
-                      </div>
-
-                      {protest.time && (
-                        <div className="flex items-center gap-2">
-                          <Clock3 className="h-4 w-4" />
-                          <span>{formatEventTimeLabel(protest.time)}</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        <span>
-                          {cityLabel}
-                          {protest.country ? `, ${protest.country}` : ''}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-5">
-                      <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
-                        Open protest
-                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {upcomingProtests.map((protest) => (
+                <motion.div
+                  key={protest.id}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="h-full"
+                >
+                  <ProtestCard
+                    protest={protest}
+                    cityLabel={cityLabelFor(protest.location_slug)}
+                  />
+                </motion.div>
+              ))}
             </div>
           )}
         </div>

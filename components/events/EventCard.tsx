@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowUpRight, Clock3, MapPin, Repeat } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
-import { CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
+import { CATEGORY_GRADIENTS, CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 import { isRecurring, nextOccurrenceLabel, recurrenceLabel } from '@/lib/recurrence'
 
@@ -30,17 +30,6 @@ export type PublicEvent = {
   recurrence_until?: string | null
   recurrence_days_of_week?: number[] | null
   recurrence_exceptions?: string[] | null
-}
-
-// Branded placeholder gradients for events without a banner photo — each
-// category gets its own wash so a photo-less grid still reads colorful.
-const CATEGORY_GRADIENTS: Record<string, string> = {
-  nightlife: 'from-fuchsia-600/40 via-ink-900 to-ink-950',
-  music: 'from-violet-600/40 via-ink-900 to-ink-950',
-  sports: 'from-emerald-600/40 via-ink-900 to-ink-950',
-  culture: 'from-sky-600/40 via-ink-900 to-ink-950',
-  food: 'from-amber-600/40 via-ink-900 to-ink-950',
-  civic: 'from-flame-600/40 via-ink-900 to-ink-950',
 }
 
 type EventCardProps = {

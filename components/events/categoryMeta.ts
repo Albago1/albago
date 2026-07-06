@@ -29,6 +29,17 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   civic: Megaphone,
 }
 
+// Branded gradients per category — used for photo-less event cards, the
+// homepage category showcase tiles, and venue placeholders.
+export const CATEGORY_GRADIENTS: Record<string, string> = {
+  nightlife: 'from-fuchsia-600/40 via-ink-900 to-ink-950',
+  music: 'from-violet-600/40 via-ink-900 to-ink-950',
+  sports: 'from-emerald-600/40 via-ink-900 to-ink-950',
+  culture: 'from-sky-600/40 via-ink-900 to-ink-950',
+  food: 'from-amber-600/40 via-ink-900 to-ink-950',
+  civic: 'from-flame-600/40 via-ink-900 to-ink-950',
+}
+
 export function getCategoryTone(category?: string) {
   if (!category) return 'bg-white/10 text-white/80'
 
