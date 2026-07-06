@@ -42,3 +42,9 @@ next-env.d.ts
 
 # Claude Code tooling (worktrees, settings, memory)
 .claude/
+
+.vercel
+
+# secrets must never enter git (P0 guard, 2026-07-06)
+ID_Resend.txt
+*_secret*.txt
