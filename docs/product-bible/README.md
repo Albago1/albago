@@ -28,6 +28,7 @@ AlbaGo is currently two products in one codebase: a beautifully built event-disc
 | [12-ux-audit.md](12-ux-audit.md) | Flow-by-flow UX redesigns | Before UX work |
 | [13-roadmap-24-months.md](13-roadmap-24-months.md) | Month-by-month plan with metrics | Every month |
 | [14-brutal-criticism.md](14-brutal-criticism.md) | The failure post-mortem, written in advance | When tempted to polish instead of grow |
+| [15-30-day-operating-plan.md](15-30-day-operating-plan.md) | Day-by-day founder execution plan (supply, i18n, tracking, retention) | **The active plan — check daily** |
 
 ## Standing rules for future sessions (CPO directives)
 
