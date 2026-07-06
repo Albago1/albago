@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import {
   Flame,
   MapPin,
@@ -11,7 +12,6 @@ import {
   ArrowRight,
   UtensilsCrossed,
   Trophy,
-  Sparkles,
   Palette,
   Calendar,
   Clock3,
@@ -20,16 +20,15 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
-import SaveEventButton from '@/components/SaveEventButton'
+import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { getLocationBySlug, locations } from '@/lib/locations'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
-import { formatEventTimeLabel } from '@/lib/dateFilters'
+import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import type { Place } from '@/types/place'
-import type { Event } from '@/types/event'
 
 const categories = [
   { labelKey: 'category_nightlife', value: 'nightlife', icon: Moon },
@@ -117,6 +116,53 @@ function buildSearchUrl(
 
 type SuggestionEvent = { id: string; slug: string; title: string; category: string; location_slug: string }
 
+/**
+ * Odometer-style stat: counts up from the current value to the target when
+ * the number scrolls into view (and re-animates when live data changes it).
+ */
+function CountUp({ value }: { value: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [visible, setVisible] = useState(false)
+  const [display, setDisplay] = useState(0)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisible(true)
+      },
+      { threshold: 0.4 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!visible) return
+    let raf = 0
+    const from = display
+    const duration = 800
+    const start = performance.now()
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / duration, 1)
+      // easeOutCubic so the last digits settle gently
+      setDisplay(Math.round(from + (value - from) * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // `display` is intentionally only read as the starting point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, visible])
+
+  return (
+    <span ref={ref} className="tabular-nums">
+      {display}
+    </span>
+  )
+}
+
 export default function HomeClient() {
   const { t } = useLanguage()
   const router = useRouter()
@@ -127,7 +173,7 @@ export default function HomeClient() {
   const [isLocationOpen, setIsLocationOpen] = useState(false)
   const [activeLocationSlug, setActiveLocationSlug] = useState('tirana')
   const [isLocating, setIsLocating] = useState(false)
-  const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
+  const [featuredEvents, setFeaturedEvents] = useState<PublicEvent[]>([])
   const [upcomingProtests, setUpcomingProtests] = useState<
     Array<{
       id: string
@@ -313,19 +359,8 @@ export default function HomeClient() {
       }
 
       if (eventsRes.data) {
-        const activeRows = eventsRes.data.filter(isEventActive).slice(0, 6)
-        setFeaturedEvents(activeRows.map((e) => ({
-          id: e.id,
-          slug: e.slug,
-          title: e.title,
-          date: e.date,
-          time: e.time,
-          placeId: e.place_id,
-          description: e.description,
-          category: e.category,
-          price: e.price ?? undefined,
-          highlight: e.highlight ?? undefined,
-        })))
+        // Keep the full rows — EventCard needs banner_url, recurrence, etc.
+        setFeaturedEvents(eventsRes.data.filter(isEventActive).slice(0, 6))
       }
 
       if (protestsRes.data) {
@@ -588,6 +623,19 @@ export default function HomeClient() {
       ).size,
     [activeGlobalEvents],
   )
+
+  // getLocationBySlug() falls back to Tirana for unknown slugs, so resolve
+  // against the dynamic options first, then titleize as a last resort.
+  const cityLabelFor = (slug: string) => {
+    const dynamicMatch = locationOptions.find((o) => o.slug === slug)
+    if (dynamicMatch) return dynamicMatch.label
+    const staticMatch = locations.find((l) => l.slug === slug)
+    if (staticMatch) return staticMatch.label
+    return slug
+      .split('-')
+      .map((part) => (part[0]?.toUpperCase() ?? '') + part.slice(1))
+      .join(' ')
+  }
 
   const searchQ = searchQuery.trim().toLowerCase()
   const isTyping = searchQ.length > 0
@@ -855,7 +903,15 @@ export default function HomeClient() {
           </p>
         </div>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <div className="mt-8 flex flex-wrap justify-center gap-2.5">
+            <Link
+              href={`/events?location=${activeLocationSlug}&time=tonight`}
+              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+            >
+              <Flame className="h-4 w-4" />
+              {t('tonight')}
+            </Link>
+
             {categories.map((category) => {
               const Icon = category.icon
 
@@ -863,7 +919,7 @@ export default function HomeClient() {
                 <Link
                   key={category.value}
                   href={`/events?location=${activeLocationSlug}&category=${category.value}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-base text-white/80 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-white/80 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white hover:-translate-y-0.5"
                 >
                   <Icon className="h-4 w-4" />
                   {t(category.labelKey)}
@@ -872,33 +928,7 @@ export default function HomeClient() {
             })}
           </div>
 
-          <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link
-              href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
-              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-10 py-5 text-xl font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
-            >
-              <Calendar className="h-5 w-5" />
-              Browse Events
-            </Link>
-
-            <Link
-              href={buildSearchUrl('/map', activeLocationSlug, searchQuery)}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-10 py-5 text-xl font-semibold text-white transition hover:bg-white/[0.04]"
-            >
-              <MapPin className="h-5 w-5" />
-              {t('open_map')}
-            </Link>
-
-            <Link
-              href={`/events?location=${activeLocationSlug}&time=tonight`}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-10 py-5 text-xl font-semibold text-white transition hover:bg-white/[0.04]"
-            >
-              <Flame className="h-5 w-5" />
-              {t('tonight')}
-            </Link>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5">
             <span className="text-sm text-white/45">Quick locations:</span>
 
             {locationOptions.slice(0, 6).map((location) => (
@@ -928,6 +958,14 @@ export default function HomeClient() {
                 +{locationOptions.length - 6} more
               </Link>
             )}
+
+            <Link
+              href={buildSearchUrl('/map', activeLocationSlug, searchQuery)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              {t('open_map')}
+            </Link>
           </div>
         </div>
       </section>
@@ -940,21 +978,21 @@ export default function HomeClient() {
           <div className="flex items-center justify-around">
             <div className="text-center">
               <div className="text-5xl font-bold text-flame-500">
-                {totalPlacesCount}
+                <CountUp value={totalPlacesCount} />
               </div>
               <div className="mt-2 text-xl text-white/65">{t('venues')}</div>
             </div>
 
             <div className="text-center">
               <div className="text-5xl font-bold text-flame-500">
-                {totalEventsCount}
+                <CountUp value={totalEventsCount} />
               </div>
               <div className="mt-2 text-xl text-white/65">{t('events')}</div>
             </div>
 
             <div className="text-center">
               <div className="text-5xl font-bold text-flame-500">
-                {totalCitiesCount}
+                <CountUp value={totalCitiesCount} />
               </div>
               <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
             </div>
@@ -989,84 +1027,25 @@ export default function HomeClient() {
             </Link>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {featuredEvents.map((event) => {
-              const place = allPlaces.find((item) => item.id === event.placeId)
+              const place = allPlaces.find((item) => item.id === event.place_id)
 
               return (
-                <Link
+                <motion.div
                   key={event.id}
-                  href={`/events/${event.slug}`}
-                  className="group block rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]"
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="h-full"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {event.category && (
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getCategoryTone(
-                            event.category
-                          )}`}
-                        >
-                          {event.category}
-                        </span>
-                      )}
-
-                      {event.price && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
-                          {event.price}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {event.highlight && (
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                          Hot
-                        </span>
-                      )}
-
-                      <SaveEventButton
-                        eventId={event.id}
-                        initialSaved={savedIds.has(event.id)}
-                        isAuthenticated={isAuth}
-                      />
-                    </div>
-                  </div>
-
-                  <h3 className="mt-4 text-xl font-semibold leading-tight text-white">
-                    {event.title}
-                  </h3>
-
-                  <div className="mt-4 space-y-2 text-sm text-white/55">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      <span>{event.date}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4" />
-                      <span>{formatEventTimeLabel(event.time)}</span>
-                    </div>
-
-                    {place && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        <span>{place.name}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="mt-4 line-clamp-3 text-sm leading-6 text-white/65">
-                    {event.description}
-                  </p>
-
-                  <div className="mt-5">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-flame-400 transition group-hover:text-flame-300">
-                      View event
-                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                    </span>
-                  </div>
-                </Link>
+                  <EventCard
+                    event={event}
+                    venueName={place?.name ?? null}
+                    cityLabel={cityLabelFor(event.location_slug)}
+                    isAuthenticated={isAuth}
+                    initialSaved={savedIds.has(event.id)}
+                  />
+                </motion.div>
               )
             })}
           </div>
@@ -1119,23 +1098,7 @@ export default function HomeClient() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {upcomingProtests.map((protest) => {
-                // getLocationBySlug() always returns a row (Tirana as the
-                // hardcoded fallback), so it would label every non-static
-                // slug as "Tirana". Resolve against the dynamic options
-                // first, then titleize the slug as a last resort.
-                const dynamicMatch = locationOptions.find(
-                  (o) => o.slug === protest.location_slug,
-                )
-                const staticMatch = locations.find(
-                  (l) => l.slug === protest.location_slug,
-                )
-                const cityLabel =
-                  dynamicMatch?.label ??
-                  staticMatch?.label ??
-                  protest.location_slug
-                    .split('-')
-                    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-                    .join(' ')
+                const cityLabel = cityLabelFor(protest.location_slug)
                 return (
                   <Link
                     key={protest.id}
@@ -1163,13 +1126,13 @@ export default function HomeClient() {
                     <div className="mt-4 space-y-2 text-sm text-white/55">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        <span>{protest.date}</span>
+                        <span>{formatEventDateLabel(protest.date)}</span>
                       </div>
 
                       {protest.time && (
                         <div className="flex items-center gap-2">
                           <Clock3 className="h-4 w-4" />
-                          <span>{protest.time}</span>
+                          <span>{formatEventTimeLabel(protest.time)}</span>
                         </div>
                       )}
 
@@ -1254,20 +1217,6 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 px-4 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-flame-500 shadow-glow-flame">
-              <MapPin className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-white">
-              Alba<span className="font-display italic font-normal text-flame-500">Go</span>
-            </span>
-          </div>
-
-          <p className="text-sm text-white/45">{t('footer_rights')}</p>
-        </div>
-      </footer>
     </main>
   )
 }
