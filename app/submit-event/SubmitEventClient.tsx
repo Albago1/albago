@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
+import { trackInteraction } from '@/lib/track'
 import { submitCommunityEvent } from '@/lib/wizardSubmit'
 import type { EventDraft } from '@/types/eventDraft'
 
@@ -60,12 +61,18 @@ export default function SubmitEventClient() {
   }, [supabase])
 
   useEffect(() => {
+    // Funnel entry: fires once per page visit (resume returns are flagged so
+    // they don't read as fresh starts in the numbers).
+    trackInteraction('submit_started', { meta: { resume: resumeAtReview } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     if (introShownRef.current) return
     if (isAuthed !== false) return
     // Returning from sign-in/sign-up they're authed; this only covers a user
     // who came back signed-out (e.g. abandoned the auth page).
     introShownRef.current = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGate((current) => current ?? 'intro')
   }, [isAuthed])
 
@@ -137,7 +144,13 @@ export default function SubmitEventClient() {
       <EventCreationWizard
         mode="community"
         onSubmit={handleSubmit}
-        onSuccess={(id) => setSubmittedId(id)}
+        onSuccess={(id) => {
+          trackInteraction('submit_completed', {
+            entityType: 'submission',
+            entityId: id,
+          })
+          setSubmittedId(id)
+        }}
         initialStepKey={resumeAtReview ? 'review' : undefined}
       />
 

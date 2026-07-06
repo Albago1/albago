@@ -21,6 +21,7 @@ import {
   Users,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import TrackView from '@/components/TrackView'
 import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
@@ -410,6 +411,13 @@ export default async function EventDetailPage(
         dangerouslySetInnerHTML={{ __html: jsonLdScript(eventSchema(schemaEvent)) }}
       />
       <LandingNavbar />
+      <TrackView
+        type={isCivic ? 'protest_view' : 'event_view'}
+        entityType="event"
+        entityId={event.id}
+        city={event.location_slug}
+        country={event.country}
+      />
 
       <section className="relative overflow-hidden px-4 pb-12 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">

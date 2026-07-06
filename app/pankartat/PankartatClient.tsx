@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Camera, Flame, Sparkles } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import TrackView from '@/components/TrackView'
 import PlacardCard from '@/components/placards/PlacardCard'
 import PlacardFilters from '@/components/placards/PlacardFilters'
 import PlacardUploadModal from '@/components/placards/PlacardUploadModal'
@@ -76,6 +77,7 @@ export default function PankartatClient({
   return (
     <div className="relative min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
+      <TrackView type="placard_view" />
 
       {/* Hero */}
       <section className="relative isolate overflow-hidden pt-28 sm:pt-32">

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, Download, Flag, Flame, MessageCircle, Send, Share2, Wand2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
+import { trackInteraction } from '@/lib/track'
 import { PLACARD_CATEGORY_LABELS, PLACARD_LANGUAGE_LABELS } from '@/lib/placards'
 import type { Placard } from '@/lib/placards'
 import { PlacardSquare, PlacardStory } from './PlacardTemplate'
@@ -96,6 +97,11 @@ export default function PlacardCard({
 
   async function handleDownloadPhoto() {
     if (!placard.imageUrl) return
+    trackInteraction('placard_download', {
+      entityType: 'placard',
+      entityId: placard.id,
+      platform: 'photo',
+    })
     setDownloading('photo')
     try {
       const res = await fetch(placard.imageUrl, { cache: 'no-store' })
@@ -118,6 +124,11 @@ export default function PlacardCard({
   }
 
   async function handleDownloadTemplate(format: DownloadFormat) {
+    trackInteraction('placard_download', {
+      entityType: 'placard',
+      entityId: placard.id,
+      platform: format,
+    })
     setDownloading(format)
     setRenderFormat(format)
     try {
@@ -148,11 +159,21 @@ export default function PlacardCard({
   }
 
   function handleShareWhatsApp() {
+    trackInteraction('share_click', {
+      entityType: 'placard',
+      entityId: placard.id,
+      platform: 'whatsapp',
+    })
     const url = `https://wa.me/?text=${encodeURIComponent(shareText(placard))}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   function handleShareTelegram() {
+    trackInteraction('share_click', {
+      entityType: 'placard',
+      entityId: placard.id,
+      platform: 'telegram',
+    })
     const url = `https://t.me/share/url?url=${encodeURIComponent(SHARE_URL_BASE)}&text=${encodeURIComponent(shareText(placard))}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
@@ -241,6 +262,11 @@ export default function PlacardCard({
   }
 
   async function handleShareNative() {
+    trackInteraction('share_click', {
+      entityType: 'placard',
+      entityId: placard.id,
+      platform: 'native',
+    })
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({

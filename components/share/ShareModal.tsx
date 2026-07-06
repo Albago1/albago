@@ -31,6 +31,7 @@ function XGlyph({ className }: { className?: string }) {
   )
 }
 import type { ShareEventData } from '@/lib/share/types'
+import { trackInteraction } from '@/lib/track'
 import { buildCaption, buildShortText } from '@/lib/share/captions'
 import { generateQrDataUrl } from '@/lib/share/qr'
 import StoryShareTemplate from './templates/StoryShareTemplate'
@@ -116,8 +117,22 @@ export default function ShareModal({ open, onClose, data }: Props) {
   const canNativeShare =
     typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
+  const trackShare = useCallback(
+    (platform: string) => {
+      trackInteraction('share_click', {
+        entityType: 'event',
+        platform,
+        city: data.city,
+        country: data.country,
+        meta: { slug: data.slug, civic: data.isCivic },
+      })
+    },
+    [data.city, data.country, data.slug, data.isCivic],
+  )
+
   const handleCopy = useCallback(
     async (kind: 'link' | 'caption') => {
+      trackShare(kind === 'link' ? 'copy_link' : 'copy_caption')
       try {
         const text = kind === 'link' ? data.eventUrl : caption
         await navigator.clipboard.writeText(text)
@@ -127,7 +142,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
         setError('Copy failed — please copy manually.')
       }
     },
-    [data.eventUrl, caption],
+    [data.eventUrl, caption, trackShare],
   )
 
   const handleNativeShare = useCallback(async () => {
@@ -135,14 +150,16 @@ export default function ShareModal({ open, onClose, data }: Props) {
       handleCopy('link')
       return
     }
+    trackShare('native')
     try {
       await navigator.share({ title: data.title, text: caption, url: data.eventUrl })
     } catch {
       // user dismissed
     }
-  }, [canNativeShare, data.title, data.eventUrl, caption, handleCopy])
+  }, [canNativeShare, data.title, data.eventUrl, caption, handleCopy, trackShare])
 
   const triggerDownload = useCallback(async (format: DownloadFormat) => {
+    trackShare(`download_${format}`)
     setError(null)
     setDownloading(format)
     try {
@@ -176,11 +193,12 @@ export default function ShareModal({ open, onClose, data }: Props) {
     } finally {
       setDownloading(null)
     }
-  }, [data.slug])
+  }, [data.slug, trackShare])
 
   const triggerVideoDownload = useCallback(
     async (duration: VideoDuration) => {
       if (recordingDuration !== null) return
+      trackShare(`reel_${duration}s`)
       setError(null)
       setRecordingDuration(duration)
       setRecordProgress(0)
@@ -219,7 +237,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
         setRecordProgress(0)
       }
     },
-    [data.slug, recordingDuration],
+    [data.slug, recordingDuration, trackShare],
   )
 
   if (!open) return null
@@ -294,6 +312,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <a
                 href={whatsappHref}
+                onClick={() => trackShare('whatsapp')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-xs font-semibold text-white/85 transition hover:bg-white/[0.08]"
@@ -303,6 +322,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
               </a>
               <a
                 href={telegramHref}
+                onClick={() => trackShare('telegram')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-xs font-semibold text-white/85 transition hover:bg-white/[0.08]"
@@ -312,6 +332,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
               </a>
               <a
                 href={facebookHref}
+                onClick={() => trackShare('facebook')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-xs font-semibold text-white/85 transition hover:bg-white/[0.08]"
@@ -321,6 +342,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
               </a>
               <a
                 href={twitterHref}
+                onClick={() => trackShare('twitter')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-xs font-semibold text-white/85 transition hover:bg-white/[0.08]"

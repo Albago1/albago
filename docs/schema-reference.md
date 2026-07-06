@@ -922,3 +922,54 @@ These rules apply to every future migration:
 | `image_url` and `cover_image_url` both exist on `places` | Low | `places` | Duplication from Phase 1 additions. Reconcile when place editing UI is built. |
 | No `updated_at` trigger on `events` | Low | `events` | `set_updated_at()` function exists but the trigger is not wired. Phase 7B RPC functions update `updated_at = now()` manually. |
 | `profiles` RLS not documented | Low | `profiles` | Application only reads `role` in server components. Verify policies in Supabase dashboard. |
+
+---
+
+## 13. `interactions` (Phase 26)
+
+### Purpose
+
+First-party, PII-free usage analytics. One append-only row per tracked action (views, downloads, share clicks, searches, submit-funnel steps). Written exclusively by `/api/track` using the service role; read by admins. No user-identifying data beyond an anonymous localStorage `session_id`.
+
+### Columns
+
+```
+id           uuid         NOT NULL  DEFAULT gen_random_uuid()  — PK
+type         text         NOT NULL  — CHECK: event_view | protest_view | place_view |
+                                      placard_view | placard_download | share_click |
+                                      city_search | search_query | submit_started |
+                                      submit_completed | calendar_add | subscribe |
+                                      outbound_click
+entity_type  text         nullable  — CHECK: event | place | placard | submission
+entity_id    uuid         nullable
+city         text         nullable  — location_slug context
+country      text         nullable
+platform     text         nullable  — share/download surface (whatsapp, telegram, download_story, reel_30s, ...)
+source       text         nullable
+utm_source   text         nullable
+utm_medium   text         nullable
+utm_campaign text         nullable
+path         text         nullable
+referrer     text         nullable  — external referrers only (client strips self-referrals)
+session_id   uuid         NOT NULL  — anonymous, localStorage-persisted
+metadata     jsonb        NOT NULL  DEFAULT '{}'  — e.g. { q } for search_query, { slug, civic } for event shares
+created_at   timestamptz  NOT NULL  DEFAULT now()
+```
+
+### Indexes
+
+`(type, created_at desc)` · `(entity_type, entity_id, created_at desc)` · `(session_id, created_at desc)`
+
+### RLS Policies
+
+```
+interactions_select_admin  —  FOR SELECT USING (is_admin())
+```
+
+**No INSERT/UPDATE/DELETE policies by design.** The only write path is `app/api/track/route.ts` (service role, bypasses RLS), which validates the type whitelist, caps field lengths and metadata size, and rate-limits per IP in memory. anon/authenticated roles cannot write via PostgREST.
+
+### Lifecycle Notes
+
+- Append-only; no application code updates or deletes rows. Prune old rows manually if volume ever matters.
+- Client helper is `lib/track.ts` (`trackInteraction`); `*_view` types are deduped per browser tab.
+- Migration: `docs/seeds/phase-26-interactions.sql` (includes the standard ops queries as comments).
