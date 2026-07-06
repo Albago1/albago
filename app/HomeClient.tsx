@@ -365,7 +365,24 @@ export default function HomeClient() {
 
       if (eventsRes.data) {
         // Keep the full rows — EventCard needs banner_url, recurrence, etc.
-        setFeaturedEvents(eventsRes.data.filter(isEventActive).slice(0, 6))
+        const cityEvents = eventsRes.data.filter(isEventActive)
+        if (cityEvents.length > 0) {
+          setFeaturedEvents(cityEvents.slice(0, 6))
+        } else {
+          // No active events in the selected city — fall back to worldwide
+          // picks so the section never renders empty.
+          const worldwideRes = await supabase
+            .from('events')
+            .select('*')
+            .eq('status', 'published')
+            .or(activeFilter)
+            .order('highlight', { ascending: false })
+            .order('date', { ascending: true })
+            .limit(12)
+          setFeaturedEvents(
+            (worldwideRes.data ?? []).filter(isEventActive).slice(0, 6),
+          )
+        }
       }
 
       if (protestsRes.data) {
