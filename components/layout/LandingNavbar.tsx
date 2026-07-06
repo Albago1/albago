@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   Home,
   LogIn,
@@ -15,6 +16,7 @@ import {
   LayoutDashboard,
   Calendar,
   Flame,
+  ShieldCheck,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import ThemeToggle from '@/components/layout/ThemeToggle'
@@ -155,37 +157,73 @@ export default function LandingNavbar() {
               <button
                 type="button"
                 onClick={() => setIsUserMenuOpen((prev) => !prev)}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:bg-white/[0.08]"
+                aria-expanded={isUserMenuOpen}
+                aria-label="Account menu"
+                className={[
+                  'flex h-9 w-9 items-center justify-center rounded-full bg-flame-500 text-sm font-bold text-white shadow-glow-flame ring-2 transition hover:scale-105',
+                  isUserMenuOpen ? 'ring-white/30' : 'ring-transparent hover:ring-white/20',
+                ].join(' ')}
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-flame-500 text-xs font-bold text-white">
-                  {userEmail[0].toUpperCase()}
-                </span>
-                <span className="hidden max-w-[120px] truncate text-xs text-white/60 lg:block">
-                  {userEmail}
-                </span>
+                {userEmail[0].toUpperCase()}
               </button>
 
-              {isUserMenuOpen && (
-                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[160px] overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl">
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 text-sm text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+              <AnimatePresence>
+                {isUserMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="absolute right-0 top-[calc(100%+0.65rem)] z-50 w-60 overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl"
                   >
-                    <LayoutDashboard className="h-4 w-4" />
-                    Dashboard
-                  </Link>
-                  <div className="border-t border-white/[0.06]" />
-                  <button
-                    type="button"
-                    onClick={() => { setIsUserMenuOpen(false); handleSignOut() }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-400/80 transition hover:bg-white/[0.06] hover:text-red-300"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </div>
-              )}
+                    <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-flame-500 text-sm font-bold text-white">
+                        {userEmail[0].toUpperCase()}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
+                          Signed in
+                        </span>
+                        <span className="block truncate text-sm font-medium text-white">
+                          {userEmail}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="p-1.5">
+                      <Link
+                        href="/dashboard"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <LayoutDashboard className="h-4 w-4 opacity-70" />
+                        Dashboard
+                      </Link>
+                      {isAdmin && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+                        >
+                          <ShieldCheck className="h-4 w-4 opacity-70" />
+                          Admin
+                        </Link>
+                      )}
+                    </div>
+
+                    <div className="border-t border-white/[0.06] p-1.5">
+                      <button
+                        type="button"
+                        onClick={() => { setIsUserMenuOpen(false); handleSignOut() }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-400/80 transition hover:bg-white/[0.06] hover:text-red-300"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <Link
@@ -234,9 +272,7 @@ export default function LandingNavbar() {
         <div className="border-t border-white/10 bg-ink-950 px-4 pb-4 pt-3 md:hidden">
           <div className="mb-4 flex items-center justify-end gap-2">
             <ThemeToggle />
-            <div className="scale-90 origin-right">
-              <LanguageSwitcher />
-            </div>
+            <LanguageSwitcher />
           </div>
 
           <div className="space-y-2">
