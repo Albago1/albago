@@ -73,6 +73,7 @@ type EventRecord = {
   lat: number | null
   lng: number | null
   address: string | null
+  address_hint: string | null
   is_online: boolean | null
   online_url: string | null
   tags: string[] | null
@@ -149,7 +150,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at )'
+      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -495,6 +496,11 @@ export default async function EventDetailPage(
                   <span className="whitespace-pre-line">
                     {event.address ||
                       `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+                    {event.address_hint && (
+                      <span className="block text-white/50">
+                        {event.address_hint}
+                      </span>
+                    )}
                   </span>
                 </>
               )}

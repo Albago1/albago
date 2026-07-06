@@ -171,7 +171,7 @@ export default function WhenStep({ draft, patch }: Props) {
             className="input"
           />
         </Field>
-        <Field label="Start time" htmlFor="when-time" icon={Clock}>
+        <Field label="Start time (optional)" htmlFor="when-time" icon={Clock}>
           <input
             id="when-time"
             type="time"

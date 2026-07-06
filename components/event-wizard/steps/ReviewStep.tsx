@@ -1,17 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
   Edit3,
   Flame,
+  Eye,
   Globe2,
   ImageIcon,
+  X,
   MapPin,
   Tag,
   User2,
 } from 'lucide-react'
 import type { EventDraft } from '@/types/eventDraft'
+import EventPagePreview, { type EventPreviewData } from '@/components/events/EventPagePreview'
 
 type Props = {
   draft: EventDraft
@@ -58,7 +62,36 @@ function formatTimeRange(start: string, end: string): string {
   return start
 }
 
+function draftToPreview(draft: EventDraft): EventPreviewData {
+  const attendees = parseInt(draft.expected_attendees, 10)
+  return {
+    title: draft.title || 'Untitled event',
+    category: draft.event_type === 'protest' || draft.is_civic ? 'civic' : draft.category || 'culture',
+    date: draft.date,
+    time: draft.time,
+    end_time: draft.end_time,
+    price: draft.price,
+    description: draft.description,
+    gallery_urls: draft.gallery_urls,
+    venue_name: draft.venue_name,
+    address: draft.address,
+    address_hint: draft.address_hint,
+    cityLabel: draft.city,
+    country: draft.country,
+    is_online: draft.is_online,
+    online_url: draft.online_url,
+    is_civic: draft.event_type === 'protest' || draft.is_civic,
+    expected_attendees: Number.isFinite(attendees) ? attendees : null,
+    telegram_link: draft.telegram_link,
+    whatsapp_link: draft.whatsapp_link,
+    safety_notes: draft.safety_notes,
+    tags: draft.tags,
+    organizer_name: draft.organizer_name,
+  }
+}
+
 export default function ReviewStep({ draft, onJumpTo }: Props) {
+  const [showPreview, setShowPreview] = useState(false)
   const isCivic = draft.event_type === 'protest' || draft.is_civic
   const categoryLabel = isCivic
     ? 'Civic gathering'
@@ -79,7 +112,42 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
           {draft.event_type === 'protest' ? ' civic gathering' : ' event'} goes
           to the moderation queue.
         </p>
+        <button
+          type="button"
+          onClick={() => setShowPreview(true)}
+          className="mt-3 inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2 text-xs font-semibold text-flame-100 transition hover:border-flame-500/50 hover:bg-flame-500/15"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Preview your event page
+        </button>
       </div>
+
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Preview event page"
+          onClick={() => setShowPreview(false)}
+        >
+          <div className="w-full max-w-2xl pb-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
+                This is how your event page will look
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPreview(false)}
+                aria-label="Close preview"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <EventPagePreview event={draftToPreview(draft)} />
+          </div>
+        </div>
+      )}
 
       {/* Hero summary */}
       <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
@@ -184,6 +252,9 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
               <Row label="Venue" value={draft.venue_name} />
             )}
             <Row label="Address" value={draft.address || '—'} />
+            {draft.address_hint && (
+              <Row label="Landmark" value={draft.address_hint} />
+            )}
             <Row
               label="City"
               value={

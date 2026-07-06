@@ -222,6 +222,27 @@ export default function WhereStep({ draft, patch }: Props) {
 
           <div>
             <label
+              htmlFor="where-address-hint"
+              className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
+            >
+              Landmark / how people know the place (optional)
+            </label>
+            <input
+              id="where-address-hint"
+              type="text"
+              value={draft.address_hint}
+              onChange={(e) => patch({ address_hint: e.target.value })}
+              placeholder='e.g. "te sheshi Skënderbej, para fontanës" / "next to the clock tower"'
+              className="input"
+            />
+            <p className="mt-1 text-xs text-white/45">
+              Many people navigate by place names, not street addresses. This
+              line is shown on the event page right under the address.
+            </p>
+          </div>
+
+          <div>
+            <label
               htmlFor="where-venue"
               className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/55"
             >

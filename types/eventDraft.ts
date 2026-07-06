@@ -48,6 +48,9 @@ export type EventDraft = {
   city: string
   /** Formatted street address from the geocoder. */
   address: string
+  /** Optional landmark / place-name hint for people who navigate by known
+   *  places rather than exact addresses ("te sheshi Skënderbej, para fontanës"). */
+  address_hint: string
   /** Display name of the venue (free-text). Optional — useful for community
    *  submissions that don't link to a `places` row. */
   venue_name: string
@@ -125,6 +128,7 @@ export const defaultEventDraft: EventDraft = {
   region: '',
   city: '',
   address: '',
+  address_hint: '',
   venue_name: '',
   lat: null,
   lng: null,

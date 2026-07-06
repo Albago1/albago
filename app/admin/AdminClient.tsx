@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   CalendarRange,
   Check,
+  Eye,
   Flame,
   Pencil,
   RotateCcw,
@@ -17,6 +18,8 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import UserStatsCard from './UserStatsCard'
+import EventPagePreview, { type EventPreviewData } from '@/components/events/EventPagePreview'
+import { getLocationBySlug } from '@/lib/locations'
 import AdminRepostModal from './events/AdminRepostModal'
 
 type SubmissionRow = {
@@ -53,11 +56,13 @@ type SubmissionRow = {
   lat: number | null
   lng: number | null
   address: string | null
+  address_hint: string | null
   is_online: boolean | null
   online_url: string | null
   tags: string[] | null
   language: string | null
   banner_url: string | null
+  gallery_urls: string[] | null
   recurrence: string | null
   recurrence_until: string | null
   recurrence_days_of_week: number[] | null
@@ -276,6 +281,7 @@ export default function AdminClient() {
   const [search, setSearch] = useState('')
 
   const [repostSource, setRepostSource] = useState<{ id: string; title: string } | null>(null)
+  const [previewRow, setPreviewRow] = useState<UnifiedRow | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -406,6 +412,7 @@ export default function AdminClient() {
         lat: s.lat ?? null,
         lng: s.lng ?? null,
         address: s.address ?? null,
+        address_hint: s.address_hint ?? null,
         is_online: s.is_online ?? false,
         online_url: s.online_url ?? null,
         tags: s.tags ?? [],
@@ -811,6 +818,7 @@ export default function AdminClient() {
             setRejectingId={setRejectingId}
             setRejectNote={setRejectNote}
             onApproveSubmission={approveSubmission}
+            onPreview={setPreviewRow}
             onRejectSubmission={rejectSubmission}
             onPatchEventStatus={patchEventStatus}
             onRejectEvent={rejectEvent}
@@ -820,6 +828,95 @@ export default function AdminClient() {
           />
         ))}
       </div>
+
+      {previewRow && (() => {
+        const sub = submissions.find((item) => item.id === previewRow.rowId)
+        if (!sub) return null
+        const previewData: EventPreviewData = {
+          title: sub.title,
+          category: sub.category,
+          date: sub.date,
+          time: sub.time,
+          end_time: sub.end_time,
+          price: sub.price,
+          description: sub.description,
+          banner_url: sub.banner_url,
+          gallery_urls: sub.gallery_urls,
+          venue_name: sub.venue_name,
+          address: sub.address,
+          address_hint: sub.address_hint,
+          cityLabel: getLocationBySlug(sub.location_slug)?.label ?? sub.location_slug,
+          country: sub.country,
+          is_online: sub.is_online,
+          online_url: sub.online_url,
+          is_civic: sub.is_civic,
+          expected_attendees: sub.expected_attendees,
+          telegram_link: sub.telegram_link,
+          whatsapp_link: sub.whatsapp_link,
+          safety_notes: sub.safety_notes,
+          tags: sub.tags,
+          organizer_name: sub.organizer_name,
+        }
+        const isPending = previewRow.unifiedStatus === 'pending'
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Preview event page"
+            onClick={() => setPreviewRow(null)}
+          >
+            <div
+              className="w-full max-w-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
+                  Page preview — this is what visitors will see
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPreviewRow(null)}
+                  aria-label="Close preview"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <EventPagePreview event={previewData} />
+
+              {isPending && (
+                <div className="mt-4 flex flex-wrap justify-end gap-2 pb-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewRow(null)
+                      setRejectingId(previewRow.key)
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500"
+                  >
+                    <X className="h-4 w-4" />
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionId === previewRow.key}
+                    onClick={() => {
+                      setPreviewRow(null)
+                      void approveSubmission(previewRow)
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+                  >
+                    <Check className="h-4 w-4" />
+                    Approve & publish
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {repostSource && (
         <AdminRepostModal
@@ -845,6 +942,7 @@ function RowCard(props: {
   setRejectingId: (id: string | null) => void
   setRejectNote: (note: string) => void
   onApproveSubmission: (row: UnifiedRow) => void
+  onPreview: (row: UnifiedRow) => void
   onRejectSubmission: (row: UnifiedRow) => void
   onPatchEventStatus: (row: UnifiedRow, nextStatus: string, label: string) => void
   onRejectEvent: (row: UnifiedRow) => void
@@ -860,6 +958,7 @@ function RowCard(props: {
     setRejectingId,
     setRejectNote,
     onApproveSubmission,
+    onPreview,
     onRejectSubmission,
     onPatchEventStatus,
     onRejectEvent,
@@ -974,6 +1073,17 @@ function RowCard(props: {
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {/* Source-specific primary actions */}
+        {row.source === 'submission' && (
+          <button
+            type="button"
+            onClick={() => onPreview(row)}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/75 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Preview
+          </button>
+        )}
+
         {row.source === 'submission' && row.unifiedStatus === 'pending' && !isRejectingThis && (
           <>
             <button
