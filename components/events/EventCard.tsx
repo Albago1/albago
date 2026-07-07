@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowUpRight, Clock3, MapPin, Repeat } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
+import ShareCardButton from '@/components/share/ShareCardButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
@@ -124,11 +125,20 @@ export default function EventCard({
               </span>
             )}
           </div>
-          <SaveEventButton
-            eventId={event.id}
-            initialSaved={initialSaved}
-            isAuthenticated={isAuthenticated}
-          />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <ShareCardButton
+              eventId={event.id}
+              slug={event.slug}
+              title={event.title}
+              city={cityLabel}
+              country={event.country}
+            />
+            <SaveEventButton
+              eventId={event.id}
+              initialSaved={initialSaved}
+              isAuthenticated={isAuthenticated}
+            />
+          </div>
         </div>
 
         {/* Bottom overlay — calendar date tile + friendly/recurrence chips */}
