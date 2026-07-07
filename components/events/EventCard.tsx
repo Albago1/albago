@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { ArrowUpRight, Clock3, MapPin, Repeat } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { languageLocales } from '@/lib/i18n/config'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
-import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
-import { isRecurring, nextOccurrenceLabel, recurrenceLabel } from '@/lib/recurrence'
+import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
+import { isRecurring, nextOccurrence, recurrenceLabel } from '@/lib/recurrence'
 
 export type PublicEvent = {
   id: string
@@ -53,14 +54,34 @@ export default function EventCard({
   isAuthenticated,
   initialSaved,
 }: EventCardProps) {
-  const { t } = useLanguage()
+  const { language, t } = useLanguage()
+  const locale = languageLocales[language]
   const category = event.category?.toLowerCase() ?? ''
   const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
   const gradient = CATEGORY_GRADIENTS[category] ?? 'from-white/10 via-ink-900 to-ink-950'
   const recurring = isRecurring(event)
-  const dateLabel = recurring
-    ? nextOccurrenceLabel(event) ?? formatEventDateLabel(event.date)
-    : formatEventDateLabel(event.date)
+
+  // Calendar-tile date: recurring events show their next occurrence, one-offs
+  // their own date. Big day number matches the ProtestCard / share-poster
+  // brand pattern.
+  const displayDateIso = (recurring ? nextOccurrence(event) : null) ?? event.date
+  const dateObj = new Date(`${displayDateIso}T12:00:00`)
+  const day = dateObj.getDate()
+  const month = dateObj.toLocaleDateString(locale, { month: 'short' })
+  const weekday = dateObj.toLocaleDateString(locale, { weekday: 'short' })
+
+  // Friendly chip next to the tile — the tile always keeps the real calendar
+  // date, "Tonight"/"Tomorrow" never replaces it.
+  const todayIso = getTodayDateString()
+  const tomorrowIso = new Date(new Date(`${todayIso}T12:00:00`).getTime() + 86_400_000)
+    .toISOString()
+    .slice(0, 10)
+  const friendlyLabel =
+    displayDateIso === todayIso
+      ? t('tonight')
+      : displayDateIso === tomorrowIso
+        ? t('tomorrow')
+        : null
 
   return (
     <Link
@@ -110,17 +131,33 @@ export default function EventCard({
           />
         </div>
 
-        {/* Bottom overlay — date + recurrence */}
-        <div className="absolute inset-x-3 bottom-3 flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-ink-950/70 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
-            {dateLabel}
-          </span>
-          {recurring && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/25 px-2.5 py-1 text-[11px] font-medium text-flame-100 backdrop-blur-md">
-              <Repeat className="h-3 w-3" />
-              {recurrenceLabel(event)}
+        {/* Bottom overlay — calendar date tile + friendly/recurrence chips */}
+        <div className="absolute inset-x-3 bottom-3 flex items-end gap-2">
+          <div className="flex min-w-[3.4rem] flex-col items-center rounded-2xl border border-white/10 bg-ink-950/80 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition duration-300 group-hover:border-flame-500/30">
+            <span className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-flame-300">
+              {month}
             </span>
-          )}
+            <span className="mt-1 font-display text-3xl leading-none text-white">
+              {day}
+            </span>
+            <span className="mt-1 text-[9px] font-medium uppercase leading-none tracking-wider text-white/55">
+              {weekday}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+            {friendlyLabel && (
+              <span className="rounded-full bg-flame-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-[0_4px_14px_rgba(238,28,37,0.45)]">
+                {friendlyLabel}
+              </span>
+            )}
+            {recurring && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-ink-950/70 px-2.5 py-1 text-[11px] font-medium text-flame-200 backdrop-blur-md">
+                <Repeat className="h-3 w-3" />
+                {recurrenceLabel(event)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
