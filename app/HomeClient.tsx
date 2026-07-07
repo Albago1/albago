@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -87,6 +87,35 @@ const BIG_CITY_BY_COUNTRY: Record<string, string> = {
   CA: 'toronto',
   AU: 'sydney',
   AE: 'dubai',
+}
+
+// Remembered location — written after every successful detection or manual
+// city pick so the next visit paints the right city instantly instead of
+// flashing the Tirana default. Same localStorage pattern as `albago-theme`.
+const LOCATION_STORAGE_KEY = 'albago-location'
+
+type StoredLocation = { slug: string; label: string }
+
+function readStoredLocation(): StoredLocation | null {
+  try {
+    const raw = window.localStorage.getItem(LOCATION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<StoredLocation>
+    if (typeof parsed.slug === 'string' && parsed.slug && typeof parsed.label === 'string') {
+      return { slug: parsed.slug, label: parsed.label }
+    }
+  } catch {
+    // Corrupt JSON / storage unavailable (private mode) — behave as unset.
+  }
+  return null
+}
+
+function saveStoredLocation(slug: string, label: string) {
+  try {
+    window.localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify({ slug, label }))
+  } catch {
+    // Storage unavailable — the session still works, just isn't remembered.
+  }
 }
 
 function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -238,10 +267,84 @@ export default function HomeClient() {
     return () => { cancelled = true }
   }, [supabase])
 
-  // Snap the default location to the major city for the visitor's country
-  // (Vercel IP geo). Country-level, not precise lat/lng — so someone in
-  // Munich gets snapped to Berlin, not to a random suburb. Runs once on
-  // first paint and only if the user hasn't already moved the location.
+  // Precise GPS detection: nearest known city within 150 km, else reverse
+  // geocode. `silent: true` skips the spinner/dropdown side effects — used on
+  // page load when geolocation is already granted, so the city refreshes
+  // automatically on every visit without re-prompting the user.
+  const detectPreciseLocation = useCallback((opts: { silent?: boolean } = {}) => {
+    if (!navigator.geolocation) return
+    const { silent = false } = opts
+    if (!silent) setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+
+        const candidates = locationOptionsRef.current.length > 0
+          ? locationOptionsRef.current
+          : locations
+        let nearest = candidates[0]
+        let nearestKm = Infinity
+        for (const loc of candidates) {
+          const km = distanceKm(latitude, longitude, loc.center[1], loc.center[0])
+          if (km < nearestKm) { nearestKm = km; nearest = loc }
+        }
+
+        if (nearestKm <= 150) {
+          setLocationInput(nearest.label)
+          setActiveLocationSlug(nearest.slug)
+          saveStoredLocation(nearest.slug, nearest.label)
+          setIsLocating(false)
+          if (!silent) setIsLocationOpen(false)
+          return
+        }
+
+        // User is far from all known cities — try reverse geocoding
+        let cityLabel = 'Your current location'
+        try {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 4000)
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { 'User-Agent': 'AlbaGo/1.0' }, signal: controller.signal }
+          )
+          clearTimeout(timer)
+          if (res.ok) {
+            const data = await res.json()
+            const city = data.address?.city || data.address?.town || data.address?.village
+            if (city) cityLabel = city
+          }
+        } catch {
+          // silent — fallback label already set
+        }
+
+        setLocationInput(cityLabel)
+        if (cityLabel === 'Your current location') {
+          setActiveLocationSlug('current-location')
+        } else {
+          const slug = cityLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+          setActiveLocationSlug(slug)
+          saveStoredLocation(slug, cityLabel)
+        }
+        setIsLocating(false)
+        if (!silent) setIsLocationOpen(false)
+      },
+      () => {
+        setIsLocating(false)
+        if (!silent) setIsLocationOpen(false)
+      },
+      // High accuracy for a precise fix; silent refreshes accept a cached fix
+      // up to 2 minutes old so repeat visits resolve instantly.
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: silent ? 120_000 : 0 }
+    )
+  }, [])
+
+  // Resolve the visitor's location on first paint, in precision order:
+  // 1. Restore the last remembered city instantly (no Tirana flash).
+  // 2. If geolocation was already granted once, silently re-detect a precise
+  //    position — runs on every visit/refresh, never re-prompts.
+  // 3. Otherwise fall back to the coarse country → big-city snap (Vercel IP
+  //    geo) — someone in Munich gets Berlin, not a random suburb — and only
+  //    when nothing was remembered.
   const didAutoSnap = useRef(false)
   useEffect(() => {
     if (didAutoSnap.current) return
@@ -249,8 +352,31 @@ export default function HomeClient() {
       didAutoSnap.current = true
       return
     }
+    didAutoSnap.current = true
     let cancelled = false
+
+    const stored = readStoredLocation()
+    if (stored) {
+      setLocationInput(stored.label)
+      setActiveLocationSlug(stored.slug)
+    }
+
     ;(async () => {
+      try {
+        if (navigator.geolocation && navigator.permissions) {
+          const perm = await navigator.permissions.query({ name: 'geolocation' })
+          if (cancelled) return
+          if (perm.state === 'granted') {
+            detectPreciseLocation({ silent: true })
+            return
+          }
+        }
+      } catch {
+        // Permissions API unsupported (older Safari) — fall through.
+      }
+
+      if (stored || cancelled) return
+
       try {
         const res = await fetch('/api/geo', { cache: 'no-store' })
         if (!res.ok) return
@@ -274,8 +400,6 @@ export default function HomeClient() {
         }
       } catch {
         // Silent fallback to the hardcoded default.
-      } finally {
-        didAutoSnap.current = true
       }
     })()
     return () => { cancelled = true }
@@ -527,6 +651,7 @@ export default function HomeClient() {
         if (exact) {
           setLocationInput(exact.label)
           setActiveLocationSlug(exact.slug)
+          saveStoredLocation(exact.slug, exact.label)
         } else {
           setLocationInput(prevLocationLabel.current)
         }
@@ -539,63 +664,7 @@ export default function HomeClient() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) return
-    setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords
-
-        let nearest = locationOptions[0] ?? locations[0]
-        let nearestKm = Infinity
-        for (const loc of locationOptions) {
-          const km = distanceKm(latitude, longitude, loc.center[1], loc.center[0])
-          if (km < nearestKm) { nearestKm = km; nearest = loc }
-        }
-
-        if (nearestKm <= 150) {
-          setLocationInput(nearest.label)
-          setActiveLocationSlug(nearest.slug)
-          setIsLocating(false)
-          setIsLocationOpen(false)
-          return
-        }
-
-        // User is far from all known cities — try reverse geocoding
-        let cityLabel = 'Your current location'
-        try {
-          const controller = new AbortController()
-          const timer = setTimeout(() => controller.abort(), 4000)
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            { headers: { 'User-Agent': 'AlbaGo/1.0' }, signal: controller.signal }
-          )
-          clearTimeout(timer)
-          if (res.ok) {
-            const data = await res.json()
-            const city = data.address?.city || data.address?.town || data.address?.village
-            if (city) cityLabel = city
-          }
-        } catch {
-          // silent — fallback label already set
-        }
-
-        setLocationInput(cityLabel)
-        setActiveLocationSlug(
-          cityLabel === 'Your current location'
-            ? 'current-location'
-            : cityLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-        )
-        setIsLocating(false)
-        setIsLocationOpen(false)
-      },
-      () => {
-        setIsLocating(false)
-        setIsLocationOpen(false)
-      },
-      { timeout: 6000 }
-    )
-  }
+  const handleDetectLocation = () => detectPreciseLocation()
 
   const matchingLocations = locationOptions.filter((location) => {
   const search = locationInput.toLowerCase()
@@ -819,6 +888,7 @@ export default function HomeClient() {
                           onClick={() => {
                             setLocationInput(loc.label)
                             setActiveLocationSlug(loc.slug)
+                            saveStoredLocation(loc.slug, loc.label)
                             setIsSearchOpen(false)
                           }}
                           className="flex w-full items-center gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.06]"
@@ -860,6 +930,7 @@ export default function HomeClient() {
                       if (exact) {
                         setLocationInput(exact.label)
                         setActiveLocationSlug(exact.slug)
+                        saveStoredLocation(exact.slug, exact.label)
                       } else {
                         setLocationInput(prevLocationLabel.current)
                       }
@@ -892,6 +963,7 @@ export default function HomeClient() {
                       onClick={() => {
                         setLocationInput(location.label)
                         setActiveLocationSlug(location.slug)
+                        saveStoredLocation(location.slug, location.label)
                         setIsLocationOpen(false)
                       }}
                       className="flex w-full items-start gap-3 px-4 py-4 text-sm transition hover:bg-white/[0.06]"
@@ -968,6 +1040,7 @@ export default function HomeClient() {
                 onClick={() => {
                   setLocationInput(location.label)
                   setActiveLocationSlug(location.slug)
+                  saveStoredLocation(location.slug, location.label)
                 }}
                 className={[
                   'rounded-full border px-4 py-2 text-sm transition',
