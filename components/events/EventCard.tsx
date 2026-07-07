@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowUpRight, Clock3, MapPin, Repeat } from 'lucide-react'
+import { ArrowUpRight, MapPin, Repeat } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import ShareCardButton from '@/components/share/ShareCardButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -173,28 +173,44 @@ export default function EventCard({
 
       {/* Body — fixed structure so cards stay uniform */}
       <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="line-clamp-2 min-h-[3.1rem] text-lg font-semibold leading-snug text-white">
-            {event.title}
-          </h2>
-          <ArrowUpRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-flame-400" />
-        </div>
-
-        <div className="mt-1.5 flex items-center gap-1.5 text-sm text-white/55">
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
-            {venueName ? `${venueName} · ${cityLabel}` : cityLabel}
-          </span>
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-sm text-white/60">
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 className="h-4 w-4" />
-            {formatEventTimeLabel(event.time)}
-          </span>
-          {event.price && (
-            <span className="truncate font-semibold text-white">{event.price}</span>
+        {/* Kicker — DICE-style date · time line anchoring the body */}
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-flame-300">
+          {weekday} {day} {month}
+          {formatEventTimeLabel(event.time) && (
+            <span className="text-white/50"> · {formatEventTimeLabel(event.time)}</span>
           )}
+        </p>
+
+        <h2 className="mt-1.5 line-clamp-2 min-h-[3.5rem] font-display text-[1.4rem] leading-[1.25] text-white">
+          {event.title}
+        </h2>
+
+        <div className="mt-2 flex items-center gap-1.5 text-sm">
+          <MapPin className="h-3.5 w-3.5 shrink-0 text-white/40" />
+          <span className="truncate text-white/70">
+            {venueName ? (
+              <>
+                {venueName}
+                <span className="text-white/40"> · {cityLabel}</span>
+              </>
+            ) : (
+              cityLabel
+            )}
+          </span>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/[0.08] pt-3">
+          {event.price ? (
+            <span className="truncate text-sm font-semibold text-white">
+              {event.price}
+            </span>
+          ) : (
+            <span aria-hidden />
+          )}
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-white/45 transition group-hover:text-flame-400">
+            {t('card_view_event')}
+            <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </span>
         </div>
       </div>
     </Link>

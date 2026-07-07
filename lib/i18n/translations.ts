@@ -68,6 +68,7 @@ export const translations: Record<Language, Record<string, string>> = {
     upcoming_events: "Upcoming events",
     event_singular: "event",
     event_plural: "events",
+    card_view_event: "View event",
     no_upcoming_events: "No upcoming events yet",
     no_upcoming_events_hint:
       "This place is visible, but there are no matching events for the current filters.",
@@ -471,6 +472,7 @@ export const translations: Record<Language, Record<string, string>> = {
     upcoming_events: "Kommende Events",
     event_singular: "Event",
     event_plural: "Events",
+    card_view_event: "Event ansehen",
     no_upcoming_events: "Noch keine kommenden Events",
     no_upcoming_events_hint:
       "Dieser Ort ist sichtbar, aber es gibt keine passenden Events für die aktuellen Filter.",
@@ -874,6 +876,7 @@ export const translations: Record<Language, Record<string, string>> = {
     upcoming_events: "Próximos eventos",
     event_singular: "evento",
     event_plural: "eventos",
+    card_view_event: "Ver evento",
     no_upcoming_events: "Todavía no hay próximos eventos",
     no_upcoming_events_hint:
       "Este lugar es visible, pero no hay eventos que coincidan con los filtros actuales.",
@@ -1277,6 +1280,7 @@ export const translations: Record<Language, Record<string, string>> = {
     upcoming_events: "Eventet e ardhshme",
     event_singular: "event",
     event_plural: "evente",
+    card_view_event: "Shiko eventin",
     no_upcoming_events: "Ende nuk ka evente të ardhshme",
     no_upcoming_events_hint:
       "Ky vend është i dukshëm, por nuk ka evente që përputhen me filtrat aktualë.",
