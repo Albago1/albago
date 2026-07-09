@@ -26,7 +26,7 @@ import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import { CATEGORY_GRADIENTS } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
-import { getLocationBySlug, locations } from '@/lib/locations'
+import { locations } from '@/lib/locations'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
@@ -204,8 +204,15 @@ export default function HomeClient() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLocationOpen, setIsLocationOpen] = useState(false)
   const [activeLocationSlug, setActiveLocationSlug] = useState('tirana')
+  // Blocks data fetching until the remembered city has been restored, so the
+  // first fetch never runs (and races) against the placeholder default.
+  const [locationReady, setLocationReady] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
   const [featuredEvents, setFeaturedEvents] = useState<PublicEvent[]>([])
+  // True when the featured grid shows worldwide picks because the active city
+  // has no live events — the section subtitle says so instead of quietly
+  // showing another city's events.
+  const [featuredIsFallback, setFeaturedIsFallback] = useState(false)
   const [upcomingProtests, setUpcomingProtests] = useState<
     Array<PublicEvent & { expected_attendees: number | null }>
   >([])
@@ -271,9 +278,12 @@ export default function HomeClient() {
   // geocode. `silent: true` skips the spinner/dropdown side effects — used on
   // page load when geolocation is already granted, so the city refreshes
   // automatically on every visit without re-prompting the user.
-  const detectPreciseLocation = useCallback((opts: { silent?: boolean } = {}) => {
-    if (!navigator.geolocation) return
-    const { silent = false } = opts
+  const detectPreciseLocation = useCallback((opts: { silent?: boolean; onUnavailable?: () => void } = {}) => {
+    const { silent = false, onUnavailable } = opts
+    if (!navigator.geolocation) {
+      onUnavailable?.()
+      return
+    }
     if (!silent) setIsLocating(true)
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -331,10 +341,13 @@ export default function HomeClient() {
       () => {
         setIsLocating(false)
         if (!silent) setIsLocationOpen(false)
+        onUnavailable?.()
       },
-      // High accuracy for a precise fix; silent refreshes accept a cached fix
-      // up to 2 minutes old so repeat visits resolve instantly.
-      { timeout: 8000, enableHighAccuracy: true, maximumAge: silent ? 120_000 : 0 }
+      // City-level snapping doesn't need a GPS lock — silent refreshes take
+      // the fast network fix (and accept one up to 2 minutes old) so repeat
+      // visits resolve instantly and rarely fail; the manual button keeps
+      // high accuracy.
+      { timeout: 8000, enableHighAccuracy: !silent, maximumAge: silent ? 120_000 : 0 }
     )
   }, [])
 
@@ -346,12 +359,39 @@ export default function HomeClient() {
   //    geo) — someone in Munich gets Berlin, not a random suburb — and only
   //    when nothing was remembered.
   const didAutoSnap = useRef(false)
+
+  // Coarse country → big-city snap via Vercel IP geo. Last-resort resolution
+  // when there is no remembered city and no usable GPS fix. Deliberately not
+  // persisted — an IP guess shouldn't become sticky the way a real fix or a
+  // manual pick does.
+  const coarseCountrySnap = useCallback(async () => {
+    try {
+      const res = await fetch('/api/geo', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        available: boolean
+        country: string | null
+      }
+      if (!data.available || !data.country) return
+
+      const mapped = BIG_CITY_BY_COUNTRY[data.country.toUpperCase()]
+      if (!mapped) return
+
+      const candidates = locationOptionsRef.current.length > 0
+        ? locationOptionsRef.current
+        : locations
+      const found = candidates.find((l) => l.slug === mapped)
+      if (found) {
+        setLocationInput(found.label)
+        setActiveLocationSlug(found.slug)
+      }
+    } catch {
+      // Silent fallback to the hardcoded default.
+    }
+  }, [])
+
   useEffect(() => {
     if (didAutoSnap.current) return
-    if (activeLocationSlug !== 'tirana') {
-      didAutoSnap.current = true
-      return
-    }
     didAutoSnap.current = true
     let cancelled = false
 
@@ -360,6 +400,10 @@ export default function HomeClient() {
       setLocationInput(stored.label)
       setActiveLocationSlug(stored.slug)
     }
+    // Batched with the restore above — data fetching waits for this flag so
+    // the first fetch runs against the remembered city, never the Tirana
+    // default it would race against.
+    setLocationReady(true)
 
     ;(async () => {
       try {
@@ -367,7 +411,15 @@ export default function HomeClient() {
           const perm = await navigator.permissions.query({ name: 'geolocation' })
           if (cancelled) return
           if (perm.state === 'granted') {
-            detectPreciseLocation({ silent: true })
+            detectPreciseLocation({
+              silent: true,
+              // Permission granted but no usable fix (indoors, desktop
+              // without location services, timeout) — don't strand the
+              // visitor on the default when nothing is remembered.
+              onUnavailable: () => {
+                if (!stored && !cancelled) void coarseCountrySnap()
+              },
+            })
             return
           }
         }
@@ -376,37 +428,20 @@ export default function HomeClient() {
       }
 
       if (stored || cancelled) return
-
-      try {
-        const res = await fetch('/api/geo', { cache: 'no-store' })
-        if (!res.ok) return
-        const data = (await res.json()) as {
-          available: boolean
-          country: string | null
-        }
-        if (cancelled || !data.available || !data.country) return
-
-        const code = data.country.toUpperCase()
-        const mapped = BIG_CITY_BY_COUNTRY[code]
-        if (!mapped) return
-
-        const candidates = locationOptionsRef.current.length > 0
-          ? locationOptionsRef.current
-          : locations
-        const found = candidates.find((l) => l.slug === mapped)
-        if (found) {
-          setLocationInput(found.label)
-          setActiveLocationSlug(found.slug)
-        }
-      } catch {
-        // Silent fallback to the hardcoded default.
-      }
+      await coarseCountrySnap()
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
+    if (!locationReady) return
+    // Stale-response guard: when the active city changes mid-flight (restore,
+    // GPS re-detect, manual pick), the superseded run must not write its
+    // results — otherwise whichever response lands last wins and the page can
+    // show one city's label with another city's events.
+    let stale = false
+
     async function fetchFeatured() {
       const today = new Date().toISOString().slice(0, 10)
       const activeFilter = activeEventsOrFilter(today)
@@ -452,9 +487,16 @@ export default function HomeClient() {
           .or(activeFilter),
       ])
 
+      if (stale) return
+
       if (placesRes.data) {
         const mapped: Place[] = placesRes.data.map((p) => {
-          const loc = getLocationBySlug(p.location_slug)
+          // Resolve against the dynamic city list — getLocationBySlug() only
+          // knows the 4 seed cities and falls back to Tirana, which labelled
+          // e.g. Berlin venues "Tirana, Albania".
+          const loc =
+            locationOptionsRef.current.find((l) => l.slug === p.location_slug) ??
+            locations.find((l) => l.slug === p.location_slug)
           return {
             id: p.id,
             slug: p.slug,
@@ -480,6 +522,7 @@ export default function HomeClient() {
         const cityEvents = eventsRes.data.filter(isEventActive)
         if (cityEvents.length > 0) {
           setFeaturedEvents(cityEvents.slice(0, 6))
+          setFeaturedIsFallback(false)
         } else {
           // No active events in the selected city — fall back to worldwide
           // picks so the section never renders empty.
@@ -491,9 +534,11 @@ export default function HomeClient() {
             .order('highlight', { ascending: false })
             .order('date', { ascending: true })
             .limit(12)
+          if (stale) return
           setFeaturedEvents(
             (worldwideRes.data ?? []).filter(isEventActive).slice(0, 6),
           )
+          setFeaturedIsFallback(true)
         }
       }
 
@@ -538,7 +583,8 @@ export default function HomeClient() {
     }
 
     fetchFeatured()
-  }, [activeLocationSlug, supabase])
+    return () => { stale = true }
+  }, [activeLocationSlug, supabase, locationReady])
 
   // Live-tally subscription. Same shape as /protests but unfiltered, so any
   // publish / unpublish / cancel / delete on the events table flows straight
@@ -675,7 +721,6 @@ export default function HomeClient() {
     location.region?.toLowerCase().includes(search)
   )
 })
-  const resolvedLocation = getLocationBySlug(activeLocationSlug)
 
   // Active-event derived counts. nowTick is in the dep list on purpose so the
   // tally refreshes every minute against the wall clock; ESLint doesn't see
@@ -735,6 +780,22 @@ export default function HomeClient() {
       .map((part) => (part[0]?.toUpperCase() ?? '') + part.slice(1))
       .join(' ')
   }
+
+  // The active city, resolved against the dynamic list first —
+  // getLocationBySlug() only knows the 4 seed cities and silently falls back
+  // to Tirana, which highlighted the Tirana chip and titled sections
+  // "… in Tirana" while the picker correctly said e.g. Berlin. Slugs the
+  // platform has never seen resolve to a synthetic option so the UI still
+  // shows the detected city instead of lying.
+  const resolvedLocation =
+    locationOptions.find((o) => o.slug === activeLocationSlug) ??
+    locations.find((l) => l.slug === activeLocationSlug) ?? {
+      label: cityLabelFor(activeLocationSlug),
+      slug: activeLocationSlug,
+      country: '',
+      center: [19.8187, 41.3275] as [number, number],
+      zoom: 12.5,
+    }
 
   const searchQ = searchQuery.trim().toLowerCase()
   const isTyping = searchQ.length > 0
@@ -939,7 +1000,7 @@ export default function HomeClient() {
                           <span className="min-w-0 flex-1 truncate font-medium text-white">{ev.title}</span>
                           {isTyping && 'location_slug' in ev && (
                             <span className="shrink-0 text-[10px] text-white/30">
-                              {getLocationBySlug((ev as SuggestionEvent).location_slug).label}
+                              {cityLabelFor((ev as SuggestionEvent).location_slug)}
                             </span>
                           )}
                           {!isTyping && (
@@ -1192,7 +1253,9 @@ export default function HomeClient() {
                   {t('home_featured_events')}
                 </h2>
                 <p className="mt-2 text-sm text-white/55">
-                  {t('home_featured_sub')}
+                  {featuredIsFallback
+                    ? t('home_featured_fallback')
+                    : t('home_featured_sub')}
                 </p>
               </div>
             </div>
