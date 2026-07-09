@@ -177,8 +177,8 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
                 {formatEventDateLabel(event.date)}
               </p>
               {timeRange && (
-                <p className="mt-1 inline-flex items-center gap-1.5 text-sm tabular-nums text-white/60">
-                  <Clock3 className="h-3.5 w-3.5" />
+                <p className="mt-1.5 inline-flex items-center gap-2 text-base font-semibold tabular-nums text-white">
+                  <Clock3 className="h-4 w-4 text-flame-400" />
                   {timeRange}
                 </p>
               )}
