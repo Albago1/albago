@@ -397,6 +397,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_post_now: "Post to social",
     share_ai_posted: "Shared!",
     share_ai_post_copied: "Poster copied — paste it anywhere",
+    share_caption_new: "New caption",
     share_ai_error: "Couldn't generate the poster — try again.",
 
     // Submit event gate + success
@@ -815,6 +816,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_post_now: "Auf Social posten",
     share_ai_posted: "Geteilt!",
     share_ai_post_copied: "Poster kopiert — überall einfügen",
+    share_caption_new: "Neue Caption",
     share_ai_error: "Poster konnte nicht erstellt werden — versuch es nochmal.",
 
     // Submit event gate + success
@@ -1233,6 +1235,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_post_now: "Publicar en redes",
     share_ai_posted: "¡Compartido!",
     share_ai_post_copied: "Póster copiado — pégalo donde quieras",
+    share_caption_new: "Nuevo texto",
     share_ai_error: "No se pudo generar el póster — inténtalo de nuevo.",
 
     // Submit event gate + success
@@ -1650,6 +1653,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_post_now: "Posto në rrjete sociale",
     share_ai_posted: "U nda!",
     share_ai_post_copied: "Posteri u kopjua — ngjite kudo",
+    share_caption_new: "Përshkrim i ri",
     share_ai_error: "Posteri nuk u krijua dot — provo përsëri.",
 
     // Submit event gate + success

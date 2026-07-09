@@ -54,8 +54,10 @@ type Props = {
 type DownloadFormat = 'story' | 'square' | 'facebook'
 type VideoDuration = 15 | 30
 
+type CaptionPack = { en: string; sq: string; de: string; es: string }
+
 export default function ShareModal({ open, onClose, data, studioAccess = false }: Props) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrLoading, setQrLoading] = useState(true)
 
@@ -85,6 +87,13 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
   const [posted, setPosted] = useState<'shared' | 'copied' | null>(null)
   const userChoseModeRef = useRef(false)
 
+  // AI captions — a four-language pack generated once per event (Studio) and
+  // cached for everyone. The template caption stays as the instant default
+  // and as the fallback; a manual edit is never overwritten.
+  const [aiCaptions, setAiCaptions] = useState<CaptionPack | null>(null)
+  const [captionRegenerating, setCaptionRegenerating] = useState(false)
+  const captionDirtyRef = useRef(false)
+
   const storyRef = useRef<HTMLDivElement | null>(null)
   const squareRef = useRef<HTMLDivElement | null>(null)
   const facebookRef = useRef<HTMLDivElement | null>(null)
@@ -92,6 +101,7 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
   useEffect(() => {
     if (!open) return
     setCaption(initialCaption)
+    captionDirtyRef.current = false
   }, [open, initialCaption])
 
   useEffect(() => {
@@ -305,12 +315,47 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
     [data.slug, trackShare, t],
   )
 
-  // Auto-load the AI poster when the modal opens: instant when cached
-  // (one poster per event, forever), a one-time generation otherwise.
+  const fetchAiCaptions = useCallback(
+    async (opts: { regenerate?: boolean } = {}) => {
+      if (opts.regenerate) setCaptionRegenerating(true)
+      try {
+        const res = await fetch('/api/ai-caption', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: data.slug, regenerate: opts.regenerate === true }),
+        })
+        const json = (await res.json()) as { ok: boolean; captions?: CaptionPack }
+        if (!res.ok || !json.ok || !json.captions) return
+        setAiCaptions(json.captions)
+        if (opts.regenerate) {
+          // Explicit re-roll always wins, even over manual edits.
+          captionDirtyRef.current = false
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setCaptionRegenerating(false)
+      }
+    },
+    [data.slug],
+  )
+
+  // Auto-load the AI poster + captions when the modal opens: instant when
+  // cached (one generation per event, forever), a one-time creation for
+  // Studio accounts otherwise.
   useEffect(() => {
     if (!open || aiStatus !== 'idle') return
     fetchAiPoster({ auto: true })
-  }, [open, aiStatus, fetchAiPoster])
+    fetchAiCaptions()
+  }, [open, aiStatus, fetchAiPoster, fetchAiCaptions])
+
+  // Swap the caption to the sharer's language whenever the pack (or the UI
+  // language) changes — unless they already typed their own.
+  useEffect(() => {
+    if (!open || !aiCaptions || captionDirtyRef.current) return
+    const next = aiCaptions[language as keyof CaptionPack] ?? aiCaptions.en
+    if (next) setCaption(next)
+  }, [open, aiCaptions, language])
 
   // Studio: capture the finished poster (typography + active backdrop) and
   // hand the actual image file to the OS share sheet — Instagram, WhatsApp,
@@ -718,31 +763,49 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
               </div>
             )}
 
-            <div className="mt-6 flex items-center justify-between">
+            <div className="mt-6 flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
                 {t('share_caption')}
               </p>
-              <button
-                type="button"
-                onClick={() => handleCopy('caption')}
-                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-flame-300 transition hover:text-flame-200"
-              >
-                {copied === 'caption' ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" />
-                    {t('share_caption_copied')}
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    {t('share_copy_caption')}
-                  </>
+              <div className="flex items-center gap-3">
+                {studioAccess && (
+                  <button
+                    type="button"
+                    onClick={() => fetchAiCaptions({ regenerate: true })}
+                    disabled={captionRegenerating}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-white/55 transition hover:text-white disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${captionRegenerating ? 'animate-spin' : ''}`}
+                    />
+                    {t('share_caption_new')}
+                  </button>
                 )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopy('caption')}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-flame-300 transition hover:text-flame-200"
+                >
+                  {copied === 'caption' ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      {t('share_caption_copied')}
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      {t('share_copy_caption')}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             <textarea
               value={caption}
-              onChange={(e) => setCaption(e.target.value)}
+              onChange={(e) => {
+                captionDirtyRef.current = true
+                setCaption(e.target.value)
+              }}
               rows={8}
               className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/85 leading-6 focus:border-flame-500/40 focus:outline-none"
               spellCheck={false}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { hasStudioAccess } from '@/lib/ai/studioAccess'
 import { getLocationBySlug } from '@/lib/locations'
 import {
   craftPosterPrompt,
@@ -76,29 +76,6 @@ function limited(map: Map<string, RateEntry>, ip: string, windowMs: number, max:
 
 function publicPosterUrl(slug: string): string {
   return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/ai-posters/${slug}.jpg`
-}
-
-// Poster Studio entitlement: admins implicitly, plus anyone an admin granted
-// studio_access (a future payment flow sets the same flag). Viewing cached
-// posters stays open to everyone; only CREATION is gated.
-async function hasStudioAccess(): Promise<boolean> {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return false
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, studio_access')
-      .eq('id', user.id)
-      .maybeSingle()
-    const row = profile as { role?: string | null; studio_access?: boolean | null } | null
-    return row?.role === 'admin' || row?.studio_access === true
-  } catch (err) {
-    console.error('ai-poster entitlement check failed:', err)
-    return false
-  }
 }
 
 export async function POST(request: Request) {
