@@ -7,7 +7,7 @@ import { textModel } from './textModel'
  *
  * The style contract below is the product: hooks that stop the scroll
  * without clickbait, concrete details from the event itself (never invented
- * facts), restrained emoji, and reach-tuned hashtags. Anything the model
+ * facts), restrained emoji, and no hashtags. Anything the model
  * returns that violates the shape is discarded in favor of the classic
  * template caption, so quality can only go up, never down.
  */
@@ -53,9 +53,8 @@ const SYSTEM_PROMPT =
   'gusht" / "Friday 14 August"), NEVER as a raw 2026-08-14 value. No emoji walls. No ' +
   'ALL-CAPS words. Banned words in any language: epic, insane, vibes, unforgettable, ' +
   'spectacular, amazing. ' +
-  '(4) Then the link on its own line, copied EXACTLY as given. ' +
-  '(5) Last line: 6-9 hashtags — always #AlbaGo, the city, the category niche, and for ' +
-  'diaspora-relevant events #DiasporaShqiptare; never #follow #viral #fyp or other spam tags. ' +
+  '(4) Then the link on its own line, copied EXACTLY as given — this is the LAST line. ' +
+  '(5) NO hashtags anywhere — not a single # tag in any language. ' +
   '(6) Civic protests: dignified, mobilizing, peaceful — pride and determination, zero ' +
   'aggression, zero irony. ' +
   '(7) Each caption under 850 characters. ' +

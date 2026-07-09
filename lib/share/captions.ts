@@ -18,18 +18,10 @@ function formatTime(time: string | null, endTime: string | null): string {
   return end ? `${start} – ${end}` : start
 }
 
-function cityHashtag(city: string): string {
-  return city
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^A-Za-z0-9]/g, '')
-}
-
 export function buildCaption(data: ShareEventData): string {
   const when = formatDateLong(data.date)
   const time = formatTime(data.time, data.endTime)
   const where = data.address || `${data.city}${data.country ? `, ${data.country}` : ''}`
-  const tag = cityHashtag(data.city)
 
   if (data.isCivic) {
     return [
@@ -41,8 +33,6 @@ export function buildCaption(data: ShareEventData): string {
       '',
       'Detajet i gjeni në AlbaGo:',
       data.eventUrl,
-      '',
-      `#AlbaGo #Protesta #DiasporaShqiptare${tag ? ` #${tag}` : ''}`,
     ]
       .filter((line) => line !== null)
       .join('\n')
@@ -58,8 +48,6 @@ export function buildCaption(data: ShareEventData): string {
     '',
     'Zbulo më shumë në AlbaGo:',
     data.eventUrl,
-    '',
-    `#AlbaGo${tag ? ` #${tag}` : ''} #Evente`,
   ]
     .filter((line) => line !== null)
     .join('\n')
