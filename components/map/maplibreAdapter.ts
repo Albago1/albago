@@ -22,6 +22,22 @@ export function createMaplibreAdapter({
     zoom,
   })
 
+  // Standard map affordances the best map products all ship: zoom buttons
+  // (desktop muscle memory) and a locate-me button that flies to the
+  // visitor's position — both bottom-right, clear of our floating UI.
+  map.addControl(
+    new maplibregl.NavigationControl({ showCompass: false }),
+    'bottom-right',
+  )
+  map.addControl(
+    new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: false },
+      fitBoundsOptions: { maxZoom: 12.5 },
+      showAccuracyCircle: false,
+    }),
+    'bottom-right',
+  )
+
   const markers: maplibregl.Marker[] = []
 
   map.on('load', () => {
@@ -99,8 +115,24 @@ const createMarkerElement = (marker: MapMarkerInput) => {
       })
     },
 
-    flyToLocation(center, zoom) {
-      map.flyTo({ center, zoom, essential: true })
+    flyToLocation(center, zoom, padding) {
+      map.flyTo({
+        center,
+        zoom,
+        // Explicit zeros: flyTo padding is sticky on the map instance, so a
+        // partial object would inherit stale offsets from the previous fly.
+        padding: {
+          top: padding?.top ?? 0,
+          bottom: padding?.bottom ?? 0,
+          left: padding?.left ?? 0,
+          right: padding?.right ?? 0,
+        },
+        essential: true,
+      })
+    },
+
+    getZoom() {
+      return map.getZoom()
     },
 
     fitBounds(coords, options) {

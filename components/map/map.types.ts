@@ -30,10 +30,18 @@ export type FitBoundsOptions = {
   duration?: number
 }
 
+export type FlyPadding = {
+  top?: number
+  bottom?: number
+  left?: number
+  right?: number
+}
+
 export type MapAdapter = {
   setMarkers: (markers: MapMarkerInput[]) => void
   flyToPlace: (input: FlyToPlaceInput) => void
-  flyToLocation: (center: [number, number], zoom: number) => void
+  flyToLocation: (center: [number, number], zoom: number, padding?: FlyPadding) => void
   fitBounds: (coords: Array<[number, number]>, options?: FitBoundsOptions) => void
+  getZoom: () => number
   destroy: () => void
 }
