@@ -476,3 +476,12 @@ body {
 [data-theme="light"] .on-media .text-black { color: #050505 !important; }
 [data-theme="light"] .on-media .bg-ink-950\/45 { background-color: rgba(5, 5, 5, 0.45) !important; }
 [data-theme="light"] .on-media .bg-ink-950\/55 { background-color: rgba(5, 5, 5, 0.55) !important; }
+[data-theme="light"] .on-media .text-white { color: #ffffff !important; }
+[data-theme="light"] .on-media .text-white\/20 { color: rgba(255, 255, 255, 0.20) !important; }
+[data-theme="light"] .on-media .bg-ink-950\/50 { background-color: rgba(5, 5, 5, 0.50) !important; }
+[data-theme="light"] .on-media .bg-ink-950\/60 { background-color: rgba(5, 5, 5, 0.60) !important; }
+[data-theme="light"] .on-media .bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}

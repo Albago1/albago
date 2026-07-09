@@ -1260,7 +1260,7 @@ export default function HomeClient() {
                 <Link
                   key={category.value}
                   href={`/events?location=${activeLocationSlug}&category=${category.value}`}
-                  className="group relative block aspect-[16/10] overflow-hidden rounded-3xl border border-white/10 transition hover:border-white/25 sm:aspect-[16/9]"
+                  className="on-media group relative block aspect-[16/10] overflow-hidden rounded-3xl border border-white/10 transition hover:border-white/25 sm:aspect-[16/9]"
                 >
                   <div
                     className={`absolute inset-0 bg-gradient-to-br ${gradient} transition duration-500 ease-out group-hover:scale-105`}
@@ -1336,7 +1336,7 @@ export default function HomeClient() {
                     href={`/places/${place.slug}`}
                     className="group w-60 shrink-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-md transition hover:border-flame-500/30 hover:bg-white/[0.05]"
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden">
+                    <div className="on-media relative aspect-[4/3] overflow-hidden">
                       {place.imageUrl ? (
                         <Image
                           src={place.imageUrl}
