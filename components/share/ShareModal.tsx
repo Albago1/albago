@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Check,
   Copy,
@@ -369,7 +370,10 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
 
   if (!open) return null
 
-  return (
+  // Portal to <body>: the modal can be mounted deep inside sticky/blurred
+  // containers (event page action panel) whose stacking contexts would
+  // otherwise trap the overlay underneath page content.
+  return createPortal(
     <>
       <div
         className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center"
@@ -780,6 +784,7 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
         <SquareShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={squareRef} />
         <FacebookShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={facebookRef} />
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
