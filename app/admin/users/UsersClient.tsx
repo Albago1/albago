@@ -12,6 +12,7 @@ import {
   Search,
   Shield,
   ShieldOff,
+  Sparkles,
   Trash2,
   Users as UsersIcon,
   X,
@@ -27,6 +28,7 @@ type UserRow = {
   role: 'admin' | 'user'
   is_organizer: boolean
   organizer_verified: boolean
+  studio_access: boolean
 }
 
 type Filter = 'all' | 'admins' | 'organizers' | 'unconfirmed'
@@ -85,6 +87,8 @@ export default function UsersClient({
   }, [supabase])
 
   useEffect(() => {
+    // Pre-existing mount fetch; load() flips its own loading flag.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
 
@@ -259,6 +263,35 @@ export default function UsersClient({
       next
         ? `${u.email} is now a verified organizer.`
         : `${u.email} is no longer verified.`,
+    )
+  }
+
+  const setStudioAccess = async (u: UserRow, next: boolean) => {
+    setBusyId(u.id)
+    const { error: rpcError } = await supabase.rpc('admin_set_studio_access', {
+      target_user: u.id,
+      allowed: next,
+    })
+    setBusyId(null)
+    if (rpcError) {
+      console.error('admin_set_studio_access:', rpcError)
+      if (
+        /admin_set_studio_access/i.test(rpcError.message) &&
+        /does not exist/i.test(rpcError.message)
+      ) {
+        flashToast('admin_set_studio_access RPC missing — apply phase-30 SQL.')
+        return
+      }
+      flashToast(`Failed: ${rpcError.message}`)
+      return
+    }
+    setUsers((prev) =>
+      prev.map((row) => (row.id === u.id ? { ...row, studio_access: next } : row)),
+    )
+    flashToast(
+      next
+        ? `${u.email} can now use the Poster Studio.`
+        : `${u.email} lost Poster Studio access.`,
     )
   }
 
@@ -447,6 +480,15 @@ export default function UsersClient({
                             {u.organizer_verified ? 'Verified org' : 'Organizer'}
                           </span>
                         )}
+                        {u.studio_access && u.role !== 'admin' && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2.5 py-1 text-[11px] font-semibold text-violet-200 ring-1 ring-violet-500/30"
+                            title="Can create AI posters and post them to social"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            Studio
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-white/55">
@@ -540,6 +582,30 @@ export default function UsersClient({
                             </button>
                           </>
                         )}
+                        {u.role !== 'admin' &&
+                          (!u.studio_access ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setStudioAccess(u, true)}
+                              className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/[0.06] px-3 py-1 text-[11px] font-semibold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-50"
+                              title="Let this user create AI posters and post them to social"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Grant Studio
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setStudioAccess(u, false)}
+                              className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/65 transition hover:bg-red-500/10 hover:text-red-200 disabled:opacity-50"
+                              title="Revoke Poster Studio access"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Revoke Studio
+                            </button>
+                          ))}
                         {!isSelf && (
                           <button
                             type="button"

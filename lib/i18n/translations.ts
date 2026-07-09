@@ -392,6 +392,11 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_ai: "AI art",
     share_ai_applies: "Applies to the Story poster and Reel videos.",
     share_ai_regenerate: "New artwork",
+    share_ai_locked_title: "AI Poster Studio",
+    share_ai_locked_sub: "For organizers & members — contact AlbaGo to unlock.",
+    share_ai_post_now: "Post to social",
+    share_ai_posted: "Shared!",
+    share_ai_post_copied: "Poster copied — paste it anywhere",
     share_ai_error: "Couldn't generate the poster — try again.",
 
     // Submit event gate + success
@@ -805,6 +810,11 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_ai: "KI-Art",
     share_ai_applies: "Gilt für das Story-Poster und die Reel-Videos.",
     share_ai_regenerate: "Neues Artwork",
+    share_ai_locked_title: "AI Poster Studio",
+    share_ai_locked_sub: "Für Organizer & Mitglieder — kontaktiere AlbaGo zum Freischalten.",
+    share_ai_post_now: "Auf Social posten",
+    share_ai_posted: "Geteilt!",
+    share_ai_post_copied: "Poster kopiert — überall einfügen",
     share_ai_error: "Poster konnte nicht erstellt werden — versuch es nochmal.",
 
     // Submit event gate + success
@@ -1218,6 +1228,11 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_ai: "Arte IA",
     share_ai_applies: "Se aplica al póster de Story y a los vídeos Reel.",
     share_ai_regenerate: "Nuevo arte",
+    share_ai_locked_title: "AI Poster Studio",
+    share_ai_locked_sub: "Para organizadores y miembros — contacta a AlbaGo para desbloquear.",
+    share_ai_post_now: "Publicar en redes",
+    share_ai_posted: "¡Compartido!",
+    share_ai_post_copied: "Póster copiado — pégalo donde quieras",
     share_ai_error: "No se pudo generar el póster — inténtalo de nuevo.",
 
     // Submit event gate + success
@@ -1630,6 +1645,11 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_ai: "Art AI",
     share_ai_applies: "Vlen për posterin Story dhe videot Reel.",
     share_ai_regenerate: "Artwork i ri",
+    share_ai_locked_title: "AI Poster Studio",
+    share_ai_locked_sub: "Për organizatorë & anëtarë — kontakto AlbaGo për ta hapur.",
+    share_ai_post_now: "Posto në rrjete sociale",
+    share_ai_posted: "U nda!",
+    share_ai_post_copied: "Posteri u kopjua — ngjite kudo",
     share_ai_error: "Posteri nuk u krijua dot — provo përsëri.",
 
     // Submit event gate + success

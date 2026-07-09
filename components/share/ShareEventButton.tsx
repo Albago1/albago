@@ -7,9 +7,10 @@ import ShareModal from './ShareModal'
 
 type Props = {
   data: ShareEventData
+  studioAccess?: boolean
 }
 
-export default function ShareEventButton({ data }: Props) {
+export default function ShareEventButton({ data, studioAccess }: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -23,7 +24,12 @@ export default function ShareEventButton({ data }: Props) {
         <Share2 className="h-4 w-4" />
         Share
       </button>
-      <ShareModal open={open} onClose={() => setOpen(false)} data={data} />
+      <ShareModal
+        open={open}
+        onClose={() => setOpen(false)}
+        data={data}
+        studioAccess={studioAccess}
+      />
     </>
   )
 }

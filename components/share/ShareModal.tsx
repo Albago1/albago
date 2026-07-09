@@ -7,6 +7,7 @@ import {
   Download,
   Image as ImageIcon,
   Loader2,
+  Lock,
   MessageCircle,
   RefreshCw,
   Send,
@@ -45,12 +46,14 @@ type Props = {
   open: boolean
   onClose: () => void
   data: ShareEventData
+  /** Poster Studio entitlement — admins + granted/paying accounts. */
+  studioAccess?: boolean
 }
 
 type DownloadFormat = 'story' | 'square' | 'facebook'
 type VideoDuration = 15 | 30
 
-export default function ShareModal({ open, onClose, data }: Props) {
+export default function ShareModal({ open, onClose, data, studioAccess = false }: Props) {
   const { t } = useLanguage()
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrLoading, setQrLoading] = useState(true)
@@ -71,10 +74,14 @@ export default function ShareModal({ open, onClose, data }: Props) {
   // storage. Held as a data URL so html-to-image / canvas capture can never
   // hit a CORS taint. Auto-loads on open and becomes the default backdrop
   // for image downloads and Reels unless the user picks Brand.
-  const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'ready' | 'locked' | 'error'>(
+    'idle',
+  )
   const [aiBackdrop, setAiBackdrop] = useState<string | null>(null)
   const [backdropMode, setBackdropMode] = useState<'brand' | 'ai'>('brand')
   const [regenerating, setRegenerating] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [posted, setPosted] = useState<'shared' | 'copied' | null>(null)
   const userChoseModeRef = useRef(false)
 
   const storyRef = useRef<HTMLDivElement | null>(null)
@@ -268,7 +275,12 @@ export default function ShareModal({ open, onClose, data }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug: data.slug, regenerate: opts.regenerate === true }),
         })
-        const json = (await res.json()) as { ok: boolean; url?: string }
+        const json = (await res.json()) as { ok: boolean; url?: string; error?: string }
+        if (res.status === 403 && json.error === 'studio_required') {
+          // No cached poster and no Studio entitlement — quiet locked state.
+          setAiStatus('locked')
+          return
+        }
         if (!res.ok || !json.ok || !json.url) throw new Error('generation failed')
         const blob = await (await fetch(json.url, { cache: 'no-store' })).blob()
         const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -302,6 +314,58 @@ export default function ShareModal({ open, onClose, data }: Props) {
     if (!open || aiStatus !== 'idle') return
     fetchAiPoster({ auto: true })
   }, [open, aiStatus, fetchAiPoster])
+
+  // Studio: capture the finished poster (typography + active backdrop) and
+  // hand the actual image file to the OS share sheet — Instagram, WhatsApp,
+  // TikTok, anything. Desktop fallback: copy the image to the clipboard.
+  const postPoster = useCallback(async () => {
+    if (posting) return
+    setError(null)
+    setPosting(true)
+    try {
+      const node = storyRef.current
+      if (!node) throw new Error('Template not ready')
+      const { toPng } = await import('html-to-image')
+      const dataUrl = await toPng(node, {
+        pixelRatio: 1,
+        cacheBust: true,
+        backgroundColor: '#050505',
+      })
+      const blob = await (await fetch(dataUrl)).blob()
+      const safeSlug = (data.slug || 'event').replace(/[^a-z0-9-]/gi, '-').toLowerCase()
+      const file = new File([blob], `albago-${safeSlug}-poster.png`, {
+        type: 'image/png',
+      })
+      if (
+        typeof navigator !== 'undefined' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] })
+      ) {
+        trackShare('poster_native')
+        await navigator.share({
+          files: [file],
+          title: data.title,
+          text: caption,
+        })
+        setPosted('shared')
+      } else {
+        trackShare('poster_clipboard')
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob }),
+        ])
+        setPosted('copied')
+      }
+      setTimeout(() => setPosted(null), 2600)
+    } catch (e) {
+      // User dismissing the OS sheet throws AbortError — not a failure.
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        console.error(e)
+        setError(t('share_ai_error'))
+      }
+    } finally {
+      setPosting(false)
+    }
+  }, [posting, data.slug, data.title, caption, trackShare, t])
 
   if (!open) return null
 
@@ -419,7 +483,19 @@ export default function ShareModal({ open, onClose, data }: Props) {
               {t('share_ai_title')}
             </p>
             <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              {aiStatus !== 'ready' ? (
+              {aiStatus === 'locked' ? (
+                <div className="flex w-full items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-white/50">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white/85">
+                      {t('share_ai_locked_title')}
+                    </p>
+                    <p className="text-[11px] text-white/50">{t('share_ai_locked_sub')}</p>
+                  </div>
+                </div>
+              ) : aiStatus !== 'ready' ? (
                 <button
                   type="button"
                   onClick={() => fetchAiPoster()}
@@ -480,19 +556,43 @@ export default function ShareModal({ open, onClose, data }: Props) {
                             : t('share_ai_use_ai')}
                         </button>
                       ))}
-                      <button
-                        type="button"
-                        onClick={() => fetchAiPoster({ regenerate: true })}
-                        disabled={regenerating}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3.5 py-1.5 text-[12px] font-semibold text-white/70 transition hover:bg-white/[0.09] hover:text-white disabled:cursor-wait disabled:opacity-60"
-                      >
-                        <RefreshCw className={`h-3 w-3 ${regenerating ? 'animate-spin' : ''}`} />
-                        {t('share_ai_regenerate')}
-                      </button>
+                      {studioAccess && (
+                        <button
+                          type="button"
+                          onClick={() => fetchAiPoster({ regenerate: true })}
+                          disabled={regenerating}
+                          className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3.5 py-1.5 text-[12px] font-semibold text-white/70 transition hover:bg-white/[0.09] hover:text-white disabled:cursor-wait disabled:opacity-60"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${regenerating ? 'animate-spin' : ''}`} />
+                          {t('share_ai_regenerate')}
+                        </button>
+                      )}
                     </div>
                     <p className="mt-2 text-[11px] text-white/50">{t('share_ai_applies')}</p>
                   </div>
                 </div>
+              )}
+
+              {studioAccess && aiStatus === 'ready' && (
+                <button
+                  type="button"
+                  onClick={postPoster}
+                  disabled={posting || regenerating}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-flame-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {posting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : posted ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Smartphone className="h-4 w-4" />
+                  )}
+                  {posted === 'copied'
+                    ? t('share_ai_post_copied')
+                    : posted === 'shared'
+                      ? t('share_ai_posted')
+                      : t('share_ai_post_now')}
+                </button>
               )}
             </div>
 

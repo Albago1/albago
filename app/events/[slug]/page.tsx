@@ -444,14 +444,27 @@ export default async function EventDetailPage(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   let initialSaved = false
+  let studioAccess = false
   if (user) {
-    const { data: savedRow } = await supabase
-      .from('saved_events')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('event_id', event.id)
-      .maybeSingle()
+    const [{ data: savedRow }, { data: profileRow }] = await Promise.all([
+      supabase
+        .from('saved_events')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('event_id', event.id)
+        .maybeSingle(),
+      supabase
+        .from('profiles')
+        .select('role, studio_access')
+        .eq('id', user.id)
+        .maybeSingle(),
+    ])
     initialSaved = !!savedRow
+    const profile = profileRow as {
+      role?: string | null
+      studio_access?: boolean | null
+    } | null
+    studioAccess = profile?.role === 'admin' || profile?.studio_access === true
   }
 
   return (
@@ -634,7 +647,7 @@ export default async function EventDetailPage(
                   size="md"
                 />
 
-                <ShareEventButton data={shareData} />
+                <ShareEventButton data={shareData} studioAccess={studioAccess} />
 
                 <MapPickerButton
                   albagoHref={mapHref}
