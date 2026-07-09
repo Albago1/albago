@@ -4,9 +4,9 @@
  * everywhere (footer, JSON-LD sameAs). Fill in the full profile URL.
  */
 export const SOCIAL_LINKS = {
-  instagram: '',
-  tiktok: '',
-  facebook: '',
+  instagram: 'https://www.instagram.com/albago_org',
+  tiktok: 'https://www.tiktok.com/@flas_shqip1',
+  facebook: 'https://www.facebook.com/people/AlbaGo/61590611859810/',
 } as const
 
 export function activeSocialLinks(): Array<{
