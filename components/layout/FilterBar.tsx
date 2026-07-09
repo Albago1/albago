@@ -138,7 +138,7 @@ function DesktopFilterBar(props: FilterBarProps) {
   const [showTags, setShowTags] = useState(tagsActive)
 
   return (
-    <div className="absolute left-4 top-[72px] z-20 w-[600px] max-w-[calc(100%-2rem)]">
+    <div className="absolute left-4 top-4 z-20 w-[600px] max-w-[calc(100%-2rem)]">
       <div className="rounded-2xl border border-white/10 bg-ink-950/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
@@ -459,7 +459,7 @@ function MobileFilterBar(props: FilterBarProps) {
 
   return (
     <>
-      <div className="absolute left-3 right-3 top-[72px] z-20 md:hidden">
+      <div className="absolute left-3 right-3 top-3 z-20 md:hidden">
         <div className="rounded-2xl border border-white/10 bg-ink-950/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <Link

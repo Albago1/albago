@@ -4,6 +4,8 @@ export type MapMarkerInput = {
   lat: number
   lng: number
   isSelected: boolean
+  /** Drives the pin color: events burn flame, venues are ink. */
+  kind?: 'event' | 'venue'
   eventCount?: number
   hasHighlight?: boolean
   category?: string
@@ -21,7 +23,6 @@ export type CreateMapAdapterParams = {
   center: [number, number]
   zoom: number
   onMapClick: () => void
-  getMarkerClassName: (isSelected: boolean) => string
 }
 
 export type FitBoundsOptions = {

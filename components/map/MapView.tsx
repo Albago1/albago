@@ -81,16 +81,6 @@ function getWeekendIsoRange(): { from: string; to: string } {
   return { from: fmtLocalIso(from), to: fmtLocalIso(to) }
 }
 
-function getMarkerClassName(isSelected: boolean) {
-  return [
-    'rounded-full border px-3.5 py-2 text-xs font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 origin-bottom cursor-pointer',
-    'hover:-translate-y-0.5 hover:scale-[1.03]',
-    isSelected
-      ? 'border-flame-400/50 bg-flame-500 text-white shadow-[0_14px_40px_rgba(238,28,37,0.55)] scale-110'
-      : 'border-flame-500/30 bg-ink-950/90 text-flame-100 hover:border-flame-400/60 hover:bg-flame-500/15',
-  ].join(' ')
-}
-
 function getTimeFilterLabel(filter: TimeFilter) {
   if (filter === 'all') return 'All'
   if (filter === 'tonight') return 'Tonight'
@@ -562,7 +552,6 @@ export default function MapView() {
         setSelectedCivicEvent(null)
         if (hadSelection) resetMapView()
       },
-      getMarkerClassName,
     })
 
     return () => {
@@ -583,6 +572,7 @@ export default function MapView() {
         name: place.name,
         lat: place.lat,
         lng: place.lng,
+        kind: 'venue' as const,
         category: place.category,
         eventCount: placeEvents.length,
         hasHighlight: placeEvents.some((event) => event.highlight),
@@ -599,6 +589,7 @@ export default function MapView() {
       name: event.title,
       lat: event.lat,
       lng: event.lng,
+      kind: 'event' as const,
       category: 'civic',
       eventCount: 1,
       hasHighlight: true,

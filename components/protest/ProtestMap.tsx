@@ -37,18 +37,6 @@ type Props = {
   defaultZoom?: number
 }
 
-// Marker class kept in lockstep with MapView.getMarkerClassName so /protests
-// and /map render visually identical pins. If you tweak one, tweak the other.
-function getProtestMarkerClassName(isSelected: boolean) {
-  return [
-    'rounded-full border px-3.5 py-2 text-xs font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 origin-bottom cursor-pointer',
-    'hover:-translate-y-0.5 hover:scale-[1.03]',
-    isSelected
-      ? 'border-flame-400/50 bg-flame-500 text-white shadow-[0_14px_40px_rgba(238,28,37,0.55)] scale-110'
-      : 'border-flame-500/30 bg-ink-950/90 text-flame-100 hover:border-flame-400/60 hover:bg-flame-500/15',
-  ].join(' ')
-}
-
 function computeCenter(
   markers: ProtestMarker[],
   fallback: [number, number],
@@ -123,7 +111,6 @@ export default function ProtestMap({
       onMapClick: () => {
         if (selectedRef.current) closePopup()
       },
-      getMarkerClassName: getProtestMarkerClassName,
     })
     return () => {
       adapterRef.current?.destroy()
@@ -146,7 +133,9 @@ export default function ProtestMap({
       hasHighlight: true,
       onClick: () => {
         setSelected(m)
-        adapter.flyToLocation([m.lng, m.lat], Math.max(adapter ? 7 : 5, 7))
+        // Zoom in to country level at most — never yank an already-close
+        // view back out.
+        adapter.flyToLocation([m.lng, m.lat], Math.max(adapter.getZoom(), 7))
       },
     }))
     adapter.setMarkers(inputs)
