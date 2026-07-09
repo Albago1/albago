@@ -225,7 +225,7 @@ export default function AlbanianRevolutionClient({ events, migrationApplied }: P
             animate={{ scale: [1, 1.06, 1], opacity: [0.7, 1, 0.7] }}
             transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
           />
-          <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-ink-950 to-transparent" />
+          <div className="fade-to-surface-t absolute inset-x-0 bottom-0 h-48" />
         </motion.div>
 
         <div className="pointer-events-none absolute inset-0 -z-10">

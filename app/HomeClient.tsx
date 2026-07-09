@@ -840,8 +840,8 @@ export default function HomeClient() {
               </div>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-ink-950/85 via-ink-950/40 to-ink-950" />
-          <div className="absolute inset-0 bg-gradient-to-r from-ink-950/70 via-ink-950/5 to-ink-950/70" />
+          <div className="hero-wall-vignette-b absolute inset-0" />
+          <div className="hero-wall-vignette-r absolute inset-0" />
           <div className="absolute inset-0 bg-grid opacity-30" />
           <div className="absolute inset-0 bg-radial-flame" />
           <div className="absolute left-1/2 top-24 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-flame-500/20 blur-3xl" />

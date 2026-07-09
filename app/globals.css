@@ -248,6 +248,7 @@ body {
 /* Translucent ink variants — used by the fixed navbar, the admin shell,
    sticky toolbars, and dropdown panels. Compile as separate classes so
    the solid overrides above don't catch them. */
+[data-theme="light"] .bg-ink-950\/45 { background-color: rgba(255, 255, 255, 0.72) !important; }
 [data-theme="light"] .bg-ink-950\/55 { background-color: rgba(255, 255, 255, 0.78) !important; }
 [data-theme="light"] .bg-ink-950\/60 { background-color: rgba(255, 255, 255, 0.82) !important; }
 [data-theme="light"] .bg-ink-950\/70 { background-color: rgba(255, 255, 255, 0.86) !important; }
@@ -422,3 +423,56 @@ body {
 [data-theme="light"] *:focus-visible {
   outline-color: rgba(238, 28, 37, 0.8);
 }
+
+/* ────────────────────────────────────────────────────────────────────
+   Theme-aware gradients + on-media exceptions.
+
+   Two families of dark gradient:
+   1. Fades that blend a section into the PAGE — must follow the theme
+      (dark page → fade to ink; light page → fade to white). Use the
+      .fade-* / .hero-wall-vignette-* classes below, never raw
+      from-ink-950 utilities, for these.
+   2. Scrims sitting ON photography (event hero, card images) — stay
+      dark in BOTH themes; the text on top stays white via .on-media.
+   ──────────────────────────────────────────────────────────────────── */
+
+.fade-to-surface-t {
+  background-image: linear-gradient(to top, #050505, transparent);
+}
+[data-theme="light"] .fade-to-surface-t {
+  background-image: linear-gradient(to top, #ffffff, transparent);
+}
+
+.hero-wall-vignette-b {
+  background-image: linear-gradient(
+    to bottom, rgba(5, 5, 5, 0.85), rgba(5, 5, 5, 0.40) 50%, #050505);
+}
+.hero-wall-vignette-r {
+  background-image: linear-gradient(
+    to right, rgba(5, 5, 5, 0.70), rgba(5, 5, 5, 0.05) 50%, rgba(5, 5, 5, 0.70));
+}
+[data-theme="light"] .hero-wall-vignette-b {
+  background-image: linear-gradient(
+    to bottom, rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.48) 50%, #ffffff);
+}
+[data-theme="light"] .hero-wall-vignette-r {
+  background-image: linear-gradient(
+    to right, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.06) 50%, rgba(255, 255, 255, 0.78));
+}
+
+/* Content that sits ON a photo keeps white-on-dark-scrim styling in light
+   mode — a light-flipped title over a dark image scrim is unreadable.
+   These out-specific the global light remaps above. */
+[data-theme="light"] .on-media { color: #ffffff !important; }
+[data-theme="light"] .on-media .text-white\/85 { color: rgba(255, 255, 255, 0.85) !important; }
+[data-theme="light"] .on-media .text-white\/75 { color: rgba(255, 255, 255, 0.75) !important; }
+[data-theme="light"] .on-media .text-white\/65 { color: rgba(255, 255, 255, 0.65) !important; }
+[data-theme="light"] .on-media .text-white\/60 { color: rgba(255, 255, 255, 0.60) !important; }
+[data-theme="light"] .on-media .text-white\/40 { color: rgba(255, 255, 255, 0.40) !important; }
+[data-theme="light"] .on-media .text-flame-300 { color: #ff8a8a !important; }
+[data-theme="light"] .on-media .text-flame-200 { color: #ffb3b3 !important; }
+[data-theme="light"] .on-media .border-white\/15 { border-color: rgba(255, 255, 255, 0.15) !important; }
+[data-theme="light"] .on-media .bg-white { background-color: #ffffff !important; }
+[data-theme="light"] .on-media .text-black { color: #050505 !important; }
+[data-theme="light"] .on-media .bg-ink-950\/45 { background-color: rgba(5, 5, 5, 0.45) !important; }
+[data-theme="light"] .on-media .bg-ink-950\/55 { background-color: rgba(5, 5, 5, 0.55) !important; }

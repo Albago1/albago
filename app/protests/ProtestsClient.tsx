@@ -474,7 +474,7 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
             </motion.svg>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-ink-950 to-transparent" />
+          <div className="fade-to-surface-t absolute inset-x-0 bottom-0 h-32" />
         </div>
 
         <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 pb-10 sm:pb-12">

@@ -519,7 +519,7 @@ export default async function EventDetailPage(
             </Link>
           </div>
 
-          <div className="mt-auto pt-12">
+          <div className={`mt-auto pt-12${heroImage ? ' on-media' : ''}`}>
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getCategoryTone(

@@ -59,7 +59,7 @@ export default function MovementClient({ movement, events, migrationApplied }: P
         <div className="absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-grid opacity-50" />
           <div className="absolute inset-0 bg-radial-flame" />
-          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-ink-950 to-transparent" />
+          <div className="fade-to-surface-t absolute inset-x-0 bottom-0 h-32" />
         </div>
 
         <div className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 sm:pb-16">
