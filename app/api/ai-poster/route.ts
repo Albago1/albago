@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { generateImage } from 'ai'
-import { google } from '@ai-sdk/google'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getLocationBySlug } from '@/lib/locations'
 import {
@@ -24,15 +22,28 @@ import {
  */
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 120
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,118}[a-z0-9]$/i
 
-// Gemini 2.5 Flash Image ("nano banana") — free tier via Google AI Studio
-// key (GOOGLE_GENERATIVE_AI_API_KEY), no card required. One image per event,
-// cached forever, so the free daily quota is never a real constraint.
-const IMAGE_MODEL =
-  process.env.AI_POSTER_IMAGE_MODEL || 'gemini-2.5-flash-image'
+// Pollinations — free, keyless image generation. Gemini's free tier serves
+// text only (image models are limit:0 since Dec 2025), so prompt crafting
+// stays on the free Gemini key while the painting happens here. Random seed
+// so deleting a cached poster and regenerating gives fresh art.
+const IMAGE_MODEL = process.env.AI_POSTER_IMAGE_MODEL || 'flux'
+
+async function paintBackdrop(prompt: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const seed = Math.floor(Math.random() * 1_000_000)
+  const url =
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+    `?width=1080&height=1920&model=${IMAGE_MODEL}&nologo=true&seed=${seed}&referrer=albago.org`
+  const res = await fetch(url, { signal: AbortSignal.timeout(90_000) })
+  const contentType = res.headers.get('content-type') || ''
+  if (!res.ok || !contentType.startsWith('image/')) {
+    throw new Error(`pollinations responded ${res.status} ${contentType}`)
+  }
+  return { bytes: new Uint8Array(await res.arrayBuffer()), contentType }
+}
 
 // -- In-memory rate limits (per instance, same trade-off as /api/track) ------
 // Cheap path (cache hits): generous. Generation path: tight — each miss
@@ -63,7 +74,7 @@ function limited(map: Map<string, RateEntry>, ip: string, windowMs: number, max:
 }
 
 function publicPosterUrl(slug: string): string {
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/ai-posters/${slug}.png`
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/ai-posters/${slug}.jpg`
 }
 
 export async function POST(request: Request) {
@@ -143,16 +154,12 @@ export async function POST(request: Request) {
 
     const prompt = await craftPosterPrompt(context)
 
-    const { image } = await generateImage({
-      model: google.image(IMAGE_MODEL),
-      prompt,
-      aspectRatio: '9:16',
-    })
+    const { bytes, contentType } = await paintBackdrop(prompt)
 
     const { error: uploadError } = await supabase.storage
       .from('ai-posters')
-      .upload(`${slug}.png`, image.uint8Array, {
-        contentType: image.mediaType || 'image/png',
+      .upload(`${slug}.jpg`, bytes, {
+        contentType,
         upsert: true,
       })
     if (uploadError) {
