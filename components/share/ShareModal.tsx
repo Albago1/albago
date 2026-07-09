@@ -194,12 +194,8 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
       if (!node) {
         throw new Error('Template not ready')
       }
-      const { toPng } = await import('html-to-image')
-      const dataUrl = await toPng(node, {
-        pixelRatio: 1,
-        cacheBust: true,
-        backgroundColor: '#050505',
-      })
+      const { captureNodePng } = await import('@/lib/share/captureNode')
+      const dataUrl = await captureNodePng(node)
       const safeSlug = (data.slug || 'event').replace(/[^a-z0-9-]/gi, '-').toLowerCase()
       const filename = `albago-${safeSlug}-${format}.png`
       const link = document.createElement('a')
@@ -326,12 +322,8 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
     try {
       const node = storyRef.current
       if (!node) throw new Error('Template not ready')
-      const { toPng } = await import('html-to-image')
-      const dataUrl = await toPng(node, {
-        pixelRatio: 1,
-        cacheBust: true,
-        backgroundColor: '#050505',
-      })
+      const { captureNodePng } = await import('@/lib/share/captureNode')
+      const dataUrl = await captureNodePng(node)
       const blob = await (await fetch(dataUrl)).blob()
       const safeSlug = (data.slug || 'event').replace(/[^a-z0-9-]/gi, '-').toLowerCase()
       const file = new File([blob], `albago-${safeSlug}-poster.png`, {

@@ -46,14 +46,8 @@ export async function recordPosterVideo({
 }: Options): Promise<Result> {
   const { mime, ext } = pickMime()
 
-  const { toPng } = await import('html-to-image')
-  const dataUrl = await toPng(node, {
-    pixelRatio: 1,
-    cacheBust: true,
-    backgroundColor: '#050505',
-    width,
-    height,
-  })
+  const { captureNodePng } = await import('./captureNode')
+  const dataUrl = await captureNodePng(node, { width, height })
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image()
