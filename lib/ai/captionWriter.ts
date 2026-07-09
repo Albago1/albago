@@ -1,5 +1,5 @@
 import { generateText } from 'ai'
-import { google } from '@ai-sdk/google'
+import { textModel } from './textModel'
 
 /**
  * AI share captions — one generation per event produces a caption pack in
@@ -49,8 +49,10 @@ const SYSTEM_PROMPT =
   'Never invent facts, lineups, or prices that are not in the data. ' +
   '(3) Then a compact info block: 📅 date · 🕒 time · 📍 place — these three emoji are the ' +
   'ONLY emoji allowed in the entire caption, and at most one more in the hook if it truly ' +
-  'earns its place. No emoji walls. No ALL-CAPS words. Banned words in any language: epic, ' +
-  'insane, vibes, unforgettable, spectacular, amazing. ' +
+  'earns its place. Write the date naturally in that caption\'s language (e.g. "Premte, 14 ' +
+  'gusht" / "Friday 14 August"), NEVER as a raw 2026-08-14 value. No emoji walls. No ' +
+  'ALL-CAPS words. Banned words in any language: epic, insane, vibes, unforgettable, ' +
+  'spectacular, amazing. ' +
   '(4) Then the link on its own line, copied EXACTLY as given. ' +
   '(5) Last line: 6-9 hashtags — always #AlbaGo, the city, the category niche, and for ' +
   'diaspora-relevant events #DiasporaShqiptare; never #follow #viral #fyp or other spam tags. ' +
@@ -112,7 +114,7 @@ export async function craftCaptionPack(
 ): Promise<CaptionPack | null> {
   try {
     const { text } = await generateText({
-      model: google('gemini-2.5-flash'),
+      model: textModel(),
       system: SYSTEM_PROMPT,
       prompt: buildContext(event),
       maxOutputTokens: 4000,

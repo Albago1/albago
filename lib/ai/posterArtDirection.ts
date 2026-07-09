@@ -1,5 +1,6 @@
 import { generateText, type ModelMessage } from 'ai'
 import { google } from '@ai-sdk/google'
+import { textModel } from './textModel'
 
 /**
  * Art direction for AI-generated share-poster backdrops.
@@ -136,7 +137,7 @@ async function craftOnce(
   opts: { withImages: boolean; withSearch: boolean },
 ): Promise<string> {
   const { text } = await generateText({
-    model: google('gemini-2.5-flash'),
+    model: textModel(),
     system: SYSTEM_PROMPT,
     messages: buildMessages(event, opts.withImages),
     maxOutputTokens: 2000,
