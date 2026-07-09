@@ -176,9 +176,7 @@ export default function EventCard({
         {/* Kicker — DICE-style date · time line anchoring the body */}
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-flame-300">
           {weekday} {day} {month}
-          {formatEventTimeLabel(event.time) && (
-            <span className="text-white/50"> · {formatEventTimeLabel(event.time)}</span>
-          )}
+          {formatEventTimeLabel(event.time) && <> · {formatEventTimeLabel(event.time)}</>}
         </p>
 
         <h2 className="mt-1.5 line-clamp-2 min-h-[3.5rem] font-display text-[1.4rem] leading-[1.25] text-white">
