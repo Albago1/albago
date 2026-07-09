@@ -86,10 +86,10 @@ export default function SaveEventButton({
       disabled={loading}
       aria-pressed={saved}
       aria-label={saved ? 'Saved' : 'Save event'}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.08] disabled:opacity-60"
+      className="flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(255,255,255,0.25)] bg-[rgba(5,5,5,0.62)] shadow-[0_2px_10px_rgba(0,0,0,0.45)] backdrop-blur-md transition hover:border-[rgba(255,255,255,0.4)] hover:bg-[rgba(5,5,5,0.82)] disabled:opacity-60"
     >
       <Heart
-        className={`h-4 w-4 ${saved ? 'fill-red-500 text-red-500' : 'text-white/70'}`}
+        className={`h-4 w-4 ${saved ? 'fill-red-500 text-red-500' : 'text-[#ffffff]'}`}
       />
     </button>
   )
