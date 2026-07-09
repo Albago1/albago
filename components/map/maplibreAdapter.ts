@@ -150,7 +150,7 @@ export function createMaplibreAdapter({
       paint: {
         'circle-color': 'rgba(238, 28, 37, 0.28)',
         'circle-blur': 0.4,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 14, 10, 20, 15, 26],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 17, 10, 24, 15, 32],
       },
     })
 
@@ -169,35 +169,36 @@ export function createMaplibreAdapter({
         // lives inside each stop instead.
         'circle-radius': [
           'interpolate', ['linear'], ['zoom'],
-          3, ['case', ['boolean', ['get', 'selected'], false], 7.5, 5],
-          10, ['case', ['boolean', ['get', 'selected'], false], 10, 7.5],
-          15, ['case', ['boolean', ['get', 'selected'], false], 12.5, 10],
+          3, ['case', ['boolean', ['get', 'selected'], false], 9.5, 7],
+          10, ['case', ['boolean', ['get', 'selected'], false], 13, 10],
+          15, ['case', ['boolean', ['get', 'selected'], false], 17, 14],
         ],
-        'circle-stroke-width': ['case', ['boolean', ['get', 'selected'], false], 3, 2],
+        'circle-stroke-width': ['case', ['boolean', ['get', 'selected'], false], 3.5, 2.5],
         'circle-stroke-color': '#ffffff',
       },
     })
 
-    // Titles appear once the user is close enough for them to be useful;
-    // MapLibre's collision engine hides overlapping ones automatically.
+    // Event titles under the dots, from far out — the collision engine hides
+    // overlapping ones automatically, so isolated events are named almost
+    // immediately while dense areas stay clean until the user zooms.
     map.addLayer({
       id: LAYER_POINT_LABELS,
       type: 'symbol',
       source: SOURCE_ID,
       filter: ['!', ['has', 'point_count']],
-      minzoom: 8,
+      minzoom: 4,
       layout: {
         'text-field': ['get', 'name'],
-        'text-font': ['Noto Sans Regular'],
-        'text-size': 11.5,
+        'text-font': ['Noto Sans Bold'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 4, 11, 10, 12.5, 14, 13.5],
         'text-anchor': 'top',
-        'text-offset': [0, 1.1],
+        'text-offset': [0, 1.2],
         'text-max-width': 9,
       },
       paint: {
         'text-color': '#1a1a1a',
         'text-halo-color': '#ffffff',
-        'text-halo-width': 1.2,
+        'text-halo-width': 1.4,
       },
     })
   }
