@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Loader2,
   MessageCircle,
+  RefreshCw,
   Send,
   Share2,
   Smartphone,
@@ -68,10 +69,13 @@ export default function ShareModal({ open, onClose, data }: Props) {
 
   // AI poster backdrop — generated once per event server-side, cached in
   // storage. Held as a data URL so html-to-image / canvas capture can never
-  // hit a CORS taint.
+  // hit a CORS taint. Auto-loads on open and becomes the default backdrop
+  // for image downloads and Reels unless the user picks Brand.
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [aiBackdrop, setAiBackdrop] = useState<string | null>(null)
   const [backdropMode, setBackdropMode] = useState<'brand' | 'ai'>('brand')
+  const [regenerating, setRegenerating] = useState(false)
+  const userChoseModeRef = useRef(false)
 
   const storyRef = useRef<HTMLDivElement | null>(null)
   const squareRef = useRef<HTMLDivElement | null>(null)
@@ -250,35 +254,54 @@ export default function ShareModal({ open, onClose, data }: Props) {
     [data.slug, recordingDuration, trackShare],
   )
 
-  const generateAiPoster = useCallback(async () => {
-    if (aiStatus === 'loading') return
-    trackShare('ai_poster')
-    setError(null)
-    setAiStatus('loading')
-    try {
-      const res = await fetch('/api/ai-poster', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: data.slug }),
-      })
-      const json = (await res.json()) as { ok: boolean; url?: string }
-      if (!res.ok || !json.ok || !json.url) throw new Error('generation failed')
-      const blob = await (await fetch(json.url, { cache: 'no-store' })).blob()
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => reject(new Error('read failed'))
-        reader.readAsDataURL(blob)
-      })
-      setAiBackdrop(dataUrl)
-      setBackdropMode('ai')
-      setAiStatus('ready')
-    } catch (e) {
-      console.error(e)
-      setAiStatus('error')
-      setError(t('share_ai_error'))
-    }
-  }, [aiStatus, data.slug, trackShare, t])
+  const fetchAiPoster = useCallback(
+    async (opts: { regenerate?: boolean; auto?: boolean } = {}) => {
+      if (!opts.auto) {
+        trackShare(opts.regenerate ? 'ai_poster_regen' : 'ai_poster')
+      }
+      setError(null)
+      if (opts.regenerate) setRegenerating(true)
+      else setAiStatus('loading')
+      try {
+        const res = await fetch('/api/ai-poster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: data.slug, regenerate: opts.regenerate === true }),
+        })
+        const json = (await res.json()) as { ok: boolean; url?: string }
+        if (!res.ok || !json.ok || !json.url) throw new Error('generation failed')
+        const blob = await (await fetch(json.url, { cache: 'no-store' })).blob()
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = () => reject(new Error('read failed'))
+          reader.readAsDataURL(blob)
+        })
+        setAiBackdrop(dataUrl)
+        setAiStatus('ready')
+        // AI art is the default; respect an explicit Brand pick.
+        if (!userChoseModeRef.current) setBackdropMode('ai')
+      } catch (e) {
+        console.error(e)
+        if (!opts.regenerate) {
+          setAiStatus('error')
+          if (!opts.auto) setError(t('share_ai_error'))
+        } else {
+          setError(t('share_ai_error'))
+        }
+      } finally {
+        setRegenerating(false)
+      }
+    },
+    [data.slug, trackShare, t],
+  )
+
+  // Auto-load the AI poster when the modal opens: instant when cached
+  // (one poster per event, forever), a one-time generation otherwise.
+  useEffect(() => {
+    if (!open || aiStatus !== 'idle') return
+    fetchAiPoster({ auto: true })
+  }, [open, aiStatus, fetchAiPoster])
 
   if (!open) return null
 
@@ -399,7 +422,7 @@ export default function ShareModal({ open, onClose, data }: Props) {
               {aiStatus !== 'ready' ? (
                 <button
                   type="button"
-                  onClick={generateAiPoster}
+                  onClick={() => fetchAiPoster()}
                   disabled={aiStatus === 'loading'}
                   className="group flex w-full items-center gap-3 text-left disabled:cursor-wait"
                 >
@@ -422,20 +445,30 @@ export default function ShareModal({ open, onClose, data }: Props) {
               ) : (
                 <div className="flex items-center gap-3">
                   {aiBackdrop && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={aiBackdrop}
-                      alt="AI poster backdrop preview"
-                      className="h-20 w-[45px] shrink-0 rounded-lg border border-white/10 object-cover"
-                    />
+                    <div className="relative shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={aiBackdrop}
+                        alt="AI poster backdrop preview"
+                        className={`h-20 w-[45px] rounded-lg border border-white/10 object-cover transition ${
+                          regenerating ? 'opacity-40' : ''
+                        }`}
+                      />
+                      {regenerating && (
+                        <Loader2 className="absolute inset-0 m-auto h-4 w-4 animate-spin text-flame-200" />
+                      )}
+                    </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {(['brand', 'ai'] as const).map((mode) => (
                         <button
                           key={mode}
                           type="button"
-                          onClick={() => setBackdropMode(mode)}
+                          onClick={() => {
+                            userChoseModeRef.current = true
+                            setBackdropMode(mode)
+                          }}
                           className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition ${
                             backdropMode === mode
                               ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/40'
@@ -447,6 +480,15 @@ export default function ShareModal({ open, onClose, data }: Props) {
                             : t('share_ai_use_ai')}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => fetchAiPoster({ regenerate: true })}
+                        disabled={regenerating}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3.5 py-1.5 text-[12px] font-semibold text-white/70 transition hover:bg-white/[0.09] hover:text-white disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${regenerating ? 'animate-spin' : ''}`} />
+                        {t('share_ai_regenerate')}
+                      </button>
                     </div>
                     <p className="mt-2 text-[11px] text-white/50">{t('share_ai_applies')}</p>
                   </div>

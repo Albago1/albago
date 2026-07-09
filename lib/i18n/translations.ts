@@ -391,6 +391,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_brand: "Brand",
     share_ai_use_ai: "AI art",
     share_ai_applies: "Applies to the Story poster and Reel videos.",
+    share_ai_regenerate: "New artwork",
     share_ai_error: "Couldn't generate the poster — try again.",
 
     // Submit event gate + success
@@ -803,6 +804,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_brand: "Brand",
     share_ai_use_ai: "KI-Art",
     share_ai_applies: "Gilt für das Story-Poster und die Reel-Videos.",
+    share_ai_regenerate: "Neues Artwork",
     share_ai_error: "Poster konnte nicht erstellt werden — versuch es nochmal.",
 
     // Submit event gate + success
@@ -1215,6 +1217,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_brand: "Marca",
     share_ai_use_ai: "Arte IA",
     share_ai_applies: "Se aplica al póster de Story y a los vídeos Reel.",
+    share_ai_regenerate: "Nuevo arte",
     share_ai_error: "No se pudo generar el póster — inténtalo de nuevo.",
 
     // Submit event gate + success
@@ -1626,6 +1629,7 @@ export const translations: Record<Language, Record<string, string>> = {
     share_ai_use_brand: "Brand",
     share_ai_use_ai: "Art AI",
     share_ai_applies: "Vlen për posterin Story dhe videot Reel.",
+    share_ai_regenerate: "Artwork i ri",
     share_ai_error: "Posteri nuk u krijua dot — provo përsëri.",
 
     // Submit event gate + success

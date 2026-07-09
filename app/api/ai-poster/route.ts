@@ -85,9 +85,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 })
     }
 
-    let payload: { slug?: unknown }
+    let payload: { slug?: unknown; regenerate?: unknown }
     try {
-      payload = (await request.json()) as { slug?: unknown }
+      payload = (await request.json()) as { slug?: unknown; regenerate?: unknown }
     } catch {
       return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
     }
@@ -96,12 +96,16 @@ export async function POST(request: Request) {
     if (!SLUG_RE.test(slug)) {
       return NextResponse.json({ ok: false, error: 'invalid_slug' }, { status: 400 })
     }
+    const regenerate = payload.regenerate === true
 
-    // Cache hit — the poster already exists for everyone.
+    // Cache hit — the poster already exists for everyone. A regenerate
+    // request skips this and overwrites the stored artwork.
     const url = publicPosterUrl(slug)
-    const head = await fetch(url, { method: 'HEAD', cache: 'no-store' })
-    if (head.ok) {
-      return NextResponse.json({ ok: true, url, cached: true })
+    if (!regenerate) {
+      const head = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+      if (head.ok) {
+        return NextResponse.json({ ok: true, url, cached: true })
+      }
     }
 
     // Generation path from here — tight limit.
@@ -188,7 +192,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'upload_failed' }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, url, cached: false })
+    // Version query defeats CDN caching of the old artwork after a regenerate.
+    return NextResponse.json({ ok: true, url: `${url}?v=${Date.now()}`, cached: false })
   } catch (err) {
     console.error('ai-poster route error:', err)
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 })
