@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
-  CalendarRange,
   Check,
+  CheckSquare,
+  ChevronDown,
   Eye,
   Flame,
+  Loader2,
   Pencil,
   RotateCcw,
   Search,
-  Send,
   ShieldCheck,
+  Square,
   Trash2,
   Users,
   X,
@@ -264,6 +266,30 @@ function createSlug(value: string) {
     .replace(/(^-|-$)+/g, '')
 }
 
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60_000)
+  if (m < 1) return 'now'
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d`
+  return `${Math.floor(d / 30)}mo`
+}
+
+// Which queue operations exist for a row — single source of truth shared by
+// the row buttons, the bulk bar, and the keyboard shortcuts.
+function canApprove(row: UnifiedRow): boolean {
+  if (row.source === 'submission') return row.unifiedStatus === 'pending'
+  return row.unifiedStatus === 'draft' || row.unifiedStatus === 'pending'
+}
+
+function canReject(row: UnifiedRow): boolean {
+  if (row.source === 'submission') return row.unifiedStatus === 'pending'
+  return row.unifiedStatus === 'pending' && !!row.organizerId
+}
+
 export default function AdminClient() {
   const supabase = useMemo(() => createClient(), [])
 
@@ -272,13 +298,20 @@ export default function AdminClient() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [actionId, setActionId] = useState<string | null>(null)
-  const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState('')
+  // Reject modal targets: one row (row button / R key) or the whole selection.
+  const [rejectTargets, setRejectTargets] = useState<UnifiedRow[] | null>(null)
 
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [civicOnly, setCivicOnly] = useState(false)
   const [search, setSearch] = useState('')
+
+  // Linear-style table state: multi-select, expanded detail rows, keyboard cursor.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null)
 
   const [repostSource, setRepostSource] = useState<{ id: string; title: string } | null>(null)
   const [previewRow, setPreviewRow] = useState<UnifiedRow | null>(null)
@@ -365,7 +398,7 @@ export default function AdminClient() {
 
   // -- Submission actions -----------------------------------------------------
 
-  const approveSubmission = async (row: UnifiedRow) => {
+  const approveSubmission = async (row: UnifiedRow, opts: { refresh?: boolean } = {}) => {
     const s = submissions.find((x) => x.id === row.rowId)
     if (!s) return
 
@@ -470,10 +503,14 @@ export default function AdminClient() {
       }).catch(() => {})
     }
 
-    await fetchAll()
+    if (opts.refresh !== false) await fetchAll()
   }
 
-  const rejectSubmission = async (row: UnifiedRow) => {
+  const rejectSubmission = async (
+    row: UnifiedRow,
+    note: string,
+    opts: { refresh?: boolean } = {},
+  ) => {
     setActionId(row.key)
     setMessage(null)
 
@@ -481,23 +518,26 @@ export default function AdminClient() {
       .from('event_submissions')
       .update({
         status: 'rejected',
-        ...(rejectNote.trim() ? { admin_note: rejectNote.trim() } : {}),
+        ...(note.trim() ? { admin_note: note.trim() } : {}),
       })
       .eq('id', row.rowId)
 
     setActionId(null)
-    setRejectingId(null)
-    setRejectNote('')
     if (error) {
       setMessage(`Reject error: ${error.message}`)
       return
     }
-    await fetchAll()
+    if (opts.refresh !== false) await fetchAll()
   }
 
   // -- Event actions ----------------------------------------------------------
 
-  const patchEventStatus = async (row: UnifiedRow, nextStatus: string, label: string) => {
+  const patchEventStatus = async (
+    row: UnifiedRow,
+    nextStatus: string,
+    label: string,
+    opts: { refresh?: boolean } = {},
+  ) => {
     setActionId(row.key)
     setMessage(null)
 
@@ -516,7 +556,7 @@ export default function AdminClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: row.rowId }),
       }).catch(() => {})
-      await fetchAll()
+      if (opts.refresh !== false) await fetchAll()
       return
     }
 
@@ -546,26 +586,28 @@ export default function AdminClient() {
         body: JSON.stringify({ eventId: row.rowId }),
       }).catch(() => {})
     }
-    await fetchAll()
+    if (opts.refresh !== false) await fetchAll()
   }
 
-  const rejectEvent = async (row: UnifiedRow) => {
+  const rejectEvent = async (
+    row: UnifiedRow,
+    note: string,
+    opts: { refresh?: boolean } = {},
+  ) => {
     setActionId(row.key)
     setMessage(null)
 
     if (row.organizerId) {
       const { error } = await supabase.rpc('admin_reject_event', {
         event_id: row.rowId,
-        note: rejectNote.trim() || null,
+        note: note.trim() || null,
       })
       setActionId(null)
-      setRejectingId(null)
-      setRejectNote('')
       if (error) {
         setMessage(`Reject failed: ${error.message}`)
         return
       }
-      await fetchAll()
+      if (opts.refresh !== false) await fetchAll()
       return
     }
 
@@ -573,17 +615,15 @@ export default function AdminClient() {
       event_id: row.rowId,
       patch: {
         status: 'rejected',
-        ...(rejectNote.trim() ? { admin_note: rejectNote.trim() } : {}),
+        ...(note.trim() ? { admin_note: note.trim() } : {}),
       },
     })
     setActionId(null)
-    setRejectingId(null)
-    setRejectNote('')
     if (error) {
       setMessage(`Reject failed: ${error.message}`)
       return
     }
-    await fetchAll()
+    if (opts.refresh !== false) await fetchAll()
   }
 
   // -- Delete actions ---------------------------------------------------------
@@ -642,6 +682,166 @@ export default function AdminClient() {
     }
     await fetchAll()
   }
+
+  // -- Selection + bulk operations ---------------------------------------------
+
+  const approveRow = useCallback(
+    (row: UnifiedRow, opts: { refresh?: boolean } = {}) =>
+      row.source === 'submission'
+        ? approveSubmission(row, opts)
+        : patchEventStatus(row, 'published', 'Publish', opts),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [submissions, supabase],
+  )
+
+  const selectedRows = useMemo(
+    () => visible.filter((r) => selected.has(r.key)),
+    [visible, selected],
+  )
+
+  const toggleSelect = useCallback((key: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const selectableVisible = useMemo(
+    () => visible.filter((r) => canApprove(r) || canReject(r)),
+    [visible],
+  )
+  const allVisibleSelected =
+    selectableVisible.length > 0 &&
+    selectableVisible.every((r) => selected.has(r.key))
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      if (allVisibleSelected) return new Set<string>()
+      const next = new Set(prev)
+      for (const r of selectableVisible) next.add(r.key)
+      return next
+    })
+  }
+
+  const runBulk = async (
+    rows: UnifiedRow[],
+    op: (row: UnifiedRow) => Promise<void>,
+  ) => {
+    setBulk({ done: 0, total: rows.length })
+    for (let i = 0; i < rows.length; i++) {
+      await op(rows[i])
+      setBulk({ done: i + 1, total: rows.length })
+    }
+    setBulk(null)
+    setSelected(new Set())
+    await fetchAll()
+  }
+
+  const bulkApprove = () =>
+    runBulk(
+      selectedRows.filter(canApprove),
+      (row) => approveRow(row, { refresh: false }),
+    )
+
+  const confirmReject = async (targets: UnifiedRow[], note: string) => {
+    setRejectTargets(null)
+    setRejectNote('')
+    await runBulk(
+      targets.filter(canReject),
+      (row) =>
+        row.source === 'submission'
+          ? rejectSubmission(row, note, { refresh: false })
+          : rejectEvent(row, note, { refresh: false }),
+    )
+  }
+
+  // -- Keyboard: J/K move · X select · E approve · R reject · P preview --------
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+      if (previewRow || repostSource || rejectTargets || bulk) {
+        if (e.key === 'Escape') {
+          setPreviewRow(null)
+          setRejectTargets(null)
+          setRejectNote('')
+        }
+        return
+      }
+      if (visible.length === 0) return
+      const row = visible[Math.min(activeIndex, visible.length - 1)]
+
+      switch (e.key.toLowerCase()) {
+        case 'j':
+        case 'arrowdown':
+          e.preventDefault()
+          setActiveIndex((i) => Math.min(i + 1, visible.length - 1))
+          break
+        case 'k':
+        case 'arrowup':
+          e.preventDefault()
+          setActiveIndex((i) => Math.max(i - 1, 0))
+          break
+        case 'x':
+          if (row && (canApprove(row) || canReject(row))) toggleSelect(row.key)
+          break
+        case 'e':
+          if (row && canApprove(row) && actionId === null) void approveRow(row)
+          break
+        case 'r':
+          if (row && canReject(row)) setRejectTargets([row])
+          break
+        case 'p':
+          if (row) {
+            if (row.source === 'submission') setPreviewRow(row)
+            else if (row.slug) window.open(`/events/${row.slug}`, '_blank')
+          }
+          break
+        case 'enter':
+        case 'o':
+          if (row) {
+            setExpanded((prev) => {
+              const next = new Set(prev)
+              if (next.has(row.key)) next.delete(row.key)
+              else next.add(row.key)
+              return next
+            })
+          }
+          break
+        case 'escape':
+          setSelected(new Set())
+          break
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [
+    visible,
+    activeIndex,
+    previewRow,
+    repostSource,
+    rejectTargets,
+    bulk,
+    actionId,
+    approveRow,
+    toggleSelect,
+  ])
+
+  // Keep the cursor in range when filters shrink the list.
+  useEffect(() => {
+    setActiveIndex((i) => Math.max(0, Math.min(i, Math.max(visible.length - 1, 0))))
+  }, [visible.length])
 
   // -- Render -----------------------------------------------------------------
 
@@ -807,27 +1007,173 @@ export default function AdminClient() {
         </div>
       )}
 
-      <div className="mt-5 space-y-3">
-        {visible.map((row) => (
-          <RowCard
-            key={row.key}
-            row={row}
-            actionId={actionId}
-            rejectingId={rejectingId}
-            rejectNote={rejectNote}
-            setRejectingId={setRejectingId}
-            setRejectNote={setRejectNote}
-            onApproveSubmission={approveSubmission}
-            onPreview={setPreviewRow}
-            onRejectSubmission={rejectSubmission}
-            onPatchEventStatus={patchEventStatus}
-            onRejectEvent={rejectEvent}
-            onDeleteSubmission={deleteSubmission}
-            onDeleteEvent={deleteEvent}
-            onRepostEvent={(r) => setRepostSource({ id: r.rowId, title: r.title })}
-          />
-        ))}
+      <div className="mt-5 hidden flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/35 lg:flex">
+        <span><kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">J</kbd>/<kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">K</kbd> navigate</span>
+        <span><kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">X</kbd> select</span>
+        <span><kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">E</kbd> approve</span>
+        <span><kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">R</kbd> reject</span>
+        <span><kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">P</kbd> preview</span>
+        <span><kbd className="rounded bg-white/[0.08] px-1.5 py-0.5 font-sans">↵</kbd> details</span>
       </div>
+
+      {!loading && visible.length > 0 && (
+        <div className="mt-3 overflow-x-auto rounded-3xl border border-white/10 bg-white/[0.03]">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-white/[0.04] text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+              <tr>
+                <th className="w-10 px-3 py-3">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    aria-label={allVisibleSelected ? 'Clear selection' : 'Select all actionable'}
+                    className="flex h-5 w-5 items-center justify-center text-white/45 transition hover:text-white"
+                  >
+                    {allVisibleSelected ? (
+                      <CheckSquare className="h-4 w-4 text-flame-300" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="px-3 py-3">Event</th>
+                <th className="hidden px-3 py-3 md:table-cell">When</th>
+                <th className="hidden px-3 py-3 lg:table-cell">Where</th>
+                <th className="hidden px-3 py-3 xl:table-cell">Age</th>
+                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((row, idx) => (
+                <QueueRow
+                  key={row.key}
+                  row={row}
+                  active={idx === activeIndex}
+                  isSelected={selected.has(row.key)}
+                  isExpanded={expanded.has(row.key)}
+                  isWorking={actionId === row.key}
+                  onFocusRow={() => setActiveIndex(idx)}
+                  onToggleSelect={() => toggleSelect(row.key)}
+                  onToggleExpand={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(row.key)) next.delete(row.key)
+                      else next.add(row.key)
+                      return next
+                    })
+                  }
+                  onApprove={() => void approveRow(row)}
+                  onReject={() => setRejectTargets([row])}
+                  onPreview={() => setPreviewRow(row)}
+                  onPatchEventStatus={patchEventStatus}
+                  onDelete={() =>
+                    row.source === 'submission' ? deleteSubmission(row) : deleteEvent(row)
+                  }
+                  onRepost={() => setRepostSource({ id: row.rowId, title: row.title })}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Bulk action bar — appears with a selection, shows progress mid-run */}
+      {(selected.size > 0 || bulk) && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-ink-900/95 px-5 py-2.5 text-sm shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur">
+          {bulk ? (
+            <span className="inline-flex items-center gap-2 font-semibold text-white">
+              <Loader2 className="h-4 w-4 animate-spin text-flame-300" />
+              Processing {bulk.done}/{bulk.total}…
+            </span>
+          ) : (
+            <>
+              <span className="font-semibold text-white">{selected.size} selected</span>
+              {selectedRows.some(canApprove) && (
+                <button
+                  type="button"
+                  onClick={() => void bulkApprove()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Approve {selectedRows.filter(canApprove).length}
+                </button>
+              )}
+              {selectedRows.some(canReject) && (
+                <button
+                  type="button"
+                  onClick={() => setRejectTargets(selectedRows.filter(canReject))}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Reject {selectedRows.filter(canReject).length}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-xs font-semibold text-white/55 transition hover:text-white"
+              >
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Reject modal — one row or the whole selection, one shared note */}
+      {rejectTargets && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reject"
+          onClick={() => {
+            setRejectTargets(null)
+            setRejectNote('')
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-ink-900 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-white">
+              {rejectTargets.length === 1
+                ? `Reject “${rejectTargets[0].title}”?`
+                : `Reject ${rejectTargets.length} items?`}
+            </h3>
+            <p className="mt-1 text-sm text-white/55">
+              The note is sent to the submitter / organizer with the decision.
+            </p>
+            <textarea
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="Optional note — what should they fix?"
+              rows={3}
+              autoFocus
+              className="mt-4 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectTargets(null)
+                  setRejectNote('')
+                }}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmReject(rejectTargets, rejectNote)}
+                className="rounded-full bg-red-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-red-500"
+              >
+                Confirm reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewRow && (() => {
         const sub = submissions.find((item) => item.id === previewRow.rowId)
@@ -892,7 +1238,7 @@ export default function AdminClient() {
                     type="button"
                     onClick={() => {
                       setPreviewRow(null)
-                      setRejectingId(previewRow.key)
+                      setRejectTargets([previewRow])
                     }}
                     className="inline-flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500"
                   >
@@ -934,94 +1280,245 @@ export default function AdminClient() {
   )
 }
 
-function RowCard(props: {
+function QueueRow(props: {
   row: UnifiedRow
-  actionId: string | null
-  rejectingId: string | null
-  rejectNote: string
-  setRejectingId: (id: string | null) => void
-  setRejectNote: (note: string) => void
-  onApproveSubmission: (row: UnifiedRow) => void
-  onPreview: (row: UnifiedRow) => void
-  onRejectSubmission: (row: UnifiedRow) => void
+  active: boolean
+  isSelected: boolean
+  isExpanded: boolean
+  isWorking: boolean
+  onFocusRow: () => void
+  onToggleSelect: () => void
+  onToggleExpand: () => void
+  onApprove: () => void
+  onReject: () => void
+  onPreview: () => void
   onPatchEventStatus: (row: UnifiedRow, nextStatus: string, label: string) => void
-  onRejectEvent: (row: UnifiedRow) => void
-  onDeleteSubmission: (row: UnifiedRow) => void
-  onDeleteEvent: (row: UnifiedRow) => void
-  onRepostEvent: (row: UnifiedRow) => void
+  onDelete: () => void
+  onRepost: () => void
 }) {
   const {
     row,
-    actionId,
-    rejectingId,
-    rejectNote,
-    setRejectingId,
-    setRejectNote,
-    onApproveSubmission,
+    active,
+    isSelected,
+    isExpanded,
+    isWorking,
+    onFocusRow,
+    onToggleSelect,
+    onToggleExpand,
+    onApprove,
+    onReject,
     onPreview,
-    onRejectSubmission,
     onPatchEventStatus,
-    onRejectEvent,
-    onDeleteSubmission,
-    onDeleteEvent,
-    onRepostEvent,
+    onDelete,
+    onRepost,
   } = props
 
-  const isWorking = actionId === row.key
-  const isRejectingThis = rejectingId === row.key
+  const selectable = canApprove(row) || canReject(row)
   const sourceBadge =
     row.source === 'submission'
       ? 'submission'
       : row.organizerId
-        ? 'organizer event'
+        ? 'organizer'
         : 'event'
 
+  const iconBtn =
+    'flex h-8 w-8 items-center justify-center rounded-full border transition disabled:opacity-40'
+
   return (
-    <article className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/55">
-              {sourceBadge}
-            </span>
-            {row.isCivic && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-2 py-0.5 text-xs text-flame-300">
-                <Flame className="h-3 w-3" />
-                civic
-              </span>
-            )}
+    <>
+      <tr
+        onClick={onFocusRow}
+        className={[
+          'cursor-default border-t border-white/[0.06] transition',
+          active ? 'bg-white/[0.05]' : 'hover:bg-white/[0.02]',
+          isSelected ? 'bg-flame-500/[0.06]' : '',
+        ].join(' ')}
+      >
+        <td className="px-3 py-2.5 align-middle">
+          {selectable ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleSelect()
+              }}
+              aria-label={isSelected ? 'Deselect' : 'Select'}
+              className="flex h-5 w-5 items-center justify-center text-white/45 transition hover:text-white"
+            >
+              {isSelected ? (
+                <CheckSquare className="h-4 w-4 text-flame-300" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+            </button>
+          ) : (
+            <span className="block h-5 w-5" />
+          )}
+        </td>
+        <td className="max-w-[280px] px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            {active && <span className="h-4 w-0.5 shrink-0 rounded bg-flame-500" aria-hidden />}
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-white">{row.title}</p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/45">
+                <span className="uppercase tracking-wide">{sourceBadge}</span>
+                {row.isCivic && (
+                  <span className="inline-flex items-center gap-0.5 text-flame-300">
+                    <Flame className="h-3 w-3" />
+                    civic
+                  </span>
+                )}
+                <span className="capitalize">{row.category}</span>
+              </p>
+            </div>
           </div>
-          <h2 className="mt-1 truncate text-lg font-semibold text-white">{row.title}</h2>
-          <p className="mt-1 text-xs text-white/55">
-            {row.date}
-            {row.time && ` · ${row.time}`}
-            {' · '}
-            {row.locationSlug}
-            {' · '}
-            {row.country}
-            {' · '}
-            {row.category}
-            {row.featuredMovementSlug && (
+        </td>
+        <td className="hidden whitespace-nowrap px-3 py-2.5 text-xs text-white/65 md:table-cell">
+          {row.date}
+          {row.time ? ` · ${row.time.slice(0, 5)}` : ''}
+        </td>
+        <td className="hidden max-w-[160px] truncate px-3 py-2.5 text-xs text-white/65 lg:table-cell">
+          {row.locationSlug}
+          {row.country ? ` · ${row.country}` : ''}
+        </td>
+        <td className="hidden whitespace-nowrap px-3 py-2.5 text-xs text-white/45 xl:table-cell">
+          {timeAgo(row.createdAt)}
+        </td>
+        <td className="px-3 py-2.5">
+          <span
+            className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(row.unifiedStatus)}`}
+          >
+            {statusLabel(row)}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <div className="flex items-center justify-end gap-1.5">
+            {isWorking ? (
+              <Loader2 className="h-4 w-4 animate-spin text-flame-300" />
+            ) : (
               <>
-                {' · movement: '}
-                <code className="rounded bg-white/10 px-1 text-[10px]">
-                  {row.featuredMovementSlug}
-                </code>
+                {row.source === 'submission' ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onPreview()
+                    }}
+                    title="Preview page (P)"
+                    className={`${iconBtn} border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.10] hover:text-white`}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  row.slug && (
+                    <Link
+                      href={`/events/${row.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Open live page (P)"
+                      className={`${iconBtn} border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.10] hover:text-white`}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Link>
+                  )
+                )}
+                {canApprove(row) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onApprove()
+                    }}
+                    title={row.source === 'submission' ? 'Approve & publish (E)' : 'Publish (E)'}
+                    className={`${iconBtn} border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/25`}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {canReject(row) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onReject()
+                    }}
+                    title="Reject (R)"
+                    className={`${iconBtn} border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/25`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleExpand()
+                  }}
+                  title="Details (Enter)"
+                  className={`${iconBtn} border-white/10 bg-white/[0.04] text-white/55 hover:bg-white/[0.10] hover:text-white`}
+                >
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
               </>
             )}
-          </p>
-        </div>
+          </div>
+        </td>
+      </tr>
 
-        <span
-          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(row.unifiedStatus)}`}
-        >
-          {statusLabel(row)}
-        </span>
-      </div>
+      {isExpanded && (
+        <tr className="border-t border-white/[0.04] bg-white/[0.015]">
+          <td colSpan={7} className="px-5 py-4">
+            <QueueRowDetail
+              row={row}
+              isWorking={isWorking}
+              onPatchEventStatus={onPatchEventStatus}
+              onDelete={onDelete}
+              onRepost={onRepost}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
 
+function QueueRowDetail({
+  row,
+  isWorking,
+  onPatchEventStatus,
+  onDelete,
+  onRepost,
+}: {
+  row: UnifiedRow
+  isWorking: boolean
+  onPatchEventStatus: (row: UnifiedRow, nextStatus: string, label: string) => void
+  onDelete: () => void
+  onRepost: () => void
+}) {
+
+  return (
+    <div className="space-y-3">
       {row.description && (
-        <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-white/70">
+        <p className="max-w-3xl whitespace-pre-line text-sm leading-6 text-white/70">
           {row.description}
+        </p>
+      )}
+
+      {row.featuredMovementSlug && (
+        <p className="text-xs text-white/55">
+          Movement:{' '}
+          <code className="rounded bg-white/10 px-1 text-[10px]">
+            {row.featuredMovementSlug}
+          </code>
+        </p>
+      )}
+
+      {row.contactEmail && (
+        <p className="text-xs text-white/55">
+          Contact: <span className="text-white/80">{row.contactEmail}</span>
         </p>
       )}
 
@@ -1071,42 +1568,8 @@ function RowCard(props: {
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {/* Source-specific primary actions */}
-        {row.source === 'submission' && (
-          <button
-            type="button"
-            onClick={() => onPreview(row)}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/75 transition hover:bg-white/[0.08] hover:text-white"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Preview
-          </button>
-        )}
-
-        {row.source === 'submission' && row.unifiedStatus === 'pending' && !isRejectingThis && (
-          <>
-            <button
-              type="button"
-              disabled={isWorking}
-              onClick={() => onApproveSubmission(row)}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
-            >
-              <Check className="h-3.5 w-3.5" />
-              {isWorking ? 'Approving...' : 'Approve & publish'}
-            </button>
-            <button
-              type="button"
-              disabled={isWorking}
-              onClick={() => setRejectingId(row.key)}
-              className="inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-500 disabled:opacity-40"
-            >
-              <X className="h-3.5 w-3.5" />
-              Reject
-            </button>
-          </>
-        )}
-
+      {/* Secondary actions — approve/reject/preview live on the table row */}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         {row.source === 'event' && (
           <>
             <Link
@@ -1116,41 +1579,6 @@ function RowCard(props: {
               <Pencil className="h-3.5 w-3.5" />
               Edit
             </Link>
-            {row.slug && (
-              <Link
-                href={`/events/${row.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/70 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                Preview
-              </Link>
-            )}
-
-            {(row.unifiedStatus === 'draft' || row.unifiedStatus === 'pending') &&
-              !isRejectingThis && (
-                <>
-                  <button
-                    type="button"
-                    disabled={isWorking}
-                    onClick={() => onPatchEventStatus(row, 'published', 'Publish')}
-                    className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    {isWorking ? 'Publishing...' : 'Publish'}
-                  </button>
-                  {row.organizerId && row.unifiedStatus === 'pending' && (
-                    <button
-                      type="button"
-                      disabled={isWorking}
-                      onClick={() => setRejectingId(row.key)}
-                      className="rounded-full bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-500 disabled:opacity-40"
-                    >
-                      Reject
-                    </button>
-                  )}
-                </>
-              )}
 
             {row.unifiedStatus === 'published' && (
               <button
@@ -1188,7 +1616,7 @@ function RowCard(props: {
             <button
               type="button"
               disabled={isWorking}
-              onClick={() => onRepostEvent(row)}
+              onClick={onRepost}
               className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-3 py-2 text-xs font-semibold text-flame-200 transition hover:bg-flame-500/15 disabled:opacity-40"
               title="Create a new draft event from this one with a new date"
             >
@@ -1209,11 +1637,7 @@ function RowCard(props: {
         <button
           type="button"
           disabled={isWorking}
-          onClick={() =>
-            row.source === 'submission'
-              ? onDeleteSubmission(row)
-              : onDeleteEvent(row)
-          }
+          onClick={onDelete}
           className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/[0.04] px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/15 disabled:opacity-40"
           title="Permanently delete"
         >
@@ -1221,40 +1645,6 @@ function RowCard(props: {
           Delete
         </button>
       </div>
-
-      {isRejectingThis && (
-        <div className="mt-4 space-y-3">
-          <textarea
-            value={rejectNote}
-            onChange={(e) => setRejectNote(e.target.value)}
-            placeholder="Optional note for the submitter / organizer..."
-            rows={2}
-            className="w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/20"
-          />
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={isWorking}
-              onClick={() =>
-                row.source === 'submission' ? onRejectSubmission(row) : onRejectEvent(row)
-              }
-              className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-500 disabled:opacity-40"
-            >
-              {isWorking ? 'Rejecting...' : 'Confirm reject'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRejectingId(null)
-                setRejectNote('')
-              }}
-              className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-    </article>
+    </div>
   )
 }
