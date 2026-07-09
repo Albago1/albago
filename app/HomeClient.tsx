@@ -758,6 +758,39 @@ export default function HomeClient() {
       ? suggestEvents.length > 0 || suggestCats.length > 0 || suggestLocs.length > 0
       : true // default state always has categories
 
+  // Hero poster wall — the platform's own artwork (event banners, falling
+  // back to each event's cached AI poster; misses render as dark frames)
+  // drifting behind the headline. Purely decorative.
+  const posterWall = useMemo(() => {
+    const supa = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const seen = new Set<string>()
+    const withBanner: string[] = []
+    const withoutBanner: string[] = []
+    for (const ev of [...featuredEvents, ...upcomingProtests]) {
+      const slug = (ev as { slug?: string }).slug
+      if (!slug || seen.has(slug)) continue
+      seen.add(slug)
+      const banner = (ev as { banner_url?: string | null }).banner_url
+      if (banner) withBanner.push(banner)
+      else withoutBanner.push(`${supa}/storage/v1/object/public/ai-posters/${slug}.jpg`)
+    }
+    return [...withBanner, ...withoutBanner].slice(0, 20)
+  }, [featuredEvents, upcomingProtests])
+
+  const posterColumns = useMemo(() => {
+    if (posterWall.length < 4) return []
+    const COLS = 5
+    const cols: string[][] = Array.from({ length: COLS }, () => [])
+    posterWall.forEach((src, i) => cols[i % COLS].push(src))
+    // Each column repeats its tiles to at least 5 so the drift loop never
+    // shows a gap, regardless of how many events are live.
+    return cols
+      .filter((col) => col.length > 0)
+      .map((col) =>
+        Array.from({ length: Math.max(col.length, 5) }, (_, k) => col[k % col.length]),
+      )
+  }, [posterWall])
+
   return (
     <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
@@ -766,7 +799,50 @@ export default function HomeClient() {
 
       <section className="relative overflow-hidden px-4 pb-20 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-grid opacity-50" />
+          {posterColumns.length > 0 && (
+            <div aria-hidden className="absolute -inset-x-16 -inset-y-40 rotate-[-4deg]">
+              <div className="flex h-full justify-center gap-4 opacity-30 sm:gap-5">
+                {posterColumns.map((col, i) => (
+                  <div
+                    key={i}
+                    className={`w-[clamp(150px,19vw,250px)] shrink-0 ${i % 2 ? 'mt-28' : ''}`}
+                  >
+                    <div
+                      className={i % 2 ? 'poster-drift-down' : 'poster-drift-up'}
+                      style={{ animationDuration: `${75 + i * 13}s` }}
+                    >
+                      {[0, 1].map((copy) => (
+                        <div key={copy} className="flex flex-col gap-4 pb-4 sm:gap-5 sm:pb-5">
+                          {col.map((src, j) => (
+                            <div
+                              key={`${copy}-${j}`}
+                              className="aspect-[3/4] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-ink-900"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={src}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  // Missing artwork stays a quiet dark frame.
+                                  e.currentTarget.style.visibility = 'hidden'
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-ink-950/85 via-ink-950/40 to-ink-950" />
+          <div className="absolute inset-0 bg-gradient-to-r from-ink-950/70 via-ink-950/5 to-ink-950/70" />
+          <div className="absolute inset-0 bg-grid opacity-30" />
           <div className="absolute inset-0 bg-radial-flame" />
           <div className="absolute left-1/2 top-24 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-flame-500/20 blur-3xl" />
           <div className="absolute left-[58%] top-32 h-[26rem] w-[26rem] rounded-full bg-flame-500/12 blur-3xl" />

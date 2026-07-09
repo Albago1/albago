@@ -214,8 +214,19 @@ body {
   animation: marquee 40s linear infinite;
 }
 
+/* Homepage hero poster wall — columns of event artwork drifting slowly.
+   The animated element holds two identical stacks; -50% loops seamlessly. */
+@keyframes poster-drift {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+
+.poster-drift-up   { animation: poster-drift 80s linear infinite; }
+.poster-drift-down { animation: poster-drift 80s linear infinite reverse; }
+
 @media (prefers-reduced-motion: reduce) {
-  .shine-text, .animate-ping-soft, .animate-marquee {
+  .shine-text, .animate-ping-soft, .animate-marquee,
+  .poster-drift-up, .poster-drift-down {
     animation: none !important;
   }
 }
