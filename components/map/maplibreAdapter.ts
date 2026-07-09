@@ -90,6 +90,19 @@ export function createMaplibreAdapter({
   let pendingData: GeoJSON.FeatureCollection | null = null
 
   map.on('load', () => {
+    // An invalid layer spec makes addLayer THROW, which would abort this
+    // handler halfway and leave a half-configured map (some layers missing,
+    // styleReady stuck false, pins frozen). Fail loudly instead.
+    try {
+      addPinLayers()
+      styleReady = true
+      pendingData = null
+    } catch (error) {
+      console.error('MapLibre pin layer setup failed:', error)
+    }
+  })
+
+  function addPinLayers() {
     map.addSource(SOURCE_ID, {
       type: 'geojson',
       data: pendingData ?? EMPTY_FC,
@@ -150,10 +163,15 @@ export function createMaplibreAdapter({
         // Events burn flame red; venues are ink dots — both pop on the
         // light basemap without shouting over each other.
         'circle-color': ['match', ['get', 'kind'], 'venue', INK, FLAME],
+        // NOTE: ['zoom'] is only legal inside a TOP-LEVEL interpolate/step —
+        // wrapping it in ['+', …] fails validation, addLayer throws, and the
+        // whole pin layer silently never exists. Selection boost therefore
+        // lives inside each stop instead.
         'circle-radius': [
-          '+',
-          ['interpolate', ['linear'], ['zoom'], 3, 5, 10, 7.5, 15, 10],
-          ['case', ['boolean', ['get', 'selected'], false], 2.5, 0],
+          'interpolate', ['linear'], ['zoom'],
+          3, ['case', ['boolean', ['get', 'selected'], false], 7.5, 5],
+          10, ['case', ['boolean', ['get', 'selected'], false], 10, 7.5],
+          15, ['case', ['boolean', ['get', 'selected'], false], 12.5, 10],
         ],
         'circle-stroke-width': ['case', ['boolean', ['get', 'selected'], false], 3, 2],
         'circle-stroke-color': '#ffffff',
@@ -182,10 +200,7 @@ export function createMaplibreAdapter({
         'text-halo-width': 1.2,
       },
     })
-
-    styleReady = true
-    pendingData = null
-  })
+  }
 
   map.on('error', (event) => {
     console.error('MapLibre error:', event)
@@ -209,6 +224,9 @@ export function createMaplibreAdapter({
         center: (feature.geometry as GeoJSON.Point).coordinates as [number, number],
         zoom: expansionZoom + 0.4,
         duration: 550,
+        // Explicit zeros — camera padding set by an earlier flyTo is sticky
+        // and would off-center the expanded cluster.
+        padding: { top: 0, bottom: 0, left: 0, right: 0 },
       })
     } catch {
       // Cluster dissolved between render and click — nothing to expand.
