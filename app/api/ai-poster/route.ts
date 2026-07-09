@@ -112,7 +112,9 @@ export async function POST(request: Request) {
     const supabase = createAdminClient()
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('title, description, category, location_slug, country, is_civic, tags')
+      .select(
+        'title, description, category, location_slug, country, is_civic, tags, banner_url, gallery_urls, address_hint, date, time, expected_attendees, organizer_name, places ( name )',
+      )
       .eq('status', 'published')
       .eq('slug', slug)
       .maybeSingle()
@@ -132,6 +134,14 @@ export async function POST(request: Request) {
       country: string | null
       is_civic: boolean | null
       tags: string[] | null
+      banner_url: string | null
+      gallery_urls: string[] | null
+      address_hint: string | null
+      date: string | null
+      time: string | null
+      expected_attendees: number | null
+      organizer_name: string | null
+      places: { name: string | null } | null
     }
 
     // getLocationBySlug falls back to Tirana for unknown slugs — prefer the
@@ -142,6 +152,10 @@ export async function POST(request: Request) {
         ? location.label
         : (row.location_slug || 'the city').replace(/-/g, ' ')
 
+    const imageUrls = [row.banner_url, ...(row.gallery_urls ?? [])].filter(
+      (u): u is string => typeof u === 'string' && /^https?:\/\//.test(u),
+    )
+
     const context: PosterEventContext = {
       title: row.title,
       description: row.description,
@@ -150,6 +164,13 @@ export async function POST(request: Request) {
       country: row.country,
       isCivic: Boolean(row.is_civic),
       tags: row.tags,
+      venueName: row.places?.name ?? null,
+      addressHint: row.address_hint,
+      date: row.date,
+      time: row.time,
+      expectedAttendees: row.expected_attendees,
+      organizerName: row.organizer_name,
+      imageUrls,
     }
 
     const prompt = await craftPosterPrompt(context)
