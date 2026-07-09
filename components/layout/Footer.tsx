@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { MapPin } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import SocialLinks from './SocialLinks'
 
 export default function Footer() {
   const { t } = useLanguage()
@@ -52,6 +53,7 @@ export default function Footer() {
             <p className="max-w-sm text-sm leading-relaxed text-white/55">
               {t('footer_tagline')}
             </p>
+            <SocialLinks />
             <div className="text-xs text-white/40">{t('footer_values')}</div>
           </div>
 

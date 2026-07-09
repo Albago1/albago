@@ -13,6 +13,7 @@
  */
 
 import { zonedWallClockToUtcMs } from '@/lib/timezone'
+import { activeSocialLinks } from '@/lib/social'
 
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ?? 'https://albago.org'
@@ -46,7 +47,7 @@ export function organizationSchema() {
     name: 'AlbaGo',
     url: SITE_URL,
     logo: `${SITE_URL}/icon.svg`,
-    sameAs: [],
+    sameAs: activeSocialLinks().map(({ url }) => url),
   }
 }
 
