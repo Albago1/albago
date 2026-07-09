@@ -11,6 +11,7 @@ import {
   Send,
   Share2,
   Smartphone,
+  Sparkles,
   Video,
   X,
 } from 'lucide-react'
@@ -64,6 +65,13 @@ export default function ShareModal({ open, onClose, data }: Props) {
   const [recordProgress, setRecordProgress] = useState(0)
   const [showHint, setShowHint] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // AI poster backdrop — generated once per event server-side, cached in
+  // storage. Held as a data URL so html-to-image / canvas capture can never
+  // hit a CORS taint.
+  const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [aiBackdrop, setAiBackdrop] = useState<string | null>(null)
+  const [backdropMode, setBackdropMode] = useState<'brand' | 'ai'>('brand')
 
   const storyRef = useRef<HTMLDivElement | null>(null)
   const squareRef = useRef<HTMLDivElement | null>(null)
@@ -242,6 +250,36 @@ export default function ShareModal({ open, onClose, data }: Props) {
     [data.slug, recordingDuration, trackShare],
   )
 
+  const generateAiPoster = useCallback(async () => {
+    if (aiStatus === 'loading') return
+    trackShare('ai_poster')
+    setError(null)
+    setAiStatus('loading')
+    try {
+      const res = await fetch('/api/ai-poster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: data.slug }),
+      })
+      const json = (await res.json()) as { ok: boolean; url?: string }
+      if (!res.ok || !json.ok || !json.url) throw new Error('generation failed')
+      const blob = await (await fetch(json.url, { cache: 'no-store' })).blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('read failed'))
+        reader.readAsDataURL(blob)
+      })
+      setAiBackdrop(dataUrl)
+      setBackdropMode('ai')
+      setAiStatus('ready')
+    } catch (e) {
+      console.error(e)
+      setAiStatus('error')
+      setError(t('share_ai_error'))
+    }
+  }, [aiStatus, data.slug, trackShare, t])
+
   if (!open) return null
 
   return (
@@ -352,6 +390,68 @@ export default function ShareModal({ open, onClose, data }: Props) {
                 <XGlyph className="h-5 w-5 text-white" />
                 X / Twitter
               </a>
+            </div>
+
+            <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              {t('share_ai_title')}
+            </p>
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              {aiStatus !== 'ready' ? (
+                <button
+                  type="button"
+                  onClick={generateAiPoster}
+                  disabled={aiStatus === 'loading'}
+                  className="group flex w-full items-center gap-3 text-left disabled:cursor-wait"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-flame-500/40 to-flame-700/30 text-flame-200">
+                    {aiStatus === 'loading' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">
+                      {aiStatus === 'loading'
+                        ? t('share_ai_generating')
+                        : t('share_ai_generate')}
+                    </p>
+                    <p className="text-[11px] text-white/50">{t('share_ai_sub')}</p>
+                  </div>
+                </button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {aiBackdrop && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={aiBackdrop}
+                      alt="AI poster backdrop preview"
+                      className="h-20 w-[45px] shrink-0 rounded-lg border border-white/10 object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex gap-1.5">
+                      {(['brand', 'ai'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setBackdropMode(mode)}
+                          className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition ${
+                            backdropMode === mode
+                              ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/40'
+                              : 'bg-white/[0.05] text-white/60 hover:bg-white/[0.09]'
+                          }`}
+                        >
+                          {mode === 'brand'
+                            ? t('share_ai_use_brand')
+                            : t('share_ai_use_ai')}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-white/50">{t('share_ai_applies')}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
@@ -529,7 +629,12 @@ export default function ShareModal({ open, onClose, data }: Props) {
           pointerEvents: 'none',
         }}
       >
-        <StoryShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={storyRef} />
+        <StoryShareTemplate
+          data={data}
+          qrDataUrl={qrDataUrl}
+          innerRef={storyRef}
+          backdropUrl={backdropMode === 'ai' ? aiBackdrop : null}
+        />
         <SquareShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={squareRef} />
         <FacebookShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={facebookRef} />
       </div>

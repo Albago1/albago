@@ -17,9 +17,11 @@ type Props = {
   data: ShareEventData
   qrDataUrl: string | null
   innerRef?: React.RefObject<HTMLDivElement | null>
+  /** AI-generated artwork (data URL) painted behind the typography. */
+  backdropUrl?: string | null
 }
 
-export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props) {
+export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
   const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
@@ -36,26 +38,48 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef }: Props)
         fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
       }}
     >
-      <GridBackdrop />
-
-      {/* Flamingo motif — centered behind the foreground content. */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          top: '38%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <FlamingoHalo size={900} />
-        <div style={{ position: 'relative' }}>
-          <FlamingoMotif width={620} opacity={0.5} />
+      {backdropUrl ? (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={backdropUrl}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          {/* Scrim so the typography and info card stay readable over any art. */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(180deg, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.26) 38%, rgba(5,5,5,0.42) 62%, rgba(5,5,5,0.88) 100%)',
+            }}
+          />
         </div>
-      </div>
+      ) : (
+        <>
+          <GridBackdrop />
+
+          {/* Flamingo motif — centered behind the foreground content. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: '38%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FlamingoHalo size={900} />
+            <div style={{ position: 'relative' }}>
+              <FlamingoMotif width={620} opacity={0.5} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="relative z-10 flex h-full flex-col px-20 py-24">
         <div className="flex items-center justify-between">

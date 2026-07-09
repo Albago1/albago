@@ -14,6 +14,7 @@
     "@types/qrcode": "^1.5.6",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "ai": "^7.0.18",
     "framer-motion": "^11.18.2",
     "html-to-image": "^1.11.13",
     "jszip": "^3.10.1",

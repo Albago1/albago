@@ -384,6 +384,14 @@ export const translations: Record<Language, Record<string, string>> = {
     share_caption: "Caption",
     share_caption_copied: "Copied",
     share_copy_caption: "Copy caption",
+    share_ai_title: "AI poster",
+    share_ai_sub: "Unique artwork generated from this event's details",
+    share_ai_generate: "Generate AI poster",
+    share_ai_generating: "Designing your poster… (~15s)",
+    share_ai_use_brand: "Brand",
+    share_ai_use_ai: "AI art",
+    share_ai_applies: "Applies to the Story poster and Reel videos.",
+    share_ai_error: "Couldn't generate the poster — try again.",
 
     // Submit event gate + success
     submit_received_title: "Submission received",
@@ -788,6 +796,14 @@ export const translations: Record<Language, Record<string, string>> = {
     share_caption: "Caption",
     share_caption_copied: "Kopiert",
     share_copy_caption: "Caption kopieren",
+    share_ai_title: "KI-Poster",
+    share_ai_sub: "Einzigartiges Artwork aus den Details dieses Events",
+    share_ai_generate: "KI-Poster erstellen",
+    share_ai_generating: "Dein Poster wird gestaltet… (~15s)",
+    share_ai_use_brand: "Brand",
+    share_ai_use_ai: "KI-Art",
+    share_ai_applies: "Gilt für das Story-Poster und die Reel-Videos.",
+    share_ai_error: "Poster konnte nicht erstellt werden — versuch es nochmal.",
 
     // Submit event gate + success
     submit_received_title: "Einreichung erhalten",
@@ -1192,6 +1208,14 @@ export const translations: Record<Language, Record<string, string>> = {
     share_caption: "Texto",
     share_caption_copied: "Copiado",
     share_copy_caption: "Copiar texto",
+    share_ai_title: "Póster IA",
+    share_ai_sub: "Arte único generado con los detalles de este evento",
+    share_ai_generate: "Generar póster IA",
+    share_ai_generating: "Diseñando tu póster… (~15s)",
+    share_ai_use_brand: "Marca",
+    share_ai_use_ai: "Arte IA",
+    share_ai_applies: "Se aplica al póster de Story y a los vídeos Reel.",
+    share_ai_error: "No se pudo generar el póster — inténtalo de nuevo.",
 
     // Submit event gate + success
     submit_received_title: "Envío recibido",
@@ -1595,6 +1619,14 @@ export const translations: Record<Language, Record<string, string>> = {
     share_caption: "Përshkrimi",
     share_caption_copied: "U kopjua",
     share_copy_caption: "Kopjo përshkrimin",
+    share_ai_title: "Poster me AI",
+    share_ai_sub: "Artwork unik i krijuar nga detajet e këtij eventi",
+    share_ai_generate: "Krijo poster me AI",
+    share_ai_generating: "Posteri po dizajnohet… (~15s)",
+    share_ai_use_brand: "Brand",
+    share_ai_use_ai: "Art AI",
+    share_ai_applies: "Vlen për posterin Story dhe videot Reel.",
+    share_ai_error: "Posteri nuk u krijua dot — provo përsëri.",
 
     // Submit event gate + success
     submit_received_title: "Eventi u dërgua",
