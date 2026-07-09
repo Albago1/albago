@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { generateImage } from 'ai'
+import { google } from '@ai-sdk/google'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getLocationBySlug } from '@/lib/locations'
 import {
@@ -27,8 +28,11 @@ export const maxDuration = 60
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,118}[a-z0-9]$/i
 
+// Gemini 2.5 Flash Image ("nano banana") — free tier via Google AI Studio
+// key (GOOGLE_GENERATIVE_AI_API_KEY), no card required. One image per event,
+// cached forever, so the free daily quota is never a real constraint.
 const IMAGE_MODEL =
-  process.env.AI_POSTER_IMAGE_MODEL || 'google/imagen-4.0-fast-generate-001'
+  process.env.AI_POSTER_IMAGE_MODEL || 'gemini-2.5-flash-image'
 
 // -- In-memory rate limits (per instance, same trade-off as /api/track) ------
 // Cheap path (cache hits): generous. Generation path: tight — each miss
@@ -140,7 +144,7 @@ export async function POST(request: Request) {
     const prompt = await craftPosterPrompt(context)
 
     const { image } = await generateImage({
-      model: IMAGE_MODEL,
+      model: google.image(IMAGE_MODEL),
       prompt,
       aspectRatio: '9:16',
     })

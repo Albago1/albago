@@ -1,4 +1,5 @@
 import { generateText } from 'ai'
+import { google } from '@ai-sdk/google'
 
 /**
  * Art direction for AI-generated share-poster backdrops.
@@ -81,8 +82,9 @@ export async function craftPosterPrompt(event: PosterEventContext): Promise<stri
       .filter(Boolean)
       .join('\n')
 
+    // Gemini flash-lite: free tier, no card — same key as the image model.
     const { text } = await generateText({
-      model: 'anthropic/claude-haiku-4.5',
+      model: google('gemini-2.5-flash-lite'),
       system:
         'You are the art director for AlbaGo, an events platform with a strict visual brand: ' +
         'near-black ink (#050505) canvases lit only by flame red (#EE1C25) — red light, neon, ' +
