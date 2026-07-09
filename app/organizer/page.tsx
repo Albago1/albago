@@ -21,7 +21,25 @@ export default async function OrganizerPage() {
   const organizer = await fetchOrganizer(supabase)
   if (!organizer) redirect('/onboarding/organizer')
 
-  const events = await fetchOrganizerEvents(supabase)
+  const [events, { data: profileRow }] = await Promise.all([
+    fetchOrganizerEvents(supabase),
+    supabase
+      .from('profiles')
+      .select('role, studio_access')
+      .eq('id', user.id)
+      .maybeSingle(),
+  ])
+  const profile = profileRow as {
+    role?: string | null
+    studio_access?: boolean | null
+  } | null
+  const studioAccess = profile?.role === 'admin' || profile?.studio_access === true
 
-  return <OrganizerDashboardClient organizer={organizer} events={events} />
+  return (
+    <OrganizerDashboardClient
+      organizer={organizer}
+      events={events}
+      studioAccess={studioAccess}
+    />
+  )
 }

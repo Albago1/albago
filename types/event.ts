@@ -70,4 +70,15 @@ export type OrganizerEvent = {
   expected_attendees: number | null
   address: string | null
   is_civic: boolean | null
+  // Present in the DB row (fetched via select('*')) — declared for the
+  // organizer dashboard's pre-publish preview.
+  address_hint?: string | null
+  gallery_urls?: string[] | null
+  tags?: string[] | null
+  is_online?: boolean | null
+  online_url?: string | null
+  telegram_link?: string | null
+  whatsapp_link?: string | null
+  safety_notes?: string | null
+  organizer_name?: string | null
 }

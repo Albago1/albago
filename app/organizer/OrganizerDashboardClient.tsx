@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -23,10 +24,15 @@ import {
   Sparkles,
   TrendingUp,
   Users,
+  X,
   XCircle,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import ShareModal from '@/components/share/ShareModal'
+import EventPagePreview, {
+  type EventPreviewData,
+} from '@/components/events/EventPagePreview'
+import { getLocationBySlug } from '@/lib/locations'
 import Sparkline from '@/components/dashboard/Sparkline'
 import TrendBadge from '@/components/dashboard/TrendBadge'
 import { isEventActive } from '@/lib/eventActive'
@@ -92,6 +98,87 @@ function eventToShareData(
   }
 }
 
+function cityLabelFor(slug: string): string {
+  const match = getLocationBySlug(slug)
+  if (match.slug === slug) return match.label
+  return slug
+    .split('-')
+    .map((part) => (part[0]?.toUpperCase() ?? '') + part.slice(1))
+    .join(' ')
+}
+
+function eventToPreviewData(
+  event: OrganizerEvent,
+  organizer: Organizer,
+): EventPreviewData {
+  return {
+    title: event.title,
+    category: event.category,
+    date: event.date,
+    time: event.time,
+    end_time: event.end_time,
+    price: event.price,
+    description: event.description,
+    banner_url: event.banner_url,
+    gallery_urls: event.gallery_urls ?? null,
+    address: event.address,
+    address_hint: event.address_hint ?? null,
+    cityLabel: cityLabelFor(event.location_slug),
+    country: event.country,
+    is_online: event.is_online ?? null,
+    online_url: event.online_url ?? null,
+    is_civic: event.is_civic,
+    expected_attendees: event.expected_attendees,
+    telegram_link: event.telegram_link ?? null,
+    whatsapp_link: event.whatsapp_link ?? null,
+    safety_notes: event.safety_notes ?? null,
+    tags: event.tags ?? null,
+    organizer_name: event.organizer_name ?? organizer.display_name ?? null,
+  }
+}
+
+/** Portal modal wrapping the live-page replica — "see it before it ships". */
+function PreviewModal({
+  event,
+  organizer,
+  onClose,
+}: {
+  event: OrganizerEvent
+  organizer: Organizer
+  onClose: () => void
+}) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:p-8"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Event page preview"
+    >
+      <div
+        className="relative w-full max-w-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+            How your event page will look
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close preview"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(255,255,255,0.25)] bg-[rgba(5,5,5,0.62)] text-[#ffffff] backdrop-blur-md transition hover:bg-[rgba(5,5,5,0.82)]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <EventPagePreview event={eventToPreviewData(event, organizer)} />
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 /**
  * Bucket events into N daily slots ending at "today" using the given date
  * accessor. Returns an array of counts, oldest → newest, length = daysBack.
@@ -121,10 +208,12 @@ type EventRowProps = {
   event: OrganizerEvent
   organizer: Organizer
   canRepost: boolean
+  studioAccess?: boolean
 }
 
-function EventRow({ event, organizer, canRepost }: EventRowProps) {
+function EventRow({ event, organizer, canRepost, studioAccess }: EventRowProps) {
   const [shareOpen, setShareOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const repostable = canRepost && isRepostable(event)
   const isEditable = event.status === 'draft' || event.status === 'rejected'
 
@@ -178,7 +267,7 @@ function EventRow({ event, organizer, canRepost }: EventRowProps) {
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {event.status === 'published' && (
+          {event.status === 'published' ? (
             <Link
               href={`/events/${event.slug}`}
               className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
@@ -186,6 +275,15 @@ function EventRow({ event, organizer, canRepost }: EventRowProps) {
               <Eye className="h-3.5 w-3.5" />
               View
             </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Preview
+            </button>
           )}
           {isEditable && (
             <Link
@@ -223,6 +321,15 @@ function EventRow({ event, organizer, canRepost }: EventRowProps) {
           open={shareOpen}
           onClose={() => setShareOpen(false)}
           data={eventToShareData(event, organizer)}
+          studioAccess={studioAccess}
+        />
+      )}
+
+      {previewOpen && (
+        <PreviewModal
+          event={event}
+          organizer={organizer}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
     </div>
@@ -232,9 +339,11 @@ function EventRow({ event, organizer, canRepost }: EventRowProps) {
 export default function OrganizerDashboardClient({
   organizer,
   events,
+  studioAccess = false,
 }: {
   organizer: Organizer
   events: OrganizerEvent[]
+  studioAccess?: boolean
 }) {
   const canRepost = organizer.verification_tier === 'verified'
 
@@ -782,6 +891,7 @@ export default function OrganizerDashboardClient({
                     event={event}
                     organizer={organizer}
                     canRepost={canRepost}
+                    studioAccess={studioAccess}
                   />
                 ))}
               </div>
@@ -803,6 +913,7 @@ export default function OrganizerDashboardClient({
                     event={event}
                     organizer={organizer}
                     canRepost={canRepost}
+                    studioAccess={studioAccess}
                   />
                 ))}
               </div>
@@ -824,6 +935,7 @@ export default function OrganizerDashboardClient({
                     event={event}
                     organizer={organizer}
                     canRepost={canRepost}
+                    studioAccess={studioAccess}
                   />
                 ))}
               </div>
