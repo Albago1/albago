@@ -143,9 +143,10 @@ export default function MapView() {
   const isWorldwide = locationSlug === 'all'
   const initialCountry = searchParams.get('country')
   const location = getLocationBySlug(locationSlug)
-  // Worldwide view: roughly Europe-centered, low zoom — matches ProtestMap.
+  // Worldwide view: roughly Europe-centered, low zoom. Sits just above the
+  // adapter's minZoom floor so the fully-zoomed-out map still pans.
   const worldCenter: [number, number] = [10, 30]
-  const worldZoom = 1.6
+  const worldZoom = 2.2
 
   const initialCategory = searchParams.get('category') || 'all'
   const initialPlaceId = searchParams.get('place')
@@ -590,7 +591,9 @@ export default function MapView() {
       lat: event.lat,
       lng: event.lng,
       kind: 'event' as const,
-      category: 'civic',
+      // Real category so the pin carries the category color; civic events
+      // stay flame regardless of what their stored category says.
+      category: event.isCivic ? 'civic' : (event.category ?? 'other'),
       eventCount: 1,
       hasHighlight: true,
       isSelected: selectedCivicEvent?.id === event.id,

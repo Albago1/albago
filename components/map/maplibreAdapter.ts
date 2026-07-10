@@ -29,59 +29,108 @@ const INK = '#141414'
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
-// ── Pill marker images (Airbnb pattern: the pin IS a named pill) ──
-// A tiny rounded-rect image is registered with stretch zones so MapLibre can
-// scale it around each event's name via icon-text-fit — still one GPU symbol
-// per pin, no DOM. Drawn at 2x for crisp rendering on retina screens.
-const PILL_PR = 2
-const PILL_W = 48
-const PILL_H = 30
-const PILL_R = 14
+// ── Speech-bubble pin images ──
+// The pin is a named bubble with a pointer tail aimed at the exact spot,
+// color-coded by event category (same palette as the site's category
+// system): dark glass body, category ring + dot, baked soft shadow. One
+// stretchable sprite per category, scaled around each event's name via
+// icon-text-fit — still one GPU symbol per pin, no DOM. Drawn at 2x for
+// crisp rendering on retina screens.
+const CATEGORY_PIN_COLORS: Record<string, { accent: string; active: string }> = {
+  nightlife: { accent: '#e879f9', active: '#c026d3' },
+  music: { accent: '#a78bfa', active: '#7c3aed' },
+  sports: { accent: '#34d399', active: '#059669' },
+  culture: { accent: '#38bdf8', active: '#0284c7' },
+  food: { accent: '#fbbf24', active: '#d97706' },
+  civic: { accent: FLAME, active: FLAME },
+  other: { accent: FLAME, active: FLAME },
+}
 
-function createPillImageData(fill: string, stroke: string): ImageData {
-  const w = PILL_W * PILL_PR
-  const h = PILL_H * PILL_PR
-  const r = PILL_R * PILL_PR
-  const lw = 1.5 * PILL_PR
+const PILL_PR = 2
+const PILL_M = 6 // margin for the baked shadow
+const PILL_BW = 64 // body width
+const PILL_BH = 30 // body height
+const PILL_R = 14 // corner radius
+const PILL_CARET_W = 12
+const PILL_CARET_H = 7
+
+type PillSpec = { body: string; ring: string; dot: string }
+
+function createPillImageData(spec: PillSpec): ImageData {
+  const s = PILL_PR
+  const w = (PILL_BW + PILL_M * 2) * s
+  const h = (PILL_BH + PILL_CARET_H + PILL_M * 2) * s
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
   const ctx = canvas.getContext('2d')!
-  const x = lw / 2
-  const y = lw / 2
-  const iw = w - lw
-  const ih = h - lw
-  const ir = Math.min(r, ih / 2)
-  ctx.beginPath()
-  ctx.moveTo(x + ir, y)
-  ctx.lineTo(x + iw - ir, y)
-  ctx.arcTo(x + iw, y, x + iw, y + ir, ir)
-  ctx.lineTo(x + iw, y + ih - ir)
-  ctx.arcTo(x + iw, y + ih, x + iw - ir, y + ih, ir)
-  ctx.lineTo(x + ir, y + ih)
-  ctx.arcTo(x, y + ih, x, y + ih - ir, ir)
-  ctx.lineTo(x, y + ir)
-  ctx.arcTo(x, y, x + ir, y, ir)
-  ctx.closePath()
-  ctx.fillStyle = fill
+  const m = PILL_M * s
+  const bw = PILL_BW * s
+  const bh = PILL_BH * s
+  const r = PILL_R * s
+  const cw = PILL_CARET_W * s
+  const ch = PILL_CARET_H * s
+  const cx = w / 2
+
+  const tracePath = () => {
+    ctx.beginPath()
+    ctx.moveTo(m + r, m)
+    ctx.lineTo(m + bw - r, m)
+    ctx.arcTo(m + bw, m, m + bw, m + r, r)
+    ctx.lineTo(m + bw, m + bh - r)
+    ctx.arcTo(m + bw, m + bh, m + bw - r, m + bh, r)
+    // Bottom edge with the pointer tail
+    ctx.lineTo(cx + cw / 2, m + bh)
+    ctx.lineTo(cx, m + bh + ch)
+    ctx.lineTo(cx - cw / 2, m + bh)
+    ctx.lineTo(m + r, m + bh)
+    ctx.arcTo(m, m + bh, m, m + bh - r, r)
+    ctx.lineTo(m, m + r)
+    ctx.arcTo(m, m, m + r, m, r)
+    ctx.closePath()
+  }
+
+  tracePath()
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
+  ctx.shadowBlur = 4 * s
+  ctx.shadowOffsetY = 2 * s
+  ctx.fillStyle = spec.body
   ctx.fill()
-  ctx.strokeStyle = stroke
-  ctx.lineWidth = lw
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+
+  tracePath()
+  ctx.strokeStyle = spec.ring
+  ctx.lineWidth = 1.5 * s
   ctx.stroke()
+
+  // Category dot in the left cap
+  ctx.beginPath()
+  ctx.arc(m + 11 * s, m + bh / 2, 3.5 * s, 0, Math.PI * 2)
+  ctx.fillStyle = spec.dot
+  ctx.fill()
+
   return ctx.getImageData(0, 0, w, h)
 }
 
-// Stretch bands sit between the rounded corners; content is the box the
-// fitted text may occupy.
+// Two stretch bands flank the fixed pointer tail; the vertical band sits in
+// the thin straight zone between the corner arcs; content is the box the
+// fitted text may occupy (starting right of the baked category dot).
 const PILL_IMAGE_OPTIONS = {
   pixelRatio: PILL_PR,
-  stretchX: [[(PILL_R + 1) * PILL_PR, (PILL_W - PILL_R - 1) * PILL_PR]] as [number, number][],
-  stretchY: [[(PILL_H / 2 - 2) * PILL_PR, (PILL_H / 2 + 2) * PILL_PR]] as [number, number][],
+  stretchX: [
+    [(PILL_M + PILL_R + 1) * PILL_PR, (PILL_M + PILL_BW / 2 - PILL_CARET_W / 2 - 2) * PILL_PR],
+    [(PILL_M + PILL_BW / 2 + PILL_CARET_W / 2 + 2) * PILL_PR, (PILL_M + PILL_BW - PILL_R - 1) * PILL_PR],
+  ] as [number, number][],
+  stretchY: [
+    [(PILL_M + PILL_R) * PILL_PR, (PILL_M + PILL_BH - PILL_R) * PILL_PR],
+  ] as [number, number][],
   content: [
-    11 * PILL_PR,
-    6 * PILL_PR,
-    (PILL_W - 11) * PILL_PR,
-    (PILL_H - 6) * PILL_PR,
+    (PILL_M + 18) * PILL_PR,
+    (PILL_M + 6) * PILL_PR,
+    (PILL_M + PILL_BW - 11) * PILL_PR,
+    (PILL_M + PILL_BH - 6) * PILL_PR,
   ] as [number, number, number, number],
 }
 
@@ -96,6 +145,9 @@ function toFeatureCollection(inputs: MapMarkerInput[]): GeoJSON.FeatureCollectio
         // Keep GPU labels short — the full title lives in the preview card.
         name: input.name.length > 28 ? `${input.name.slice(0, 27)}…` : input.name,
         kind: input.kind ?? 'event',
+        category: CATEGORY_PIN_COLORS[input.category?.toLowerCase() ?? '']
+          ? (input.category as string).toLowerCase()
+          : 'other',
         selected: input.isSelected,
       },
     })),
@@ -113,6 +165,9 @@ export function createMaplibreAdapter({
     style: MAPLIBRE_STYLE_URL,
     center,
     zoom,
+    // At full zoom-out the world fits the screen and panning becomes a
+    // dead zone — floor the zoom just above that so the map always moves.
+    minZoom: 2,
     attributionControl: { compact: true },
   })
 
@@ -151,19 +206,26 @@ export function createMaplibreAdapter({
     // handler halfway and leave a half-configured map (some layers missing,
     // styleReady stuck false, pins frozen). Fail loudly instead.
     try {
-      map.addImage(
-        'albago-pill-event',
-        createPillImageData('rgba(8, 8, 8, 0.94)', FLAME),
-        PILL_IMAGE_OPTIONS,
-      )
+      for (const [category, colors] of Object.entries(CATEGORY_PIN_COLORS)) {
+        map.addImage(
+          `albago-pill-${category}`,
+          createPillImageData({ body: 'rgba(8, 8, 8, 0.94)', ring: colors.accent, dot: colors.accent }),
+          PILL_IMAGE_OPTIONS,
+        )
+        map.addImage(
+          `albago-pill-${category}-active`,
+          createPillImageData({ body: colors.active, ring: '#ffffff', dot: '#ffffff' }),
+          PILL_IMAGE_OPTIONS,
+        )
+      }
       map.addImage(
         'albago-pill-venue',
-        createPillImageData('rgba(255, 255, 255, 0.96)', 'rgba(10, 10, 10, 0.35)'),
+        createPillImageData({ body: 'rgba(255, 255, 255, 0.97)', ring: 'rgba(10, 10, 10, 0.30)', dot: INK }),
         PILL_IMAGE_OPTIONS,
       )
       map.addImage(
-        'albago-pill-active',
-        createPillImageData(FLAME, '#ffffff'),
+        'albago-pill-venue-active',
+        createPillImageData({ body: INK, ring: '#ffffff', dot: FLAME }),
         PILL_IMAGE_OPTIONS,
       )
       addPinLayers()
@@ -218,7 +280,19 @@ export function createMaplibreAdapter({
       source: SOURCE_ID,
       filter: ['!', ['has', 'point_count']],
       paint: {
-        'circle-color': ['match', ['get', 'kind'], 'venue', INK, FLAME],
+        'circle-color': [
+          'case',
+          ['==', ['get', 'kind'], 'venue'],
+          INK,
+          ['match', ['get', 'category'],
+            'nightlife', CATEGORY_PIN_COLORS.nightlife.accent,
+            'music', CATEGORY_PIN_COLORS.music.accent,
+            'sports', CATEGORY_PIN_COLORS.sports.accent,
+            'culture', CATEGORY_PIN_COLORS.culture.accent,
+            'food', CATEGORY_PIN_COLORS.food.accent,
+            FLAME,
+          ],
+        ],
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 4, 10, 5.5, 15, 7],
         'circle-stroke-width': 1.5,
         'circle-stroke-color': '#ffffff',
@@ -239,12 +313,22 @@ export function createMaplibreAdapter({
         ['!', ['boolean', ['get', 'selected'], false]],
       ],
       layout: {
-        'icon-image': ['match', ['get', 'kind'], 'venue', 'albago-pill-venue', 'albago-pill-event'],
+        'icon-image': [
+          'case',
+          ['==', ['get', 'kind'], 'venue'],
+          'albago-pill-venue',
+          ['concat', 'albago-pill-', ['get', 'category']],
+        ],
         'icon-text-fit': 'both',
         'icon-text-fit-padding': [4, 10, 4, 10],
         'text-field': ['get', 'name'],
         'text-font': ['Noto Sans Bold'],
         'text-size': ['interpolate', ['linear'], ['zoom'], 3, 11.5, 14, 13],
+        'text-max-width': 12,
+        // Anchor the text box (and therefore the fitted bubble) above the
+        // location so the pointer tail lands on the spot / fallback dot.
+        'text-anchor': 'bottom',
+        'text-offset': [0, -1.4],
       },
       paint: {
         'text-color': ['match', ['get', 'kind'], 'venue', '#111111', '#ffffff'],
@@ -263,12 +347,20 @@ export function createMaplibreAdapter({
         ['boolean', ['get', 'selected'], false],
       ],
       layout: {
-        'icon-image': 'albago-pill-active',
+        'icon-image': [
+          'case',
+          ['==', ['get', 'kind'], 'venue'],
+          'albago-pill-venue-active',
+          ['concat', 'albago-pill-', ['get', 'category'], '-active'],
+        ],
         'icon-text-fit': 'both',
         'icon-text-fit-padding': [4, 10, 4, 10],
         'text-field': ['get', 'name'],
         'text-font': ['Noto Sans Bold'],
         'text-size': ['interpolate', ['linear'], ['zoom'], 3, 12, 14, 13.5],
+        'text-max-width': 12,
+        'text-anchor': 'bottom',
+        'text-offset': [0, -1.4],
         'icon-allow-overlap': true,
         'text-allow-overlap': true,
       },
