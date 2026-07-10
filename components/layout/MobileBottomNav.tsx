@@ -54,6 +54,7 @@ export default function MobileBottomNav() {
   const { t } = useLanguage()
   const pathname = usePathname() ?? '/'
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [shrunk, setShrunk] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -69,6 +70,27 @@ export default function MobileBottomNav() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Instagram behavior: scrolling down condenses the pill, scrolling up
+  // restores it to full size. A small delta threshold avoids jitter from
+  // momentum/bounce scrolling.
+  useEffect(() => {
+    let lastY = window.scrollY
+    const onScroll = () => {
+      const y = window.scrollY
+      const delta = y - lastY
+      if (y < 24) {
+        setShrunk(false)
+      } else if (delta > 6) {
+        setShrunk(true)
+      } else if (delta < -6) {
+        setShrunk(false)
+      }
+      lastY = y
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   if (SUPPRESS_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return null
   }
@@ -79,9 +101,14 @@ export default function MobileBottomNav() {
     <nav
       aria-label="Primary mobile navigation"
       className="pointer-events-none fixed inset-x-0 z-40 flex justify-center sm:hidden"
-      style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+      style={{ bottom: 'calc(0.375rem + env(safe-area-inset-bottom))' }}
     >
-      <ul className="pointer-events-auto mx-3 flex w-full max-w-md items-center justify-around rounded-full border border-white/10 bg-ink-950/70 px-2 py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+      <ul
+        className={[
+          'pointer-events-auto mx-3 flex w-full max-w-md origin-bottom items-center justify-around rounded-full border border-white/10 bg-ink-950/70 px-2 py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-transform duration-300 ease-out',
+          shrunk ? 'scale-[0.85]' : 'scale-100',
+        ].join(' ')}
+      >
         {items.map((item) => {
           const active = item.match(pathname)
           const Icon = item.icon
