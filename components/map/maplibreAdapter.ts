@@ -18,15 +18,72 @@ const MAPLIBRE_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
 const SOURCE_ID = 'albago-pins'
 const LAYER_CLUSTERS = 'albago-clusters'
 const LAYER_CLUSTER_COUNT = 'albago-cluster-count'
-const LAYER_SELECTED_HALO = 'albago-selected-halo'
-const LAYER_POINTS = 'albago-points'
-const LAYER_POINT_LABELS = 'albago-point-labels'
-const CLICKABLE_LAYERS = [LAYER_POINTS, LAYER_CLUSTERS]
+const LAYER_DOTS = 'albago-dots'
+const LAYER_PILLS = 'albago-pills'
+const LAYER_PILL_SELECTED = 'albago-pill-selected'
+const POINT_CLICK_LAYERS = [LAYER_PILL_SELECTED, LAYER_PILLS, LAYER_DOTS]
+const CLICKABLE_LAYERS = [...POINT_CLICK_LAYERS, LAYER_CLUSTERS]
 
 const FLAME = '#EE1C25'
 const INK = '#141414'
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+
+// ── Pill marker images (Airbnb pattern: the pin IS a named pill) ──
+// A tiny rounded-rect image is registered with stretch zones so MapLibre can
+// scale it around each event's name via icon-text-fit — still one GPU symbol
+// per pin, no DOM. Drawn at 2x for crisp rendering on retina screens.
+const PILL_PR = 2
+const PILL_W = 48
+const PILL_H = 30
+const PILL_R = 14
+
+function createPillImageData(fill: string, stroke: string): ImageData {
+  const w = PILL_W * PILL_PR
+  const h = PILL_H * PILL_PR
+  const r = PILL_R * PILL_PR
+  const lw = 1.5 * PILL_PR
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  const x = lw / 2
+  const y = lw / 2
+  const iw = w - lw
+  const ih = h - lw
+  const ir = Math.min(r, ih / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + ir, y)
+  ctx.lineTo(x + iw - ir, y)
+  ctx.arcTo(x + iw, y, x + iw, y + ir, ir)
+  ctx.lineTo(x + iw, y + ih - ir)
+  ctx.arcTo(x + iw, y + ih, x + iw - ir, y + ih, ir)
+  ctx.lineTo(x + ir, y + ih)
+  ctx.arcTo(x, y + ih, x, y + ih - ir, ir)
+  ctx.lineTo(x, y + ir)
+  ctx.arcTo(x, y, x + ir, y, ir)
+  ctx.closePath()
+  ctx.fillStyle = fill
+  ctx.fill()
+  ctx.strokeStyle = stroke
+  ctx.lineWidth = lw
+  ctx.stroke()
+  return ctx.getImageData(0, 0, w, h)
+}
+
+// Stretch bands sit between the rounded corners; content is the box the
+// fitted text may occupy.
+const PILL_IMAGE_OPTIONS = {
+  pixelRatio: PILL_PR,
+  stretchX: [[(PILL_R + 1) * PILL_PR, (PILL_W - PILL_R - 1) * PILL_PR]] as [number, number][],
+  stretchY: [[(PILL_H / 2 - 2) * PILL_PR, (PILL_H / 2 + 2) * PILL_PR]] as [number, number][],
+  content: [
+    11 * PILL_PR,
+    6 * PILL_PR,
+    (PILL_W - 11) * PILL_PR,
+    (PILL_H - 6) * PILL_PR,
+  ] as [number, number, number, number],
+}
 
 function toFeatureCollection(inputs: MapMarkerInput[]): GeoJSON.FeatureCollection {
   return {
@@ -94,6 +151,21 @@ export function createMaplibreAdapter({
     // handler halfway and leave a half-configured map (some layers missing,
     // styleReady stuck false, pins frozen). Fail loudly instead.
     try {
+      map.addImage(
+        'albago-pill-event',
+        createPillImageData('rgba(8, 8, 8, 0.94)', FLAME),
+        PILL_IMAGE_OPTIONS,
+      )
+      map.addImage(
+        'albago-pill-venue',
+        createPillImageData('rgba(255, 255, 255, 0.96)', 'rgba(10, 10, 10, 0.35)'),
+        PILL_IMAGE_OPTIONS,
+      )
+      map.addImage(
+        'albago-pill-active',
+        createPillImageData(FLAME, '#ffffff'),
+        PILL_IMAGE_OPTIONS,
+      )
       addPinLayers()
       styleReady = true
       pendingData = null
@@ -137,68 +209,71 @@ export function createMaplibreAdapter({
       paint: { 'text-color': '#ffffff' },
     })
 
-    // Soft flame glow under the selected pin so it reads instantly.
+    // Small dot under every event — the always-visible fallback for spots
+    // whose pill was collision-culled in dense areas (Airbnb does exactly
+    // this: price pills where they fit, dots where they don't).
     map.addLayer({
-      id: LAYER_SELECTED_HALO,
+      id: LAYER_DOTS,
       type: 'circle',
+      source: SOURCE_ID,
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': ['match', ['get', 'kind'], 'venue', INK, FLAME],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 4, 10, 5.5, 15, 7],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#ffffff',
+      },
+    })
+
+    // The pin itself is a named pill: ink with a flame ring for events,
+    // white for venues. Overlapping pills hide automatically; their dot
+    // stays. NOTE: ['zoom'] is only legal inside a TOP-LEVEL
+    // interpolate/step — validate layer specs before changing them.
+    map.addLayer({
+      id: LAYER_PILLS,
+      type: 'symbol',
+      source: SOURCE_ID,
+      filter: [
+        'all',
+        ['!', ['has', 'point_count']],
+        ['!', ['boolean', ['get', 'selected'], false]],
+      ],
+      layout: {
+        'icon-image': ['match', ['get', 'kind'], 'venue', 'albago-pill-venue', 'albago-pill-event'],
+        'icon-text-fit': 'both',
+        'icon-text-fit-padding': [4, 10, 4, 10],
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Bold'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 3, 11.5, 14, 13],
+      },
+      paint: {
+        'text-color': ['match', ['get', 'kind'], 'venue', '#111111', '#ffffff'],
+      },
+    })
+
+    // The selected pin flips to a solid flame pill and is exempt from
+    // collision — it must never disappear under a neighbor.
+    map.addLayer({
+      id: LAYER_PILL_SELECTED,
+      type: 'symbol',
       source: SOURCE_ID,
       filter: [
         'all',
         ['!', ['has', 'point_count']],
         ['boolean', ['get', 'selected'], false],
       ],
-      paint: {
-        'circle-color': 'rgba(238, 28, 37, 0.28)',
-        'circle-blur': 0.4,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 17, 10, 24, 15, 32],
-      },
-    })
-
-    map.addLayer({
-      id: LAYER_POINTS,
-      type: 'circle',
-      source: SOURCE_ID,
-      filter: ['!', ['has', 'point_count']],
-      paint: {
-        // Events burn flame red; venues are ink dots — both pop on the
-        // light basemap without shouting over each other.
-        'circle-color': ['match', ['get', 'kind'], 'venue', INK, FLAME],
-        // NOTE: ['zoom'] is only legal inside a TOP-LEVEL interpolate/step —
-        // wrapping it in ['+', …] fails validation, addLayer throws, and the
-        // whole pin layer silently never exists. Selection boost therefore
-        // lives inside each stop instead.
-        'circle-radius': [
-          'interpolate', ['linear'], ['zoom'],
-          3, ['case', ['boolean', ['get', 'selected'], false], 9.5, 7],
-          10, ['case', ['boolean', ['get', 'selected'], false], 13, 10],
-          15, ['case', ['boolean', ['get', 'selected'], false], 17, 14],
-        ],
-        'circle-stroke-width': ['case', ['boolean', ['get', 'selected'], false], 3.5, 2.5],
-        'circle-stroke-color': '#ffffff',
-      },
-    })
-
-    // Event titles under the dots, from far out — the collision engine hides
-    // overlapping ones automatically, so isolated events are named almost
-    // immediately while dense areas stay clean until the user zooms.
-    map.addLayer({
-      id: LAYER_POINT_LABELS,
-      type: 'symbol',
-      source: SOURCE_ID,
-      filter: ['!', ['has', 'point_count']],
-      minzoom: 4,
       layout: {
+        'icon-image': 'albago-pill-active',
+        'icon-text-fit': 'both',
+        'icon-text-fit-padding': [4, 10, 4, 10],
         'text-field': ['get', 'name'],
         'text-font': ['Noto Sans Bold'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 4, 11, 10, 12.5, 14, 13.5],
-        'text-anchor': 'top',
-        'text-offset': [0, 1.2],
-        'text-max-width': 9,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 3, 12, 14, 13.5],
+        'icon-allow-overlap': true,
+        'text-allow-overlap': true,
       },
       paint: {
-        'text-color': '#1a1a1a',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.4,
+        'text-color': '#ffffff',
       },
     })
   }
@@ -207,12 +282,19 @@ export function createMaplibreAdapter({
     console.error('MapLibre error:', event)
   })
 
-  map.on('click', LAYER_POINTS, (e) => {
-    const feature = e.features?.[0]
-    const id = feature?.properties?.id as string | undefined
-    if (!id) return
-    inputsById.get(id)?.onClick()
-  })
+  // A tap on a pill also hits the fallback dot beneath it — dedupe per DOM
+  // event so onClick fires once.
+  const handledClicks = new WeakSet<MouseEvent>()
+  for (const layerId of POINT_CLICK_LAYERS) {
+    map.on('click', layerId, (e) => {
+      if (handledClicks.has(e.originalEvent)) return
+      handledClicks.add(e.originalEvent)
+      const feature = e.features?.[0]
+      const id = feature?.properties?.id as string | undefined
+      if (!id) return
+      inputsById.get(id)?.onClick()
+    })
+  }
 
   map.on('click', LAYER_CLUSTERS, async (e) => {
     const feature = e.features?.[0]
