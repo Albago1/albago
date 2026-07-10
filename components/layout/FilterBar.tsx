@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
+import { CATEGORY_ICONS } from '@/components/events/categoryMeta'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
@@ -505,39 +506,71 @@ function MobileFilterBar(props: FilterBarProps) {
             </button>
           </div>
 
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {activeChips.length > 0 ? (
-              <>
-                {activeChips.map((chip) => (
+          {/* One-tap filter rail (Google Maps / Airbnb pattern): time and
+              category toggle instantly on the map, no sheet required.
+              Tapping an active chip clears it. */}
+          <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {timeFilters
+              .filter((filter) => filter !== 'all')
+              .map((filter) => {
+                const isActive = activeTimeFilter === filter
+                const Icon =
+                  filter === 'tonight'
+                    ? Moon
+                    : filter === 'weekend'
+                      ? CalendarDays
+                      : RotateCcw
+
+                return (
                   <button
-                    key={chip}
+                    key={filter}
                     type="button"
-                    onClick={() => setIsSheetOpen(true)}
-                    className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white/80"
+                    onClick={() => onTimeFilterChange(isActive ? 'all' : filter)}
+                    className={[
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                      isActive
+                        ? 'border-white/15 bg-white text-black'
+                        : 'border-white/10 bg-white/[0.04] text-white/80',
+                    ].join(' ')}
                   >
-                    {chip}
+                    <Icon className="h-3.5 w-3.5" />
+                    {getTimeFilterLabel(filter)}
                   </button>
-                ))}
+                )
+              })}
 
-                <div className="shrink-0 rounded-full border border-flame-500/30 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
-                  {resultsLabel}
-                </div>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsSheetOpen(true)}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white/80"
-                >
-                  Explore
-                </button>
+            <span className="shrink-0 text-white/15">·</span>
 
-                <div className="shrink-0 rounded-full border border-flame-500/30 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
-                  {resultsLabel}
-                </div>
-              </>
-            )}
+            {categories
+              .filter((category) => category !== 'all')
+              .map((category) => {
+                const isActive = activeCategory === category
+                const isCivic = category === 'civic'
+                const Icon = CATEGORY_ICONS[category] ?? Tag
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => onCategoryChange(isActive ? 'all' : category)}
+                    className={[
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition',
+                      isActive
+                        ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                        : isCivic
+                          ? 'border-flame-500/30 bg-flame-500/[0.06] text-flame-200/85'
+                          : 'border-white/10 bg-white/[0.04] text-white/70',
+                    ].join(' ')}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {getCategoryLabel(category)}
+                  </button>
+                )
+              })}
+
+            <div className="shrink-0 rounded-full border border-flame-500/30 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
+              {resultsLabel}
+            </div>
           </div>
         </div>
       </div>

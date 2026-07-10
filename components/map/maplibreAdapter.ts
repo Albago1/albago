@@ -168,15 +168,15 @@ export function createMaplibreAdapter({
     attributionControl: { compact: true },
   })
 
-  // Zoom-out floor: the furthest view is a clean main-continents frame, and
-  // the world always stays a bit larger than the viewport — at full zoom-out
-  // the map otherwise fits the screen and panning becomes a dead zone. The
-  // world is 512px wide at zoom 0 and doubles per level, so solve for the
-  // zoom where it covers the largest viewport side with ~15% to spare.
+  // Zoom-out floor: horizontal panning wraps around the globe, so only the
+  // VERTICAL axis can dead-zone — it sticks once the world map is shorter
+  // than the viewport. Floor the zoom so the world stays ~10% taller than
+  // the container (world is 512px tall at zoom 0, doubling per level), with
+  // an absolute floor of 0.8 so a phone can pull back far enough to see the
+  // continents at once and flick-wrap to the rest.
   const computeMinZoom = () => {
     const el = map.getContainer()
-    const largestSide = Math.max(el.clientWidth, el.clientHeight, 1)
-    return Math.max(2.4, Math.log2((largestSide * 1.15) / 512))
+    return Math.max(0.8, Math.log2((Math.max(el.clientHeight, 1) * 1.1) / 512))
   }
   map.setMinZoom(computeMinZoom())
   map.on('resize', () => map.setMinZoom(computeMinZoom()))
