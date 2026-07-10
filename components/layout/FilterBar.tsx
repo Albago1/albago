@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   CircleUserRound,
@@ -17,6 +17,15 @@ import {
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
+import {
+  MapSearchOverlay,
+  MapSearchResults,
+  runSearchRow,
+  useMapSearch,
+  type MapSearchActions,
+  type SearchRow,
+} from '@/components/map/MapSearch'
+import { pushRecentSearch, type MapSearchIndex } from '@/lib/mapSearch'
 import { CATEGORY_ICONS, categoryLabel } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
@@ -31,12 +40,6 @@ type LocationOption = {
 }
 
 type CountryCount = { country: string; count: number }
-
-export type MapSearchSuggestions = {
-  events: { id: string; title: string; sub: string; category: string }[]
-  places: { id: string; name: string; sub: string }[]
-  cities: { slug: string; label: string; country: string; center?: [number, number] }[]
-}
 
 type FilterBarProps = {
   activeTimeFilter: TimeFilter
@@ -53,9 +56,11 @@ type FilterBarProps = {
   activeCountry?: string | null
   onCountryChange?: (country: string | null) => void
   isMobile: boolean
-  suggestions?: MapSearchSuggestions
-  onPickEventSuggestion?: (id: string) => void
-  onPickPlaceSuggestion?: (id: string) => void
+  searchIndex: MapSearchIndex
+  onPickEvent: (id: string, center: [number, number]) => void
+  onPickPlace: (id: string, center: [number, number]) => void
+  onPickCategory: (category: string) => void
+  onUseMyLocation: () => void
   onTimeFilterChange: (value: TimeFilter) => void
   onCategoryChange: (value: string) => void
   onSearchQueryChange: (value: string) => void
@@ -94,6 +99,129 @@ function toPopularCities(options: LocationOption[]) {
     }))
 }
 
+// Builds the shared search-action set from the FilterBar props — both the
+// mobile overlay and the desktop dropdown execute picks the same way.
+function buildSearchActions(props: FilterBarProps): MapSearchActions {
+  return {
+    onPickCity: props.onLocationChange,
+    onPickEvent: props.onPickEvent,
+    onPickPlace: props.onPickPlace,
+    onPickCategory: props.onPickCategory,
+    onCommitQuery: props.onSearchQueryChange,
+    onUseMyLocation: props.onUseMyLocation,
+  }
+}
+
+// Desktop search box with a live ranked dropdown: recents on focus, grouped
+// suggestions while typing, full arrow-key/Enter/Escape navigation, and an
+// explicit commit — typing alone never filters the map.
+function DesktopSearch({
+  committedQuery,
+  searchIndex,
+  actions,
+}: {
+  committedQuery: string
+  searchIndex: MapSearchIndex
+  actions: MapSearchActions
+}) {
+  const { t } = useLanguage()
+  const [draft, setDraft] = useState(committedQuery)
+  const [focused, setFocused] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const { tokens, rows, recents, refreshRecents, clearRecents, remoteLoading } =
+    useMapSearch(draft, searchIndex)
+
+  // Committed query only changes on commit/clear/reset — never mid-typing —
+  // so mirroring it into the draft keeps the box in sync with resets.
+  useEffect(() => {
+    setDraft(committedQuery)
+  }, [committedQuery])
+
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [draft])
+
+  const close = () => {
+    setFocused(false)
+    inputRef.current?.blur()
+  }
+
+  const run = (row: SearchRow) => {
+    const recent = runSearchRow(row, actions)
+    if (recent) pushRecentSearch(recent)
+    close()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.min(i + 1, rows.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.max(i - 1, -1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      run(rows[activeIndex] ?? ({ type: 'query', query: draft } as SearchRow))
+    } else if (e.key === 'Escape') {
+      close()
+    }
+  }
+
+  const showPanel = focused && rows.length > 0
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onFocus={() => {
+          setFocused(true)
+          refreshRecents()
+        }}
+        onBlur={() => setFocused(false)}
+        onKeyDown={handleKeyDown}
+        placeholder={t('map_search_placeholder')}
+        autoComplete="off"
+        className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-9 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
+      />
+      {draft && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setDraft('')
+            actions.onCommitQuery('')
+            inputRef.current?.focus()
+          }}
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+
+      {showPanel && (
+        <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[420px] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-ink-950/95 shadow-[0_16px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <MapSearchResults
+            tokens={tokens}
+            rows={rows}
+            recents={recents}
+            remoteLoading={remoteLoading}
+            activeIndex={activeIndex}
+            popularCities={searchIndex.cities}
+            onRun={run}
+            onClearRecents={clearRecents}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DesktopFilterBar(props: FilterBarProps) {
   const {
     activeTimeFilter,
@@ -109,9 +237,9 @@ function DesktopFilterBar(props: FilterBarProps) {
     countryOptions,
     activeCountry,
     onCountryChange,
+    searchIndex,
     onTimeFilterChange,
     onCategoryChange,
-    onSearchQueryChange,
     onOptionFilterChange,
     onLocationChange,
     onReset,
@@ -127,6 +255,7 @@ function DesktopFilterBar(props: FilterBarProps) {
   const popularCities = useMemo(() => toPopularCities(locationOptions), [locationOptions])
   const activeOption = locationOptions.find((o) => o.slug === activeLocationSlug)
   const buttonLabel = activeLocationLabel || activeOption?.label || activeLocationSlug
+  const searchActions = buildSearchActions(props)
 
   const handleResolve = (resolved: ResolvedCity | null) => {
     setResolvedCity(resolved)
@@ -159,26 +288,11 @@ function DesktopFilterBar(props: FilterBarProps) {
               <Home className="h-4 w-4" />
             </Link>
 
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder={t('map_search_placeholder')}
-                className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-9 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  aria-label="Clear search"
-                  onClick={() => onSearchQueryChange('')}
-                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
+            <DesktopSearch
+              committedQuery={searchQuery}
+              searchIndex={searchIndex}
+              actions={searchActions}
+            />
 
             <div className="relative shrink-0">
               <button
@@ -412,9 +526,7 @@ function MobileFilterBar(props: FilterBarProps) {
     visiblePlacesCount,
     visibleEventsCount,
     availableOptionChips,
-    suggestions,
-    onPickEventSuggestion,
-    onPickPlaceSuggestion,
+    searchIndex,
     onTimeFilterChange,
     onCategoryChange,
     onSearchQueryChange,
@@ -430,9 +542,11 @@ function MobileFilterBar(props: FilterBarProps) {
       : `${totalResults} ${totalResults === 1 ? t('map_result') : t('map_results')}`
 
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
   const [resolvedCity, setResolvedCity] = useState<ResolvedCity | null>(null)
   const popularCities = useMemo(() => toPopularCities(locationOptions), [locationOptions])
+  const searchActions = buildSearchActions(props)
 
   // Google-Maps-style pill ends in the account avatar. Auth state mirrors
   // MobileBottomNav's pattern.
@@ -461,16 +575,6 @@ function MobileFilterBar(props: FilterBarProps) {
     (optionFilter !== 'all' ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0)
 
-  // Google-Maps-style live suggestions under the pill while typing. Blur is
-  // delayed a beat so a tap on a suggestion row lands before the panel hides.
-  const [searchFocused, setSearchFocused] = useState(false)
-  const hasSuggestions =
-    !!suggestions &&
-    (suggestions.events.length > 0 ||
-      suggestions.places.length > 0 ||
-      suggestions.cities.length > 0)
-  const showSuggestions = searchFocused && searchQuery.trim().length > 0 && hasSuggestions
-
   const handleClose = () => setIsSheetOpen(false)
 
   const handleResetAndClose = () => {
@@ -481,20 +585,26 @@ function MobileFilterBar(props: FilterBarProps) {
   return (
     <>
       <div className="absolute left-3 right-3 top-3 z-20 md:hidden">
-        {/* Google-Maps-app search pill: magnifier → input → account avatar,
-            one floating rounded-full surface with the chips loose below it
-            (no containing card). */}
+        {/* Google-Maps-app search pill: magnifier → query/placeholder →
+            account avatar. Tapping the field opens the full-screen search
+            view (recents, ranked suggestions, worldwide cities) — the map
+            itself only filters on a committed search. */}
         <div className="flex h-[52px] items-center gap-2.5 rounded-full border border-white/10 bg-ink-900 pl-4 pr-1.5">
           <Search className="h-5 w-5 shrink-0 text-white/40" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setTimeout(() => setSearchFocused(false), 180)}
-            placeholder={t('map_search_placeholder')}
-            className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/40"
-          />
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(true)}
+            className="flex h-full min-w-0 flex-1 items-center text-left"
+          >
+            <span
+              className={[
+                'truncate text-[15px]',
+                searchQuery ? 'text-white' : 'text-white/40',
+              ].join(' ')}
+            >
+              {searchQuery || t('map_search_placeholder')}
+            </span>
+          </button>
           {searchQuery && (
             <button
               type="button"
@@ -519,74 +629,6 @@ function MobileFilterBar(props: FilterBarProps) {
             )}
           </Link>
         </div>
-
-        {showSuggestions && (
-          <div className="mt-2 overflow-hidden rounded-3xl border border-white/10 bg-ink-900 shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
-            {suggestions!.cities.map((city) => (
-              <button
-                key={`city-${city.slug}`}
-                type="button"
-                onClick={() => {
-                  if (city.center) onLocationChange(city.slug, city.center)
-                  else onLocationChange(city.slug)
-                  onSearchQueryChange('')
-                }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.06]"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/70">
-                  <MapPin className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-white">{city.label}</span>
-                  <span className="block truncate text-xs text-white/45">{city.country}</span>
-                </span>
-              </button>
-            ))}
-
-            {suggestions!.events.map((event) => {
-              const Icon = CATEGORY_ICONS[event.category] ?? Tag
-              return (
-                <button
-                  key={`event-${event.id}`}
-                  type="button"
-                  onClick={() => {
-                    onPickEventSuggestion?.(event.id)
-                    onSearchQueryChange('')
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.06]"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-flame-300">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-white">{event.title}</span>
-                    <span className="block truncate text-xs text-white/45">{event.sub}</span>
-                  </span>
-                </button>
-              )
-            })}
-
-            {suggestions!.places.map((place) => (
-              <button
-                key={`place-${place.id}`}
-                type="button"
-                onClick={() => {
-                  onPickPlaceSuggestion?.(place.id)
-                  onSearchQueryChange('')
-                }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.06]"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/70">
-                  <MapPin className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-white">{place.name}</span>
-                  <span className="block truncate text-xs text-white/45">{place.sub}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* One-tap filter rail (Google Maps / Airbnb pattern): time and
             category toggle instantly on the map, no sheet required.
@@ -682,6 +724,15 @@ function MobileFilterBar(props: FilterBarProps) {
         </div>
       </div>
 
+      <MapSearchOverlay
+        open={isSearchOpen}
+        initialQuery={searchQuery}
+        index={searchIndex}
+        popularCities={searchIndex.cities}
+        actions={searchActions}
+        onClose={() => setIsSearchOpen(false)}
+      />
+
       {isSheetOpen && (
         <>
           <div
@@ -723,33 +774,6 @@ function MobileFilterBar(props: FilterBarProps) {
                     onPopularClick={(c) => onLocationChange(c.slug, [c.lng, c.lat])}
                     placeholder={t('protests_search_placeholder')}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <FilterSectionTitle>{t('map_search')}</FilterSectionTitle>
-
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(event) =>
-                        onSearchQueryChange(event.target.value)
-                      }
-                      placeholder={t('map_search_placeholder')}
-                      className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-11 text-sm text-white outline-none placeholder:text-white/35"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        aria-label="Clear search"
-                        onClick={() => onSearchQueryChange('')}
-                        className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 <div className="space-y-2">

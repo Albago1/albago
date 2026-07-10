@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import FilterBar, { type MapSearchSuggestions } from '@/components/layout/FilterBar'
+import FilterBar from '@/components/layout/FilterBar'
+import type { MapSearchIndex } from '@/lib/mapSearch'
 import PlacePanel from '@/components/place/PlacePanel'
 import MapEventCard from '@/components/map/MapEventCard'
 import MapResultsSheet from '@/components/map/MapResultsSheet'
@@ -784,37 +785,59 @@ export default function MapView() {
     setSelectedCivicEvent(null)
   }
 
-  // Google-Maps-style live search suggestions: matching cities, events and
-  // venues while the user types in the pill.
-  const searchSuggestions = useMemo<MapSearchSuggestions>(() => {
-    const q = fold(searchQuery.trim())
-    if (!q) return { events: [], places: [], cities: [] }
-    const cities = locationOptions
-      .filter((o) => fold(o.label).includes(q) || fold(o.country).includes(q))
-      .slice(0, 3)
-      .map((o) => ({ slug: o.slug, label: o.label, country: o.country, center: o.center }))
-    const events = civicEvents
-      .filter(
-        (e) =>
-          fold(e.title).includes(q) ||
-          fold(e.locationSlug ?? '').includes(q) ||
-          fold(e.country ?? '').includes(q) ||
-          fold(cityLabelForSlug(e.locationSlug, e.country)).includes(q),
-      )
-      .slice(0, 5)
-      .map((e) => ({
+  // The search index: everything the unified search box can rank — every
+  // loaded city, event, and venue (with coordinates so recent-search entries
+  // can fly the camera even after the underlying data scope changes). The
+  // matching/ranking itself lives in lib/mapSearch.ts.
+  const searchIndex = useMemo<MapSearchIndex>(
+    () => ({
+      cities: locationOptions.map((o) => ({
+        slug: o.slug,
+        label: o.label,
+        country: o.country,
+        center: o.center,
+      })),
+      events: civicEvents.map((e) => ({
         id: e.id,
         title: e.title,
         sub: eventRowSub(e),
         category: eventRowCategory(e),
-      }))
-    const placeRows = places
-      .filter((p) => fold(p.name).includes(q))
-      .slice(0, 4)
-      .map((p) => ({ id: p.id, name: p.name, sub: p.address ?? p.category }))
-    return { events, places: placeRows, cities }
+        center: [e.lng, e.lat] as [number, number],
+      })),
+      places: places.map((p) => ({
+        id: p.id,
+        name: p.name,
+        sub: p.address ?? p.category,
+        center: [p.lng, p.lat] as [number, number],
+      })),
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, civicEvents, places, locationOptions, language])
+    [civicEvents, places, locationOptions, language],
+  )
+
+  // Search picks: select the pin when it's in the loaded data; when it came
+  // from recent-search memory and the current scope no longer includes it
+  // (e.g. saved in Berlin, map now on Tirana), still honor the pick by
+  // flying to its stored coordinates.
+  const handleSearchPickEvent = (id: string, center: [number, number]) => {
+    if (civicEvents.some((e) => e.id === id)) {
+      selectCivicEventById(id)
+      return
+    }
+    mapAdapterRef.current?.flyToLocation(center, 12.5)
+  }
+
+  const handleSearchPickPlace = (id: string, center: [number, number]) => {
+    if (places.some((p) => p.id === id)) {
+      selectPlaceById(id)
+      return
+    }
+    mapAdapterRef.current?.flyToLocation(center, 12.5)
+  }
+
+  const handleUseMyLocation = () => {
+    mapAdapterRef.current?.locateUser()
+  }
 
   // Everything currently visible on the map, as list rows for the
   // bottom results sheet.
@@ -1010,9 +1033,11 @@ export default function MapView() {
         activeCountry={countryFilter}
         onCountryChange={setCountryFilter}
         isMobile={isMobile}
-        suggestions={searchSuggestions}
-        onPickEventSuggestion={selectCivicEventById}
-        onPickPlaceSuggestion={selectPlaceById}
+        searchIndex={searchIndex}
+        onPickEvent={handleSearchPickEvent}
+        onPickPlace={handleSearchPickPlace}
+        onPickCategory={setActiveCategory}
+        onUseMyLocation={handleUseMyLocation}
         onTimeFilterChange={setActiveTimeFilter}
         onCategoryChange={setActiveCategory}
         onSearchQueryChange={setSearchQuery}
