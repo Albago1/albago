@@ -189,21 +189,27 @@ export function createMaplibreAdapter({
   map.touchPitch.disable()
   map.keyboard.disableRotation()
 
-  // Standard map affordances the best map products all ship: zoom buttons
-  // (desktop muscle memory) and a locate-me button that flies to the
-  // visitor's position — both bottom-right, clear of our floating UI.
-  map.addControl(
-    new maplibregl.NavigationControl({ showCompass: false }),
-    'bottom-right',
-  )
-  map.addControl(
-    new maplibregl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: false },
-      fitBoundsOptions: { maxZoom: 12.5 },
-      showAccuracyCircle: false,
-    }),
-    'bottom-right',
-  )
+  // Google Maps parity: phones get NO zoom buttons — pinch, double-tap
+  // (zoom in) and two-finger-tap (zoom out) are the whole zoom story, like
+  // the Google Maps app. Desktop keeps the +/- buttons for mouse users.
+  const isSmallScreen =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  if (!isSmallScreen) {
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      'bottom-right',
+    )
+  }
+  // Locate-me: Google-style blue position dot with accuracy circle that
+  // keeps tracking as the user moves. Also triggered programmatically on
+  // open when permission is already granted (see MapView).
+  const geolocate = new maplibregl.GeolocateControl({
+    positionOptions: { enableHighAccuracy: true },
+    fitBoundsOptions: { maxZoom: 14.5 },
+    trackUserLocation: true,
+    showAccuracyCircle: true,
+  })
+  map.addControl(geolocate, 'bottom-right')
 
   // Latest marker inputs by id — click events on the GPU layers dispatch
   // back to each input's onClick through this map.
@@ -477,6 +483,16 @@ export function createMaplibreAdapter({
 
     getZoom() {
       return map.getZoom()
+    },
+
+    locateUser() {
+      // trigger() needs the control mounted in the DOM, which happens once
+      // the map is ready — queue it behind the load event otherwise.
+      if (map.loaded()) {
+        geolocate.trigger()
+      } else {
+        map.once('load', () => geolocate.trigger())
+      }
     },
 
     fitBounds(coords, options) {

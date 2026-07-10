@@ -559,6 +559,35 @@ export default function MapView() {
     }
   }, [])
 
+  // Google Maps behavior: when the visitor has already granted location
+  // permission, the map opens centered on THEM (blue dot, city-level zoom)
+  // instead of the generic world view. Silent only — the first-time browser
+  // prompt stays behind the locate button. A deep-linked city in the URL
+  // always wins over auto-locate.
+  const autoLocateAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (autoLocateAttemptedRef.current) return
+    autoLocateAttemptedRef.current = true
+    if (searchParams.get('location')) return
+    const adapter = mapAdapterRef.current
+    if (!adapter || !navigator.permissions?.query) return
+    let cancelled = false
+    navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((status) => {
+        if (cancelled || status.state !== 'granted') return
+        // Claim the initial data-load fit so it doesn't yank the viewport
+        // away from the user's position a few seconds after locate lands.
+        initialFitDoneForSlugRef.current = locationSlug
+        adapter.locateUser()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const adapter = mapAdapterRef.current
     if (!adapter) return

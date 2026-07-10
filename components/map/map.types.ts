@@ -44,5 +44,7 @@ export type MapAdapter = {
   flyToLocation: (center: [number, number], zoom: number, padding?: FlyPadding) => void
   fitBounds: (coords: Array<[number, number]>, options?: FitBoundsOptions) => void
   getZoom: () => number
+  /** Fly to the visitor's position (Google-style blue dot + tracking). */
+  locateUser: () => void
   destroy: () => void
 }

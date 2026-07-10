@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
+  CircleUserRound,
   Flame,
   Home,
   MapPin,
@@ -18,6 +19,7 @@ import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
 import { CATEGORY_ICONS, categoryLabel } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { createClient } from '@/lib/supabase/browser'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
@@ -420,6 +422,20 @@ function MobileFilterBar(props: FilterBarProps) {
   const [resolvedCity, setResolvedCity] = useState<ResolvedCity | null>(null)
   const popularCities = useMemo(() => toPopularCities(locationOptions), [locationOptions])
 
+  // Google-Maps-style pill ends in the account avatar. Auth state mirrors
+  // MobileBottomNav's pattern.
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserEmail(user?.email ?? null)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   const handleResolve = (resolved: ResolvedCity | null) => {
     setResolvedCity(resolved)
     if (resolved) {
@@ -443,131 +459,133 @@ function MobileFilterBar(props: FilterBarProps) {
   return (
     <>
       <div className="absolute left-3 right-3 top-3 z-20 md:hidden">
-        <div className="rounded-2xl border border-white/10 bg-ink-950/85 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              aria-label="Home"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/85 transition hover:bg-white/[0.08]"
+        {/* Google-Maps-app search pill: magnifier → input → account avatar,
+            one floating rounded-full surface with the chips loose below it
+            (no containing card). */}
+        <div className="flex h-[52px] items-center gap-2.5 rounded-full border border-white/10 bg-ink-950/90 pl-4 pr-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <Search className="h-5 w-5 shrink-0 text-white/40" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            placeholder={t('map_search_placeholder')}
+            className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/40"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => onSearchQueryChange('')}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
             >
-              <Home className="h-4 w-4" />
-            </Link>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <Link
+            href={userEmail ? '/dashboard' : '/sign-in?next=/map'}
+            aria-label={userEmail ? t('nav_dashboard') : t('sign_in')}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+          >
+            {userEmail ? (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-flame-500 text-sm font-bold text-[#fff] ring-1 ring-white/20">
+                {userEmail[0].toUpperCase()}
+              </span>
+            ) : (
+              <CircleUserRound className="h-6 w-6 text-white/60" strokeWidth={1.9} />
+            )}
+          </Link>
+        </div>
 
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder={t('map_search_placeholder')}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-11 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20 focus:bg-white/[0.06]"
-              />
-              {searchQuery && (
+        {/* One-tap filter rail (Google Maps / Airbnb pattern): time and
+            category toggle instantly on the map, no sheet required.
+            Tapping an active chip clears it. The CITY leads the rail —
+            the first thing anyone wants to know on a map is where they
+            are browsing; tapping it opens the picker. Chips float straight
+            over the map, so inactive ones carry their own dark glass. */}
+        <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
+            onClick={() => setIsSheetOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white px-3.5 py-2 text-xs font-semibold text-black shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            {activeLocationLabel ||
+              locationOptions.find((o) => o.slug === activeLocationSlug)?.label ||
+              activeLocationSlug}
+          </button>
+
+          <button
+            type="button"
+            aria-label={t('map_filters')}
+            onClick={() => setIsSheetOpen(true)}
+            className="relative inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-ink-950/85 px-3.5 py-2 text-xs font-medium text-white/85 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-white px-1.5 py-0 text-[10px] font-semibold text-black">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {timeFilters
+            .filter((filter) => filter !== 'all')
+            .map((filter) => {
+              const isActive = activeTimeFilter === filter
+              const Icon =
+                filter === 'tonight'
+                  ? Moon
+                  : filter === 'weekend'
+                    ? CalendarDays
+                    : RotateCcw
+
+              return (
                 <button
+                  key={filter}
                   type="button"
-                  aria-label="Clear search"
-                  onClick={() => onSearchQueryChange('')}
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/65 transition hover:bg-white/[0.12] hover:text-white"
+                  onClick={() => onTimeFilterChange(isActive ? 'all' : filter)}
+                  className={[
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition',
+                    isActive
+                      ? 'border-white/15 bg-white text-black'
+                      : 'border-white/10 bg-ink-950/85 text-white/80 backdrop-blur-xl',
+                  ].join(' ')}
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <Icon className="h-3.5 w-3.5" />
+                  {getTimeFilterLabel(filter, t)}
                 </button>
-              )}
-            </div>
+              )
+            })}
 
-            <button
-              type="button"
-              onClick={() => setIsSheetOpen(true)}
-              className="relative flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-medium text-white/85 transition hover:bg-white/[0.08]"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {activeFilterCount > 0 && (
-                <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-black">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          </div>
+          {categories
+            .filter((category) => category !== 'all')
+            .map((category) => {
+              const isActive = activeCategory === category
+              const isCivic = category === 'civic'
+              const Icon = CATEGORY_ICONS[category] ?? Tag
 
-          {/* One-tap filter rail (Google Maps / Airbnb pattern): time and
-              category toggle instantly on the map, no sheet required.
-              Tapping an active chip clears it. The CITY leads the rail —
-              the first thing anyone wants to know on a map is where they
-              are browsing; tapping it opens the picker. */}
-          <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              type="button"
-              onClick={() => setIsSheetOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white px-3 py-1.5 text-xs font-semibold text-black"
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              {activeLocationLabel ||
-                locationOptions.find((o) => o.slug === activeLocationSlug)?.label ||
-                activeLocationSlug}
-            </button>
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => onCategoryChange(isActive ? 'all' : category)}
+                  className={[
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium capitalize shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition',
+                    isActive
+                      ? 'border-flame-500/40 bg-flame-500/15 text-flame-100 backdrop-blur-xl'
+                      : isCivic
+                        ? 'border-flame-500/30 bg-ink-950/85 text-flame-200/85 backdrop-blur-xl'
+                        : 'border-white/10 bg-ink-950/85 text-white/70 backdrop-blur-xl',
+                  ].join(' ')}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {categoryLabel(category, t)}
+                </button>
+              )
+            })}
 
-            <span className="shrink-0 text-white/15">·</span>
-
-            {timeFilters
-              .filter((filter) => filter !== 'all')
-              .map((filter) => {
-                const isActive = activeTimeFilter === filter
-                const Icon =
-                  filter === 'tonight'
-                    ? Moon
-                    : filter === 'weekend'
-                      ? CalendarDays
-                      : RotateCcw
-
-                return (
-                  <button
-                    key={filter}
-                    type="button"
-                    onClick={() => onTimeFilterChange(isActive ? 'all' : filter)}
-                    className={[
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
-                      isActive
-                        ? 'border-white/15 bg-white text-black'
-                        : 'border-white/10 bg-white/[0.04] text-white/80',
-                    ].join(' ')}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {getTimeFilterLabel(filter, t)}
-                  </button>
-                )
-              })}
-
-            <span className="shrink-0 text-white/15">·</span>
-
-            {categories
-              .filter((category) => category !== 'all')
-              .map((category) => {
-                const isActive = activeCategory === category
-                const isCivic = category === 'civic'
-                const Icon = CATEGORY_ICONS[category] ?? Tag
-
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => onCategoryChange(isActive ? 'all' : category)}
-                    className={[
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition',
-                      isActive
-                        ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
-                        : isCivic
-                          ? 'border-flame-500/30 bg-flame-500/[0.06] text-flame-200/85'
-                          : 'border-white/10 bg-white/[0.04] text-white/70',
-                    ].join(' ')}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {categoryLabel(category, t)}
-                  </button>
-                )
-              })}
-
-            <div className="shrink-0 rounded-full border border-flame-500/30 bg-flame-500/15 px-3 py-1.5 text-xs font-semibold text-flame-300">
-              {resultsLabel}
-            </div>
+          <div className="shrink-0 rounded-full border border-flame-500/30 bg-ink-950/85 px-3.5 py-2 text-xs font-semibold text-flame-300 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            {resultsLabel}
           </div>
         </div>
       </div>
