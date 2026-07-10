@@ -957,14 +957,30 @@ export default function MapView() {
     const prevBodyOverflow = document.body.style.overflow
     html.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
+    // iOS Safari can still scroll the locked body (native dialogs, focus,
+    // rubber-banding). The map container is fixed so it can't move, but the
+    // page behind must stay at 0 or visualViewport offsets (bottom nav lift,
+    // keyboard detection) drift — snap back whenever it happens.
+    window.scrollTo(0, 0)
+    const pinScroll = () => {
+      if (window.scrollY !== 0) window.scrollTo(0, 0)
+    }
+    window.addEventListener('scroll', pinScroll, { passive: true })
     return () => {
+      window.removeEventListener('scroll', pinScroll)
       html.style.overflow = prevHtmlOverflow
       document.body.style.overflow = prevBodyOverflow
     }
   }, [])
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-ink-950">
+    // Fixed to the viewport (not in-flow): iOS Safari can scroll the body
+    // despite the overflow lock (e.g. after the geolocation permission
+    // dialog), which used to drag the search pill up off-screen. A fixed
+    // container can't be moved by document scroll — the map UI stays put
+    // no matter what the browser chrome does. z-30 keeps the bottom nav
+    // (z-40) and portaled modals (z-80) above.
+    <div className="fixed inset-0 z-30 overflow-hidden bg-ink-950">
       <div ref={mapRef} className="h-full w-full" />
 
       {isLoading && !keyboardOpen && (
