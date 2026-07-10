@@ -484,7 +484,7 @@ function MobileFilterBar(props: FilterBarProps) {
         {/* Google-Maps-app search pill: magnifier → input → account avatar,
             one floating rounded-full surface with the chips loose below it
             (no containing card). */}
-        <div className="flex h-[52px] items-center gap-2.5 rounded-full border border-white/10 bg-ink-950/90 pl-4 pr-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+        <div className="flex h-[52px] items-center gap-2.5 rounded-full border border-white/10 bg-ink-900 pl-4 pr-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
           <Search className="h-5 w-5 shrink-0 text-white/40" />
           <input
             type="text"
@@ -521,7 +521,7 @@ function MobileFilterBar(props: FilterBarProps) {
         </div>
 
         {showSuggestions && (
-          <div className="mt-2 overflow-hidden rounded-3xl border border-white/10 bg-ink-950/95 shadow-[0_16px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <div className="mt-2 overflow-hidden rounded-3xl border border-white/10 bg-ink-900 shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
             {suggestions!.cities.map((city) => (
               <button
                 key={`city-${city.slug}`}
@@ -610,7 +610,7 @@ function MobileFilterBar(props: FilterBarProps) {
             type="button"
             aria-label={t('map_filters')}
             onClick={() => setIsSheetOpen(true)}
-            className="relative inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-ink-950/85 px-3.5 py-2 text-xs font-medium text-white/85 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+            className="relative inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-ink-900 px-3.5 py-2 text-xs font-medium text-white/85 shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
             {activeFilterCount > 0 && (
@@ -640,7 +640,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition',
                     isActive
                       ? 'border-white/15 bg-white text-black'
-                      : 'border-white/10 bg-ink-950/85 text-white/80 backdrop-blur-xl',
+                      : 'border-white/10 bg-ink-900 text-white/80',
                   ].join(' ')}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -664,10 +664,10 @@ function MobileFilterBar(props: FilterBarProps) {
                   className={[
                     'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium capitalize shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition',
                     isActive
-                      ? 'border-flame-500/40 bg-flame-500/15 text-flame-100 backdrop-blur-xl'
+                      ? 'border-flame-500 bg-flame-500 text-white'
                       : isCivic
-                        ? 'border-flame-500/30 bg-ink-950/85 text-flame-200/85 backdrop-blur-xl'
-                        : 'border-white/10 bg-ink-950/85 text-white/70 backdrop-blur-xl',
+                        ? 'border-flame-500/30 bg-ink-900 text-flame-200/85'
+                        : 'border-white/10 bg-ink-900 text-white/70',
                   ].join(' ')}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -676,7 +676,7 @@ function MobileFilterBar(props: FilterBarProps) {
               )
             })}
 
-          <div className="shrink-0 rounded-full border border-flame-500/30 bg-ink-950/85 px-3.5 py-2 text-xs font-semibold text-flame-300 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+          <div className="shrink-0 rounded-full border border-flame-500/30 bg-ink-900 px-3.5 py-2 text-xs font-semibold text-flame-300 shadow-[0_4px_14px_rgba(0,0,0,0.35)]">
             {resultsLabel}
           </div>
         </div>

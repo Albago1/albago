@@ -204,7 +204,9 @@ export function createMaplibreAdapter({
   // keeps tracking as the user moves. Also triggered programmatically on
   // open when permission is already granted (see MapView).
   const geolocate = new maplibregl.GeolocateControl({
-    positionOptions: { enableHighAccuracy: true },
+    // maximumAge lets a recent OS fix land INSTANTLY (Google-style) while
+    // the live watch keeps refining it afterwards.
+    positionOptions: { enableHighAccuracy: true, maximumAge: 60000, timeout: 12000 },
     fitBoundsOptions: { maxZoom: 14.5 },
     trackUserLocation: true,
     showAccuracyCircle: true,

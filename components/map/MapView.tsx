@@ -499,45 +499,12 @@ export default function MapView() {
   const hasNoResults =
     !isLoading && visiblePlaces.length === 0 && visibleCivicEvents.length === 0
 
-  // Re-fit the map around every currently-visible marker (places + civic
-  // pins). Mirrors ProtestMap.resetView so closing a popup snaps the
-  // viewport back instead of staying zoomed in on whatever pin was just
-  // dismissed. Kept as a ref-backed callback so it's stable across renders
-  // and the maplibre `onMapClick` handler doesn't go stale.
-  const visiblePlacesRef = useRef(visiblePlaces)
-  const visibleCivicEventsRef = useRef(visibleCivicEvents)
-  useEffect(() => {
-    visiblePlacesRef.current = visiblePlaces
-  }, [visiblePlaces])
-  useEffect(() => {
-    visibleCivicEventsRef.current = visibleCivicEvents
-  }, [visibleCivicEvents])
-
-  const resetMapView = () => {
-    const adapter = mapAdapterRef.current
-    if (!adapter) return
-    const coords: [number, number][] = []
-    visiblePlacesRef.current.forEach((p) => coords.push([p.lng, p.lat]))
-    visibleCivicEventsRef.current.forEach((e) => coords.push([e.lng, e.lat]))
-    if (coords.length > 0) {
-      adapter.fitBounds(coords, {
-        padding: 80,
-        maxZoom: coords.length === 1 ? 11 : isWorldwide ? 5.5 : 9,
-      })
-      return
-    }
-    if (isWorldwide) {
-      adapter.flyToLocation(worldCenter, worldZoom)
-    } else {
-      const center = dynamicMatch?.center ?? location.center
-      const zoom = dynamicMatch?.zoom ?? location.zoom
-      adapter.flyToLocation(center, zoom)
-    }
-  }
-
+  // Google Maps behavior: closing a card or tapping empty map just
+  // deselects — the camera stays exactly where the user left it. (The old
+  // re-fit-everything reset zoomed a worldwide view all the way out to the
+  // whole planet every time a card closed.)
   const closeCivicPopup = () => {
     setSelectedCivicEvent(null)
-    resetMapView()
   }
 
   useEffect(() => {
@@ -548,10 +515,8 @@ export default function MapView() {
       center: isWorldwide ? worldCenter : location.center,
       zoom: isWorldwide ? worldZoom : location.zoom,
       onMapClick: () => {
-        const hadSelection = selectedPlaceId !== null || selectedCivicEvent !== null
         setSelectedPlaceId(null)
         setSelectedCivicEvent(null)
-        if (hadSelection) resetMapView()
       },
     })
 
@@ -561,33 +526,60 @@ export default function MapView() {
     }
   }, [])
 
-  // Google Maps behavior: when the visitor has already granted location
-  // permission, the map opens centered on THEM (blue dot, city-level zoom)
-  // instead of the generic world view. Silent only — the first-time browser
-  // prompt stays behind the locate button. A deep-linked city in the URL
-  // always wins over auto-locate.
+  // Google Maps behavior: the map opens centered on the visitor. Trigger
+  // locate on every open (prompting first-timers, exactly like Google Maps
+  // does) unless permission is explicitly denied — the Permissions API is
+  // missing for geolocation on some mobile browsers, so an unavailable /
+  // failing query counts as "go ahead" rather than silently skipping.
+  // A deep-linked city in the URL always wins over auto-locate.
   const autoLocateAttemptedRef = useRef(false)
   useEffect(() => {
     if (autoLocateAttemptedRef.current) return
     autoLocateAttemptedRef.current = true
     if (searchParams.get('location')) return
     const adapter = mapAdapterRef.current
-    if (!adapter || !navigator.permissions?.query) return
+    if (!adapter) return
     let cancelled = false
-    navigator.permissions
-      .query({ name: 'geolocation' })
-      .then((status) => {
-        if (cancelled || status.state !== 'granted') return
-        // Claim the initial data-load fit so it doesn't yank the viewport
-        // away from the user's position a few seconds after locate lands.
-        initialFitDoneForSlugRef.current = locationSlug
-        adapter.locateUser()
-      })
-      .catch(() => {})
+    const locate = () => {
+      if (cancelled) return
+      // Claim the initial data-load fit so it doesn't yank the viewport
+      // away from the user's position a few seconds after locate lands.
+      initialFitDoneForSlugRef.current = locationSlug
+      adapter.locateUser()
+    }
+    if (navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((status) => {
+          if (status.state !== 'denied') locate()
+        })
+        .catch(locate)
+    } else {
+      locate()
+    }
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // While the on-screen keyboard is up, the dvh container shrinks and every
+  // floating bottom element (loading chip, results pill, no-results toast)
+  // would slide up under the search pill — hide them all until it closes.
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      setKeyboardOpen(window.innerHeight - vv.height - vv.offsetTop > 150)
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
   }, [])
 
   useEffect(() => {
@@ -927,7 +919,7 @@ export default function MapView() {
     <div className="relative h-dvh w-full overflow-hidden bg-ink-950">
       <div ref={mapRef} className="h-full w-full" />
 
-      {isLoading && (
+      {isLoading && !keyboardOpen && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <div className="flex items-center gap-2.5 rounded-full border border-white/10 bg-ink-950/85 px-5 py-3 text-sm text-white/70 shadow-[0_12px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl">
             <span className="relative flex h-2 w-2">
@@ -968,12 +960,12 @@ export default function MapView() {
       <MapResultsSheet
         events={sheetEvents}
         places={sheetPlaces}
-        hidden={isLoading || !!selectedCivicEvent || !!selectedPlace || hasNoResults}
+        hidden={isLoading || keyboardOpen || !!selectedCivicEvent || !!selectedPlace || hasNoResults}
         onPickEvent={selectCivicEventById}
         onPickPlace={selectPlaceById}
       />
 
-      {hasNoResults && (
+      {hasNoResults && !keyboardOpen && (
         <div className="pointer-events-none absolute inset-x-3 bottom-[4.75rem] z-20 md:left-4 md:bottom-4 md:w-[380px]">
           <div className="pointer-events-auto rounded-3xl border border-white/10 bg-ink-950/92 p-4 text-white shadow-2xl backdrop-blur-xl">
             <p className="text-sm font-semibold text-white">
@@ -1025,10 +1017,7 @@ export default function MapView() {
         place={selectedPlace}
         events={selectedPlaceEvents}
         isMobile={isMobile}
-        onClose={() => {
-          setSelectedPlaceId(null)
-          resetMapView()
-        }}
+        onClose={() => setSelectedPlaceId(null)}
       />
     </div>
   )

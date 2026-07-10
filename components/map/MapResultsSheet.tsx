@@ -64,7 +64,7 @@ export default function MapResultsSheet({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-ink-950/90 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
           >
             <ChevronUp className="h-4 w-4 text-white/60" />
             {countLabel}
@@ -87,7 +87,7 @@ export default function MapResultsSheet({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-              className="absolute inset-x-0 bottom-0 z-40 max-h-[68%] overflow-hidden rounded-t-[28px] border-t border-white/10 bg-ink-950/95 shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+              className="absolute inset-x-0 bottom-0 z-40 max-h-[68%] overflow-hidden rounded-t-[28px] border-t border-white/10 bg-ink-900 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]"
             >
               <div className="flex flex-col" style={{ maxHeight: 'inherit' }}>
                 <button
