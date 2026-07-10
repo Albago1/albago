@@ -4,6 +4,7 @@ export const translations: Record<Language, Record<string, string>> = {
   en: {
     nav_home: "Home",
     nav_map: "Map",
+    nav_search: "Search",
     nav_events: "Events",
     nav_protests: "Protests",
     nav_submit_event: "Submit Event",
@@ -459,6 +460,7 @@ export const translations: Record<Language, Record<string, string>> = {
   de: {
     nav_home: "Start",
     nav_map: "Karte",
+    nav_search: "Suche",
     nav_events: "Events",
     nav_protests: "Proteste",
     nav_submit_event: "Event einreichen",
@@ -915,6 +917,7 @@ export const translations: Record<Language, Record<string, string>> = {
   es: {
     nav_home: "Inicio",
     nav_map: "Mapa",
+    nav_search: "Buscar",
     nav_events: "Eventos",
     nav_protests: "Protestas",
     nav_submit_event: "Enviar evento",
@@ -1371,6 +1374,7 @@ export const translations: Record<Language, Record<string, string>> = {
   sq: {
     nav_home: "Kreu",
     nav_map: "Harta",
+    nav_search: "Kërko",
     nav_events: "Evente",
     nav_protests: "Protesta",
     nav_submit_event: "Shto event",

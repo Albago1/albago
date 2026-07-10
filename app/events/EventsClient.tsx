@@ -158,6 +158,10 @@ function EventsContent() {
   const [activeLocationSlug, setActiveLocationSlug] = useState(initialLocationSlug)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
+  // Bumped whenever the URL asks to focus the search box (?focus=search —
+  // the bottom-nav Search tab). The param is stripped right away so tapping
+  // the tab again re-triggers the focus.
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0)
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [placeNames, setPlaceNames] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
@@ -313,6 +317,15 @@ function EventsContent() {
 
     fetchEvents()
   }, [supabase, activeLocationSlug, debouncedSearch, locationOptions])
+
+  useEffect(() => {
+    if (searchParams.get('focus') !== 'search') return
+    setSearchFocusSignal((n) => n + 1)
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('focus')
+    const qs = params.toString()
+    router.replace(qs ? `/events?${qs}` : '/events')
+  }, [searchParams, router])
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -510,6 +523,7 @@ function EventsContent() {
         suggestions={suggestions}
         onPickSuggestion={(s) => setSearchQuery(s.title)}
         isSearchMode={isSearchMode}
+        searchFocusSignal={searchFocusSignal}
         locationOptions={locationOptions}
         activeLocationSlug={activeLocationSlug}
         onLocationChange={setActiveLocationSlug}

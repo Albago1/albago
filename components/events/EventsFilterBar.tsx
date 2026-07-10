@@ -70,6 +70,8 @@ export type EventsFilterBarProps = {
   suggestions: SearchSuggestion[]
   onPickSuggestion: (suggestion: SearchSuggestion) => void
   isSearchMode: boolean
+  // Increment to scroll to + focus the search input (bottom-nav Search tab).
+  searchFocusSignal?: number
   // Location
   locationOptions: LocationOption[]
   activeLocationSlug: string
@@ -104,6 +106,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
     suggestions,
     onPickSuggestion,
     isSearchMode,
+    searchFocusSignal,
     locationOptions,
     activeLocationSlug,
     onLocationChange,
@@ -132,6 +135,21 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
   const [isSuggestOpen, setIsSuggestOpen] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Bottom-nav Search tab: bring the search input into view and focus it.
+  // A short delay lets the route transition settle first so the focus (and
+  // the mobile keyboard, where the platform allows it) lands reliably.
+  useEffect(() => {
+    if (!searchFocusSignal) return
+    const timer = setTimeout(() => {
+      const input = searchInputRef.current
+      if (!input) return
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      input.focus()
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [searchFocusSignal])
 
   // Close popovers on outside click or Escape.
   useEffect(() => {
@@ -256,6 +274,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             <div ref={searchRef} className="relative min-w-0 flex-1 md:max-w-sm">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               <input
+                ref={searchInputRef}
                 value={searchQuery}
                 onChange={(e) => {
                   onSearchQueryChange(e.target.value)

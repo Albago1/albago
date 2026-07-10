@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Calendar, CircleUserRound, Compass, Home, Megaphone } from 'lucide-react'
+import { Calendar, CircleUserRound, Compass, Home, Megaphone, Search } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
 
@@ -21,6 +21,16 @@ const items: NavItem[] = [
     labelKey: 'nav_home',
     icon: Home,
     match: (p) => p === '/',
+  },
+  {
+    // Instagram-style Search tab: jumps to /events with the search box
+    // focused (?focus=search is caught by EventsClient). It's an action,
+    // not a section, so it never shows as the active tab — /events itself
+    // belongs to the Events tab.
+    href: '/events?focus=search',
+    labelKey: 'nav_search',
+    icon: Search,
+    match: () => false,
   },
   {
     href: '/events',
