@@ -87,9 +87,8 @@ export default function MapResultsSheet({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-              className="absolute inset-x-0 bottom-0 z-40 max-h-[68%] overflow-hidden rounded-t-[28px] border-t border-white/10 bg-ink-900 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]"
+              className="absolute inset-x-0 bottom-0 z-40 flex max-h-[68%] flex-col overflow-hidden rounded-t-[28px] border-t border-white/10 bg-ink-900 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]"
             >
-              <div className="flex flex-col" style={{ maxHeight: 'inherit' }}>
                 <button
                   type="button"
                   aria-label="Collapse"
@@ -112,7 +111,7 @@ export default function MapResultsSheet({
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-1">
+                <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-1">
                   {events.map((event) => {
                     const Icon = CATEGORY_ICONS[event.category] ?? Tag
                     return (
@@ -154,7 +153,6 @@ export default function MapResultsSheet({
                     </button>
                   ))}
                 </div>
-              </div>
             </motion.div>
           </>
         )}
