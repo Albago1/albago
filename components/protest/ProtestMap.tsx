@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowUpRight, Calendar, Clock3, Flame, MapPin, Users, X } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
 import type { MapAdapter, MapMarkerInput } from '@/components/map/map.types'
@@ -59,6 +60,7 @@ export default function ProtestMap({
   defaultCenter = [19.8187, 41.3275],
   defaultZoom = 5.5,
 }: Props) {
+  const { t } = useLanguage()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const adapterRef = useRef<MapAdapter | null>(null)
   const [selected, setSelected] = useState<ProtestMarker | null>(null)
@@ -174,11 +176,11 @@ export default function ProtestMap({
       {markers.length === 0 && flyTo && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="rounded-2xl border border-flame-500/30 bg-ink-950/85 backdrop-blur px-4 py-3 text-center shadow-2xl max-w-xs">
-            <p className="text-xs uppercase tracking-wider text-flame-400/80">No protest yet</p>
+            <p className="text-xs uppercase tracking-wider text-flame-400/80">{t('protest_map_none_title')}</p>
             <p className="mt-1 text-sm font-semibold text-white">
-              {flyTo.label ?? 'Here'}
+              {flyTo.label ?? t('protest_map_none_here')}
             </p>
-            <p className="mt-1 text-[11px] text-white/55">Scroll down to register the first one.</p>
+            <p className="mt-1 text-[11px] text-white/55">{t('protest_map_none_sub')}</p>
           </div>
         </div>
       )}
@@ -199,12 +201,12 @@ export default function ProtestMap({
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-flame-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-flame-300 ring-1 ring-flame-500/30">
                   <Flame className="h-3 w-3" />
-                  Civic
+                  {t('category_civic')}
                 </span>
                 {selected.expectedAttendees != null && selected.expectedAttendees > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/75">
                     <Users className="h-3 w-3" />
-                    {formatAttendees(selected.expectedAttendees)} expected
+                    {formatAttendees(selected.expectedAttendees)} {t('map_expected')}
                   </span>
                 )}
               </div>
@@ -235,7 +237,7 @@ export default function ProtestMap({
                 href={`/events/${selected.slug}`}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-white shadow-glow-flame transition hover:bg-flame-400"
               >
-                Open event
+                {t('map_open_event')}
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -248,7 +250,7 @@ export default function ProtestMap({
           <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-70" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-flame-500" />
         </span>
-        {markers.length > 0 ? 'Active peaceful gathering' : 'Browsing the map'}
+        {markers.length > 0 ? t('protest_map_active') : t('protest_map_browsing')}
       </div>
     </div>
   )

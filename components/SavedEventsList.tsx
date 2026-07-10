@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { Calendar, Clock3, Heart, MapPin } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
+import { categoryLabel } from '@/components/events/categoryMeta'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 export type SavedEventCard = {
   id: string
@@ -36,21 +38,20 @@ export default function SavedEventsList({
 }: {
   initialEvents: SavedEventCard[]
 }) {
+  const { t } = useLanguage()
   const [events, setEvents] = useState(initialEvents)
 
   if (events.length === 0) {
     return (
       <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
         <Heart className="mx-auto h-8 w-8 text-white/20" />
-        <p className="mt-4 font-semibold text-white">No saved events yet</p>
-        <p className="mt-1 text-sm text-white/50">
-          Browse events and tap the heart to save them here.
-        </p>
+        <p className="mt-4 font-semibold text-white">{t('saved_empty_title')}</p>
+        <p className="mt-1 text-sm text-white/50">{t('saved_empty_sub')}</p>
         <Link
           href="/events"
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
         >
-          Browse events
+          {t('saved_browse_events')}
         </Link>
       </div>
     )
@@ -71,7 +72,7 @@ export default function SavedEventsList({
                   event.category
                 )}`}
               >
-                {event.category}
+                {categoryLabel(event.category, t)}
               </span>
               {event.price && (
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
@@ -83,7 +84,7 @@ export default function SavedEventsList({
             <div className="flex items-center gap-2">
               {event.highlight && (
                 <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                  Hot
+                  {t('chip_hot')}
                 </span>
               )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Check, Globe, Loader2, Search, X } from 'lucide-react'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 export type ResolvedCity = {
   slug: string
@@ -80,13 +81,14 @@ export default function CitySearchInput(props: Props) {
     onChange,
     onResolve,
     resolved,
-    placeholder = 'Search any city...',
+    placeholder,
     popular,
     onPopularClick,
     className,
     suggestionsLimit = 5,
   } = props
 
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<ResolvedCity[]>([])
   const [open, setOpen] = useState(false)
@@ -133,7 +135,6 @@ export default function CitySearchInput(props: Props) {
     }
     // onResolve intentionally excluded — see comment above; it's only called
     // when the user clicks a suggestion or a popular chip.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, suggestionsLimit])
 
   const clear = () => {
@@ -180,7 +181,7 @@ export default function CitySearchInput(props: Props) {
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('filter_search_city_placeholder')}
           autoComplete="off"
           className="h-10 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-10 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
         />
@@ -248,14 +249,14 @@ export default function CitySearchInput(props: Props) {
 
       {!resolved && value.trim().length >= 2 && !loading && suggestions.length === 0 && (
         <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55">
-          No city matched. Try a more specific name (e.g. &ldquo;Berlin, Germany&rdquo;).
+          {t('city_search_no_match')}
         </p>
       )}
 
       {popular && popular.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           <span className="self-center text-[11px] uppercase tracking-wide text-white/35">
-            Popular:
+            {t('city_search_popular')}
           </span>
           {popular.slice(0, 12).map((item) => (
             <button

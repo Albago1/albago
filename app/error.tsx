@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Home, RotateCcw } from 'lucide-react'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 export default function GlobalError({
   error,
@@ -11,6 +12,8 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const { t } = useLanguage()
+
   useEffect(() => {
     if (typeof console !== 'undefined') {
       console.error('Global error boundary captured:', error)
@@ -30,16 +33,16 @@ export default function GlobalError({
         <div className="mx-auto max-w-2xl px-5 sm:px-8 pb-20">
           <div className="inline-flex items-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-flame-200">
             <AlertTriangle className="h-3.5 w-3.5" />
-            <span>Something broke</span>
+            <span>{t('error_kicker')}</span>
           </div>
 
           <h1 className="display-text mt-6 text-4xl sm:text-6xl leading-[0.95] tracking-tight">
-            That didn&apos;t <span className="italic text-flame-400">work</span>.
+            {t('error_title_pre')}{' '}
+            <span className="italic text-flame-400">{t('error_title_em')}</span>.
           </h1>
 
           <p className="mt-5 text-base sm:text-lg leading-relaxed text-white/65">
-            We hit an unexpected error rendering this page. The team has been
-            notified. Try again, or head back home.
+            {t('error_body')}
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -49,14 +52,14 @@ export default function GlobalError({
               className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_28px_-4px_rgba(238,28,37,0.55)] transition hover:bg-flame-500/90"
             >
               <RotateCcw className="h-4 w-4" />
-              Try again
+              {t('error_try_again')}
             </button>
             <Link
               href="/"
               className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:border-white/25 hover:text-white"
             >
               <Home className="h-4 w-4" />
-              Go home
+              {t('error_go_home')}
             </Link>
           </div>
 
