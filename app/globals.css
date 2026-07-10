@@ -136,6 +136,16 @@ a, button, input, select, textarea, label, [role="button"] {
   border-radius: 6px;
 }
 
+/* Text fields match :focus-visible on EVERY focus (including taps), so the
+   red ring above would flash around every input on mobile. They already show
+   focus via border + caret — keep the ring for keyboard-tabbed buttons/links. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable]:focus-visible {
+  outline: none;
+}
+
 /* ────────────────────────────────────────────────────────────────────
    Cinematic utilities — used across the whole platform now.
    ──────────────────────────────────────────────────────────────────── */
