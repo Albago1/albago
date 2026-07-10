@@ -9,18 +9,14 @@ import {
   Calendar,
   CalendarClock,
   Camera,
-  Clock,
   Compass,
   FileText,
   Flame,
   Heart,
   Image as ImageIcon,
   LayoutDashboard,
-  MapPin,
   Send,
   Settings,
-  Shield,
-  Users as UsersIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -160,151 +156,8 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  const greetingName = (profile?.display_name as string | undefined) || user.email
-
-  // — Admin view —
-  if (profile?.role === 'admin') {
-    const [eventsRes, pendingRes, placesRes, savedEvents] = await Promise.all([
-      supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'published'),
-      supabase
-        .from('event_submissions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending'),
-      supabase.from('places').select('*', { count: 'exact', head: true }),
-      fetchSavedEventCards(supabase, user.id),
-    ])
-
-    const stats = [
-      {
-        label: 'Published Events',
-        value: eventsRes.count ?? 0,
-        icon: Calendar,
-        color: 'text-flame-400',
-        bg: 'bg-flame-500/10 border-flame-500/30',
-      },
-      {
-        label: 'Pending Review',
-        value: pendingRes.count ?? 0,
-        icon: Clock,
-        color: (pendingRes.count ?? 0) > 0 ? 'text-amber-400' : 'text-white',
-        bg:
-          (pendingRes.count ?? 0) > 0
-            ? 'bg-amber-500/10 border-amber-500/20'
-            : 'bg-white/[0.03] border-white/10',
-      },
-      {
-        label: 'Total Places',
-        value: placesRes.count ?? 0,
-        icon: MapPin,
-        color: 'text-violet-400',
-        bg: 'bg-violet-500/10 border-violet-500/20',
-      },
-    ]
-
-    return (
-      <>
-        <LandingNavbar />
-        <main className="min-h-screen bg-ink-950 px-6 pb-6 pt-24 text-white">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <LayoutDashboard className="h-5 w-5 text-flame-400" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">Dashboard</h1>
-                <p className="mt-0.5 text-sm text-white/45">{greetingName}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/admin"
-                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_30px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
-              >
-                <Shield className="h-4 w-4" />
-                Open admin panel
-              </Link>
-              <Link
-                href="/admin/users"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <UsersIcon className="h-4 w-4" />
-                Manage users
-              </Link>
-              <Link
-                href="/dashboard/settings"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            {stats.map((stat) => {
-              const Icon = stat.icon
-              return (
-                <div
-                  key={stat.label}
-                  className={`rounded-3xl border p-6 ${stat.bg}`}
-                >
-                  <Icon className={`h-6 w-6 ${stat.color}`} />
-                  <div className={`mt-4 text-4xl font-bold ${stat.color}`}>
-                    {stat.value}
-                  </div>
-                  <div className="mt-2 text-sm text-white/55">{stat.label}</div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <Link
-              href="/admin/queue"
-              className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/15 hover:bg-white/[0.05]"
-            >
-              <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Review Submissions
-                </h2>
-                <p className="mt-1 text-sm text-white/50">
-                  Approve or reject submitted events
-                </p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
-            </Link>
-
-            <Link
-              href="/map"
-              className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/15 hover:bg-white/[0.05]"
-            >
-              <div>
-                <h2 className="text-lg font-semibold text-white">View Map</h2>
-                <p className="mt-1 text-sm text-white/50">
-                  Browse all venues and events live
-                </p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
-            </Link>
-          </div>
-
-          <div className="mt-10">
-            <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-              <Heart className="h-3.5 w-3.5" />
-              Saved events
-            </h2>
-            <SavedEventsList initialEvents={savedEvents} />
-          </div>
-        </div>
-      </main>
-      </>
-    )
-  }
+  // Admins go straight to the real control room - no landing page in between.
+  if (profile?.role === 'admin') redirect('/admin')
 
   // — Regular user view —
   const [submissionsRes, savedEvents, organizer, placardsRes, prefsRes] =
