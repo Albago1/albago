@@ -81,7 +81,7 @@ export default function MobileBottomNav() {
       className="pointer-events-none fixed inset-x-0 z-40 flex justify-center sm:hidden"
       style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
     >
-      <ul className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/10 bg-ink-950/70 px-3.5 py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+      <ul className="pointer-events-auto mx-3 flex w-full max-w-md items-center justify-around rounded-full border border-white/10 bg-ink-950/70 px-2 py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
         {items.map((item) => {
           const active = item.match(pathname)
           const Icon = item.icon
