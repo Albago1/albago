@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { Calendar, CircleUserRound, Compass, Home, Megaphone } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
@@ -49,6 +50,17 @@ const items: NavItem[] = [
 // surfaces are deeper workflows and the bar would distract from the task.
 // /dashboard stays visible: it is the Profile tab's destination.
 const SUPPRESS_PREFIXES = ['/admin', '/organizer', '/onboarding', '/sign-in', '/sign-up', '/forgot-password', '/reset-password', '/auth']
+
+// Shared-layout bubble that glides between tabs when the section changes.
+function ActiveBubble() {
+  return (
+    <motion.span
+      layoutId="mobile-nav-bubble"
+      className="absolute inset-0 rounded-full bg-white/15"
+      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+    />
+  )
+}
 
 export default function MobileBottomNav() {
   const { t } = useLanguage()
@@ -105,7 +117,7 @@ export default function MobileBottomNav() {
     >
       <ul
         className={[
-          'pointer-events-auto mx-3 flex w-full max-w-md origin-bottom items-center justify-around rounded-full border border-white/10 bg-ink-950/70 px-2 py-1.5 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-transform duration-300 ease-out',
+          'pointer-events-auto mx-3 flex w-full max-w-md origin-bottom items-center justify-around rounded-full border border-white/10 bg-ink-800/80 px-2 py-2 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-transform duration-300 ease-out',
           shrunk ? 'scale-[0.85]' : 'scale-100',
         ].join(' ')}
       >
@@ -119,12 +131,13 @@ export default function MobileBottomNav() {
                 aria-label={t(item.labelKey)}
                 aria-current={active ? 'page' : undefined}
                 className={[
-                  'flex h-10 w-[3.25rem] items-center justify-center rounded-full transition active:bg-white/10',
-                  active ? 'bg-white/15 text-white' : 'text-white/50',
+                  'relative flex h-12 w-14 items-center justify-center rounded-full transition active:bg-white/10',
+                  active ? 'text-white' : 'text-white/50',
                 ].join(' ')}
               >
+                {active && <ActiveBubble />}
                 <Icon
-                  className={['h-[22px] w-[22px] transition-transform', active ? 'scale-105' : ''].join(' ')}
+                  className={['relative h-6 w-6 transition-transform', active ? 'scale-105' : ''].join(' ')}
                   strokeWidth={active ? 2.4 : 1.9}
                 />
               </Link>
@@ -137,14 +150,15 @@ export default function MobileBottomNav() {
             aria-label={userEmail ? t('nav_dashboard') : t('sign_in')}
             aria-current={profileActive ? 'page' : undefined}
             className={[
-              'flex h-10 w-[3.25rem] items-center justify-center rounded-full transition active:bg-white/10',
-              profileActive ? 'bg-white/15 text-white' : 'text-white/50',
+              'relative flex h-12 w-14 items-center justify-center rounded-full transition active:bg-white/10',
+              profileActive ? 'text-white' : 'text-white/50',
             ].join(' ')}
           >
+            {profileActive && <ActiveBubble />}
             {userEmail ? (
               <span
                 className={[
-                  'flex h-7 w-7 items-center justify-center rounded-full bg-flame-500 text-xs font-bold text-[#fff] transition',
+                  'relative flex h-8 w-8 items-center justify-center rounded-full bg-flame-500 text-sm font-bold text-[#fff] transition',
                   profileActive ? 'ring-2 ring-current' : 'ring-1 ring-white/20',
                 ].join(' ')}
               >
@@ -152,7 +166,7 @@ export default function MobileBottomNav() {
               </span>
             ) : (
               <CircleUserRound
-                className={['h-[22px] w-[22px] transition-transform', profileActive ? 'scale-105' : ''].join(' ')}
+                className={['relative h-6 w-6 transition-transform', profileActive ? 'scale-105' : ''].join(' ')}
                 strokeWidth={profileActive ? 2.4 : 1.9}
               />
             )}
