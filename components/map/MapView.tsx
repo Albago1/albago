@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import FilterBar from '@/components/layout/FilterBar'
+import FilterBar, { type MapSearchSuggestions } from '@/components/layout/FilterBar'
 import PlacePanel from '@/components/place/PlacePanel'
 import MapEventCard from '@/components/map/MapEventCard'
+import MapResultsSheet from '@/components/map/MapResultsSheet'
+import { languageLocales } from '@/lib/i18n/config'
 import type { Place } from '@/types/place'
 import type { Event } from '@/types/event'
 import { createMaplibreAdapter } from '@/components/map/maplibreAdapter'
@@ -108,7 +110,7 @@ export default function MapView() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const locationOptions = useLocations()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
 
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapAdapterRef = useRef<MapAdapter | null>(null)
@@ -637,7 +639,8 @@ export default function MapView() {
           adapter.flyToLocation(
             [event.lng, event.lat],
             targetZoom,
-            isMobile ? { bottom: 340 } : { left: 420 },
+            // Card now sits above the floating bottom nav — pad accordingly.
+            isMobile ? { bottom: 400 } : { left: 420 },
           )
         }
       },
@@ -696,6 +699,105 @@ export default function MapView() {
     setOptionFilter('all')
     setCountryFilter(null)
   }
+
+  // City label + short local date for suggestion / results rows.
+  const cityLabelForSlug = (slug: string | null, country: string | null) => {
+    if (slug) {
+      const match = locationOptions.find((o) => o.slug === slug)
+      if (match) return match.label
+      return slug
+        .split('-')
+        .map((part) => (part[0]?.toUpperCase() ?? '') + part.slice(1))
+        .join(' ')
+    }
+    return country ?? ''
+  }
+
+  const eventRowSub = (event: CivicMapEvent) => {
+    const dateLabel = new Date(`${event.date}T00:00:00`).toLocaleDateString(
+      languageLocales[language],
+      { weekday: 'short', day: 'numeric', month: 'short' },
+    )
+    return [cityLabelForSlug(event.locationSlug, event.country), dateLabel, event.time?.slice(0, 5)]
+      .filter(Boolean)
+      .join(' · ')
+  }
+
+  const eventRowCategory = (event: CivicMapEvent) =>
+    event.isCivic ? 'civic' : (event.category ?? 'other')
+
+  // Select an event / venue by id — shared by pin taps (via markers),
+  // search suggestions, and the results sheet, so every entry point gets
+  // the identical select-and-fly behavior.
+  const selectCivicEventById = (id: string) => {
+    const event = civicEvents.find((e) => e.id === id)
+    if (!event) return
+    setSelectedCivicEvent(event)
+    setSelectedPlaceId(null)
+    const adapter = mapAdapterRef.current
+    if (adapter) {
+      const targetZoom = Math.max(adapter.getZoom(), isWorldwide ? 6.5 : 12.5)
+      adapter.flyToLocation(
+        [event.lng, event.lat],
+        targetZoom,
+        isMobile ? { bottom: 400 } : { left: 420 },
+      )
+    }
+  }
+
+  const selectPlaceById = (id: string) => {
+    setSelectedPlaceId(id)
+    setSelectedCivicEvent(null)
+  }
+
+  // Google-Maps-style live search suggestions: matching cities, events and
+  // venues while the user types in the pill.
+  const searchSuggestions = useMemo<MapSearchSuggestions>(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return { events: [], places: [], cities: [] }
+    const cities = locationOptions
+      .filter((o) => o.label.toLowerCase().includes(q))
+      .slice(0, 3)
+      .map((o) => ({ slug: o.slug, label: o.label, country: o.country, center: o.center }))
+    const events = civicEvents
+      .filter((e) => e.title.toLowerCase().includes(q))
+      .slice(0, 5)
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        sub: eventRowSub(e),
+        category: eventRowCategory(e),
+      }))
+    const placeRows = places
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .slice(0, 4)
+      .map((p) => ({ id: p.id, name: p.name, sub: p.address ?? p.category }))
+    return { events, places: placeRows, cities }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, civicEvents, places, locationOptions, language])
+
+  // Everything currently visible on the map, as list rows for the
+  // bottom results sheet.
+  const sheetEvents = useMemo(
+    () =>
+      visibleCivicEvents.map((e) => ({
+        id: e.id,
+        title: e.title,
+        sub: eventRowSub(e),
+        category: eventRowCategory(e),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleCivicEvents, locationOptions, language],
+  )
+  const sheetPlaces = useMemo(
+    () =>
+      visiblePlaces.map((p) => ({
+        id: p.id,
+        name: p.name,
+        sub: p.address ?? p.category,
+      })),
+    [visiblePlaces],
+  )
 
   const handleLocationChange = (slug: string, center?: [number, number]) => {
     // Update local state first so the filter label, data fetch, and every
@@ -836,6 +938,9 @@ export default function MapView() {
         activeCountry={countryFilter}
         onCountryChange={setCountryFilter}
         isMobile={isMobile}
+        suggestions={searchSuggestions}
+        onPickEventSuggestion={selectCivicEventById}
+        onPickPlaceSuggestion={selectPlaceById}
         onTimeFilterChange={setActiveTimeFilter}
         onCategoryChange={setActiveCategory}
         onSearchQueryChange={setSearchQuery}
@@ -844,8 +949,16 @@ export default function MapView() {
         onReset={handleResetFilters}
       />
 
+      <MapResultsSheet
+        events={sheetEvents}
+        places={sheetPlaces}
+        hidden={isLoading || !!selectedCivicEvent || !!selectedPlace || hasNoResults}
+        onPickEvent={selectCivicEventById}
+        onPickPlace={selectPlaceById}
+      />
+
       {hasNoResults && (
-        <div className="pointer-events-none absolute inset-x-3 bottom-4 z-20 md:left-4 md:bottom-4 md:w-[380px]">
+        <div className="pointer-events-none absolute inset-x-3 bottom-[4.75rem] z-20 md:left-4 md:bottom-4 md:w-[380px]">
           <div className="pointer-events-auto rounded-3xl border border-white/10 bg-ink-950/92 p-4 text-white shadow-2xl backdrop-blur-xl">
             <p className="text-sm font-semibold text-white">
               {t('map_no_results_title')}
@@ -880,7 +993,7 @@ export default function MapView() {
       )}
 
       {selectedCivicEvent && (
-        <div className="pointer-events-none absolute inset-x-3 bottom-4 z-30 md:inset-x-auto md:bottom-4 md:left-4 md:w-[400px]">
+        <div className="pointer-events-none absolute inset-x-3 bottom-[4.75rem] z-30 md:inset-x-auto md:bottom-4 md:left-4 md:w-[400px]">
           <MapEventCard
             key={selectedCivicEvent.id}
             event={selectedCivicEvent}

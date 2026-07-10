@@ -32,6 +32,12 @@ type LocationOption = {
 
 type CountryCount = { country: string; count: number }
 
+export type MapSearchSuggestions = {
+  events: { id: string; title: string; sub: string; category: string }[]
+  places: { id: string; name: string; sub: string }[]
+  cities: { slug: string; label: string; country: string; center?: [number, number] }[]
+}
+
 type FilterBarProps = {
   activeTimeFilter: TimeFilter
   activeCategory: string
@@ -47,6 +53,9 @@ type FilterBarProps = {
   activeCountry?: string | null
   onCountryChange?: (country: string | null) => void
   isMobile: boolean
+  suggestions?: MapSearchSuggestions
+  onPickEventSuggestion?: (id: string) => void
+  onPickPlaceSuggestion?: (id: string) => void
   onTimeFilterChange: (value: TimeFilter) => void
   onCategoryChange: (value: string) => void
   onSearchQueryChange: (value: string) => void
@@ -403,6 +412,9 @@ function MobileFilterBar(props: FilterBarProps) {
     visiblePlacesCount,
     visibleEventsCount,
     availableOptionChips,
+    suggestions,
+    onPickEventSuggestion,
+    onPickPlaceSuggestion,
     onTimeFilterChange,
     onCategoryChange,
     onSearchQueryChange,
@@ -449,6 +461,16 @@ function MobileFilterBar(props: FilterBarProps) {
     (optionFilter !== 'all' ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0)
 
+  // Google-Maps-style live suggestions under the pill while typing. Blur is
+  // delayed a beat so a tap on a suggestion row lands before the panel hides.
+  const [searchFocused, setSearchFocused] = useState(false)
+  const hasSuggestions =
+    !!suggestions &&
+    (suggestions.events.length > 0 ||
+      suggestions.places.length > 0 ||
+      suggestions.cities.length > 0)
+  const showSuggestions = searchFocused && searchQuery.trim().length > 0 && hasSuggestions
+
   const handleClose = () => setIsSheetOpen(false)
 
   const handleResetAndClose = () => {
@@ -468,6 +490,8 @@ function MobileFilterBar(props: FilterBarProps) {
             type="text"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 180)}
             placeholder={t('map_search_placeholder')}
             className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/40"
           />
@@ -495,6 +519,74 @@ function MobileFilterBar(props: FilterBarProps) {
             )}
           </Link>
         </div>
+
+        {showSuggestions && (
+          <div className="mt-2 overflow-hidden rounded-3xl border border-white/10 bg-ink-950/95 shadow-[0_16px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+            {suggestions!.cities.map((city) => (
+              <button
+                key={`city-${city.slug}`}
+                type="button"
+                onClick={() => {
+                  if (city.center) onLocationChange(city.slug, city.center)
+                  else onLocationChange(city.slug)
+                  onSearchQueryChange('')
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.06]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/70">
+                  <MapPin className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-white">{city.label}</span>
+                  <span className="block truncate text-xs text-white/45">{city.country}</span>
+                </span>
+              </button>
+            ))}
+
+            {suggestions!.events.map((event) => {
+              const Icon = CATEGORY_ICONS[event.category] ?? Tag
+              return (
+                <button
+                  key={`event-${event.id}`}
+                  type="button"
+                  onClick={() => {
+                    onPickEventSuggestion?.(event.id)
+                    onSearchQueryChange('')
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.06]"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-flame-300">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-white">{event.title}</span>
+                    <span className="block truncate text-xs text-white/45">{event.sub}</span>
+                  </span>
+                </button>
+              )
+            })}
+
+            {suggestions!.places.map((place) => (
+              <button
+                key={`place-${place.id}`}
+                type="button"
+                onClick={() => {
+                  onPickPlaceSuggestion?.(place.id)
+                  onSearchQueryChange('')
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-white/[0.06]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/70">
+                  <MapPin className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-white">{place.name}</span>
+                  <span className="block truncate text-xs text-white/45">{place.sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* One-tap filter rail (Google Maps / Airbnb pattern): time and
             category toggle instantly on the map, no sheet required.
