@@ -101,7 +101,7 @@ export default function MobileBottomNav() {
     <nav
       aria-label="Primary mobile navigation"
       className="pointer-events-none fixed inset-x-0 z-40 flex justify-center sm:hidden"
-      style={{ bottom: 'calc(0.375rem + env(safe-area-inset-bottom))' }}
+      style={{ bottom: 'calc(0.125rem + env(safe-area-inset-bottom))' }}
     >
       <ul
         className={[
