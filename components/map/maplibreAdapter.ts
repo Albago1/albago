@@ -159,6 +159,7 @@ export function createMaplibreAdapter({
   center,
   zoom,
   onMapClick,
+  onGeolocate,
 }: CreateMapAdapterParams): MapAdapter {
   const map = new maplibregl.Map({
     container,
@@ -212,6 +213,10 @@ export function createMaplibreAdapter({
     showAccuracyCircle: true,
   })
   map.addControl(geolocate, 'bottom-right')
+
+  geolocate.on('geolocate', (position) => {
+    onGeolocate?.([position.coords.longitude, position.coords.latitude])
+  })
 
   // Latest marker inputs by id — click events on the GPU layers dispatch
   // back to each input's onClick through this map.

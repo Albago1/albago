@@ -23,6 +23,8 @@ export type CreateMapAdapterParams = {
   center: [number, number]
   zoom: number
   onMapClick: () => void
+  /** Fires whenever the geolocate control gets a position fix. */
+  onGeolocate?: (center: [number, number]) => void
 }
 
 export type FitBoundsOptions = {

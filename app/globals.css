@@ -109,6 +109,13 @@ body {
   min-height: 100vh;
 }
 
+/* Kill the mobile double-tap-to-zoom on everything interactive (the other
+   half of the "tapping something zooms the whole site in" bug). Pinch-zoom
+   and panning still work — only the non-standard double-tap gesture goes. */
+a, button, input, select, textarea, label, [role="button"] {
+  touch-action: manipulation;
+}
+
 ::selection {
   background: rgba(238, 28, 37, 0.45);
   color: #fff;

@@ -49,6 +49,10 @@ export const viewport: Viewport = {
   themeColor: '#050505',
   width: 'device-width',
   initialScale: 1,
+  // Stops iOS auto-zooming the page when a sub-16px input gets focus (the
+  // "site zooms in and the layout breaks" bug). iOS still allows manual
+  // pinch-zoom for accessibility despite this cap.
+  maximumScale: 1,
 };
 
 export default function RootLayout({

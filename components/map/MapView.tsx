@@ -51,6 +51,12 @@ type CivicMapEvent = {
   recurrenceExceptions: string[] | null
 }
 
+// Accent-insensitive matching: "tirana" must find "Tiranë", "durres" must
+// find "Durrës" — same rule the /events search already follows.
+function fold(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 function fmtLocalIso(d: Date): string {
   return [
     d.getFullYear(),
@@ -171,6 +177,9 @@ export default function MapView() {
   // on /events cards.
   const [isAuth, setIsAuth] = useState(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+  // Latest geolocate fix — drives the "you + what's happening around you"
+  // framing below.
+  const [userPos, setUserPos] = useState<[number, number] | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -390,7 +399,7 @@ export default function MapView() {
   }, [civicEvents])
 
   const visibleCivicEvents = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase()
+    const normalizedSearch = fold(searchQuery.trim())
     const today = todayIso()
     const weekend = getWeekendIsoRange()
     const week = getWeekIsoRange()
@@ -399,7 +408,7 @@ export default function MapView() {
     // the bare slug.
     const slugToCity = new Map<string, string>()
     for (const opt of locationOptions) {
-      slugToCity.set(opt.slug, opt.label.toLowerCase())
+      slugToCity.set(opt.slug, fold(opt.label))
     }
     return civicEvents.filter((event) => {
       // Category chip: 'all' = everything; 'civic' = is_civic events
@@ -435,10 +444,10 @@ export default function MapView() {
       const cityLabel = event.locationSlug ? slugToCity.get(event.locationSlug) ?? '' : ''
       const searchMatch =
         normalizedSearch.length === 0 ||
-        event.title.toLowerCase().includes(normalizedSearch) ||
-        (event.country ?? '').toLowerCase().includes(normalizedSearch) ||
+        fold(event.title).includes(normalizedSearch) ||
+        fold(event.country ?? '').includes(normalizedSearch) ||
         cityLabel.includes(normalizedSearch) ||
-        (event.locationSlug ?? '').toLowerCase().includes(normalizedSearch)
+        fold(event.locationSlug ?? '').includes(normalizedSearch)
       return timeMatch && countryMatch && searchMatch
     })
   }, [civicEvents, activeCategory, activeTimeFilter, searchQuery, countryFilter, locationOptions])
@@ -453,7 +462,7 @@ export default function MapView() {
 
   const visiblePlaces = useMemo(() => {
     const placeIdsWithEvents = new Set(filteredEvents.map((event) => event.placeId))
-    const normalizedSearch = searchQuery.trim().toLowerCase()
+    const normalizedSearch = fold(searchQuery.trim())
 
     return places.filter((place) => {
       const categoryMatch =
@@ -470,11 +479,11 @@ export default function MapView() {
 
       const searchMatch =
         normalizedSearch.length === 0 ||
-        place.name.toLowerCase().includes(normalizedSearch) ||
-        place.description.toLowerCase().includes(normalizedSearch) ||
-        place.category.toLowerCase().includes(normalizedSearch) ||
+        fold(place.name).includes(normalizedSearch) ||
+        fold(place.description).includes(normalizedSearch) ||
+        fold(place.category).includes(normalizedSearch) ||
         place.options?.some((option) =>
-          option.toLowerCase().includes(normalizedSearch)
+          fold(option).includes(normalizedSearch)
         )
 
       return categoryMatch && timeMatch && optionMatch && searchMatch
@@ -518,6 +527,7 @@ export default function MapView() {
         setSelectedPlaceId(null)
         setSelectedCivicEvent(null)
       },
+      onGeolocate: (center) => setUserPos(center),
     })
 
     return () => {
@@ -562,6 +572,38 @@ export default function MapView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Google framing: once we know where the user is AND the data has loaded,
+  // widen the view from "their street" to "them plus what's happening around
+  // them" — the nearest pins within ~120 km. Runs once per session; skipped
+  // when nothing is nearby (the street-level locate view stays). Our
+  // fitBounds also flips the geolocate control to background mode, so the
+  // live blue dot keeps updating without snapping the camera back.
+  const userFrameDoneRef = useRef(false)
+  useEffect(() => {
+    if (!userPos || isLoading || userFrameDoneRef.current) return
+    const adapter = mapAdapterRef.current
+    if (!adapter) return
+    userFrameDoneRef.current = true
+    const kmFrom = ([lng, lat]: [number, number]) => {
+      const dx = (lng - userPos[0]) * Math.cos((userPos[1] * Math.PI) / 180)
+      const dy = lat - userPos[1]
+      return Math.sqrt(dx * dx + dy * dy) * 111
+    }
+    const nearby = [
+      ...civicEvents.map((e): [number, number] => [e.lng, e.lat]),
+      ...places.map((p): [number, number] => [p.lng, p.lat]),
+    ]
+      .map((coord) => ({ coord, km: kmFrom(coord) }))
+      .filter((entry) => entry.km <= 120)
+      .sort((a, b) => a.km - b.km)
+      .slice(0, 5)
+    if (nearby.length === 0) return
+    adapter.fitBounds([userPos, ...nearby.map((entry) => entry.coord)], {
+      padding: 90,
+      maxZoom: 13,
+    })
+  }, [userPos, isLoading, civicEvents, places])
 
   // While the on-screen keyboard is up, the dvh container shrinks and every
   // floating bottom element (loading chip, results pill, no-results toast)
@@ -745,14 +787,20 @@ export default function MapView() {
   // Google-Maps-style live search suggestions: matching cities, events and
   // venues while the user types in the pill.
   const searchSuggestions = useMemo<MapSearchSuggestions>(() => {
-    const q = searchQuery.trim().toLowerCase()
+    const q = fold(searchQuery.trim())
     if (!q) return { events: [], places: [], cities: [] }
     const cities = locationOptions
-      .filter((o) => o.label.toLowerCase().includes(q))
+      .filter((o) => fold(o.label).includes(q) || fold(o.country).includes(q))
       .slice(0, 3)
       .map((o) => ({ slug: o.slug, label: o.label, country: o.country, center: o.center }))
     const events = civicEvents
-      .filter((e) => e.title.toLowerCase().includes(q))
+      .filter(
+        (e) =>
+          fold(e.title).includes(q) ||
+          fold(e.locationSlug ?? '').includes(q) ||
+          fold(e.country ?? '').includes(q) ||
+          fold(cityLabelForSlug(e.locationSlug, e.country)).includes(q),
+      )
       .slice(0, 5)
       .map((e) => ({
         id: e.id,
@@ -761,7 +809,7 @@ export default function MapView() {
         category: eventRowCategory(e),
       }))
     const placeRows = places
-      .filter((p) => p.name.toLowerCase().includes(q))
+      .filter((p) => fold(p.name).includes(q))
       .slice(0, 4)
       .map((p) => ({ id: p.id, name: p.name, sub: p.address ?? p.category }))
     return { events, places: placeRows, cities }
