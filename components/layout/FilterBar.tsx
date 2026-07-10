@@ -484,7 +484,7 @@ function MobileFilterBar(props: FilterBarProps) {
         {/* Google-Maps-app search pill: magnifier → input → account avatar,
             one floating rounded-full surface with the chips loose below it
             (no containing card). */}
-        <div className="flex h-[52px] items-center gap-2.5 rounded-full border border-white/10 bg-ink-900 pl-4 pr-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.45)]">
+        <div className="flex h-[52px] items-center gap-2.5 rounded-full border border-white/10 bg-ink-900 pl-4 pr-1.5">
           <Search className="h-5 w-5 shrink-0 text-white/40" />
           <input
             type="text"
