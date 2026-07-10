@@ -233,7 +233,7 @@ export default function MapEventCard({
             {event.expectedAttendees != null && event.expectedAttendees > 0 && (
               <span className="inline-flex items-center gap-1.5 text-white/70">
                 <Users className="h-3.5 w-3.5 shrink-0 text-white/40" />
-                {formatAttendees(event.expectedAttendees)} expected
+                {formatAttendees(event.expectedAttendees)} {t('map_expected')}
               </span>
             )}
           </div>
@@ -249,7 +249,7 @@ export default function MapEventCard({
             href={`/events/${event.slug}`}
             className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-flame-500 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-white shadow-glow-flame transition hover:bg-flame-400"
           >
-            Open event
+            {t('map_open_event')}
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>

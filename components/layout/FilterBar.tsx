@@ -16,7 +16,8 @@ import {
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import CitySearchInput, { type ResolvedCity } from '@/components/location/CitySearchInput'
-import { CATEGORY_ICONS } from '@/components/events/categoryMeta'
+import { CATEGORY_ICONS, categoryLabel } from '@/components/events/categoryMeta'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
@@ -55,16 +56,11 @@ type FilterBarProps = {
 const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic']
 const timeFilters: TimeFilter[] = ['tonight', 'weekend', 'week', 'all']
 
-function getTimeFilterLabel(filter: TimeFilter) {
-  if (filter === 'all') return 'All'
-  if (filter === 'tonight') return 'Tonight'
-  if (filter === 'week') return 'This Week'
-  return 'This Weekend'
-}
-
-function getCategoryLabel(category: string) {
-  if (category === 'all') return 'All'
-  return category
+function getTimeFilterLabel(filter: TimeFilter, t: (key: string) => string) {
+  if (filter === 'all') return t('filter_all')
+  if (filter === 'tonight') return t('tonight')
+  if (filter === 'week') return t('map_this_week')
+  return t('filter_this_weekend')
 }
 
 function FilterSectionTitle({ children }: { children: React.ReactNode }) {
@@ -109,6 +105,7 @@ function DesktopFilterBar(props: FilterBarProps) {
     onLocationChange,
     onReset,
   } = props
+  const { t } = useLanguage()
   const isWorldwide = activeLocationSlug === 'all'
   const showCountryRow =
     isWorldwide && !!onCountryChange && (countryOptions?.length ?? 0) > 0
@@ -157,7 +154,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder="Search events, cities, venues..."
+                placeholder={t('map_search_placeholder')}
                 className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-9 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
               />
               {searchQuery && (
@@ -191,7 +188,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                   />
                   <div className="absolute right-0 top-full z-40 mt-2 w-[320px] rounded-2xl border border-white/10 bg-ink-950/95 p-3 shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                      Change location
+                      {t('map_change_location')}
                     </p>
                     <CitySearchInput
                       value={cityQuery}
@@ -203,12 +200,14 @@ function DesktopFilterBar(props: FilterBarProps) {
                         onLocationChange(c.slug, [c.lng, c.lat])
                         setLocationOpen(false)
                       }}
-                      placeholder="Search any city (e.g. Berlin)..."
+                      placeholder={t('protests_search_placeholder')}
                     />
                   </div>
                 </>
               )}
             </div>
+
+            <LanguageSwitcher />
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -234,7 +233,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                   ].join(' ')}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {getTimeFilterLabel(filter)}
+                  {getTimeFilterLabel(filter, t)}
                 </button>
               )
             })}
@@ -246,6 +245,7 @@ function DesktopFilterBar(props: FilterBarProps) {
               .map((category) => {
                 const isActive = activeCategory === category
                 const isCivic = category === 'civic'
+                const Icon = CATEGORY_ICONS[category] ?? Tag
 
                 return (
                   <button
@@ -261,8 +261,8 @@ function DesktopFilterBar(props: FilterBarProps) {
                           : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
                     ].join(' ')}
                   >
-                    {isCivic && <Flame className="h-3 w-3" />}
-                    {getCategoryLabel(category)}
+                    <Icon className="h-3.5 w-3.5" />
+                    {categoryLabel(category, t)}
                   </button>
                 )
               })}
@@ -280,7 +280,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                 ].join(' ')}
               >
                 <Tag className="h-3.5 w-3.5" />
-                Tags
+                {t('map_tags')}
               </button>
             )}
           </div>
@@ -297,7 +297,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                     : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white',
                 ].join(' ')}
               >
-                All tags
+                {t('map_all_tags')}
               </button>
 
               {availableOptionChips.map((option) => {
@@ -336,7 +336,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                     : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white',
                 ].join(' ')}
               >
-                All countries
+                {t('map_all_countries')}
               </button>
               {countryOptions?.slice(0, 18).map((entry) => {
                 const isActive = activeCountry === entry.country
@@ -367,10 +367,10 @@ function DesktopFilterBar(props: FilterBarProps) {
           <div className="flex items-center justify-between gap-3 px-1 pt-0.5 text-xs text-white/55">
             <div>
               <span className="font-semibold text-white/85">{visiblePlacesCount}</span>{' '}
-              {visiblePlacesCount === 1 ? 'place' : 'places'}
+              {visiblePlacesCount === 1 ? t('map_place') : t('map_places')}
               <span className="mx-1.5 text-white/20">·</span>
               <span className="font-semibold text-white/85">{visibleEventsCount}</span>{' '}
-              {visibleEventsCount === 1 ? 'event' : 'events'}
+              {visibleEventsCount === 1 ? t('map_event') : t('map_events')}
             </div>
 
             {hasActiveFilters && (
@@ -379,7 +379,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                 onClick={onReset}
                 className="text-xs font-medium text-white/55 transition hover:text-white"
               >
-                Reset
+                {t('map_reset')}
               </button>
             )}
           </div>
@@ -407,13 +407,12 @@ function MobileFilterBar(props: FilterBarProps) {
     onLocationChange,
     onReset,
   } = props
+  const { t } = useLanguage()
   const totalResults = visiblePlacesCount + visibleEventsCount
   const resultsLabel =
     totalResults === 0
-      ? 'No results'
-      : totalResults === 1
-        ? '1 result'
-        : `${totalResults} results`
+      ? t('map_no_results')
+      : `${totalResults} ${totalResults === 1 ? t('map_result') : t('map_results')}`
 
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
@@ -427,29 +426,11 @@ function MobileFilterBar(props: FilterBarProps) {
     }
   }
 
-  const activeChips = useMemo(() => {
-    const chips: string[] = []
-
-    if (activeTimeFilter !== 'all') {
-      chips.push(getTimeFilterLabel(activeTimeFilter))
-    }
-
-    if (activeCategory !== 'all') {
-      chips.push(getCategoryLabel(activeCategory))
-    }
-
-    if (optionFilter !== 'all') {
-      chips.push(optionFilter)
-    }
-
-    if (searchQuery.trim()) {
-      chips.push(`"${searchQuery.trim()}"`)
-    }
-
-    return chips
-  }, [activeTimeFilter, activeCategory, optionFilter, searchQuery])
-
-  const activeFilterCount = activeChips.length
+  const activeFilterCount =
+    (activeTimeFilter !== 'all' ? 1 : 0) +
+    (activeCategory !== 'all' ? 1 : 0) +
+    (optionFilter !== 'all' ? 1 : 0) +
+    (searchQuery.trim() ? 1 : 0)
 
   const handleClose = () => setIsSheetOpen(false)
 
@@ -477,7 +458,7 @@ function MobileFilterBar(props: FilterBarProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder="Search events, cities, venues..."
+                placeholder={t('map_search_placeholder')}
                 className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-11 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20 focus:bg-white/[0.06]"
               />
               {searchQuery && (
@@ -534,7 +515,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     ].join(' ')}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    {getTimeFilterLabel(filter)}
+                    {getTimeFilterLabel(filter, t)}
                   </button>
                 )
               })}
@@ -563,7 +544,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     ].join(' ')}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    {getCategoryLabel(category)}
+                    {categoryLabel(category, t)}
                   </button>
                 )
               })}
@@ -588,9 +569,9 @@ function MobileFilterBar(props: FilterBarProps) {
 
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Filters</h2>
+                  <h2 className="text-lg font-semibold text-white">{t('map_filters')}</h2>
                   <p className="text-sm text-white/45">
-                    Refine your map view quickly
+                    {t('map_filters_sub')}
                   </p>
                 </div>
 
@@ -605,7 +586,7 @@ function MobileFilterBar(props: FilterBarProps) {
 
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <FilterSectionTitle>Location</FilterSectionTitle>
+                  <FilterSectionTitle>{t('map_location')}</FilterSectionTitle>
 
                   <CitySearchInput
                     value={cityQuery}
@@ -614,12 +595,12 @@ function MobileFilterBar(props: FilterBarProps) {
                     resolved={resolvedCity}
                     popular={popularCities}
                     onPopularClick={(c) => onLocationChange(c.slug, [c.lng, c.lat])}
-                    placeholder="Search any city (e.g. Berlin)..."
+                    placeholder={t('protests_search_placeholder')}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <FilterSectionTitle>Search</FilterSectionTitle>
+                  <FilterSectionTitle>{t('map_search')}</FilterSectionTitle>
 
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -629,7 +610,7 @@ function MobileFilterBar(props: FilterBarProps) {
                       onChange={(event) =>
                         onSearchQueryChange(event.target.value)
                       }
-                      placeholder="Search events, cities, venues..."
+                      placeholder={t('map_search_placeholder')}
                       className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-11 text-sm text-white outline-none placeholder:text-white/35"
                     />
                     {searchQuery && (
@@ -646,7 +627,7 @@ function MobileFilterBar(props: FilterBarProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <FilterSectionTitle>Time</FilterSectionTitle>
+                  <FilterSectionTitle>{t('map_time')}</FilterSectionTitle>
 
                   <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {timeFilters.map((filter) => {
@@ -671,7 +652,7 @@ function MobileFilterBar(props: FilterBarProps) {
                           ].join(' ')}
                         >
                           <Icon className="h-4 w-4" />
-                          {getTimeFilterLabel(filter)}
+                          {getTimeFilterLabel(filter, t)}
                         </button>
                       )
                     })}
@@ -679,7 +660,7 @@ function MobileFilterBar(props: FilterBarProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <FilterSectionTitle>Category</FilterSectionTitle>
+                  <FilterSectionTitle>{t('map_category')}</FilterSectionTitle>
 
                   <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {categories.map((category) => {
@@ -701,7 +682,7 @@ function MobileFilterBar(props: FilterBarProps) {
                           ].join(' ')}
                         >
                           {isCivic && <Flame className="h-3.5 w-3.5" />}
-                          {getCategoryLabel(category)}
+                          {categoryLabel(category, t)}
                         </button>
                       )
                     })}
@@ -710,7 +691,7 @@ function MobileFilterBar(props: FilterBarProps) {
 
                 {availableOptionChips.length > 0 && (
                   <div className="space-y-2">
-                    <FilterSectionTitle>Tags</FilterSectionTitle>
+                    <FilterSectionTitle>{t('map_tags')}</FilterSectionTitle>
 
                     <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <button
@@ -723,7 +704,7 @@ function MobileFilterBar(props: FilterBarProps) {
                             : 'border-white/10 bg-transparent text-white/55',
                         ].join(' ')}
                       >
-                        All tags
+                        {t('map_all_tags')}
                       </button>
 
                       {availableOptionChips.map((option) => {
@@ -752,15 +733,16 @@ function MobileFilterBar(props: FilterBarProps) {
                 )}
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <div className="text-sm text-white/55">Live results</div>
+                  <div className="text-sm text-white/55">{t('map_live_results')}</div>
                   <div className="mt-1 flex items-center gap-3 text-sm">
                     <span className="font-semibold text-white">
-                      {visiblePlacesCount} {visiblePlacesCount === 1 ? 'place' : 'places'}
+                      {visiblePlacesCount}{' '}
+                      {visiblePlacesCount === 1 ? t('map_place') : t('map_places')}
                     </span>
                     <span className="text-white/20">•</span>
                     <span className="text-white/70">
                       {props.visibleEventsCount}{' '}
-                      {props.visibleEventsCount === 1 ? 'event' : 'events'}
+                      {props.visibleEventsCount === 1 ? t('map_event') : t('map_events')}
                     </span>
                   </div>
                 </div>
@@ -771,7 +753,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     onClick={handleResetAndClose}
                     className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white/80"
                   >
-                    Reset
+                    {t('map_reset')}
                   </button>
 
                   <button
@@ -779,7 +761,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     onClick={handleClose}
                     className="flex-1 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black"
                   >
-                    Show results
+                    {t('map_show_results')}
                   </button>
                 </div>
 

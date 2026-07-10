@@ -18,6 +18,8 @@ import { useLocations } from '@/lib/useLocations'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { eventMatchesDate, hasOccurrenceInRange, todayIso } from '@/lib/recurrence'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { categoryLabel } from '@/components/events/categoryMeta'
 
 type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
@@ -81,16 +83,11 @@ function getWeekendIsoRange(): { from: string; to: string } {
   return { from: fmtLocalIso(from), to: fmtLocalIso(to) }
 }
 
-function getTimeFilterLabel(filter: TimeFilter) {
-  if (filter === 'all') return 'All'
-  if (filter === 'tonight') return 'Tonight'
-  if (filter === 'week') return 'This week'
-  return 'This weekend'
-}
-
-function getCategoryLabel(category: string) {
-  if (category === 'all') return 'All'
-  return category
+function getTimeFilterLabel(filter: TimeFilter, t: (key: string) => string) {
+  if (filter === 'all') return t('filter_all')
+  if (filter === 'tonight') return t('tonight')
+  if (filter === 'week') return t('map_this_week')
+  return t('filter_this_weekend')
 }
 
 function getValidTimeFilter(value: string | null): TimeFilter {
@@ -111,6 +108,7 @@ export default function MapView() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const locationOptions = useLocations()
+  const { t } = useLanguage()
 
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapAdapterRef = useRef<MapAdapter | null>(null)
@@ -699,7 +697,7 @@ export default function MapView() {
   // helper for legacy slugs that aren't in either set.
   const dynamicMatch = locationOptions.find((o) => o.slug === locationSlug)
   const activeLocationLabel = isWorldwide
-    ? 'Worldwide'
+    ? t('map_worldwide')
     : dynamicMatch?.label ?? location.label
 
   useEffect(() => {
@@ -789,7 +787,7 @@ export default function MapView() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-flame-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-flame-500" />
             </span>
-            Finding what&rsquo;s live…
+            {t('map_loading')}
           </div>
         </div>
       )}
@@ -821,19 +819,18 @@ export default function MapView() {
         <div className="pointer-events-none absolute inset-x-3 bottom-4 z-20 md:left-4 md:bottom-4 md:w-[380px]">
           <div className="pointer-events-auto rounded-3xl border border-white/10 bg-ink-950/92 p-4 text-white shadow-2xl backdrop-blur-xl">
             <p className="text-sm font-semibold text-white">
-              No matches for these filters
+              {t('map_no_results_title')}
             </p>
             <p className="mt-1 text-sm leading-6 text-white/60">
-              Try a different search, time, category, or country to surface more
-              events and venues {isWorldwide ? 'worldwide' : `in ${location.label}`}.
+              {t('map_no_results_sub')}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-medium text-white/75">
-                {getTimeFilterLabel(activeTimeFilter)}
+                {getTimeFilterLabel(activeTimeFilter, t)}
               </span>
               <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-medium capitalize text-white/75">
-                {getCategoryLabel(activeCategory)}
+                {activeCategory === 'all' ? t('filter_all') : categoryLabel(activeCategory, t)}
               </span>
               {optionFilter !== 'all' && (
                 <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-medium text-white/75">
@@ -847,7 +844,7 @@ export default function MapView() {
               onClick={handleResetFilters}
               className="mt-4 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/90"
             >
-              Reset filters
+              {t('map_reset_filters')}
             </button>
           </div>
         </div>
