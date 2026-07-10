@@ -83,7 +83,7 @@ export default function RootLayout({
         />
         <div className="pointer-events-none fixed inset-0 -z-10 bg-noise" />
         <LanguageProvider>
-          <div className="flex min-h-full flex-1 flex-col pb-16 sm:pb-0">
+          <div className="flex min-h-full flex-1 flex-col pb-24 sm:pb-0">
             <div className="flex-1">{children}</div>
             <Footer />
           </div>
