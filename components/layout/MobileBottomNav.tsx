@@ -119,8 +119,8 @@ export default function MobileBottomNav() {
                 aria-label={t(item.labelKey)}
                 aria-current={active ? 'page' : undefined}
                 className={[
-                  'flex h-11 w-11 items-center justify-center rounded-full transition active:bg-white/10',
-                  active ? 'text-white' : 'text-white/50',
+                  'flex h-10 w-[3.25rem] items-center justify-center rounded-full transition active:bg-white/10',
+                  active ? 'bg-white/15 text-white' : 'text-white/50',
                 ].join(' ')}
               >
                 <Icon
@@ -137,8 +137,8 @@ export default function MobileBottomNav() {
             aria-label={userEmail ? t('nav_dashboard') : t('sign_in')}
             aria-current={profileActive ? 'page' : undefined}
             className={[
-              'flex h-11 w-11 items-center justify-center rounded-full transition active:bg-white/10',
-              profileActive ? 'text-white' : 'text-white/50',
+              'flex h-10 w-[3.25rem] items-center justify-center rounded-full transition active:bg-white/10',
+              profileActive ? 'bg-white/15 text-white' : 'text-white/50',
             ].join(' ')}
           >
             {userEmail ? (
