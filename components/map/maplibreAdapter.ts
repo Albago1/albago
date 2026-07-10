@@ -165,11 +165,21 @@ export function createMaplibreAdapter({
     style: MAPLIBRE_STYLE_URL,
     center,
     zoom,
-    // At full zoom-out the world fits the screen and panning becomes a
-    // dead zone — floor the zoom just above that so the map always moves.
-    minZoom: 2,
     attributionControl: { compact: true },
   })
+
+  // Zoom-out floor: the furthest view is a clean main-continents frame, and
+  // the world always stays a bit larger than the viewport — at full zoom-out
+  // the map otherwise fits the screen and panning becomes a dead zone. The
+  // world is 512px wide at zoom 0 and doubles per level, so solve for the
+  // zoom where it covers the largest viewport side with ~15% to spare.
+  const computeMinZoom = () => {
+    const el = map.getContainer()
+    const largestSide = Math.max(el.clientWidth, el.clientHeight, 1)
+    return Math.max(2.4, Math.log2((largestSide * 1.15) / 512))
+  }
+  map.setMinZoom(computeMinZoom())
+  map.on('resize', () => map.setMinZoom(computeMinZoom()))
 
   // North-up, flat map. Accidental two-finger rotation/pitch is the #1
   // "the map feels broken" trigger on phones — Airbnb and Google's mobile

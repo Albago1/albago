@@ -146,7 +146,7 @@ export default function MapView() {
   // Worldwide view: roughly Europe-centered, low zoom. Sits just above the
   // adapter's minZoom floor so the fully-zoomed-out map still pans.
   const worldCenter: [number, number] = [10, 30]
-  const worldZoom = 2.2
+  const worldZoom = 2.6
 
   const initialCategory = searchParams.get('category') || 'all'
   const initialPlaceId = searchParams.get('place')
