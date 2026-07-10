@@ -82,6 +82,29 @@ export default function MobileBottomNav() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // The mobile browser's own UI (Safari's bottom search bar, Chrome's
+  // toolbar) expands and collapses over fixed-bottom elements, and page
+  // pinch-zoom detaches them entirely. Track the visual viewport and lift
+  // the pill by however much of the layout viewport is currently covered,
+  // so it always rides just above the browser chrome — and duck out of the
+  // way entirely when the on-screen keyboard is up.
+  const [chromeOffset, setChromeOffset] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      setChromeOffset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+  const keyboardOpen = chromeOffset > 150
+
   // Instagram behavior: scrolling down condenses the pill, scrolling up
   // restores it to full size. A small delta threshold avoids jitter from
   // momentum/bounce scrolling.
@@ -107,13 +130,19 @@ export default function MobileBottomNav() {
     return null
   }
 
+  if (keyboardOpen) {
+    return null
+  }
+
   const profileActive = pathname.startsWith('/dashboard')
 
   return (
     <nav
       aria-label="Primary mobile navigation"
       className="pointer-events-none fixed inset-x-0 z-40 flex justify-center sm:hidden"
-      style={{ bottom: 'calc(0.125rem + env(safe-area-inset-bottom))' }}
+      style={{
+        bottom: `calc(0.125rem + env(safe-area-inset-bottom) + ${chromeOffset}px)`,
+      }}
     >
       <ul
         className={[

@@ -907,8 +907,24 @@ export default function MapView() {
     }
   }, [countryFilter, civicEvents, isLoading, isWorldwide])
 
+  // Google Maps behavior: the map page itself must never scroll — the map
+  // owns the whole visible viewport (dvh, so it resizes with the browser
+  // bars instead of extending behind them) and the document is locked so
+  // panning/zooming can't rubber-band the page or bounce the browser chrome.
+  useEffect(() => {
+    const html = document.documentElement
+    const prevHtmlOverflow = html.style.overflow
+    const prevBodyOverflow = document.body.style.overflow
+    html.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      html.style.overflow = prevHtmlOverflow
+      document.body.style.overflow = prevBodyOverflow
+    }
+  }, [])
+
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-ink-950">
+    <div className="relative h-dvh w-full overflow-hidden bg-ink-950">
       <div ref={mapRef} className="h-full w-full" />
 
       {isLoading && (
