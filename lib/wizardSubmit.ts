@@ -5,6 +5,10 @@ export type SubmitResult =
   | { id: string; error: null }
   | { id: null; error: string }
 
+export type AdminSubmitResult =
+  | { id: string; slug: string; error: null }
+  | { id: null; slug: null; error: string }
+
 // Users should never see RPC names, seed-file paths, or RLS advice. Log the
 // technical detail for debugging and hand back one calm, generic message.
 const GENERIC_SUBMIT_ERROR =
@@ -212,4 +216,104 @@ export async function submitOrganizerDraft(
   }
 
   return { id: data as string, error: null }
+}
+
+function createSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
+}
+
+/**
+ * Submit an admin-mode wizard draft. Inserts a published row straight into
+ * events (RLS lets admins insert — same path the queue's Approve uses), so
+ * the event is live on the public site immediately. Field mapping mirrors
+ * AdminClient.approveSubmission, sourced from the wizard draft.
+ */
+export async function submitAdminEvent(
+  supabase: SupabaseClient,
+  draft: EventDraft,
+): Promise<AdminSubmitResult> {
+  const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
+  const category = draft.category || (isCivic ? 'civic' : 'culture')
+  const locationSlug = trim(draft.location_slug) ?? 'unknown'
+  const slug = `${createSlug(draft.title)}-${crypto.randomUUID().slice(0, 8)}`
+
+  // Auto-seed the cities row like the approve flow does. Best-effort: a
+  // failure here must not block publishing.
+  if (draft.lat != null && draft.lng != null && locationSlug !== 'unknown') {
+    const { error: cityError } = await supabase.rpc('upsert_city_from_event', {
+      p_slug: locationSlug,
+      p_name: locationSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      p_country: trim(draft.country) ?? 'Unknown',
+      p_lat: draft.lat,
+      p_lng: draft.lng,
+    })
+    if (cityError) {
+      console.warn('upsert_city_from_event:', cityError.message)
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('events')
+    .insert({
+      title: draft.title.trim(),
+      slug,
+      place_id: null,
+      category,
+      description: draft.description.trim(),
+      date: draft.date,
+      time: trim(draft.time),
+      end_time: trim(draft.end_time),
+      timezone: trim(draft.timezone),
+      price: trim(draft.price),
+      highlight: false,
+      status: 'published',
+      country: trim(draft.country) ?? 'Unknown',
+      region: trim(draft.region),
+      location_slug: locationSlug,
+      lat: draft.lat,
+      lng: draft.lng,
+      address: trim(draft.address),
+      address_hint: trim(draft.address_hint),
+      is_online: draft.is_online,
+      online_url: trim(draft.online_url),
+      tags: draft.tags,
+      language: trim(draft.language) ?? 'en',
+      banner_url: draft.gallery_urls[0] ?? null,
+      gallery_urls: draft.gallery_urls,
+      organizer_name: trim(draft.organizer_name),
+      organizer_phone: trim(draft.organizer_phone),
+      organizer_website: trim(draft.organizer_website),
+      organizer_socials: hasAnySocial(draft.organizer_socials)
+        ? cleanSocials(draft.organizer_socials)
+        : null,
+      organizer_contact: trim(draft.organizer_contact),
+      recurrence: draft.recurrence,
+      recurrence_until: trim(draft.recurrence_until),
+      recurrence_days_of_week: draft.recurrence_days_of_week,
+      recurrence_exceptions: draft.recurrence_exceptions,
+      ...(isCivic && {
+        event_type: 'protest',
+        is_civic: true,
+        featured_movement_slug: trim(draft.featured_movement_slug),
+        telegram_link: trim(draft.telegram_link),
+        whatsapp_link: trim(draft.whatsapp_link),
+        safety_notes: trim(draft.safety_notes),
+        expected_attendees: draft.expected_attendees
+          ? parseAttendees(draft.expected_attendees)
+          : null,
+      }),
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    logSubmitError('submitAdminEvent', error)
+    return { id: null, slug: null, error: GENERIC_SUBMIT_ERROR }
+  }
+
+  return { id: (data as { id: string }).id, slug, error: null }
 }

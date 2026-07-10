@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 
 const SECTION_TITLES: Record<string, string> = {
   '/admin': 'Overview',
@@ -9,6 +10,7 @@ const SECTION_TITLES: Record<string, string> = {
   '/admin/placards': 'Placards',
   '/admin/organizers': 'Organizers',
   '/admin/volunteers': 'Volunteers',
+  '/admin/events/new': 'New event',
   '/admin/events': 'Events',
   '/admin/users': 'Users',
   '/admin/share-batch': 'Share batch',
@@ -34,6 +36,13 @@ export default function AdminTopBar() {
         </h1>
       </div>
       <div className="flex items-center gap-2">
+        <Link
+          href="/admin/events/new"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-flame-500 px-2.5 text-[11px] font-semibold text-white transition hover:bg-flame-400"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">New event</span>
+        </Link>
         <button
           type="button"
           onClick={() =>

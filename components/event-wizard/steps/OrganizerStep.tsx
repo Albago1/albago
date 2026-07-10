@@ -19,7 +19,7 @@ import type { Organizer } from '@/types/organizer'
 type Props = {
   draft: EventDraft
   patch: (patch: Partial<EventDraft>) => void
-  mode: 'community' | 'organizer'
+  mode: 'community' | 'organizer' | 'admin'
 }
 
 type SocialKey = 'instagram' | 'facebook' | 'tiktok' | 'twitter'
@@ -70,12 +70,14 @@ export default function OrganizerStep({ draft, patch, mode }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-white">
-            {mode === 'organizer' ? 'Organizer details' : 'Who is hosting?'}
+            {mode === 'community' ? 'Who is hosting?' : 'Organizer details'}
           </h2>
           <p className="mt-1 text-sm text-white/55">
-            {mode === 'organizer'
-              ? 'These show on every event card you publish. Edit anything you want for this event only.'
-              : 'Tell attendees who is behind this event. Required so we can verify legitimacy before approving.'}
+            {mode === 'admin'
+              ? 'Shown publicly as the host of this event. Use the real organizer, or AlbaGo for platform events.'
+              : mode === 'organizer'
+                ? 'These show on every event card you publish. Edit anything you want for this event only.'
+                : 'Tell attendees who is behind this event. Required so we can verify legitimacy before approving.'}
           </p>
         </div>
         {organizer?.verified && (

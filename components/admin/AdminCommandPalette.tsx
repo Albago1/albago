@@ -16,6 +16,7 @@ import {
   Inbox,
   LayoutDashboard,
   Megaphone,
+  Plus as PlusIcon,
   Search,
   Send,
   Users as UsersIcon,
@@ -53,6 +54,15 @@ type OrganizerItem = {
 type Item = NavItem | EventItem | OrganizerItem
 
 const NAV_ITEMS: NavItem[] = [
+  {
+    kind: 'nav',
+    id: 'nav-new-event',
+    label: 'New event',
+    sublabel: 'Create and publish an event instantly',
+    href: '/admin/events/new',
+    icon: PlusIcon,
+    keywords: 'new event create add publish post',
+  },
   {
     kind: 'nav',
     id: 'nav-overview',

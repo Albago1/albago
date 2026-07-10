@@ -21,7 +21,7 @@ export type WizardSubmit = (draft: EventDraft) => Promise<
   | { id: null; error: string | null }
 >
 
-export type WizardMode = 'community' | 'organizer'
+export type WizardMode = 'community' | 'organizer' | 'admin'
 
 export type StepKey = 'type' | 'category' | 'basics' | 'when' | 'where' | 'media' | 'organizer' | 'review'
 
@@ -238,12 +238,14 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">
-            {mode === 'organizer' ? 'Create event' : 'Submit an event'}
+            {mode === 'community' ? 'Submit an event' : 'Create event'}
           </h1>
           <p className="mt-1 text-sm text-white/55">
-            {mode === 'organizer'
-              ? 'Goes into your draft list. Submit for review when you are ready.'
-              : 'Your submission goes to the moderation queue. Approved events appear on the public site.'}
+            {mode === 'admin'
+              ? 'Publishing as AlbaGo — this event goes live on the public site the moment you submit.'
+              : mode === 'organizer'
+                ? 'Goes into your draft list. Submit for review when you are ready.'
+                : 'Your submission goes to the moderation queue. Approved events appear on the public site.'}
           </p>
         </div>
         <button

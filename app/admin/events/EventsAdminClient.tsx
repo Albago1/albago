@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Flame, Pencil, RotateCcw, Search, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Flame, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import AdminRepostModal from './AdminRepostModal'
 
@@ -197,6 +197,14 @@ export default function EventsAdminClient() {
           </p>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+        <Link
+          href="/admin/events/new"
+          className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+        >
+          <Plus className="h-4 w-4" />
+          New event
+        </Link>
         <Link
           href="/admin/volunteers"
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
@@ -204,6 +212,7 @@ export default function EventsAdminClient() {
           <Users className="h-4 w-4" />
           Volunteer signups
         </Link>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
