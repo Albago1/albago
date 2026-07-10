@@ -396,6 +396,7 @@ function MobileFilterBar(props: FilterBarProps) {
     searchQuery,
     optionFilter,
     activeLocationSlug,
+    activeLocationLabel,
     locationOptions,
     visiblePlacesCount,
     visibleEventsCount,
@@ -489,8 +490,23 @@ function MobileFilterBar(props: FilterBarProps) {
 
           {/* One-tap filter rail (Google Maps / Airbnb pattern): time and
               category toggle instantly on the map, no sheet required.
-              Tapping an active chip clears it. */}
+              Tapping an active chip clears it. The CITY leads the rail —
+              the first thing anyone wants to know on a map is where they
+              are browsing; tapping it opens the picker. */}
           <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={() => setIsSheetOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white px-3 py-1.5 text-xs font-semibold text-black"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              {activeLocationLabel ||
+                locationOptions.find((o) => o.slug === activeLocationSlug)?.label ||
+                activeLocationSlug}
+            </button>
+
+            <span className="shrink-0 text-white/15">·</span>
+
             {timeFilters
               .filter((filter) => filter !== 'all')
               .map((filter) => {
