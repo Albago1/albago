@@ -21,6 +21,8 @@ Why not Connect-only: it would exclude the home market entirely. Why not ledger-
 
 **Seller of record:** the organizer is the seller of the ticket; AlbaGo is the facilitator/agent collecting on their behalf. Receipts name the organizer. Platform revenue = the fee only (that's what the platform invoices/VATs — flag for an accountant at PAY-2; do not build tax logic beyond clean records).
 
+**Gate A legal check (added 2026-07-12):** collecting buyer money on organizers' behalf can constitute regulated payment services in Germany (ZAG/PSD2). Platforms in this exact shape rely on the commercial-agent exemption — which is why the agent framing above must be real, not decorative: organizer named as seller on the receipt, agency stated in the ToS. One question for the accountant/lawyer during entity setup, before any live charge. Tracked on the README User P0 checklist.
+
 ## 3. Database schema (paste-ready SQL is written at build time; this is the contract)
 
 All amounts `int` cents. All tables RLS'd per repo patterns. No cached aggregates — balances and availability are SQL functions.
@@ -31,7 +33,7 @@ payment_providers    (enum-ish: 'stripe' | 'cash_at_door' | 'free')  — provide
 orders
   id uuid PK, user_id FK profiles (nullable: guest checkout later, NOT v1),
   event_id FK events, organizer_id FK organizers (denormalized at order time),
-  status text CHECK IN ('pending','paid','cancelled','expired','refunded','partially_refunded'),
+  status text CHECK IN ('pending','awaiting_door','paid','cancelled','expired','refunded','partially_refunded'),
   provider text, provider_session_id text, provider_payment_intent text,
   subtotal_cents int, fee_cents int (platform fee), payment_cents int (pass-through est.),
   total_cents int, currency char(3) DEFAULT 'EUR',
@@ -45,7 +47,11 @@ order_items
 webhook_events
   id text PK (provider event id — natural dedup), provider text,
   type text, payload jsonb, processed_at, error text
-  — every webhook inserts here FIRST (ON CONFLICT DO NOTHING → already handled)
+  — dedup on SUCCESS, not on receipt (fixed 2026-07-12): INSERT with processed_at NULL,
+    claim the row FOR UPDATE (skip only if processed_at IS NOT NULL), run fulfillment in
+    the SAME transaction, stamp processed_at last. Receipt-time "ON CONFLICT → already
+    handled" is a trap: a crash after insert makes Stripe's retry a no-op — buyer paid,
+    order never fulfilled, and nothing ever retries it.
 
 ledger_entries        (double-entry style; the auditable truth of who is owed what)
   id uuid PK, organizer_id FK, order_id FK nullable, payout_id FK nullable,
@@ -53,6 +59,8 @@ ledger_entries        (double-entry style; the auditable truth of who is owed wh
   amount_cents int  (+credit organizer / −debit), currency char(3),
   memo text, created_at
   — organizer_balance(organizer_id) = SUM(amount_cents); SQL function, never a column
+  — CHECK (currency = 'EUR') until multi-currency is real: SUM across mixed currencies
+    is silent corruption, so the constraint makes the single-currency assumption explicit
 
 payouts
   id uuid PK, organizer_id FK, amount_cents int, currency char(3),
@@ -82,17 +90,18 @@ export interface PaymentProvider {
 
 - `lib/payments/stripe.ts` implements it with **Stripe Checkout (hosted)** — PCI SAQ-A, Apple Pay/Google Pay/cards for free, no card UI to build or maintain. Payment Element embedding is a later polish, not v1.
 - `lib/payments/free.ts` fulfills zero-total orders instantly (TIX v0 uses only this).
-- `cash_at_door` = order marked `pending` with door-payment flag; ticket issued as `valid` with `payment_due_at_door = true` shown at scan time (door staff collects). Simple, honest, matches home-market culture.
+- `cash_at_door` = order status **`awaiting_door`**, NOT `pending` (fixed 2026-07-12); tickets issued `valid` with `payment_due_at_door = true` shown at scan time (door staff collects; check-in settles the order to `paid`). It must not be `pending` for two reasons: its tickets already exist, so counting it as a pending hold too would double-decrement availability; and the expiry sweep would kill a door reservation after 30 minutes while its tickets stayed `valid` — orphaned state. A door reservation lives until the event. Simple, honest, matches home-market culture.
 - Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`, `PLATFORM_FEE_BPS` (default 300 = 3%), all test-mode values until Gate A.
 
 ## 5. The purchase pipeline (correctness rules)
 
-1. **Reserve:** `create_order(tier_id, qty, …)` RPC — locks the tier row `FOR UPDATE`, computes availability (capacity − issued − active pending holds), inserts `orders(status='pending', expires_at = now()+10min)` + items. Overselling is impossible by construction, not by hope.
+1. **Reserve:** `create_order(tier_id, qty, …)` RPC — locks the tier row `FOR UPDATE` (multi-tier orders lock rows in a consistent order, by tier id, or two mixed-tier orders can deadlock), computes availability (capacity − issued − active pending holds), inserts `orders(status='pending', expires_at = now()+30min)` + items. The hold is 30 minutes because Stripe Checkout **refuses `expires_at` values under 30 minutes** (fixed 2026-07-12 — the original 10-minute hold was impossible to align: inventory would have released while the buyer could still legally pay). Overselling is impossible by construction, not by hope.
 2. **Checkout:** API route creates the Stripe Checkout Session (`client_reference_id = order.id`, `metadata.order_id`, `expires_at` aligned to the hold). Redirect.
-3. **Fulfill on webhook, never on redirect.** `checkout.session.completed` → insert into `webhook_events` (dedup) → mark order `paid` → issue tickets (TIX doc) → write `ledger_entries(kind='sale')` → send ticket email. The success page only POLLS order status; it never fulfills (users close tabs; webhooks don't).
-4. **Expire:** pg_cron or Vercel cron sweep: `pending` orders past `expires_at` → `expired` (holds evaporate because availability counts only non-expired pendings). Stripe session auto-expires in parallel.
-5. **Reconcile:** daily sweep compares Stripe sessions/payment_intents vs orders; mismatches → admin alert list. (Vercel Hobby cron = daily granularity, 2 jobs max — acceptable; expiry can also run lazily inside `create_order`.)
-6. **Refunds:** v1 = admin/organizer-initiated full refund via RPC → provider.refund() → webhook `charge.refunded` confirms → order `refunded`, tickets `void`, ledger `refund` entry. Partial + attendee self-serve windows = PAY-4. Event cancellation = bulk refund job over paid orders.
+3. **Fulfill on webhook, never on redirect — and in ONE transaction.** `checkout.session.completed` → claim the `webhook_events` row (§3 dedup rule) → then in a single DB transaction: order `paid` + issue tickets (TIX doc) + `ledger_entries(kind='sale')` + stamp `processed_at`. Never split mark-paid from issue-tickets: in that gap the order is no longer a pending hold and its tickets don't exist yet, so `tier_available` counts neither and a concurrent `create_order` oversells. The ticket email sends after commit (retryable, never inside the transaction). The success page only POLLS order status; it never fulfills (users close tabs; webhooks don't).
+4. **Late-payment race (added 2026-07-12):** a completed-checkout webhook can arrive for an order already `expired` (payment at minute 29 + sweep timing, webhook retries, clock skew). Inside the same fulfillment transaction, re-lock the tier(s) and recompute availability: capacity still there → revive the order (`expired`→`paid`) and fulfill normally; capacity gone (someone else bought the released inventory) → `provider.refund()` immediately, mark the order `refunded`, email the buyer in plain language. Fulfilling an expired order without the re-check is the oversell; dropping the webhook without refunding is keeping someone's money.
+5. **Expire:** pg_cron or Vercel cron sweep: `pending` orders past `expires_at` → `expired` (holds evaporate because availability counts only non-expired pendings; the status flip is bookkeeping, correctness comes from the timestamp). `awaiting_door` orders are NEVER swept. Stripe session auto-expires in parallel.
+6. **Reconcile:** daily sweep compares Stripe sessions/payment_intents vs orders; mismatches → admin alert list. (Vercel Hobby cron = daily granularity, 2 jobs max — acceptable; expiry can also run lazily inside `create_order`.)
+7. **Refunds:** v1 = admin/organizer-initiated full refund via RPC → provider.refund() → webhook `charge.refunded` confirms → order `refunded`, tickets `void`, ledger `refund` entry. Ledger rule for v1 (added 2026-07-12): reverse the sale in full — the buyer gets everything back including the platform fee (v1 is full-refund only; returning our cents beats explaining why we kept them), and the organizer is debited exactly the net previously credited. A refund landing after a payout can push a balance **negative** — that is a legal ledger state; payout runs net it and never pay a balance ≤ 0. Partial + attendee self-serve windows = PAY-4. Event cancellation = bulk refund job over paid orders. Free/`awaiting_door` orders have no provider webhook — their refund/void path completes synchronously in the RPC.
 
 ## 6. Fees engine
 
@@ -120,7 +129,7 @@ export interface PaymentProvider {
 - [ ] SQL: ledger_entries, payouts, organizer_payout_profiles + `organizer_balance()`.
 - [ ] Organizer dashboard: Balance card (computed), sales list, payout history.
 - [ ] Admin: payout run screen — list balances > €25, mark-paid with SEPA reference (manual transfers by user; the screen produces a copy-paste transfer list).
-- [ ] Ledger integrity check script (sum of entries per order = order totals).
+- [ ] Ledger integrity check script (sum of entries per order = order totals; AND period totals of `sale`/`refund` entries reconcile against Stripe balance-transaction totals — the ledger is single-leg per organizer, so without an external tie-out it can drift from the actual money silently).
 
 ### PAY-4 — Upgrades (post-traction, pick by data)
 - Stripe Connect Express onboarding for supported-country organizers (Model B), destination charges + `application_fee_amount`; Payment Element embedded checkout; attendee self-serve refund windows; partial refunds; promo-code interaction; multi-currency display (ALL alongside EUR); local Balkan PSP investigation (POK / bank gateways) behind the same interface if home-market card volume justifies it.
@@ -133,3 +142,8 @@ export interface PaymentProvider {
 | 2026-07-10 | Hosted Stripe Checkout, not custom card UI | PCI SAQ-A, wallets for free, zero maintenance — what the best small platforms actually do |
 | 2026-07-10 | Fulfillment only via webhook + dedup table | The only correct pattern; redirect fulfillment loses/dupes orders |
 | 2026-07-10 | Civic paid-tiers blocked at schema level | Bible pledge is structural, not cosmetic |
+| 2026-07-12 | Webhook dedup keyed on processed SUCCESS; fulfillment is one DB transaction | Receipt-time dedup + split fulfillment = paid orders without tickets and oversell windows under crash/retry |
+| 2026-07-12 | Hold = 30 min; late webhooks re-check capacity, revive or auto-refund | Stripe Checkout expiry minimum is 30 min — the 10-min hold was unimplementable; expired-then-paid otherwise oversells or strands money |
+| 2026-07-12 | `awaiting_door` order status for cash-at-door | `pending` + issued tickets double-counted availability and the sweep would orphan valid tickets |
+| 2026-07-12 | Refunds reverse the sale in full (fee returned); negative balances legal, netted at payout | Simplest honest v1; refund-after-payout is inevitable and must not break the ledger |
+| 2026-07-12 | ZAG/PSD2 commercial-agent check added to Gate A | Platform-as-merchant collecting for third parties can be regulated payment services in DE; cheaper as one lawyer question than as a surprise |

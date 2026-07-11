@@ -59,6 +59,7 @@ Product-bible alignment: §10 ranks ticketing #1 (3–5% + payment costs, civic 
 These are the ONLY blockers between "built in test mode" and "live". Track status here.
 
 - [ ] **Legal entity** — confirm what exists today (Einzelunternehmen/Gewerbe in Germany? Nothing yet?). Stripe live needs a legal entity + address. Germany assumed from context (haqua-berlin.de) — **confirm with user before PAY-2**.
+- [ ] **Agent-model legal check** — collecting ticket money on organizers' behalf can count as regulated payment services in Germany (ZAG/PSD2); the plan relies on the commercial-agent exemption (organizer is the named seller, AlbaGo their agent). One question for the accountant/lawyer during entity setup, before PAY-2. (Added 2026-07-12; see 01-payments §2.)
 - [ ] **Bank account** for the entity (any EU IBAN works for Stripe DE).
 - [ ] **Stripe account activation** (KYC: ID + entity + bank). Free. ~1–3 days.
 - [ ] **Fee decision**: platform fee % (recommend launch at 3% + Stripe costs passed through; bible range 3–5%) and absorb-vs-pass default.

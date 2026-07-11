@@ -24,7 +24,8 @@ ticket_tiers
   fee_mode text CHECK IN ('absorb','pass') DEFAULT 'pass',
   status text CHECK IN ('active','paused','sold_out_manual','archived'),
   sort_order int, created_at
-  -- GUARD: trigger/RPC rejects price_cents > 0 when the event is_civic (bible pledge)
+  -- GUARD: trigger/RPC rejects price_cents > 0 when the event is_civic, AND rejects
+  -- flipping is_civic on an event that has paid tiers (bible pledge, both directions)
 
 tickets                    (ONE ROW PER ADMISSION — the atomic unit)
   id uuid PK, order_item_id FK, event_id FK (denorm for O(1) door scans),
@@ -59,18 +60,23 @@ ticket_transfers           (phase 4 — in-platform only, the anti-tout stance)
 **Availability is computed, never stored** (schema principle #4):
 `tier_available(tier_id) = capacity − COUNT(tickets valid/checked_in) − SUM(pending non-expired order_items)` — one SQL function used by UI, `create_order` (inside its `FOR UPDATE` lock), and the sold-out badge.
 
-RLS: tiers public-read for published events, organizer/admin write via RPC. `tickets` readable by owner + event organizer + admin; ALL mutations via SECURITY DEFINER RPCs (`issue_tickets`, `check_in_ticket`, `void_ticket`). `ticket_scans` insert via `check_in_ticket` only; organizer reads own event's scans.
+Precision added 2026-07-12: "pending" means exactly `orders.status = 'pending' AND expires_at > now()`. `awaiting_door` orders are NOT holds — their tickets are already issued and counted in the first term; counting them again double-decrements. And `create_order` enforces a **per-user-per-event cap for free tiers** (existing valid tickets + live holds for that user ≤ `max_per_order`): `max_per_order` alone is defeated by placing six separate orders, and free inventory is the easiest thing on the internet to drain.
+
+RLS: tiers anon-readable ONLY where the event is published AND `visibility = 'public'` — `hidden`/`unlock_code` rows must not be publicly selectable, or unlock codes are decorative (fixed 2026-07-12; "public-read" as originally written leaked them). Organizer/admin read all of their own; writes via RPC. `tickets` readable by owner + event organizer + admin; ALL mutations via SECURITY DEFINER RPCs (`issue_tickets`, `check_in_ticket`, `void_ticket`). `ticket_scans` insert via `check_in_ticket` only; organizer reads own event's scans.
 
 ## 3. QR design (forgery-proof, offline-verifiable, rotation-capable)
 
 QR encodes a compact signed token, never a bare ID:
 
 ```
-ALBGO1.<ticket_id_base64url>.<qr_version>.<HMAC-SHA256(secret, ticket_id||qr_version) truncated 16B base64url>
+ALBGO1.<ticket_id_base64url>.<qr_version>.<HMAC-SHA256(k_event, ticket_id || '.' || qr_version) truncated 16B base64url>
+
+k_event = HMAC-SHA256(TICKET_QR_SECRET, 'evt:' || event_id)   -- derived per event; master never leaves the server
 ```
 
-- `TICKET_QR_SECRET` server env. The door scanner verifies the signature LOCALLY (secret delivered to an authenticated organizer session at door-mode open) → offline-capable verification of authenticity; online check then settles duplicate/void status.
-- Rotation = bump `qr_version` (transfer, suspected leak, or timed reveal). Old renders fail signature-version check instantly. DICE-style "QR reveals N hours before doors" is a phase-4 toggle per event (until reveal, My Tickets shows the poster + countdown, no QR).
+- `TICKET_QR_SECRET` server env, used ONLY to derive per-event keys. Door mode receives `k_event` for its one event at open — never the master. (Fixed 2026-07-12: the original spec delivered the global secret to the organizer's browser session, which would let ANY organizer — or anyone with a door-staff link — forge valid tokens for every event on the platform. With per-event keys, the worst an organizer can forge is entry to their own door, which they can grant anyway by waving people in.) Bonus: a token from another event fails the signature against `k_event`, so the offline scanner gets a `wrong_event` verdict with no lookup at all.
+- The HMAC message is delimiter-joined (`ticket_id || '.' || qr_version`), matching the token layout — undelimited concatenation is ambiguous by construction.
+- Rotation = bump `qr_version` (transfer, suspected leak, or timed reveal). Honest scope (stated 2026-07-12): an offline scanner can only prove a token was *genuinely issued* — it cannot know the CURRENT version. Old renders die instantly for online scans; for offline, door mode pulls a snapshot at open (`{ticket_id → qr_version}` + void/refunded ids — one event's worth, tiny) and re-syncs every ~30s while open, so the stale window is seconds, not the night. DICE-style "QR reveals N hours before doors" is a phase-4 toggle per event (until reveal, My Tickets shows the poster + countdown, no QR).
 - `serial` is the human fallback: door staff can type it if a screen is cracked. Serial lookup requires organizer auth; it is NOT a bearer credential by itself (door staff confirms name/order email on fallback).
 
 ## 4. Surfaces
@@ -96,13 +102,14 @@ Any staff phone, no install (PWA later wraps it natively):
 - Scan → instant verdict screen: **GREEN full-screen flash + name/tier** (ok) / **RED + reason** (duplicate shows "already in at 21:43", void, wrong event, forged) / **AMBER "COLLECT €X"** for `payment_due_at_door` — then auto-return to viewfinder in 1.2s. Haptics via `navigator.vibrate`.
 - Header: live counters `checked-in / issued` (computed).
 - Manual fallback: search by serial/name/email → tap to check in.
-- **Offline queue:** verdicts for authenticity work offline (signature); status settles when back online — queued check-ins sync with conflict rule "first scan wins, later ones flag duplicate".
+- **Offline queue:** verdicts for authenticity work offline (signature + the at-open snapshot from §3); status settles when back online — queued check-ins sync with conflict rule "first scan wins, later ones flag duplicate". Known exposure (stated 2026-07-12): two devices BOTH offline can each flash GREEN for the same cloned QR inside the sync window; the ~30s re-sync shrinks that window to seconds — accepted for v1, written down so nobody sells offline door mode as airtight.
+- **Atomic check-in (added 2026-07-12):** `check_in_ticket` is a single `UPDATE tickets SET status='checked_in', checked_in_at=now() WHERE id = $1 AND status = 'valid' RETURNING …` — two simultaneous online scans of the same ticket get exactly one GREEN; the loser reads the row and shows duplicate-with-timestamp. Checking in a `payment_due_at_door` ticket also settles its order `awaiting_door` → `paid` (the AMBER collect verdict).
 - Staff access: organizer can open door mode; shareable door-staff link = short-lived signed token session scoped to ONE event's check-in RPC only (no dashboard access). Phase 3.
 
 ## 6. Phases
 
 ### TIX-1 — Schema + free tickets E2E (start anytime; pairs with PAY-1's free provider)
-- [ ] SQL: ticket_tiers, tickets, ticket_scans + tier_available(), create_order (PAY-1), issue_tickets, check_in_ticket RPCs. Civic price guard.
+- [ ] SQL: ticket_tiers, tickets, ticket_scans + tier_available(), create_order (PAY-1, incl. per-user free-tier cap + consistent tier lock order), issue_tickets, check_in_ticket RPCs. Civic price guard (both directions).
 - [ ] Tier editor v1 (organizer dashboard) — free tiers only surfaced.
 - [ ] Event page tier picker (free claim flow), instant issuance, ticket email w/ QR.
 - [ ] My Tickets v1.
@@ -128,3 +135,7 @@ Any staff phone, no install (PWA later wraps it natively):
 | 2026-07-10 | Signed QR + qr_version rotation | Forgery-proof offline; transfers/leaks killable without reissuing orders |
 | 2026-07-10 | Free tickets ship before any payment | Full machine exercised with zero prerequisites (master-plan insight) |
 | 2026-07-10 | Civic = attendance vocabulary, never commerce | Bible pledge, structural guard in schema |
+| 2026-07-12 | Per-event door keys derived from the master secret; master never leaves the server | Global secret in any organizer browser = platform-wide forgery; derivation also yields offline wrong_event detection |
+| 2026-07-12 | Offline door verdicts = authenticity only; version/duplicate/void settle via at-open snapshot + ~30s re-sync | Honest about what an offline HMAC check can prove; old QRs do not die "instantly" offline |
+| 2026-07-12 | Per-user free-tier claim cap in create_order | max_per_order alone is defeated by repeat orders; free inventory drains trivially |
+| 2026-07-12 | Hidden/unlock tiers excluded from anon RLS read | Public-read tiers would leak unlock-code tiers, making them decorative |
