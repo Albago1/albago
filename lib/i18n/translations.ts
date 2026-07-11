@@ -575,6 +575,14 @@ export const translations: Record<Language, Record<string, string>> = {
     pwa_ios_step_2: "Choose “Add to Home Screen”",
     pwa_ios_done: "Got it",
     pwa_installed_toast: "AlbaGo is on your home screen",
+    push_device_title: "Notifications on this device",
+    push_device_body: "Get event reminders as push notifications, even when AlbaGo is closed.",
+    push_unsupported: "To enable push on iPhone, first add AlbaGo to your home screen.",
+    push_denied: "Notifications are blocked in your browser settings.",
+    push_error: "Couldn't update notifications — try again.",
+    push_test: "Send a test",
+    push_test_sent: "Sent — check your notifications.",
+    push_test_failed: "Test failed — re-enable notifications and try again.",
   },
 
   de: {
@@ -1152,6 +1160,14 @@ export const translations: Record<Language, Record<string, string>> = {
     pwa_ios_step_2: "Wähle „Zum Home-Bildschirm“",
     pwa_ios_done: "Verstanden",
     pwa_installed_toast: "AlbaGo ist auf deinem Startbildschirm",
+    push_device_title: "Benachrichtigungen auf diesem Gerät",
+    push_device_body: "Erhalte Event-Erinnerungen als Push-Benachrichtigung — auch wenn AlbaGo geschlossen ist.",
+    push_unsupported: "Um Push auf dem iPhone zu aktivieren, füge AlbaGo zuerst zum Startbildschirm hinzu.",
+    push_denied: "Benachrichtigungen sind in deinen Browser-Einstellungen blockiert.",
+    push_error: "Benachrichtigungen konnten nicht aktualisiert werden — versuch es erneut.",
+    push_test: "Test senden",
+    push_test_sent: "Gesendet — sieh in deine Benachrichtigungen.",
+    push_test_failed: "Test fehlgeschlagen — aktiviere die Benachrichtigungen neu und versuch es erneut.",
   },
 
   es: {
@@ -1729,6 +1745,14 @@ export const translations: Record<Language, Record<string, string>> = {
     pwa_ios_step_2: "Elige “Añadir a pantalla de inicio”",
     pwa_ios_done: "Entendido",
     pwa_installed_toast: "AlbaGo está en tu pantalla de inicio",
+    push_device_title: "Notificaciones en este dispositivo",
+    push_device_body: "Recibe recordatorios de eventos como notificaciones push, incluso con AlbaGo cerrado.",
+    push_unsupported: "Para activar las notificaciones en iPhone, añade primero AlbaGo a tu pantalla de inicio.",
+    push_denied: "Las notificaciones están bloqueadas en los ajustes de tu navegador.",
+    push_error: "No se pudieron actualizar las notificaciones — inténtalo de nuevo.",
+    push_test: "Enviar una prueba",
+    push_test_sent: "Enviada — revisa tus notificaciones.",
+    push_test_failed: "La prueba falló — vuelve a activar las notificaciones e inténtalo de nuevo.",
   },
 
   sq: {
@@ -2305,5 +2329,13 @@ export const translations: Record<Language, Record<string, string>> = {
     pwa_ios_step_2: "Zgjidh “Add to Home Screen”",
     pwa_ios_done: "E kuptova",
     pwa_installed_toast: "AlbaGo është në ekranin tënd kryesor",
+    push_device_title: "Njoftimet në këtë pajisje",
+    push_device_body: "Merr kujtesa për eventet si njoftime push, edhe kur AlbaGo është e mbyllur.",
+    push_unsupported: "Për të aktivizuar njoftimet në iPhone, shto fillimisht AlbaGo në ekranin kryesor.",
+    push_denied: "Njoftimet janë të bllokuara në cilësimet e shfletuesit tënd.",
+    push_error: "Njoftimet nuk u përditësuan dot — provo përsëri.",
+    push_test: "Dërgo një provë",
+    push_test_sent: "U dërgua — kontrollo njoftimet.",
+    push_test_failed: "Prova dështoi — riaktivizo njoftimet dhe provo sërish.",
   },
 }

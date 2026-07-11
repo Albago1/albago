@@ -5,6 +5,7 @@ import { ArrowLeft, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import NotificationPreferencesForm from './NotificationPreferencesForm'
+import PushDeviceToggle from '@/components/pwa/PushDeviceToggle'
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -55,10 +56,11 @@ export default async function SettingsPage() {
             </div>
           </div>
 
-          <div className="mt-10">
+          <div className="mt-10 space-y-4">
             <NotificationPreferencesForm
               initialSavedEventUpdates={savedEventUpdates}
             />
+            <PushDeviceToggle />
           </div>
         </div>
       </main>
