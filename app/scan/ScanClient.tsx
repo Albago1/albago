@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Calendar,
   Camera,
+  Check,
   Clock,
   ImagePlus,
   MapPin,
@@ -21,6 +22,7 @@ import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
 import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
 import type { PosterReading } from '@/lib/ai/posterReader'
+import type { LensResolution, LensResolvedPlace } from '@/lib/lens/resolve'
 
 const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
 const MAX_DIMENSION = 1600
@@ -28,7 +30,12 @@ const MAX_DIMENSION = 1600
 type Phase =
   | { name: 'idle' }
   | { name: 'scanning'; previewUrl: string }
-  | { name: 'result'; previewUrl: string; reading: PosterReading }
+  | {
+      name: 'result'
+      previewUrl: string
+      reading: PosterReading
+      resolution: LensResolution | null
+    }
   | { name: 'error'; kind: 'not_a_poster' | 'rate_limited' | 'generic' }
 
 /** Downscale to ≤1600px JPEG so uploads stay small and the free-tier vision
@@ -85,11 +92,65 @@ function readingToDraftPatch(reading: PosterReading): Partial<EventDraft> {
   }
 }
 
+/**
+ * Overlay the LENS-2 resolution onto the raw reading patch: a resolved city
+ * fills location_slug + canonical label, an auto-matched (or user-accepted)
+ * venue fills the venue's canonical name + coordinates, and a geocoded
+ * address supplies coordinates when no venue was linked. Place linking
+ * itself stays an approval-time act — the draft carries no place_id.
+ */
+function resolvedDraftPatch(
+  reading: PosterReading,
+  resolution: LensResolution | null,
+  acceptedPlace: LensResolvedPlace | null,
+): Partial<EventDraft> {
+  const patch = readingToDraftPatch(reading)
+  if (!resolution) return patch
+
+  if (resolution.city.status !== 'none') {
+    patch.location_slug = resolution.city.slug
+    patch.city = resolution.city.label
+    if (resolution.city.country) patch.country = resolution.city.country
+    if (resolution.city.region) patch.region = resolution.city.region
+  }
+
+  const place =
+    resolution.venue.status === 'matched'
+      ? resolution.venue.place
+      : (acceptedPlace ?? undefined)
+
+  if (place) {
+    patch.venue_name = place.name
+    patch.location_slug = place.location_slug
+    if (place.address) patch.address = place.address
+    if (place.city) patch.city = place.city
+    if (place.lat != null) patch.lat = place.lat
+    if (place.lng != null) patch.lng = place.lng
+  } else if (resolution.geocode.status === 'address') {
+    if (resolution.geocode.lat != null) patch.lat = resolution.geocode.lat
+    if (resolution.geocode.lng != null) patch.lng = resolution.geocode.lng
+    if (resolution.geocode.formatted) patch.address = resolution.geocode.formatted
+  }
+
+  return patch
+}
+
+/** True when resolution produced at least one usable hit worth tracking. */
+function resolutionHasHit(resolution: LensResolution | null): boolean {
+  if (!resolution) return false
+  return (
+    resolution.city.status !== 'none' ||
+    resolution.venue.status !== 'none' ||
+    resolution.geocode.status === 'address'
+  )
+}
+
 export default function ScanClient() {
   const { t, language } = useLanguage()
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>({ name: 'idle' })
   const [replacesDraft, setReplacesDraft] = useState(false)
+  const [acceptedPlace, setAcceptedPlace] = useState<LensResolvedPlace | null>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -97,6 +158,7 @@ export default function ScanClient() {
     if (!file) return
     const previewUrl = URL.createObjectURL(file)
     setPhase({ name: 'scanning', previewUrl })
+    setAcceptedPlace(null)
     trackInteraction('lens_scan')
 
     try {
@@ -111,10 +173,12 @@ export default function ScanClient() {
       const payload = (await response.json()) as {
         ok: boolean
         reading?: PosterReading
+        resolution?: LensResolution | null
         error?: string
       }
 
       if (payload.ok && payload.reading) {
+        const resolution = payload.resolution ?? null
         // Warn when applying will overwrite a draft the user already started.
         try {
           const existing = window.localStorage.getItem(DRAFT_STORAGE_KEY)
@@ -125,7 +189,16 @@ export default function ScanClient() {
         } catch {
           setReplacesDraft(false)
         }
-        setPhase({ name: 'result', previewUrl, reading: payload.reading })
+        if (resolutionHasHit(resolution) && resolution) {
+          trackInteraction('lens_resolved', {
+            meta: {
+              city: resolution.city.status,
+              venue: resolution.venue.status,
+              geocode: resolution.geocode.status,
+            },
+          })
+        }
+        setPhase({ name: 'result', previewUrl, reading: payload.reading, resolution })
         return
       }
       URL.revokeObjectURL(previewUrl)
@@ -142,10 +215,11 @@ export default function ScanClient() {
     }
   }
 
-  const handleApply = (reading: PosterReading) => {
+  const handleApply = () => {
+    if (phase.name !== 'result') return
     const draft: EventDraft = {
       ...defaultEventDraft,
-      ...readingToDraftPatch(reading),
+      ...resolvedDraftPatch(phase.reading, phase.resolution, acceptedPlace),
     }
     try {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
@@ -160,6 +234,7 @@ export default function ScanClient() {
     if (phase.name === 'scanning' || phase.name === 'result') {
       URL.revokeObjectURL(phase.previewUrl)
     }
+    setAcceptedPlace(null)
     setPhase({ name: 'idle' })
   }
 
@@ -282,128 +357,170 @@ export default function ScanClient() {
           </motion.div>
         )}
 
-        {phase.name === 'result' && (
-          <motion.div
-            key="result"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mt-10"
-          >
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-flame-400">
-              <Sparkles className="h-3.5 w-3.5" />
-              {t('lens_result_title')}
-            </div>
+        {phase.name === 'result' &&
+          (() => {
+            const { reading, resolution, previewUrl } = phase
+            const matchedPlace =
+              resolution?.venue.status === 'matched'
+                ? resolution.venue.place
+                : acceptedPlace
+            const suggestedPlace =
+              resolution?.venue.status === 'suggested' && !acceptedPlace
+                ? resolution.venue.place
+                : null
+            const venueMatched = Boolean(matchedPlace)
+            const displayVenue = matchedPlace?.name || reading.venue_name
+            const displayCity =
+              matchedPlace?.city ||
+              (resolution && resolution.city.status !== 'none'
+                ? resolution.city.label
+                : reading.city)
 
-            <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
-              <div className="flex gap-4 p-5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={phase.previewUrl}
-                  alt=""
-                  className="h-28 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
-                />
-                <div className="min-w-0">
-                  <h2 className="text-xl font-bold leading-tight text-white">
-                    {phase.reading.title}
-                  </h2>
-                  {(phase.reading.date || phase.reading.time) && (
-                    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold text-flame-400">
-                      {phase.reading.date && (
-                        <span className="inline-flex items-center gap-1.5">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(phase.reading.date)}
-                        </span>
-                      )}
-                      {phase.reading.time && (
-                        <span className="inline-flex items-center gap-1.5">
-                          <Clock className="h-4 w-4" />
-                          {phase.reading.time}
-                          {phase.reading.end_time
-                            ? `–${phase.reading.end_time}`
-                            : ''}
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {(phase.reading.venue_name || phase.reading.city) && (
-                    <p className="mt-1.5 flex items-center gap-1.5 text-sm text-white/70">
-                      <MapPin className="h-4 w-4 shrink-0 text-white/40" />
-                      <span className="truncate">
-                        {[phase.reading.venue_name, phase.reading.city]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </span>
-                    </p>
-                  )}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {phase.reading.category && (
-                      <span className="rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-xs capitalize text-white/70">
-                        {phase.reading.category}
-                      </span>
-                    )}
-                    {phase.reading.price && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-xs text-white/70">
-                        <Ticket className="h-3 w-3" />
-                        {phase.reading.price}
-                      </span>
-                    )}
-                  </div>
+            return (
+              <motion.div
+                key="result"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mt-10"
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-flame-400">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {t('lens_result_title')}
                 </div>
-              </div>
 
-              {phase.reading.artists.length > 0 && (
-                <p className="flex items-start gap-2 border-t border-white/[0.06] px-5 py-3 text-sm text-white/70">
-                  <Music className="mt-0.5 h-4 w-4 shrink-0 text-white/40" />
-                  <span>{phase.reading.artists.join(' · ')}</span>
-                </p>
-              )}
-              {phase.reading.description && (
-                <p className="border-t border-white/[0.06] px-5 py-3 text-sm leading-relaxed text-white/60">
-                  {phase.reading.description}
-                </p>
-              )}
-              {phase.reading.organizer_name && (
-                <p className="flex items-center gap-2 border-t border-white/[0.06] px-5 py-3 text-xs text-white/50">
-                  <Users className="h-3.5 w-3.5" />
-                  {phase.reading.organizer_name}
-                </p>
-              )}
-            </div>
+                <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
+                  <div className="flex gap-4 p-5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewUrl}
+                      alt=""
+                      className="h-28 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
+                    />
+                    <div className="min-w-0">
+                      <h2 className="text-xl font-bold leading-tight text-white">
+                        {reading.title}
+                      </h2>
+                      {(reading.date || reading.time) && (
+                        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold text-flame-400">
+                          {reading.date && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Calendar className="h-4 w-4" />
+                              {formatDate(reading.date)}
+                            </span>
+                          )}
+                          {reading.time && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Clock className="h-4 w-4" />
+                              {reading.time}
+                              {reading.end_time ? `–${reading.end_time}` : ''}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      {(displayVenue || displayCity) && (
+                        <p className="mt-1.5 flex items-center gap-1.5 text-sm text-white/70">
+                          {venueMatched ? (
+                            <Check className="h-4 w-4 shrink-0 text-flame-400" />
+                          ) : (
+                            <MapPin className="h-4 w-4 shrink-0 text-white/40" />
+                          )}
+                          <span className="truncate">
+                            {[displayVenue, displayCity]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </p>
+                      )}
+                      {venueMatched && (
+                        <p className="mt-1 text-xs text-flame-300/80">
+                          {t('lens_venue_matched')}
+                        </p>
+                      )}
+                      {suggestedPlace && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-white/50">
+                            {t('lens_venue_suggest')}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setAcceptedPlace(suggestedPlace)}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-3 py-1 text-xs font-medium text-flame-300 transition hover:bg-flame-500/15"
+                          >
+                            <Check className="h-3 w-3" />
+                            {suggestedPlace.name}
+                          </button>
+                        </div>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {reading.category && (
+                          <span className="rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-xs capitalize text-white/70">
+                            {reading.category}
+                          </span>
+                        )}
+                        {reading.price && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-xs text-white/70">
+                            <Ticket className="h-3 w-3" />
+                            {reading.price}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-            {phase.reading.confidence < 0.6 && (
-              <p className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-200">
-                {t('lens_low_confidence')}
-              </p>
-            )}
-            {replacesDraft && (
-              <p className="mt-3 text-center text-xs text-white/45">
-                {t('lens_replace_warning')}
-              </p>
-            )}
+                  {reading.artists.length > 0 && (
+                    <p className="flex items-start gap-2 border-t border-white/[0.06] px-5 py-3 text-sm text-white/70">
+                      <Music className="mt-0.5 h-4 w-4 shrink-0 text-white/40" />
+                      <span>{reading.artists.join(' · ')}</span>
+                    </p>
+                  )}
+                  {reading.description && (
+                    <p className="border-t border-white/[0.06] px-5 py-3 text-sm leading-relaxed text-white/60">
+                      {reading.description}
+                    </p>
+                  )}
+                  {reading.organizer_name && (
+                    <p className="flex items-center gap-2 border-t border-white/[0.06] px-5 py-3 text-xs text-white/50">
+                      <Users className="h-3.5 w-3.5" />
+                      {reading.organizer_name}
+                    </p>
+                  )}
+                </div>
 
-            <div className="mt-4 space-y-3">
-              <button
-                type="button"
-                onClick={() => handleApply(phase.reading)}
-                className="flex w-full items-center justify-center gap-2 rounded-3xl bg-flame-500 px-6 py-4 text-base font-semibold text-[#fff] shadow-[0_12px_36px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
-              >
-                {t('lens_use')}
-              </button>
-              <button
-                type="button"
-                onClick={reset}
-                className="flex w-full items-center justify-center gap-2 rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <RefreshCw className="h-4 w-4" />
-                {t('lens_retake')}
-              </button>
-              <p className="text-center text-xs text-white/35">
-                {t('lens_disclaimer')}
-              </p>
-            </div>
-          </motion.div>
-        )}
+                {reading.confidence < 0.6 && (
+                  <p className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-200">
+                    {t('lens_low_confidence')}
+                  </p>
+                )}
+                {replacesDraft && (
+                  <p className="mt-3 text-center text-xs text-white/45">
+                    {t('lens_replace_warning')}
+                  </p>
+                )}
+
+                <div className="mt-4 space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleApply}
+                    className="flex w-full items-center justify-center gap-2 rounded-3xl bg-flame-500 px-6 py-4 text-base font-semibold text-[#fff] shadow-[0_12px_36px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+                  >
+                    {t('lens_use')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={reset}
+                    className="flex w-full items-center justify-center gap-2 rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    {t('lens_retake')}
+                  </button>
+                  <p className="text-center text-xs text-white/35">
+                    {t('lens_disclaimer')}
+                  </p>
+                </div>
+              </motion.div>
+            )
+          })()}
 
         {phase.name === 'error' && (
           <motion.div

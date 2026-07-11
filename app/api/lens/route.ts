@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { readPosterImage } from '@/lib/ai/posterReader'
+import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
 
 /**
  * AlbaGo Lens (LENS-1): POST a poster photo, get a structured event reading.
@@ -110,7 +111,18 @@ export async function POST(request: Request) {
       )
     }
 
-    return NextResponse.json({ ok: true, reading })
+    // LENS-2 resolution layer. Fail-open by contract: any error here degrades
+    // to the LENS-1 reading-only response — the scan must never fail because
+    // venue/city resolution broke.
+    let resolution: LensResolution | null = null
+    try {
+      resolution = await resolvePoster(reading)
+    } catch (error) {
+      console.error('[lens] resolution failed (non-fatal):', error)
+      resolution = null
+    }
+
+    return NextResponse.json({ ok: true, reading, resolution })
   } catch (error) {
     console.error('[lens] unexpected error:', error)
     return NextResponse.json({ ok: false, error: 'server' }, { status: 500 })

@@ -23,6 +23,7 @@ export type TrackType =
   | 'outbound_click'
   | 'lens_scan'
   | 'lens_apply'
+  | 'lens_resolved'
 
 export type TrackOptions = {
   entityType?: 'event' | 'place' | 'placard' | 'submission'

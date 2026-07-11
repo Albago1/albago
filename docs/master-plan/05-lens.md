@@ -83,12 +83,17 @@ resolution: {
 2. **Venue inheritance:** if Stage B finds a strong venue match first pass
    (run B against country-wide candidates when the city is unknown), inherit
    `city`/`location_slug` from the place row → `inherited`.
-3. **Remote fallback:** `searchRemoteCities()` (existing Nominatim helper)
-   with `reading.city + reading.country`; take the top hit only when its
-   country agrees with `reading.country` (folded compare, when both present)
-   → `remote` with a synthetic slug via `slugifyCityName` — identical to how
-   the map search and `upsert_city_from_event` already mint slugs, so
-   approval-time city upsert keeps working unchanged.
+3. **Remote fallback:** Nominatim search with `reading.city + reading.country`;
+   take the top hit that carries a real place field (city/town/village/
+   municipality) → `remote` with a synthetic slug via `slugifyCityName` —
+   identical to how the map search and `upsert_city_from_event` already mint
+   slugs, so approval-time city upsert keeps working unchanged. **Impl note
+   (2026-07-12): NO client-side country-agreement re-check.** The country is
+   already in the query so Nominatim biases correctly; requesting results in
+   the poster's language returns localized country names ("Shqipëria" not
+   "Albania") that can't be compared across languages to the reading's
+   country and produced false negatives for valid cities (Vlorë rejected).
+   Matches the existing `searchRemoteCities` behavior, which has no gate.
 4. Nothing readable → `none`; the wizard's WhereStep does its normal job.
 
 #### Stage B — venue matching against `places`
@@ -159,12 +164,20 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
 
 #### Build order (stage-and-confirm within the phase)
 
-- [ ] **LENS-2a:** `lib/lens/resolve.ts` Stages A+B+C + route wiring +
-      result-card states + draft prefill. Scripted tests (scratchpad tsx,
-      LENS-1 pattern): accent variants match; noise-word variants match;
-      same-name venue in the WRONG city does not; two same-city near-ties
-      demote to suggestion; geocode outside the sanity ring rejected;
-      resolution throwing leaves the scan response intact.
+- [x] **LENS-2a — SHIPPED 2026-07-12.** `lib/lens/resolve.ts` Stages A+B+C +
+      fail-open route wiring + result-card matched/suggested states + draft
+      prefill (`resolvedDraftPatch`) + `lens_resolved` track type (lib/track
+      AND /api/track) + 3 i18n keys ×4 (lens_venue_matched/suggest). 30
+      scripted pure-logic tests pass (accent/stem city match, noise-word
+      normalization, match tiers incl. "21"⊄ demotion, tie demotion, geocode
+      ring). Live probe against real data confirmed: city resolves off the
+      real `cities` table (Tiranë→tirane, Prishtinë→prishtina), remote
+      fallback resolves Vlorë, geocode respects the 30km ring, fail-open
+      holds on every case. **FINDING: the `places` table is currently EMPTY
+      in production** — venue matching correctly returns `none` today and
+      becomes valuable only as venues are seeded; nothing breaks meanwhile
+      (empty candidate pool → `none`, tested). USER VERIFY: scan a real
+      poster for an event in a known city → wizard opens with city prefilled.
 - [ ] **LENS-2b:** Stage D + duplicate panel. Tests: reworded title on same
       date+city flags; same title one week later does not; pending-submission
       hit leaks no fields (assert on raw API JSON).
@@ -201,3 +214,4 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
 | 2026-07-12 | No place_id in the draft; matched venues prefill canonical fields only | Place linking stays an approval-time act; zero wizard/schema changes preserved |
 | 2026-07-12 | Duplicate check warns and links, never blocks; pending-submission hits are boolean-only | Queue stays the dedup authority; submissions are not public and must not leak via the scanner |
 | 2026-07-12 | Geocode fallback requires the hit within ~30km of the resolved city | Unconstrained geocoding of poster addresses produces confident garbage elsewhere on earth |
+| 2026-07-12 | Dropped the client-side country-agreement gate on remote city fallback | Localized Nominatim country names ("Shqipëria") can't be compared across languages to the reading's country; caused valid-city false negatives. Country is already in the query so Nominatim biases correctly (matches existing searchRemoteCities) |
