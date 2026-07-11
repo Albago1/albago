@@ -9,6 +9,37 @@ export function signalPwaEngagement() {
   window.dispatchEvent(new Event(PWA_ENGAGEMENT_EVENT))
 }
 
+// Capacitor injects window.Capacitor into the store-shell webview
+// (apps/shell). The website never bundles Capacitor — feature-detect only.
+export type CapacitorGlobal = {
+  isNativePlatform?: () => boolean
+  getPlatform?: () => string
+  Plugins?: {
+    StatusBar?: {
+      setBackgroundColor: (options: { color: string }) => Promise<void>
+      setStyle: (options: { style: string }) => Promise<void>
+    }
+    App?: {
+      addListener: (
+        event: 'appUrlOpen',
+        callback: (data: { url: string }) => void,
+      ) => Promise<{ remove: () => void }>
+    }
+    Haptics?: {
+      impact: (options: { style: string }) => Promise<void>
+    }
+  }
+}
+
+export function getCapacitor(): CapacitorGlobal | undefined {
+  if (typeof window === 'undefined') return undefined
+  return (window as Window & { Capacitor?: CapacitorGlobal }).Capacitor
+}
+
+export function isNativeShell(): boolean {
+  return getCapacitor()?.isNativePlatform?.() === true
+}
+
 // PushManager.subscribe wants the VAPID public key as a BufferSource.
 export function urlBase64ToUint8Array(
   base64String: string,

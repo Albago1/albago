@@ -6,6 +6,7 @@ import Footer from "@/components/layout/Footer";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import PwaRegistrar from "@/components/pwa/PwaRegistrar";
+import ShellBridge from "@/components/pwa/ShellBridge";
 import { jsonLdScript, organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import "./globals.css";
 
@@ -98,6 +99,7 @@ export default function RootLayout({
         </LanguageProvider>
         <CookieConsent />
         <PwaRegistrar />
+        <ShellBridge />
       </body>
     </html>
   );

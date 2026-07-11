@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Share, SquarePlus } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
-import { PWA_ENGAGEMENT_EVENT } from '@/lib/pwa'
+import { isNativeShell, PWA_ENGAGEMENT_EVENT } from '@/lib/pwa'
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -57,6 +57,8 @@ export default function InstallPrompt() {
     }
 
     const onEngagement = () => {
+      // Inside the Capacitor store shell there is nothing to install.
+      if (isNativeShell()) return
       if (isStandalone() || dismissedRecently()) return
       if (promptRef.current) {
         setSheet('install')

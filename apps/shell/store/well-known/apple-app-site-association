@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_APPLE_TEAM_ID.org.albago.app"],
+        "components": [
+          { "/": "/events/*" },
+          { "/": "/places/*" },
+          { "/": "/map" },
+          { "/": "/protests*" },
+          { "/": "/pankartat*" },
+          { "/": "/dashboard/tickets*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["REPLACE_APPLE_TEAM_ID.org.albago.app"]
+  }
+}

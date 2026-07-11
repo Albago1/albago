@@ -48,3 +48,7 @@ next-env.d.ts
 # secrets must never enter git (P0 guard, 2026-07-06)
 ID_Resend.txt
 *_secret*.txt
+
+# capacitor shell (apps/shell)
+apps/shell/node_modules/
+apps/shell/www/manifest.json
