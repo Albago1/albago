@@ -567,6 +567,14 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_sign_in_now: "Sign in now",
     submit_create_account: "Create account",
     submit_back_to_draft: "Back to your draft",
+    pwa_install_title: "Add AlbaGo to your home screen",
+    pwa_install_body: "One tap from your home screen — full screen, faster, and ready for what's happening tonight.",
+    pwa_install_cta: "Install",
+    pwa_install_later: "Not now",
+    pwa_ios_step_1: "Tap the Share button in Safari",
+    pwa_ios_step_2: "Choose “Add to Home Screen”",
+    pwa_ios_done: "Got it",
+    pwa_installed_toast: "AlbaGo is on your home screen",
   },
 
   de: {
@@ -1136,6 +1144,14 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_sign_in_now: "Jetzt anmelden",
     submit_create_account: "Konto erstellen",
     submit_back_to_draft: "Zurück zum Entwurf",
+    pwa_install_title: "AlbaGo zum Startbildschirm hinzufügen",
+    pwa_install_body: "Ein Tipp vom Startbildschirm — Vollbild, schneller und bereit für alles, was heute Abend läuft.",
+    pwa_install_cta: "Installieren",
+    pwa_install_later: "Nicht jetzt",
+    pwa_ios_step_1: "Tippe in Safari auf die Teilen-Taste",
+    pwa_ios_step_2: "Wähle „Zum Home-Bildschirm“",
+    pwa_ios_done: "Verstanden",
+    pwa_installed_toast: "AlbaGo ist auf deinem Startbildschirm",
   },
 
   es: {
@@ -1705,6 +1721,14 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_sign_in_now: "Iniciar sesión ahora",
     submit_create_account: "Crear cuenta",
     submit_back_to_draft: "Volver a tu borrador",
+    pwa_install_title: "Añade AlbaGo a tu pantalla de inicio",
+    pwa_install_body: "Un toque desde tu pantalla de inicio — a pantalla completa, más rápido y listo para lo que pasa esta noche.",
+    pwa_install_cta: "Instalar",
+    pwa_install_later: "Ahora no",
+    pwa_ios_step_1: "Toca el botón Compartir en Safari",
+    pwa_ios_step_2: "Elige “Añadir a pantalla de inicio”",
+    pwa_ios_done: "Entendido",
+    pwa_installed_toast: "AlbaGo está en tu pantalla de inicio",
   },
 
   sq: {
@@ -2273,5 +2297,13 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_sign_in_now: "Hyr tani",
     submit_create_account: "Krijo llogari",
     submit_back_to_draft: "Kthehu te drafti",
+    pwa_install_title: "Shto AlbaGo në ekranin kryesor",
+    pwa_install_body: "Një prekje nga ekrani yt kryesor — ekran i plotë, më i shpejtë dhe gati për çfarë ndodh sonte.",
+    pwa_install_cta: "Instalo",
+    pwa_install_later: "Jo tani",
+    pwa_ios_step_1: "Prek butonin Share në Safari",
+    pwa_ios_step_2: "Zgjidh “Add to Home Screen”",
+    pwa_ios_done: "E kuptova",
+    pwa_installed_toast: "AlbaGo është në ekranin tënd kryesor",
   },
 }

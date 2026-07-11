@@ -4,6 +4,7 @@ import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import CookieConsent from "@/components/layout/CookieConsent";
 import Footer from "@/components/layout/Footer";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 import PwaRegistrar from "@/components/pwa/PwaRegistrar";
 import { jsonLdScript, organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import "./globals.css";
@@ -93,6 +94,7 @@ export default function RootLayout({
             <Footer />
           </div>
           <MobileBottomNav />
+          <InstallPrompt />
         </LanguageProvider>
         <CookieConsent />
         <PwaRegistrar />

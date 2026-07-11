@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Heart } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import { saveEvent, unsaveEvent } from '@/lib/savedEvents'
+import { signalPwaEngagement } from '@/lib/pwa'
 
 type Props = {
   eventId: string
@@ -58,6 +59,10 @@ export default function SaveEventButton({
       setSaved(wasSaved)
       onToggle?.(wasSaved)
       console.error('Failed to update save state:', error)
+    } else if (!wasSaved) {
+      // A successful save is the engagement moment the add-to-home-screen
+      // sheet waits for (never shown as an unprompted popup).
+      signalPwaEngagement()
     }
   }
 
