@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#050505" />
+<title>Offline — AlbaGo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #050505;
+    color: #fff;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem 1.5rem;
+  }
+  .mark {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    margin: 0 auto 2rem;
+    display: block;
+  }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 400;
+    font-size: clamp(2rem, 8vw, 3rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  h1 em { color: #ee1c25; font-style: italic; }
+  p {
+    margin-top: 1rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    max-width: 26rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  button {
+    margin-top: 2rem;
+    background: #ee1c25;
+    color: #fff;
+    border: 0;
+    border-radius: 9999px;
+    padding: 0.85rem 2.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+<main>
+  <img class="mark" src="/icons/icon-192.png" alt="AlbaGo" />
+  <h1 id="t-title">You’re <em>offline</em></h1>
+  <p id="t-body">AlbaGo needs a connection for live events and maps. Anything you opened recently is still available — try going back, or reconnect and retry.</p>
+  <button id="t-retry" onclick="location.reload()">Try again</button>
+</main>
+<script>
+(function () {
+  var strings = {
+    en: {
+      title: 'You’re <em>offline</em>',
+      body: 'AlbaGo needs a connection for live events and maps. Anything you opened recently is still available — try going back, or reconnect and retry.',
+      retry: 'Try again'
+    },
+    sq: {
+      title: 'Je <em>offline</em>',
+      body: 'AlbaGo ka nevojë për lidhje interneti për eventet dhe hartat live. Gjithçka që hape së fundmi është ende e disponueshme — kthehu pas, ose lidhu sërish dhe provo.',
+      retry: 'Provo përsëri'
+    },
+    de: {
+      title: 'Du bist <em>offline</em>',
+      body: 'AlbaGo braucht eine Verbindung für Live-Events und Karten. Alles, was du zuletzt geöffnet hast, ist weiter verfügbar — geh zurück oder verbinde dich neu und versuch es erneut.',
+      retry: 'Erneut versuchen'
+    },
+    es: {
+      title: 'Estás <em>sin conexión</em>',
+      body: 'AlbaGo necesita conexión para eventos y mapas en vivo. Lo que abriste recientemente sigue disponible — vuelve atrás, o reconéctate e inténtalo de nuevo.',
+      retry: 'Reintentar'
+    }
+  };
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('albago_language');
+    if (saved === 'al') saved = 'sq';
+    if (saved && strings[saved]) lang = saved;
+  } catch (e) {}
+  var s = strings[lang];
+  document.documentElement.lang = lang;
+  document.getElementById('t-title').innerHTML = s.title;
+  document.getElementById('t-body').textContent = s.body;
+  document.getElementById('t-retry').textContent = s.retry;
+  window.addEventListener('online', function () { location.reload(); });
+})();
+</script>
+</body>
+</html>
