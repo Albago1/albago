@@ -8,6 +8,7 @@ import {
   CloudUpload,
   LogIn,
   PencilLine,
+  ScanLine,
   UserPlus,
 } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
@@ -126,6 +127,20 @@ export default function SubmitEventClient() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <Link
+        href="/scan"
+        className="group mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-flame-500/30 hover:bg-white/[0.05]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+            <ScanLine className="h-4 w-4 text-flame-400" />
+          </div>
+          <p className="text-sm text-white/80">{t('lens_entry_title')}</p>
+        </div>
+        <span className="rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-xs font-semibold text-white transition group-hover:bg-white/[0.10]">
+          {t('lens_entry_cta')}
+        </span>
+      </Link>
       {isAuthed === false && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-flame-500/25 bg-flame-500/[0.08] px-4 py-3">
           <p className="text-sm text-white/80">

@@ -1,0 +1,432 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Calendar,
+  Camera,
+  Clock,
+  ImagePlus,
+  MapPin,
+  Music,
+  RefreshCw,
+  ScanLine,
+  Sparkles,
+  Ticket,
+  Users,
+} from 'lucide-react'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { languageLocales } from '@/lib/i18n/config'
+import { trackInteraction } from '@/lib/track'
+import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
+import type { PosterReading } from '@/lib/ai/posterReader'
+
+const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
+const MAX_DIMENSION = 1600
+
+type Phase =
+  | { name: 'idle' }
+  | { name: 'scanning'; previewUrl: string }
+  | { name: 'result'; previewUrl: string; reading: PosterReading }
+  | { name: 'error'; kind: 'not_a_poster' | 'rate_limited' | 'generic' }
+
+/** Downscale to ≤1600px JPEG so uploads stay small and the free-tier vision
+ *  call cheap; poster text is still crisply readable at that size. */
+async function toUploadBlob(file: File): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(
+      1,
+      MAX_DIMENSION / Math.max(bitmap.width, bitmap.height),
+    )
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.85),
+    )
+    return blob ?? file
+  } catch {
+    // Decode failure (exotic format) — send the original; the route
+    // whitelists types and rejects what it can't take.
+    return file
+  }
+}
+
+function readingToDraftPatch(reading: PosterReading): Partial<EventDraft> {
+  const isCivic = reading.is_civic || reading.category === 'civic'
+  const description =
+    reading.artists.length > 1
+      ? `${reading.description}\n\nLineup: ${reading.artists.join(', ')}`
+      : reading.description
+  return {
+    event_type: isCivic ? 'protest' : 'event',
+    is_civic: isCivic,
+    category: isCivic ? 'civic' : reading.category,
+    title: reading.title,
+    description: description.trim(),
+    tags: reading.tags,
+    language: reading.language,
+    date: reading.date,
+    time: reading.time,
+    end_time: reading.end_time,
+    city: reading.city,
+    country: reading.country,
+    address: reading.address,
+    venue_name: reading.venue_name,
+    price: reading.price,
+    organizer_name: reading.organizer_name,
+    organizer_website: reading.organizer_website,
+  }
+}
+
+export default function ScanClient() {
+  const { t, language } = useLanguage()
+  const router = useRouter()
+  const [phase, setPhase] = useState<Phase>({ name: 'idle' })
+  const [replacesDraft, setReplacesDraft] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = async (file: File | null) => {
+    if (!file) return
+    const previewUrl = URL.createObjectURL(file)
+    setPhase({ name: 'scanning', previewUrl })
+    trackInteraction('lens_scan')
+
+    try {
+      const blob = await toUploadBlob(file)
+      const form = new FormData()
+      form.append(
+        'image',
+        blob,
+        blob.type === 'image/jpeg' ? 'poster.jpg' : file.name,
+      )
+      const response = await fetch('/api/lens', { method: 'POST', body: form })
+      const payload = (await response.json()) as {
+        ok: boolean
+        reading?: PosterReading
+        error?: string
+      }
+
+      if (payload.ok && payload.reading) {
+        // Warn when applying will overwrite a draft the user already started.
+        try {
+          const existing = window.localStorage.getItem(DRAFT_STORAGE_KEY)
+          const parsed = existing
+            ? (JSON.parse(existing) as Partial<EventDraft>)
+            : null
+          setReplacesDraft(Boolean(parsed?.title))
+        } catch {
+          setReplacesDraft(false)
+        }
+        setPhase({ name: 'result', previewUrl, reading: payload.reading })
+        return
+      }
+      URL.revokeObjectURL(previewUrl)
+      if (payload.error === 'not_a_poster') {
+        setPhase({ name: 'error', kind: 'not_a_poster' })
+      } else if (payload.error === 'rate_limited') {
+        setPhase({ name: 'error', kind: 'rate_limited' })
+      } else {
+        setPhase({ name: 'error', kind: 'generic' })
+      }
+    } catch {
+      URL.revokeObjectURL(previewUrl)
+      setPhase({ name: 'error', kind: 'generic' })
+    }
+  }
+
+  const handleApply = (reading: PosterReading) => {
+    const draft: EventDraft = {
+      ...defaultEventDraft,
+      ...readingToDraftPatch(reading),
+    }
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
+    } catch {
+      // Storage unavailable — the wizard simply starts empty.
+    }
+    trackInteraction('lens_apply')
+    router.push('/submit-event')
+  }
+
+  const reset = () => {
+    if (phase.name === 'scanning' || phase.name === 'result') {
+      URL.revokeObjectURL(phase.previewUrl)
+    }
+    setPhase({ name: 'idle' })
+  }
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(`${iso}T00:00:00`).toLocaleDateString(
+        languageLocales[language],
+        { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+      )
+    } catch {
+      return iso
+    }
+  }
+
+  const errorText = (kind: 'not_a_poster' | 'rate_limited' | 'generic') => {
+    if (kind === 'not_a_poster') return t('lens_error_not_poster')
+    if (kind === 'rate_limited') return t('lens_error_rate')
+    return t('lens_error_generic')
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          handleFile(e.target.files?.[0] ?? null)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          handleFile(e.target.files?.[0] ?? null)
+          e.target.value = ''
+        }}
+      />
+
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+          <ScanLine className="h-5 w-5 text-flame-400" />
+        </div>
+        <h1 className="font-display text-4xl">{t('lens_title')}</h1>
+      </div>
+      <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/55">
+        {t('lens_sub')}
+      </p>
+
+      <AnimatePresence mode="wait">
+        {phase.name === 'idle' && (
+          <motion.div
+            key="idle"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-10 space-y-3"
+          >
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-3 rounded-3xl bg-flame-500 px-6 py-5 text-base font-semibold text-[#fff] shadow-[0_12px_36px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+            >
+              <Camera className="h-5 w-5" />
+              {t('lens_take')}
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-3 rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              <ImagePlus className="h-4.5 w-4.5" />
+              {t('lens_upload')}
+            </button>
+            <p className="pt-2 text-center text-xs text-white/35">
+              {t('lens_disclaimer')}
+            </p>
+          </motion.div>
+        )}
+
+        {phase.name === 'scanning' && (
+          <motion.div
+            key="scanning"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="relative mt-10 overflow-hidden rounded-3xl border border-white/10"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={phase.previewUrl}
+              alt=""
+              className="max-h-[26rem] w-full object-cover opacity-60"
+            />
+            <motion.div
+              initial={{ top: '0%' }}
+              animate={{ top: '100%' }}
+              transition={{
+                duration: 1.6,
+                repeat: Infinity,
+                repeatType: 'reverse',
+                ease: 'easeInOut',
+              }}
+              className="absolute inset-x-0 h-px bg-flame-500 shadow-[0_0_24px_4px_rgba(238,28,37,0.65)]"
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-ink-950/40 px-6 text-center">
+              <Sparkles className="h-6 w-6 animate-pulse text-flame-400" />
+              <p className="mt-3 text-sm font-semibold text-white">
+                {t('lens_scanning')}
+              </p>
+              <p className="mt-1 text-xs text-white/60">
+                {t('lens_scanning_sub')}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {phase.name === 'result' && (
+          <motion.div
+            key="result"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-10"
+          >
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-flame-400">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('lens_result_title')}
+            </div>
+
+            <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
+              <div className="flex gap-4 p-5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={phase.previewUrl}
+                  alt=""
+                  className="h-28 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
+                />
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold leading-tight text-white">
+                    {phase.reading.title}
+                  </h2>
+                  {(phase.reading.date || phase.reading.time) && (
+                    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold text-flame-400">
+                      {phase.reading.date && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(phase.reading.date)}
+                        </span>
+                      )}
+                      {phase.reading.time && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="h-4 w-4" />
+                          {phase.reading.time}
+                          {phase.reading.end_time
+                            ? `–${phase.reading.end_time}`
+                            : ''}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {(phase.reading.venue_name || phase.reading.city) && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-sm text-white/70">
+                      <MapPin className="h-4 w-4 shrink-0 text-white/40" />
+                      <span className="truncate">
+                        {[phase.reading.venue_name, phase.reading.city]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {phase.reading.category && (
+                      <span className="rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-xs capitalize text-white/70">
+                        {phase.reading.category}
+                      </span>
+                    )}
+                    {phase.reading.price && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-xs text-white/70">
+                        <Ticket className="h-3 w-3" />
+                        {phase.reading.price}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {phase.reading.artists.length > 0 && (
+                <p className="flex items-start gap-2 border-t border-white/[0.06] px-5 py-3 text-sm text-white/70">
+                  <Music className="mt-0.5 h-4 w-4 shrink-0 text-white/40" />
+                  <span>{phase.reading.artists.join(' · ')}</span>
+                </p>
+              )}
+              {phase.reading.description && (
+                <p className="border-t border-white/[0.06] px-5 py-3 text-sm leading-relaxed text-white/60">
+                  {phase.reading.description}
+                </p>
+              )}
+              {phase.reading.organizer_name && (
+                <p className="flex items-center gap-2 border-t border-white/[0.06] px-5 py-3 text-xs text-white/50">
+                  <Users className="h-3.5 w-3.5" />
+                  {phase.reading.organizer_name}
+                </p>
+              )}
+            </div>
+
+            {phase.reading.confidence < 0.6 && (
+              <p className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-200">
+                {t('lens_low_confidence')}
+              </p>
+            )}
+            {replacesDraft && (
+              <p className="mt-3 text-center text-xs text-white/45">
+                {t('lens_replace_warning')}
+              </p>
+            )}
+
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={() => handleApply(phase.reading)}
+                className="flex w-full items-center justify-center gap-2 rounded-3xl bg-flame-500 px-6 py-4 text-base font-semibold text-[#fff] shadow-[0_12px_36px_rgba(238,28,37,0.35)] transition hover:bg-flame-400"
+              >
+                {t('lens_use')}
+              </button>
+              <button
+                type="button"
+                onClick={reset}
+                className="flex w-full items-center justify-center gap-2 rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t('lens_retake')}
+              </button>
+              <p className="text-center text-xs text-white/35">
+                {t('lens_disclaimer')}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {phase.name === 'error' && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-10"
+          >
+            <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {errorText(phase.kind)}
+            </p>
+            <button
+              type="button"
+              onClick={reset}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {t('lens_retake')}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

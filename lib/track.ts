@@ -21,6 +21,8 @@ export type TrackType =
   | 'calendar_add'
   | 'subscribe'
   | 'outbound_click'
+  | 'lens_scan'
+  | 'lens_apply'
 
 export type TrackOptions = {
   entityType?: 'event' | 'place' | 'placard' | 'submission'

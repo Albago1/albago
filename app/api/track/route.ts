@@ -30,6 +30,8 @@ const ALLOWED_TYPES = new Set([
   'calendar_add',
   'subscribe',
   'outbound_click',
+  'lens_scan',
+  'lens_apply',
 ])
 
 const ALLOWED_ENTITY_TYPES = new Set(['event', 'place', 'placard', 'submission'])
