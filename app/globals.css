@@ -498,6 +498,19 @@ select:focus-visible,
     rgba(238, 28, 37, 0.16), transparent 65%);
   mix-blend-mode: multiply;
 }
+/* On phones the viewport is tall + narrow, so a small beam dims most of the
+   poster wall into darkness. Widen the beam and soften the surrounding dim so
+   the posters stay visible; the flame glow still adds the light. */
+@media (max-width: 767px) {
+  .hero-spotlight-dark {
+    background: radial-gradient(circle 62vh at var(--spot-x, 50%) var(--spot-y, 42%),
+      transparent 0%, transparent 45%, rgba(5, 5, 5, 0.30) 90%);
+  }
+  [data-theme="light"] .hero-spotlight-dark {
+    background: radial-gradient(circle 62vh at var(--spot-x, 50%) var(--spot-y, 42%),
+      transparent 0%, transparent 45%, rgba(255, 255, 255, 0.34) 90%);
+  }
+}
 
 /* Content that sits ON a photo keeps white-on-dark-scrim styling in light
    mode — a light-flipped title over a dark image scrim is unreadable.
