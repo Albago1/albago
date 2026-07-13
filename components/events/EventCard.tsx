@@ -7,6 +7,7 @@ import SaveEventButton from '@/components/SaveEventButton'
 import ShareCardButton from '@/components/share/ShareCardButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
+import { pickLocalized } from './LocalizedEventText'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import { isRecurring, nextOccurrence, recurrenceLabel } from '@/lib/recurrence'
@@ -14,6 +15,9 @@ import { isRecurring, nextOccurrence, recurrenceLabel } from '@/lib/recurrence'
 export type PublicEvent = {
   id: string
   title: string
+  /** LENS-3 per-language title pack (en/sq/de/es). Present on scanned/pasted
+   *  events; when absent the card shows the original title. */
+  title_i18n?: Record<string, string> | null
   slug: string
   place_id: string | null
   category: string
@@ -57,6 +61,7 @@ export default function EventCard({
 }: EventCardProps) {
   const { language, t } = useLanguage()
   const locale = languageLocales[language]
+  const displayTitle = pickLocalized(event.title, event.title_i18n, language)
   const category = event.category?.toLowerCase() ?? ''
   const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
   const gradient = CATEGORY_GRADIENTS[category] ?? 'from-white/10 via-ink-900 to-ink-950'
@@ -94,7 +99,7 @@ export default function EventCard({
         {event.banner_url ? (
           <Image
             src={event.banner_url}
-            alt={event.title}
+            alt={displayTitle}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
             className="object-cover transition duration-500 ease-out group-hover:scale-105"
@@ -180,7 +185,7 @@ export default function EventCard({
         </p>
 
         <h2 className="mt-1.5 line-clamp-2 min-h-[3.5rem] font-display text-[1.4rem] leading-[1.25] text-white">
-          {event.title}
+          {displayTitle}
         </h2>
 
         <div className="mt-2 flex items-center gap-1.5 text-sm">
