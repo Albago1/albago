@@ -49,6 +49,11 @@ export type PosterReading = {
   organizer_website: string
 }
 
+/** The exact JSON contract every Lens extractor (photo or URL) must return.
+ *  Shared so the poster reader and the URL reader stay in lockstep. */
+export const LENS_JSON_SHAPE =
+  '{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","is_civic":bool,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":""}'
+
 const SYSTEM_PROMPT = `You read photographs of real-world event posters (street posters, flyers, banners, screens) and extract the event as strict JSON.
 
 Rules:
@@ -80,7 +85,9 @@ function strList(value: unknown, maxItems: number, maxLen = 80): string[] {
     .slice(0, maxItems)
 }
 
-function coerce(raw: unknown): PosterReading | null {
+/** Validate + clamp a raw model object into a safe PosterReading, or null.
+ *  Exported so the URL reader coerces identically to the photo reader. */
+export function coercePosterReading(raw: unknown): PosterReading | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
 
@@ -154,7 +161,7 @@ export async function readPosterImage(
     .trim()
 
   try {
-    return coerce(JSON.parse(cleaned))
+    return coercePosterReading(JSON.parse(cleaned))
   } catch {
     return null
   }

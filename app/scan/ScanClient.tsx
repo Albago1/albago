@@ -14,6 +14,7 @@ import {
   ImagePlus,
   Info,
   Languages,
+  Link as LinkIcon,
   MapPin,
   Music,
   RefreshCw,
@@ -42,15 +43,15 @@ const MAX_DIMENSION = 1600
 
 type Phase =
   | { name: 'idle' }
-  | { name: 'scanning'; previewUrl: string }
+  | { name: 'scanning'; previewUrl: string | null }
   | {
       name: 'result'
-      previewUrl: string
+      previewUrl: string | null
       reading: PosterReading
       resolution: LensResolution | null
       translation: EventTranslation | null
     }
-  | { name: 'error'; kind: 'not_a_poster' | 'rate_limited' | 'generic' }
+  | { name: 'error'; kind: 'not_a_poster' | 'rate_limited' | 'generic' | 'url_unreadable' }
 
 /** Downscale to ≤1600px JPEG so uploads stay small and the free-tier vision
  *  call cheap; poster text is still crisply readable at that size. */
@@ -178,8 +179,85 @@ export default function ScanClient() {
   // Which translated language the result card is previewing. null = show the
   // original extracted text.
   const [previewLang, setPreviewLang] = useState<LangKey | null>(null)
+  const [urlInput, setUrlInput] = useState('')
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
+
+  // Shared success handling for both the photo scanner and the URL reader.
+  const enterResult = (
+    reading: PosterReading,
+    resolution: LensResolution | null,
+    translation: EventTranslation | null,
+    previewUrl: string | null,
+  ) => {
+    // Warn when applying will overwrite a draft the user already started.
+    try {
+      const existing = window.localStorage.getItem(DRAFT_STORAGE_KEY)
+      const parsed = existing
+        ? (JSON.parse(existing) as Partial<EventDraft>)
+        : null
+      setReplacesDraft(Boolean(parsed?.title))
+    } catch {
+      setReplacesDraft(false)
+    }
+    if (resolutionHasHit(resolution) && resolution) {
+      trackInteraction('lens_resolved', {
+        meta: {
+          city: resolution.city.status,
+          venue: resolution.venue.status,
+          geocode: resolution.geocode.status,
+        },
+      })
+    }
+    if (resolution && resolution.duplicate.status !== 'none') {
+      trackInteraction('lens_dup_shown', {
+        meta: { status: resolution.duplicate.status },
+      })
+    }
+    setPhase({ name: 'result', previewUrl, reading, resolution, translation })
+  }
+
+  const handleUrl = async () => {
+    const url = urlInput.trim()
+    if (!url || phase.name === 'scanning') return
+    setPhase({ name: 'scanning', previewUrl: null })
+    setAcceptedPlace(null)
+    setPreviewLang(null)
+    trackInteraction('lens_scan', { meta: { source: 'url' } })
+
+    try {
+      const response = await fetch('/api/lens/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const payload = (await response.json()) as {
+        ok: boolean
+        reading?: PosterReading
+        resolution?: LensResolution | null
+        translation?: EventTranslation | null
+        imageUrl?: string | null
+        error?: string
+      }
+
+      if (payload.ok && payload.reading) {
+        enterResult(
+          payload.reading,
+          payload.resolution ?? null,
+          payload.translation ?? null,
+          payload.imageUrl ?? null,
+        )
+        return
+      }
+      if (payload.error === 'rate_limited') {
+        setPhase({ name: 'error', kind: 'rate_limited' })
+      } else {
+        setPhase({ name: 'error', kind: 'url_unreadable' })
+      }
+    } catch {
+      setPhase({ name: 'error', kind: 'url_unreadable' })
+    }
+  }
 
   const handleFile = async (file: File | null) => {
     if (!file) return
@@ -207,39 +285,12 @@ export default function ScanClient() {
       }
 
       if (payload.ok && payload.reading) {
-        const resolution = payload.resolution ?? null
-        const translation = payload.translation ?? null
-        // Warn when applying will overwrite a draft the user already started.
-        try {
-          const existing = window.localStorage.getItem(DRAFT_STORAGE_KEY)
-          const parsed = existing
-            ? (JSON.parse(existing) as Partial<EventDraft>)
-            : null
-          setReplacesDraft(Boolean(parsed?.title))
-        } catch {
-          setReplacesDraft(false)
-        }
-        if (resolutionHasHit(resolution) && resolution) {
-          trackInteraction('lens_resolved', {
-            meta: {
-              city: resolution.city.status,
-              venue: resolution.venue.status,
-              geocode: resolution.geocode.status,
-            },
-          })
-        }
-        if (resolution && resolution.duplicate.status !== 'none') {
-          trackInteraction('lens_dup_shown', {
-            meta: { status: resolution.duplicate.status },
-          })
-        }
-        setPhase({
-          name: 'result',
+        enterResult(
+          payload.reading,
+          payload.resolution ?? null,
+          payload.translation ?? null,
           previewUrl,
-          reading: payload.reading,
-          resolution,
-          translation,
-        })
+        )
         return
       }
       URL.revokeObjectURL(previewUrl)
@@ -277,7 +328,10 @@ export default function ScanClient() {
   }
 
   const reset = () => {
-    if (phase.name === 'scanning' || phase.name === 'result') {
+    if (
+      (phase.name === 'scanning' || phase.name === 'result') &&
+      phase.previewUrl?.startsWith('blob:')
+    ) {
       URL.revokeObjectURL(phase.previewUrl)
     }
     setAcceptedPlace(null)
@@ -296,9 +350,12 @@ export default function ScanClient() {
     }
   }
 
-  const errorText = (kind: 'not_a_poster' | 'rate_limited' | 'generic') => {
+  const errorText = (
+    kind: 'not_a_poster' | 'rate_limited' | 'generic' | 'url_unreadable',
+  ) => {
     if (kind === 'not_a_poster') return t('lens_error_not_poster')
     if (kind === 'rate_limited') return t('lens_error_rate')
+    if (kind === 'url_unreadable') return t('lens_error_url')
     return t('lens_error_generic')
   }
 
@@ -361,6 +418,43 @@ export default function ScanClient() {
               <ImagePlus className="h-4.5 w-4.5" />
               {t('lens_upload')}
             </button>
+
+            <div className="flex items-center gap-3 pt-2">
+              <span className="h-px flex-1 bg-white/10" />
+              <span className="text-xs uppercase tracking-wide text-white/35">
+                {t('lens_or')}
+              </span>
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm font-medium text-white/70">
+                <LinkIcon className="h-4 w-4 text-flame-400" />
+                {t('lens_paste_label')}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleUrl()
+                  }}
+                  placeholder={t('lens_paste_placeholder')}
+                  className="min-w-0 flex-1 rounded-2xl border border-white/12 bg-ink-900 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-flame-500/50 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleUrl}
+                  disabled={!urlInput.trim()}
+                  className="shrink-0 rounded-2xl bg-flame-500 px-5 py-3 text-sm font-semibold text-[#fff] transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t('lens_paste_button')}
+                </button>
+              </div>
+            </div>
+
             <p className="pt-2 text-center text-xs text-white/35">
               {t('lens_disclaimer')}
             </p>
@@ -375,12 +469,16 @@ export default function ScanClient() {
             exit={{ opacity: 0 }}
             className="relative mt-10 overflow-hidden rounded-3xl border border-white/10"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={phase.previewUrl}
-              alt=""
-              className="max-h-[26rem] w-full object-cover opacity-60"
-            />
+            {phase.previewUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={phase.previewUrl}
+                alt=""
+                className="max-h-[26rem] w-full object-cover opacity-60"
+              />
+            ) : (
+              <div className="h-64 w-full bg-ink-900" />
+            )}
             <motion.div
               initial={{ top: '0%' }}
               animate={{ top: '100%' }}
@@ -447,12 +545,18 @@ export default function ScanClient() {
 
                 <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
                   <div className="flex gap-4 p-5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previewUrl}
-                      alt=""
-                      className="h-28 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
-                    />
+                    {previewUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={previewUrl}
+                        alt=""
+                        className="h-28 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-28 w-20 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-ink-900">
+                        <LinkIcon className="h-6 w-6 text-white/40" />
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <h2 className="text-xl font-bold leading-tight text-white">
                         {displayTitle}

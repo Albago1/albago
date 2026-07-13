@@ -205,8 +205,22 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
       Studio artwork fallback otherwise.
 
 ### LENS-4 — the Facebook wedge
-- [ ] Paste an FB/IG event URL → same extraction engine parses it into a
-      draft (bible C26/E7). The organizer migration tool.
+- [x] **SHIPPED 2026-07-13.** Paste an event URL → same extraction engine →
+      prefilled draft, then the shared LENS-2 resolution + LENS-3 translation.
+      `lib/ai/urlReader.ts` fetches the page (browser UA, 8s timeout, HTML-only,
+      600KB cap) and distills OG meta + schema.org/Event JSON-LD + <title> +
+      stripped body text, then a text-mode Gemini extraction reusing the poster
+      reader's exact JSON contract (`LENS_JSON_SHAPE` + `coercePosterReading`,
+      both now exported). `POST /api/lens/url` {url}: SSRF guard (http(s) only,
+      blocks localhost/private ranges), per-IP rate limit, 422 not_an_event /
+      unreadable, then resolve+translate in parallel (fail-open). ScanClient
+      gained a "paste a link" input under the camera/upload buttons sharing the
+      same result card (og:image as the thumbnail, link-tile fallback);
+      login-walled/JS-only pages degrade to a clear "may need a login — try a
+      public link or scan the poster" message. 5 i18n keys ×4. VERIFIED:
+      simulated FB-event content (OG+JSON-LD) extracted perfectly incl. ISO
+      date/venue/city/price/artists; live Wikipedia correctly is_event:false;
+      login-walled FB → graceful null. tsc/eslint/build clean.
 
 ### LENS-5 — the loop
 - [ ] "Street scout" attribution: scans that go live credit the scanner on
