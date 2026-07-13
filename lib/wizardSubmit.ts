@@ -69,6 +69,10 @@ export async function submitCommunityEvent(
 
   const submission = {
     title: draft.title.trim(),
+    // LENS-3: 4-language packs from a scanned poster. Null for typed
+    // submissions — the RPC and approve flow both no-op on null.
+    title_i18n: draft.title_i18n ?? null,
+    description_i18n: draft.description_i18n ?? null,
     venue_name: venueName,
     place_id: null,
     date: draft.date,
@@ -260,10 +264,12 @@ export async function submitAdminEvent(
     .from('events')
     .insert({
       title: draft.title.trim(),
+      title_i18n: draft.title_i18n ?? null,
       slug,
       place_id: null,
       category,
       description: draft.description.trim(),
+      description_i18n: draft.description_i18n ?? null,
       date: draft.date,
       time: trim(draft.time),
       end_time: trim(draft.end_time),

@@ -27,6 +27,7 @@ import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
 import EventGallery from '@/components/EventGallery'
+import LocalizedEventText from '@/components/events/LocalizedEventText'
 import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
@@ -60,7 +61,9 @@ type EventRecord = {
   id: string
   slug: string
   title: string
+  title_i18n: Record<string, string> | null
   description: string | null
+  description_i18n: Record<string, string> | null
   category: string
   date: string
   time: string
@@ -151,7 +154,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at )'
+      'id, slug, title, title_i18n, description, description_i18n, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -556,7 +559,7 @@ export default async function EventDetailPage(
             </p>
 
             <h1 className="display-text mt-3 max-w-4xl text-5xl leading-[0.95] tracking-tight sm:text-7xl">
-              {event.title}
+              <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
             </h1>
 
             <p className="mt-5 flex flex-wrap items-center gap-x-2 text-base text-white/85">
@@ -723,7 +726,11 @@ export default async function EventDetailPage(
                   About this event
                 </p>
                 <p className="mt-3 whitespace-pre-line text-base leading-7 text-white/75">
-                  {event.description}
+                  <LocalizedEventText
+                    base={event.description ?? ''}
+                    i18n={event.description_i18n}
+                    asText
+                  />
                 </p>
               </div>
             )}

@@ -27,10 +27,12 @@ import AdminRepostModal from './events/AdminRepostModal'
 type SubmissionRow = {
   id: string
   title: string
+  title_i18n: Record<string, string> | null
   venue_name: string
   place_id: string | null
   category: string
   description: string
+  description_i18n: Record<string, string> | null
   date: string
   time: string
   end_time: string | null
@@ -428,10 +430,12 @@ export default function AdminClient() {
       .from('events')
       .insert({
         title: s.title,
+        title_i18n: s.title_i18n ?? null,
         slug,
         place_id: s.place_id ?? null,
         category: s.category,
         description: s.description,
+        description_i18n: s.description_i18n ?? null,
         date: s.date,
         time: s.time,
         end_time: s.end_time ?? null,
