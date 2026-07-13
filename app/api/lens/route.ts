@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readPosterImage } from '@/lib/ai/posterReader'
 import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
+import { translateEventText, type EventTranslation } from '@/lib/ai/translateEvent'
 
 /**
  * AlbaGo Lens (LENS-1): POST a poster photo, get a structured event reading.
@@ -111,18 +112,33 @@ export async function POST(request: Request) {
       )
     }
 
-    // LENS-2 resolution layer. Fail-open by contract: any error here degrades
-    // to the LENS-1 reading-only response — the scan must never fail because
-    // venue/city resolution broke.
+    // LENS-2 resolution + LENS-3 translation run in parallel. Both fail-open
+    // by contract: any error degrades to the reading-only response — the scan
+    // must never fail because a downstream enrichment broke.
+    const [resolutionResult, translationResult] = await Promise.allSettled([
+      resolvePoster(reading),
+      translateEventText({
+        title: reading.title,
+        description: reading.description,
+        sourceLanguage: reading.language,
+      }),
+    ])
+
     let resolution: LensResolution | null = null
-    try {
-      resolution = await resolvePoster(reading)
-    } catch (error) {
-      console.error('[lens] resolution failed (non-fatal):', error)
-      resolution = null
+    if (resolutionResult.status === 'fulfilled') {
+      resolution = resolutionResult.value
+    } else {
+      console.error('[lens] resolution failed (non-fatal):', resolutionResult.reason)
     }
 
-    return NextResponse.json({ ok: true, reading, resolution })
+    let translation: EventTranslation | null = null
+    if (translationResult.status === 'fulfilled') {
+      translation = translationResult.value
+    } else {
+      console.error('[lens] translation failed (non-fatal):', translationResult.reason)
+    }
+
+    return NextResponse.json({ ok: true, reading, resolution, translation })
   } catch (error) {
     console.error('[lens] unexpected error:', error)
     return NextResponse.json({ ok: false, error: 'server' }, { status: 500 })

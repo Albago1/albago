@@ -13,6 +13,7 @@ import {
   Clock,
   ImagePlus,
   Info,
+  Languages,
   MapPin,
   Music,
   RefreshCw,
@@ -27,6 +28,14 @@ import { trackInteraction } from '@/lib/track'
 import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
 import type { PosterReading } from '@/lib/ai/posterReader'
 import type { LensResolution, LensResolvedPlace } from '@/lib/lens/resolve'
+import type { EventTranslation, LangKey } from '@/lib/ai/translateEvent'
+
+const PREVIEW_LANGS: { key: LangKey; label: string }[] = [
+  { key: 'sq', label: 'Shqip' },
+  { key: 'en', label: 'English' },
+  { key: 'de', label: 'Deutsch' },
+  { key: 'es', label: 'Español' },
+]
 
 const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
 const MAX_DIMENSION = 1600
@@ -39,6 +48,7 @@ type Phase =
       previewUrl: string
       reading: PosterReading
       resolution: LensResolution | null
+      translation: EventTranslation | null
     }
   | { name: 'error'; kind: 'not_a_poster' | 'rate_limited' | 'generic' }
 
@@ -107,8 +117,18 @@ function resolvedDraftPatch(
   reading: PosterReading,
   resolution: LensResolution | null,
   acceptedPlace: LensResolvedPlace | null,
+  translation: EventTranslation | null,
 ): Partial<EventDraft> {
   const patch = readingToDraftPatch(reading)
+
+  // LENS-3: carry the 4-language packs into the draft so they persist through
+  // submission. The wizard's base title/description stay the source of truth
+  // and the fallback; these only enrich.
+  if (translation) {
+    patch.title_i18n = translation.title
+    patch.description_i18n = translation.description
+  }
+
   if (!resolution) return patch
 
   if (resolution.city.status !== 'none') {
@@ -155,6 +175,9 @@ export default function ScanClient() {
   const [phase, setPhase] = useState<Phase>({ name: 'idle' })
   const [replacesDraft, setReplacesDraft] = useState(false)
   const [acceptedPlace, setAcceptedPlace] = useState<LensResolvedPlace | null>(null)
+  // Which translated language the result card is previewing. null = show the
+  // original extracted text.
+  const [previewLang, setPreviewLang] = useState<LangKey | null>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -163,6 +186,7 @@ export default function ScanClient() {
     const previewUrl = URL.createObjectURL(file)
     setPhase({ name: 'scanning', previewUrl })
     setAcceptedPlace(null)
+    setPreviewLang(null)
     trackInteraction('lens_scan')
 
     try {
@@ -178,11 +202,13 @@ export default function ScanClient() {
         ok: boolean
         reading?: PosterReading
         resolution?: LensResolution | null
+        translation?: EventTranslation | null
         error?: string
       }
 
       if (payload.ok && payload.reading) {
         const resolution = payload.resolution ?? null
+        const translation = payload.translation ?? null
         // Warn when applying will overwrite a draft the user already started.
         try {
           const existing = window.localStorage.getItem(DRAFT_STORAGE_KEY)
@@ -207,7 +233,13 @@ export default function ScanClient() {
             meta: { status: resolution.duplicate.status },
           })
         }
-        setPhase({ name: 'result', previewUrl, reading: payload.reading, resolution })
+        setPhase({
+          name: 'result',
+          previewUrl,
+          reading: payload.reading,
+          resolution,
+          translation,
+        })
         return
       }
       URL.revokeObjectURL(previewUrl)
@@ -228,7 +260,12 @@ export default function ScanClient() {
     if (phase.name !== 'result') return
     const draft: EventDraft = {
       ...defaultEventDraft,
-      ...resolvedDraftPatch(phase.reading, phase.resolution, acceptedPlace),
+      ...resolvedDraftPatch(
+        phase.reading,
+        phase.resolution,
+        acceptedPlace,
+        phase.translation,
+      ),
     }
     try {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
@@ -244,6 +281,7 @@ export default function ScanClient() {
       URL.revokeObjectURL(phase.previewUrl)
     }
     setAcceptedPlace(null)
+    setPreviewLang(null)
     setPhase({ name: 'idle' })
   }
 
@@ -368,7 +406,7 @@ export default function ScanClient() {
 
         {phase.name === 'result' &&
           (() => {
-            const { reading, resolution, previewUrl } = phase
+            const { reading, resolution, previewUrl, translation } = phase
             const matchedPlace =
               resolution?.venue.status === 'matched'
                 ? resolution.venue.place
@@ -379,6 +417,14 @@ export default function ScanClient() {
                 : null
             const venueMatched = Boolean(matchedPlace)
             const dup = resolution?.duplicate
+            // LENS-3 preview: when a language pill is active, show that
+            // translation; otherwise the original extracted text. A missing
+            // per-language string falls back to the original.
+            const displayTitle =
+              (previewLang && translation?.title[previewLang]) || reading.title
+            const displayDescription =
+              (previewLang && translation?.description[previewLang]) ||
+              reading.description
             const displayVenue = matchedPlace?.name || reading.venue_name
             const displayCity =
               matchedPlace?.city ||
@@ -409,7 +455,7 @@ export default function ScanClient() {
                     />
                     <div className="min-w-0">
                       <h2 className="text-xl font-bold leading-tight text-white">
-                        {reading.title}
+                        {displayTitle}
                       </h2>
                       {(reading.date || reading.time) && (
                         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold text-flame-400">
@@ -484,9 +530,9 @@ export default function ScanClient() {
                       <span>{reading.artists.join(' · ')}</span>
                     </p>
                   )}
-                  {reading.description && (
-                    <p className="border-t border-white/[0.06] px-5 py-3 text-sm leading-relaxed text-white/60">
-                      {reading.description}
+                  {displayDescription && (
+                    <p className="whitespace-pre-line border-t border-white/[0.06] px-5 py-3 text-sm leading-relaxed text-white/60">
+                      {displayDescription}
                     </p>
                   )}
                   {reading.organizer_name && (
@@ -496,6 +542,42 @@ export default function ScanClient() {
                     </p>
                   )}
                 </div>
+
+                {translation && (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs text-white/55">
+                      <Languages className="h-3.5 w-3.5 text-flame-400" />
+                      {t('lens_translated')}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewLang(null)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                          previewLang === null
+                            ? 'bg-flame-500 text-[#fff]'
+                            : 'border border-white/12 bg-white/[0.05] text-white/70 hover:bg-white/[0.1]'
+                        }`}
+                      >
+                        {t('lens_translate_original')}
+                      </button>
+                      {PREVIEW_LANGS.map(({ key, label }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setPreviewLang(key)}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                            previewLang === key
+                              ? 'bg-flame-500 text-[#fff]'
+                              : 'border border-white/12 bg-white/[0.05] text-white/70 hover:bg-white/[0.1]'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {reading.confidence < 0.6 && (
                   <p className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-200">

@@ -29,6 +29,11 @@ export type EventDraft = {
   tags: string[]
   /** ISO 639-1 code: 'en', 'sq', 'de', 'es', 'it', 'fr'. Default 'en'. */
   language: string
+  /** LENS-3 auto-translations, keyed by language code (en/sq/de/es). Present
+   *  only for events created via the Lens scanner; null otherwise. Rendered
+   *  with the base title/description as fallback. */
+  title_i18n: Record<string, string> | null
+  description_i18n: Record<string, string> | null
 
   // Step 4 — Date & time
   /** ISO date: 'YYYY-MM-DD'. */
@@ -117,6 +122,8 @@ export const defaultEventDraft: EventDraft = {
   description: '',
   tags: [],
   language: 'en',
+  title_i18n: null,
+  description_i18n: null,
 
   date: '',
   time: '',
