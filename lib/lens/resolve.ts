@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { foldText } from '@/lib/mapSearch'
 import { fetchLocations, type LocationOption } from '@/lib/locations'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { PosterReading } from '@/lib/ai/posterReader'
 
 /**
@@ -51,10 +52,18 @@ export type LensGeocodeResolution = {
   formatted?: string
 }
 
+export type LensDuplicateResolution = {
+  status: 'live' | 'in_review' | 'none'
+  /** slug/title/date returned ONLY for a published ('live') hit. A pending
+   *  submission match is boolean-only — submissions are not public. */
+  event?: { slug: string; title: string; date: string }
+}
+
 export type LensResolution = {
   city: LensCityResolution
   venue: LensVenueResolution
   geocode: LensGeocodeResolution
+  duplicate: LensDuplicateResolution
 }
 
 const NONE_CITY: LensCityResolution = {
@@ -197,6 +206,26 @@ export function matchVenueCandidates(
   }
   if (bestSuggested) return { status: 'suggested', place: bestSuggested.place }
   return { status: 'none' }
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate title matching — pure logic, exported for the scripted tests.
+// ---------------------------------------------------------------------------
+
+/**
+ * Spec §Stage D title comparison. Two event titles are the same event when
+ * their folded token sets have Jaccard ≥ 0.6, OR one set fully contains the
+ * other (a reworded/abbreviated title of the same event). Candidates are
+ * already narrowed to identical date + location by the DB query, so the title
+ * only has to disambiguate within that tight set.
+ */
+export function titlesMatch(a: string, b: string): boolean {
+  const ta = tokenize(a)
+  const tb = tokenize(b)
+  if (ta.length === 0 || tb.length === 0) return false
+  const [small, big] = ta.length <= tb.length ? [ta, tb] : [tb, ta]
+  if (isSubset(small, big)) return true
+  return jaccard(ta, tb) >= 0.6
 }
 
 // ---------------------------------------------------------------------------
@@ -411,6 +440,89 @@ async function fetchPlaceCandidates(
 }
 
 // ---------------------------------------------------------------------------
+// Stage D — duplicate detection. Candidates are keyed on exact date + location
+// so both result sets are tiny; the title match runs in TS (no pg_trgm dep).
+// ---------------------------------------------------------------------------
+
+type DupFilter = { locationSlug: string } | { country: string }
+
+function applyDupFilter<T extends { eq: (c: string, v: string) => T; ilike: (c: string, v: string) => T }>(
+  query: T,
+  filter: DupFilter,
+): T {
+  return 'locationSlug' in filter
+    ? query.eq('location_slug', filter.locationSlug)
+    : query.ilike('country', filter.country)
+}
+
+/**
+ * Spec §Stage D. A published hit returns slug/title/date so the result card
+ * can link the live page. A pending-submission hit returns 'in_review' and
+ * NOTHING else — submissions are not public and must not leak through the
+ * scanner. Never blocks: the caller shows a panel, Continue keeps working.
+ */
+async function detectDuplicate(
+  reading: PosterReading,
+  city: LensCityResolution,
+): Promise<LensDuplicateResolution> {
+  // No resolvable date = no reliable key; the queue stays the dedup authority.
+  if (!reading.date) return { status: 'none' }
+
+  const filter: DupFilter =
+    city.status !== 'none' && city.slug
+      ? { locationSlug: city.slug }
+      : reading.country
+        ? { country: reading.country }
+        : { locationSlug: '__none__' } // matches nothing rather than the world
+
+  // Published events — public-read, so the anon client is enough, and the
+  // slug/title/date are allowed to reach the client.
+  try {
+    const supabase = anonClient()
+    if (supabase) {
+      let q = supabase
+        .from('events')
+        .select('slug, title, date')
+        .eq('status', 'published')
+        .eq('date', reading.date)
+        .limit(50)
+      q = applyDupFilter(q, filter)
+      const { data } = await q
+      const rows = (data ?? []) as Array<{ slug: string; title: string; date: string }>
+      const hit = rows.find((r) => titlesMatch(reading.title, r.title))
+      if (hit) {
+        return { status: 'live', event: { slug: hit.slug, title: hit.title, date: hit.date } }
+      }
+    }
+  } catch {
+    // Live-dup lookup failed — fall through to the boolean submission check.
+  }
+
+  // Pending submissions — NOT public-read (RLS), so use the service client,
+  // and return boolean-only. Titles are compared server-side and discarded;
+  // no submission field ever crosses into the response.
+  try {
+    const admin = createAdminClient()
+    let q = admin
+      .from('event_submissions')
+      .select('title')
+      .eq('status', 'pending')
+      .eq('date', reading.date)
+      .limit(50)
+    q = applyDupFilter(q as never, filter)
+    const { data } = await q
+    const rows = (data ?? []) as Array<{ title: string }>
+    if (rows.some((r) => titlesMatch(reading.title, r.title))) {
+      return { status: 'in_review' }
+    }
+  } catch {
+    // Missing service key or query error — no submission signal, not fatal.
+  }
+
+  return { status: 'none' }
+}
+
+// ---------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------
 
@@ -485,5 +597,16 @@ export async function resolvePoster(
     geocode = await geocodeAddress(reading, city)
   }
 
-  return { city: city ?? NONE_CITY, venue, geocode }
+  const resolvedCity = city ?? NONE_CITY
+
+  // Stage D — duplicate detection. Self-degrades to 'none' on any error so a
+  // dedup failure never wipes out the city/venue resolution above.
+  let duplicate: LensDuplicateResolution = { status: 'none' }
+  try {
+    duplicate = await detectDuplicate(reading, resolvedCity)
+  } catch {
+    duplicate = { status: 'none' }
+  }
+
+  return { city: resolvedCity, venue, geocode, duplicate }
 }

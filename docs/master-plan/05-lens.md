@@ -178,9 +178,21 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
       becomes valuable only as venues are seeded; nothing breaks meanwhile
       (empty candidate pool → `none`, tested). USER VERIFY: scan a real
       poster for an event in a known city → wizard opens with city prefilled.
-- [ ] **LENS-2b:** Stage D + duplicate panel. Tests: reworded title on same
-      date+city flags; same title one week later does not; pending-submission
-      hit leaks no fields (assert on raw API JSON).
+- [x] **LENS-2b — SHIPPED 2026-07-13.** Stage D duplicate detection in
+      `lib/lens/resolve.ts` (`titlesMatch` pure logic + `detectDuplicate`) +
+      `duplicate` added to the response contract + result-card panels
+      (live = flame "Already on AlbaGo" with event link; in_review = neutral
+      "Already in review", no details) + `lens_dup_shown` track type (lib/track
+      AND /api/track) + 6 i18n keys ×4. Candidates keyed on exact date +
+      location_slug (country when city unresolved). Published-event hits use
+      the anon client and return slug/title/date; pending `event_submissions`
+      hits use the SERVICE client (RLS blocks anon reads) and return
+      boolean-only — titles compared server-side, never sent. Self-degrades to
+      `none` on any error so a dedup failure can't wipe city/venue resolution.
+      10 scripted `titlesMatch` tests pass (reworded/abbrev/accent flag; shared
+      generic word or single-word overlap do not). tsc/eslint/build clean.
+      USER VERIFY: scan a poster for an event already live → "Already on
+      AlbaGo" link appears above Continue; Continue still works.
 - **DoD:** a real poster for an event at a known AlbaGo venue opens the
   wizard with venue, coordinates, and city prefilled; scanning a poster of
   an event already live shows the "Already on AlbaGo" link; tsc/eslint/build
@@ -215,3 +227,5 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
 | 2026-07-12 | Duplicate check warns and links, never blocks; pending-submission hits are boolean-only | Queue stays the dedup authority; submissions are not public and must not leak via the scanner |
 | 2026-07-12 | Geocode fallback requires the hit within ~30km of the resolved city | Unconstrained geocoding of poster addresses produces confident garbage elsewhere on earth |
 | 2026-07-12 | Dropped the client-side country-agreement gate on remote city fallback | Localized Nominatim country names ("Shqipëria") can't be compared across languages to the reading's country; caused valid-city false negatives. Country is already in the query so Nominatim biases correctly (matches existing searchRemoteCities) |
+| 2026-07-13 | Pending-submission dedup uses the service client, returns boolean-only | `event_submissions` is not anon-readable (RLS) so the resolver's anon client can't see it; the service client can, but the response must never carry submission fields — titles are matched server-side and discarded, only `{status:'in_review'}` crosses |
+| 2026-07-13 | Dedup keyed on exact date + location_slug, title match in TS (Jaccard ≥0.6 or subset) | Keeps candidate sets tiny (no pg_trgm dep); the reader already resolves dates to ISO so exact-date keying is safe; title only disambiguates within the tight date+location set |

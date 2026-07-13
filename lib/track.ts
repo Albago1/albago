@@ -24,6 +24,7 @@ export type TrackType =
   | 'lens_scan'
   | 'lens_apply'
   | 'lens_resolved'
+  | 'lens_dup_shown'
 
 export type TrackOptions = {
   entityType?: 'event' | 'place' | 'placard' | 'submission'

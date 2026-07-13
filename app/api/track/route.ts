@@ -33,6 +33,7 @@ const ALLOWED_TYPES = new Set([
   'lens_scan',
   'lens_apply',
   'lens_resolved',
+  'lens_dup_shown',
 ])
 
 const ALLOWED_ENTITY_TYPES = new Set(['event', 'place', 'placard', 'submission'])

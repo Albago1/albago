@@ -1,14 +1,18 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  ArrowRight,
   Calendar,
+  CalendarCheck,
   Camera,
   Check,
   Clock,
   ImagePlus,
+  Info,
   MapPin,
   Music,
   RefreshCw,
@@ -198,6 +202,11 @@ export default function ScanClient() {
             },
           })
         }
+        if (resolution && resolution.duplicate.status !== 'none') {
+          trackInteraction('lens_dup_shown', {
+            meta: { status: resolution.duplicate.status },
+          })
+        }
         setPhase({ name: 'result', previewUrl, reading: payload.reading, resolution })
         return
       }
@@ -369,6 +378,7 @@ export default function ScanClient() {
                 ? resolution.venue.place
                 : null
             const venueMatched = Boolean(matchedPlace)
+            const dup = resolution?.duplicate
             const displayVenue = matchedPlace?.name || reading.venue_name
             const displayCity =
               matchedPlace?.city ||
@@ -496,6 +506,47 @@ export default function ScanClient() {
                   <p className="mt-3 text-center text-xs text-white/45">
                     {t('lens_replace_warning')}
                   </p>
+                )}
+
+                {/* Stage D — duplicate warning. Never blocks: it sits above
+                    Continue, which keeps working (the match could be wrong or
+                    a genuinely different edition). */}
+                {dup?.status === 'live' && dup.event && (
+                  <div className="mt-4 rounded-2xl border border-flame-500/25 bg-flame-500/[0.06] p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-flame-300">
+                      <CalendarCheck className="h-4 w-4 shrink-0" />
+                      {t('lens_dup_live_title')}
+                    </div>
+                    <p className="mt-1 text-xs text-white/60">
+                      {t('lens_dup_live_sub')}
+                    </p>
+                    <Link
+                      href={`/events/${dup.event.slug}`}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/10 px-3.5 py-1.5 text-xs font-medium text-flame-200 transition hover:bg-flame-500/20"
+                    >
+                      <span className="max-w-[16rem] truncate">
+                        {t('lens_dup_view')} · {dup.event.title}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                    </Link>
+                    <p className="mt-3 text-xs text-white/40">
+                      {t('lens_dup_continue_hint')}
+                    </p>
+                  </div>
+                )}
+                {dup?.status === 'in_review' && (
+                  <div className="mt-4 rounded-2xl border border-white/12 bg-white/[0.04] p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white/85">
+                      <Info className="h-4 w-4 shrink-0 text-white/50" />
+                      {t('lens_dup_review_title')}
+                    </div>
+                    <p className="mt-1 text-xs text-white/55">
+                      {t('lens_dup_review_sub')}
+                    </p>
+                    <p className="mt-3 text-xs text-white/40">
+                      {t('lens_dup_continue_hint')}
+                    </p>
+                  </div>
                 )}
 
                 <div className="mt-4 space-y-3">
