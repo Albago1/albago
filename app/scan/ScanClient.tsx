@@ -209,7 +209,7 @@ export default function ScanClient() {
         },
       })
     }
-    if (resolution && resolution.duplicate.status !== 'none') {
+    if (resolution?.duplicate && resolution.duplicate.status !== 'none') {
       trackInteraction('lens_dup_shown', {
         meta: { status: resolution.duplicate.status },
       })

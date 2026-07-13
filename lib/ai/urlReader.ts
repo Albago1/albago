@@ -1,5 +1,7 @@
 import { generateText } from 'ai'
 import { textModel } from './textModel'
+import { parseModelJson } from './parseModelJson'
+import { safeFetch } from '@/lib/ssrfGuard'
 import {
   coercePosterReading,
   LENS_JSON_SHAPE,
@@ -36,10 +38,10 @@ const BROWSER_HEADERS = {
   'Accept-Language': 'en,sq;q=0.9,de;q=0.8,es;q=0.7',
 }
 
-export type UrlContent = {
+type UrlContent = {
   /** Assembled text signal handed to the model. */
   text: string
-  /** og:image / first schema image, offered as a possible event photo. */
+  /** og:image (absolute), offered as a possible event photo. */
   imageUrl: string | null
 }
 
@@ -102,14 +104,11 @@ function visibleText(html: string): string {
  * Fetch a URL and distill it to the signal worth handing the model. Returns
  * null on network failure, non-HTML, or an empty page.
  */
-export async function fetchUrlContent(url: string): Promise<UrlContent | null> {
+async function fetchUrlContent(url: string): Promise<UrlContent | null> {
   let res: Response
   try {
-    res = await fetch(url, {
-      headers: BROWSER_HEADERS,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    })
+    // safeFetch re-validates every redirect hop against private IPs (SSRF).
+    res = await safeFetch(url, { headers: BROWSER_HEADERS, timeoutMs: FETCH_TIMEOUT_MS })
   } catch {
     return null
   }
@@ -122,10 +121,21 @@ export async function fetchUrlContent(url: string): Promise<UrlContent | null> {
 
   const ogTitle = metaContent(html, 'og:title')
   const ogDesc = metaContent(html, 'og:description')
-  const ogImage = metaContent(html, 'og:image')
+  const ogImageRaw = metaContent(html, 'og:image')
   const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim()
   const jsonLd = extractJsonLd(html)
   const body = visibleText(html)
+
+  // og:image is often relative or protocol-relative — resolve against the
+  // final URL so the client gets a loadable absolute src.
+  let imageUrl: string | null = null
+  if (ogImageRaw) {
+    try {
+      imageUrl = new URL(ogImageRaw, res.url || url).toString()
+    } catch {
+      imageUrl = null
+    }
+  }
 
   const parts = [
     `Source URL: ${url}`,
@@ -140,7 +150,7 @@ export async function fetchUrlContent(url: string): Promise<UrlContent | null> {
   // Nothing usable at all — treat as unreadable.
   if (!ogTitle && !ogDesc && !jsonLd && body.length < 40) return null
 
-  return { text, imageUrl: ogImage }
+  return { text, imageUrl }
 }
 
 const SYSTEM_PROMPT = `You read the text and metadata scraped from an event web page (Facebook or Instagram event, ticketing page, venue listing, news post) and extract the event as strict JSON.
@@ -176,17 +186,7 @@ export async function readEventFromContent(
     maxOutputTokens: 1600,
   })
 
-  const cleaned = text
-    .trim()
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/, '')
-    .trim()
-
-  try {
-    return coercePosterReading(JSON.parse(cleaned))
-  } catch {
-    return null
-  }
+  return coercePosterReading(parseModelJson(text))
 }
 
 /** Fetch + extract in one call. Returns the reading and the page's OG image. */

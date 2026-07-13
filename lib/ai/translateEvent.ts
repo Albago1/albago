@@ -1,5 +1,6 @@
 import { generateText } from 'ai'
 import { textModel } from './textModel'
+import { parseModelJson } from './parseModelJson'
 
 /**
  * AlbaGo Lens (LENS-3): auto-translate a scanned event's title + description
@@ -73,21 +74,15 @@ function parsePack(value: unknown): LangPack | null {
 }
 
 function parseTranslation(raw: string): EventTranslation | null {
-  try {
-    const cleaned = raw
-      .trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/, '')
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>
-    const title = parsePack(parsed.title)
-    const description = parsePack(parsed.description)
-    if (!title || !description) return null
-    // A translation with no usable title in any language is worthless.
-    if (!LANG_KEYS.some((k) => title[k].length > 0)) return null
-    return { title, description }
-  } catch {
-    return null
-  }
+  const parsed = parseModelJson(raw)
+  if (!parsed || typeof parsed !== 'object') return null
+  const obj = parsed as Record<string, unknown>
+  const title = parsePack(obj.title)
+  const description = parsePack(obj.description)
+  if (!title || !description) return null
+  // A translation with no usable title in any language is worthless.
+  if (!LANG_KEYS.some((k) => title[k].length > 0)) return null
+  return { title, description }
 }
 
 /**
@@ -104,6 +99,10 @@ export async function translateEventText(
       system: SYSTEM_PROMPT,
       prompt: buildPrompt(input),
       maxOutputTokens: 3000,
+      // Translation gates the scan response and runs in parallel with
+      // resolution — cap it so a slow model can't push the request past the
+      // route's maxDuration. On timeout it aborts and we fail-open to null.
+      abortSignal: AbortSignal.timeout(20_000),
     })
     return parseTranslation(text)
   } catch (err) {

@@ -1,5 +1,6 @@
 import { generateText, type ModelMessage } from 'ai'
 import { textModel } from './textModel'
+import { parseModelJson } from './parseModelJson'
 
 /**
  * AlbaGo Lens (master plan LENS-1): reads a photo of a physical event poster
@@ -154,15 +155,5 @@ export async function readPosterImage(
     maxOutputTokens: 1600,
   })
 
-  const cleaned = text
-    .trim()
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/, '')
-    .trim()
-
-  try {
-    return coercePosterReading(JSON.parse(cleaned))
-  } catch {
-    return null
-  }
+  return coercePosterReading(parseModelJson(text))
 }

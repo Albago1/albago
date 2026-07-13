@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readPosterImage } from '@/lib/ai/posterReader'
-import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
-import { translateEventText, type EventTranslation } from '@/lib/ai/translateEvent'
+import { scanLimited } from '@/lib/lens/scanLimiter'
+import { resolveAndTranslate } from '@/lib/lens/enrich'
 
 /**
  * AlbaGo Lens (LENS-1): POST a poster photo, get a structured event reading.
@@ -16,9 +16,6 @@ import { translateEventText, type EventTranslation } from '@/lib/ai/translateEve
 
 export const maxDuration = 60
 
-const SCAN_WINDOW_MS = 10 * 60_000
-const SCAN_MAX = 10
-const RATE_MAP_MAX = 5000
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
@@ -26,29 +23,11 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 // wizard anyway); below this floor the model is effectively guessing.
 const MIN_CONFIDENCE = 0.3
 
-type RateEntry = { windowStart: number; count: number }
-const scanMap = new Map<string, RateEntry>()
-
-function limited(ip: string): boolean {
-  const now = Date.now()
-  const entry = scanMap.get(ip)
-  if (!entry || now - entry.windowStart > SCAN_WINDOW_MS) {
-    if (scanMap.size >= RATE_MAP_MAX) {
-      const oldestKey = scanMap.keys().next().value
-      if (oldestKey) scanMap.delete(oldestKey)
-    }
-    scanMap.set(ip, { windowStart: now, count: 1 })
-    return false
-  }
-  entry.count += 1
-  return entry.count > SCAN_MAX
-}
-
 export async function POST(request: Request) {
   try {
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    if (limited(ip)) {
+    if (scanLimited(ip)) {
       return NextResponse.json(
         { ok: false, error: 'rate_limited' },
         { status: 429 },
@@ -112,31 +91,8 @@ export async function POST(request: Request) {
       )
     }
 
-    // LENS-2 resolution + LENS-3 translation run in parallel. Both fail-open
-    // by contract: any error degrades to the reading-only response — the scan
-    // must never fail because a downstream enrichment broke.
-    const [resolutionResult, translationResult] = await Promise.allSettled([
-      resolvePoster(reading),
-      translateEventText({
-        title: reading.title,
-        description: reading.description,
-        sourceLanguage: reading.language,
-      }),
-    ])
-
-    let resolution: LensResolution | null = null
-    if (resolutionResult.status === 'fulfilled') {
-      resolution = resolutionResult.value
-    } else {
-      console.error('[lens] resolution failed (non-fatal):', resolutionResult.reason)
-    }
-
-    let translation: EventTranslation | null = null
-    if (translationResult.status === 'fulfilled') {
-      translation = translationResult.value
-    } else {
-      console.error('[lens] translation failed (non-fatal):', translationResult.reason)
-    }
+    // LENS-2 resolution + LENS-3 translation in parallel, both fail-open.
+    const { resolution, translation } = await resolveAndTranslate(reading, 'lens')
 
     return NextResponse.json({ ok: true, reading, resolution, translation })
   } catch (error) {

@@ -31,6 +31,7 @@ import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
+import { aiPosterUrl } from '@/lib/eventArt'
 import type { Place } from '@/types/place'
 
 const categories = [
@@ -665,7 +666,6 @@ export default function HomeClient() {
   useEffect(() => {
     let cancelled = false
     const loadPosterPool = async () => {
-      const supa = process.env.NEXT_PUBLIC_SUPABASE_URL
       const { data } = await supabase
         .from('events')
         .select('slug, banner_url')
@@ -678,10 +678,7 @@ export default function HomeClient() {
       for (const ev of data as Array<{ slug: string | null; banner_url: string | null }>) {
         if (!ev.slug || seen.has(ev.slug)) continue
         seen.add(ev.slug)
-        urls.push(
-          ev.banner_url ??
-            `${supa}/storage/v1/object/public/ai-posters/${ev.slug}.jpg`,
-        )
+        urls.push(ev.banner_url ?? aiPosterUrl(ev.slug))
       }
       setPosterPool(urls)
     }
@@ -860,30 +857,26 @@ export default function HomeClient() {
   // back to each event's cached AI poster; misses render as dark frames)
   // drifting behind the headline. Purely decorative.
   const posterWall = useMemo(() => {
-    const supa = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const seenSlug = new Set<string>()
+    // Each slug maps to exactly one url, so a single seen-url set dedups both
+    // the live artwork and the all-time pool top-up. Live city/protest artwork
+    // leads so the wall reflects what's on now; the pool fills the rest so it's
+    // never bare, even with zero live events in the selected city.
     const seenUrl = new Set<string>()
-    const withBanner: string[] = []
-    const withoutBanner: string[] = []
-    // Live city/protest artwork leads so the wall reflects what's on now…
-    for (const ev of [...featuredEvents, ...upcomingProtests]) {
-      const slug = (ev as { slug?: string }).slug
-      if (!slug || seenSlug.has(slug)) continue
-      seenSlug.add(slug)
-      const banner = (ev as { banner_url?: string | null }).banner_url
-      const url = banner ?? `${supa}/storage/v1/object/public/ai-posters/${slug}.jpg`
-      seenUrl.add(url)
-      if (banner) withBanner.push(url)
-      else withoutBanner.push(url)
-    }
-    // …then top up from the all-time pool so the wall is never bare, even with
-    // zero live events in the selected city.
-    const combined = [...withBanner, ...withoutBanner]
-    for (const url of posterPool) {
-      if (combined.length >= 20) break
-      if (seenUrl.has(url)) continue
+    const combined: string[] = []
+    const pushUrl = (url: string) => {
+      if (seenUrl.has(url)) return
       seenUrl.add(url)
       combined.push(url)
+    }
+    for (const ev of [...featuredEvents, ...upcomingProtests]) {
+      const slug = (ev as { slug?: string }).slug
+      if (!slug) continue
+      const banner = (ev as { banner_url?: string | null }).banner_url
+      pushUrl(banner ?? aiPosterUrl(slug))
+    }
+    for (const url of posterPool) {
+      if (combined.length >= 20) break
+      pushUrl(url)
     }
     return combined.slice(0, 20)
   }, [featuredEvents, upcomingProtests, posterPool])
