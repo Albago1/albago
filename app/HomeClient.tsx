@@ -32,6 +32,7 @@ import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { aiPosterUrl } from '@/lib/eventArt'
+import HeroSpotlight from '@/components/home/HeroSpotlight'
 import type { Place } from '@/types/place'
 
 const categories = [
@@ -950,6 +951,7 @@ export default function HomeClient() {
           <div className="absolute inset-0 bg-radial-flame" />
           <div className="absolute left-1/2 top-24 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-flame-500/20 blur-3xl" />
           <div className="absolute left-[58%] top-32 h-[26rem] w-[26rem] rounded-full bg-flame-500/12 blur-3xl" />
+          <HeroSpotlight />
         </div>
 
         <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center text-center">

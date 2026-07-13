@@ -477,6 +477,28 @@ select:focus-visible,
     to right, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.06) 50%, rgba(255, 255, 255, 0.78));
 }
 
+/* Hero searchlight (components/home/HeroSpotlight). JS sets --spot-x/--spot-y;
+   the dark layer dims everything outside the beam, the glow brightens what's
+   under it. Falls back to centre when JS hasn't run. */
+.hero-spotlight-dark {
+  background: radial-gradient(circle 36vh at var(--spot-x, 50%) var(--spot-y, 42%),
+    transparent 0%, transparent 33%, rgba(5, 5, 5, 0.68) 80%);
+}
+.hero-spotlight-glow {
+  background: radial-gradient(circle 27vh at var(--spot-x, 50%) var(--spot-y, 42%),
+    rgba(238, 28, 37, 0.22), rgba(238, 28, 37, 0.05) 45%, transparent 70%);
+  mix-blend-mode: screen;
+}
+[data-theme="light"] .hero-spotlight-dark {
+  background: radial-gradient(circle 36vh at var(--spot-x, 50%) var(--spot-y, 42%),
+    transparent 0%, transparent 33%, rgba(255, 255, 255, 0.72) 80%);
+}
+[data-theme="light"] .hero-spotlight-glow {
+  background: radial-gradient(circle 27vh at var(--spot-x, 50%) var(--spot-y, 42%),
+    rgba(238, 28, 37, 0.16), transparent 65%);
+  mix-blend-mode: multiply;
+}
+
 /* Content that sits ON a photo keeps white-on-dark-scrim styling in light
    mode — a light-flipped title over a dark image scrim is unreadable.
    These out-specific the global light remaps above. */
