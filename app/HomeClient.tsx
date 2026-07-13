@@ -221,6 +221,10 @@ export default function HomeClient() {
     countries: number
     expected: number
   }>({ count: 0, countries: 0, expected: 0 })
+  // Decorative image pool for the hero poster wall, drawn from ALL published
+  // events (past ones included — their artwork is still great background) so
+  // the drifting wall stays populated even when nothing is currently live.
+  const [posterPool, setPosterPool] = useState<string[]>([])
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
   // Lightweight rows used only for the live "Across the platform" counts.
   // Same shape /protests uses — we mirror its isEventActive + realtime flow
@@ -654,6 +658,39 @@ export default function HomeClient() {
     }
   }, [supabase])
 
+  // One-time fetch of a decorative artwork pool for the hero poster wall.
+  // Deliberately NOT filtered by city, time, or active status — past events
+  // still have beautiful posters, and the wall must never go empty just
+  // because nothing is currently live in the selected city.
+  useEffect(() => {
+    let cancelled = false
+    const loadPosterPool = async () => {
+      const supa = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const { data } = await supabase
+        .from('events')
+        .select('slug, banner_url')
+        .eq('status', 'published')
+        .order('date', { ascending: false })
+        .limit(40)
+      if (cancelled || !data) return
+      const seen = new Set<string>()
+      const urls: string[] = []
+      for (const ev of data as Array<{ slug: string | null; banner_url: string | null }>) {
+        if (!ev.slug || seen.has(ev.slug)) continue
+        seen.add(ev.slug)
+        urls.push(
+          ev.banner_url ??
+            `${supa}/storage/v1/object/public/ai-posters/${ev.slug}.jpg`,
+        )
+      }
+      setPosterPool(urls)
+    }
+    void loadPosterPool()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
+
   // Wall-clock tick so end_time and midnight rollover invalidate counts even
   // when no DB write has happened.
   useEffect(() => {
@@ -824,19 +861,32 @@ export default function HomeClient() {
   // drifting behind the headline. Purely decorative.
   const posterWall = useMemo(() => {
     const supa = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const seen = new Set<string>()
+    const seenSlug = new Set<string>()
+    const seenUrl = new Set<string>()
     const withBanner: string[] = []
     const withoutBanner: string[] = []
+    // Live city/protest artwork leads so the wall reflects what's on now…
     for (const ev of [...featuredEvents, ...upcomingProtests]) {
       const slug = (ev as { slug?: string }).slug
-      if (!slug || seen.has(slug)) continue
-      seen.add(slug)
+      if (!slug || seenSlug.has(slug)) continue
+      seenSlug.add(slug)
       const banner = (ev as { banner_url?: string | null }).banner_url
-      if (banner) withBanner.push(banner)
-      else withoutBanner.push(`${supa}/storage/v1/object/public/ai-posters/${slug}.jpg`)
+      const url = banner ?? `${supa}/storage/v1/object/public/ai-posters/${slug}.jpg`
+      seenUrl.add(url)
+      if (banner) withBanner.push(url)
+      else withoutBanner.push(url)
     }
-    return [...withBanner, ...withoutBanner].slice(0, 20)
-  }, [featuredEvents, upcomingProtests])
+    // …then top up from the all-time pool so the wall is never bare, even with
+    // zero live events in the selected city.
+    const combined = [...withBanner, ...withoutBanner]
+    for (const url of posterPool) {
+      if (combined.length >= 20) break
+      if (seenUrl.has(url)) continue
+      seenUrl.add(url)
+      combined.push(url)
+    }
+    return combined.slice(0, 20)
+  }, [featuredEvents, upcomingProtests, posterPool])
 
   const posterColumns = useMemo(() => {
     if (posterWall.length < 4) return []
