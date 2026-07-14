@@ -33,7 +33,7 @@ import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
-import { formatPriceFrom } from '@/lib/ticketDisplay'
+import { formatPriceFrom, safeExternalUrl } from '@/lib/ticketDisplay'
 import {
   buildDirectionsHref,
   buildLocationViewHref,
@@ -491,7 +491,9 @@ export default async function EventDetailPage(
   // show commerce vocabulary — bible pledge.
   const soldOut = event.ticket_sales_status === 'sold_out'
   const ticketUrl =
-    !isCivic && !hasEnded && !soldOut ? event.ticket_url : null
+    !isCivic && !hasEnded && !soldOut
+      ? safeExternalUrl(event.ticket_url)
+      : null
   const priceFromLabel =
     !isCivic && event.price_from_cents != null
       ? event.price_from_cents === 0
@@ -510,7 +512,7 @@ export default async function EventDetailPage(
   // Civic events lead with the official source (audit §10/§14) — the one
   // field that answers "is this real?".
   const officialUrl =
-    isCivic && !hasEnded ? event.official_source_url : null
+    isCivic && !hasEnded ? safeExternalUrl(event.official_source_url) : null
   const practicalEntries = PRACTICAL_LABELS.flatMap(([key, label]) => {
     const value = event.practical_info?.[key]
     return typeof value === 'string' && value.trim()

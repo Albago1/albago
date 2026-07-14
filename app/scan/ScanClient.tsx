@@ -51,7 +51,15 @@ type Phase =
       resolution: LensResolution | null
       translation: EventTranslation | null
     }
-  | { name: 'error'; kind: 'not_a_poster' | 'rate_limited' | 'generic' | 'url_unreadable' }
+  | {
+      name: 'error'
+      kind:
+        | 'not_a_poster'
+        | 'rate_limited'
+        | 'generic'
+        | 'url_unreadable'
+        | 'prompt_unreadable'
+    }
 
 /** Downscale to ≤1600px JPEG so uploads stay small and the free-tier vision
  *  call cheap; poster text is still crisply readable at that size. */
@@ -180,6 +188,7 @@ export default function ScanClient() {
   // original extracted text.
   const [previewLang, setPreviewLang] = useState<LangKey | null>(null)
   const [urlInput, setUrlInput] = useState('')
+  const [promptInput, setPromptInput] = useState('')
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -256,6 +265,47 @@ export default function ScanClient() {
       }
     } catch {
       setPhase({ name: 'error', kind: 'url_unreadable' })
+    }
+  }
+
+  const handlePrompt = async () => {
+    const text = promptInput.trim()
+    if (text.length < 12 || phase.name === 'scanning') return
+    setPhase({ name: 'scanning', previewUrl: null })
+    setAcceptedPlace(null)
+    setPreviewLang(null)
+    trackInteraction('lens_scan', { meta: { source: 'prompt' } })
+
+    try {
+      const response = await fetch('/api/lens/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      const payload = (await response.json()) as {
+        ok: boolean
+        reading?: PosterReading
+        resolution?: LensResolution | null
+        translation?: EventTranslation | null
+        error?: string
+      }
+
+      if (payload.ok && payload.reading) {
+        enterResult(
+          payload.reading,
+          payload.resolution ?? null,
+          payload.translation ?? null,
+          null,
+        )
+        return
+      }
+      if (payload.error === 'rate_limited') {
+        setPhase({ name: 'error', kind: 'rate_limited' })
+      } else {
+        setPhase({ name: 'error', kind: 'prompt_unreadable' })
+      }
+    } catch {
+      setPhase({ name: 'error', kind: 'prompt_unreadable' })
     }
   }
 
@@ -351,11 +401,17 @@ export default function ScanClient() {
   }
 
   const errorText = (
-    kind: 'not_a_poster' | 'rate_limited' | 'generic' | 'url_unreadable',
+    kind:
+      | 'not_a_poster'
+      | 'rate_limited'
+      | 'generic'
+      | 'url_unreadable'
+      | 'prompt_unreadable',
   ) => {
     if (kind === 'not_a_poster') return t('lens_error_not_poster')
     if (kind === 'rate_limited') return t('lens_error_rate')
     if (kind === 'url_unreadable') return t('lens_error_url')
+    if (kind === 'prompt_unreadable') return t('lens_error_prompt')
     return t('lens_error_generic')
   }
 
@@ -453,6 +509,28 @@ export default function ScanClient() {
                   {t('lens_paste_button')}
                 </button>
               </div>
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm font-medium text-white/70">
+                <Sparkles className="h-4 w-4 text-flame-400" />
+                {t('lens_prompt_label')}
+              </label>
+              <textarea
+                value={promptInput}
+                onChange={(e) => setPromptInput(e.target.value)}
+                rows={3}
+                placeholder={t('lens_prompt_placeholder')}
+                className="w-full resize-none rounded-2xl border border-white/12 bg-ink-900 px-4 py-3 text-sm leading-6 text-white placeholder:text-white/30 focus:border-flame-500/50 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handlePrompt}
+                disabled={promptInput.trim().length < 12}
+                className="mt-2 w-full rounded-2xl border border-flame-500/40 bg-flame-500/10 px-5 py-3 text-sm font-semibold text-flame-200 transition hover:bg-flame-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {t('lens_prompt_button')}
+              </button>
             </div>
 
             <p className="pt-2 text-center text-xs text-white/35">
