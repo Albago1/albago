@@ -18,11 +18,11 @@ import { createClient } from '@/lib/supabase/server'
 export const metadata: Metadata = {
   title: 'About AlbaGo — Built for Albania and the diaspora',
   description:
-    'AlbaGo is a discovery platform for events, venues, and civic gatherings across Albania and the worldwide Albanian diaspora.',
+    'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
   openGraph: {
     title: 'About AlbaGo',
     description:
-      'A discovery platform for events, venues, and civic gatherings across Albania and the diaspora.',
+      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
     type: 'website',
   },
 }
@@ -30,45 +30,40 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-type CountResult = { count: number | null; error: { message: string } | null }
-function safeCount(res: CountResult | null | undefined): number {
-  if (!res || res.error) return 0
-  return res.count ?? 0
-}
-
 export default async function AboutPage() {
   const supabase = await createClient()
-  const todayIso = new Date().toISOString().split('T')[0]
 
-  const [eventsCount, organizersCount, usersCount, citiesRes] = await Promise.all([
+  const [eventsRes, reviewedRes] = await Promise.all([
     supabase
       .from('events')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'published')
-      .or(`date.gte.${todayIso},recurrence.in.(daily,weekly)`),
-    supabase
-      .from('organizers')
-      .select('id', { count: 'exact', head: true })
-      .in('verification_tier', ['established', 'verified']),
-    supabase.from('profiles').select('id', { count: 'exact', head: true }),
-    supabase
-      .from('events')
-      .select('country')
+      .select('country, location_slug')
       .eq('status', 'published'),
+    // Optional SECURITY DEFINER RPC (RLS hides event_submissions from anon).
+    // Until the function exists this errors and the tile stays hidden.
+    supabase.rpc('public_submission_review_count'),
   ])
 
+  const eventRows =
+    (eventsRes.data as Array<{
+      country: string | null
+      location_slug: string | null
+    }> | null) ?? []
   const countries = new Set(
-    ((citiesRes.data as Array<{ country: string | null }> | null) ?? [])
-      .map((r) => r.country)
-      .filter(Boolean),
+    eventRows.map((r) => r.country).filter(Boolean),
   ).size
+  const cities = new Set(
+    eventRows.map((r) => r.location_slug).filter(Boolean),
+  ).size
+  const reviewed =
+    typeof reviewedRes.data === 'number' ? reviewedRes.data : 0
 
+  // Zero counts are anti-social-proof — a stat only renders once it is > 0.
   const stats = [
-    { label: 'Live events', value: safeCount(eventsCount) },
-    { label: 'Organizers', value: safeCount(organizersCount) },
-    { label: 'Countries', value: countries },
-    { label: 'Registered users', value: safeCount(usersCount) },
-  ]
+    { label: 'Countries represented', value: countries },
+    { label: 'Cities covered', value: cities },
+    { label: 'Events published', value: eventRows.length },
+    { label: 'Submissions reviewed', value: reviewed },
+  ].filter((s) => s.value > 0)
 
   return (
     <main className="min-h-screen bg-ink-950 text-white">
@@ -101,32 +96,43 @@ export default async function AboutPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-base leading-7 text-white/65">
-            AlbaGo is a discovery platform for events, venues, and civic
-            gatherings — calm, lawful, and open. From a nightlife pick in Tirana
-            to a peaceful protest in Berlin, everything that matters in real
-            life shows up in one place.
+            Discover events, nightlife and civic gatherings across Albania and
+            the Albanian diaspora — calm, lawful, and open. From a nightlife
+            pick in Tirana to a peaceful protest in Berlin, everything that
+            matters in real life shows up in one place. Starting in Albania and
+            Albanian communities worldwide, with more cities coming next.
           </p>
         </div>
       </section>
 
       {/* Live stats */}
-      <section className="px-4 pb-12">
-        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center"
-            >
-              <div className="font-display text-3xl text-white sm:text-4xl">
-                {s.value}
+      {stats.length > 0 && (
+        <section className="px-4 pb-12">
+          <div
+            className={`mx-auto grid max-w-3xl grid-cols-2 gap-3 ${
+              stats.length >= 4
+                ? 'sm:grid-cols-4'
+                : stats.length === 3
+                  ? 'sm:grid-cols-3'
+                  : 'sm:grid-cols-2'
+            }`}
+          >
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center"
+              >
+                <div className="font-display text-3xl text-white sm:text-4xl">
+                  {s.value}
+                </div>
+                <div className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
+                  {s.label}
+                </div>
               </div>
-              <div className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Mission card */}
       <section className="px-4 pb-12">
@@ -236,7 +242,7 @@ export default async function AboutPage() {
                 Organise events
               </h3>
               <p className="mt-1 text-xs leading-5 text-white/55">
-                Free to publish. Verified organizers post instantly.
+                Free to publish. Trusted organizers post instantly.
               </p>
             </Link>
             <Link

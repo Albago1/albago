@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Home,
+  Building2,
   LogIn,
   LogOut,
   Map,
   MapPin,
+  Megaphone,
   Plus,
   Menu,
   X,
@@ -81,8 +82,10 @@ export default function LandingNavbar() {
 
   const isMapRoute = pathname === '/map'
 
+  // No "Home" item — the logo is the home link (audit §30). Protests stays
+  // top-level: the civic wedge is the product's trust engine (bible rule),
+  // not a "More"-menu afterthought.
   const navItems = [
-    { href: '/', label: t('nav_home'), icon: Home, active: pathname === '/' },
     { href: '/events', label: t('nav_events'), icon: Calendar, active: pathname === '/events' },
     {
       href: '/protests',
@@ -91,6 +94,18 @@ export default function LandingNavbar() {
       active: pathname === '/protests' || pathname.startsWith('/events/albanian-revolution'),
     },
     { href: '/map', label: t('nav_map'), icon: Map, active: pathname === '/map' },
+    {
+      href: '/cities',
+      label: t('nav_cities'),
+      icon: Building2,
+      active: pathname === '/cities' || pathname.startsWith('/city/'),
+    },
+    {
+      href: '/organizers',
+      label: t('footer_link_organizers'),
+      icon: Megaphone,
+      active: pathname === '/organizers' || pathname.startsWith('/organizers/'),
+    },
     {
       href: '/submit-event',
       label: t('nav_submit_event'),
@@ -126,7 +141,9 @@ export default function LandingNavbar() {
           </span>
         </Link>
 
-        <div className="hidden items-center gap-2 md:flex">
+        {/* Desktop taskbar — floating glass pill; the flame highlight slides
+            between items via the shared layoutId. Icon-only below lg. */}
+        <div className="hidden items-center rounded-full border border-white/10 bg-white/[0.04] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.45)] ring-1 ring-white/[0.04] backdrop-blur-xl md:flex">
           {navItems.map((item) => {
             const Icon = item.icon
 
@@ -134,15 +151,24 @@ export default function LandingNavbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                title={item.label}
+                aria-label={item.label}
                 className={[
-                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition',
+                  'relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition',
                   item.active
-                    ? 'bg-flame-500/15 text-flame-100 ring-1 ring-flame-500/40 shadow-glow-soft'
-                    : 'text-white/85 hover:bg-white/5 hover:text-white',
+                    ? 'text-white'
+                    : 'text-white/70 hover:bg-white/[0.06] hover:text-white',
                 ].join(' ')}
               >
-                <Icon className="h-4 w-4" />
-                {item.label}
+                {item.active && (
+                  <motion.span
+                    layoutId="nav-active-pill"
+                    transition={{ type: 'spring', bounce: 0.25, duration: 0.55 }}
+                    className="absolute inset-0 rounded-full bg-flame-500 shadow-glow-flame"
+                  />
+                )}
+                <Icon className="relative z-10 h-4 w-4" />
+                <span className="relative z-10 hidden lg:inline">{item.label}</span>
               </Link>
             )
           })}

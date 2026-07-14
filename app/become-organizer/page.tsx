@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 const VALUE_PROPS = [
   {
     icon: Calendar,
-    title: 'Publish in minutes',
-    desc: 'Create an event, add your details, and go live — no lengthy approval wait.',
+    title: 'Submit in minutes',
+    desc: 'Create an event and send it in. Trusted organizers publish instantly; new organizers get a quick first-event review.',
   },
   {
     icon: Users,
@@ -22,6 +22,25 @@ const VALUE_PROPS = [
     icon: Zap,
     title: 'Built for nightlife',
     desc: 'Designed for clubs, festivals, pop-ups, and every event in between.',
+  },
+]
+
+const APPROVAL_STEPS = [
+  {
+    title: 'Create organizer profile',
+    desc: 'Free, takes about two minutes.',
+  },
+  {
+    title: 'Submit first event',
+    desc: 'Add your details and send it in.',
+  },
+  {
+    title: 'AlbaGo reviews it',
+    desc: 'A quick human check to keep the platform clean.',
+  },
+  {
+    title: 'Build trust and unlock instant publishing',
+    desc: 'After 2 approved events in 90 days, your events go live instantly.',
   },
 ]
 
@@ -44,7 +63,7 @@ export default function BecomeOrganizerPage() {
             </h1>
 
             <p className="mb-10 max-w-sm text-base leading-relaxed text-white/50 sm:text-lg">
-              Reach people discovering what&apos;s happening tonight. Create, publish, and manage your events in minutes.
+              Reach people discovering what&apos;s happening tonight. Create and submit your event in minutes. Trusted organizers can publish instantly; new organizers receive a quick first-event review.
             </p>
 
             <Link
@@ -81,6 +100,34 @@ export default function BecomeOrganizerPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* How publishing works */}
+          <div className="mt-12">
+            <h2 className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+              How publishing works
+            </h2>
+            <ol className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+              {APPROVAL_STEPS.map((step, i) => (
+                <li key={step.title} className="relative flex gap-4 pb-7 last:pb-0">
+                  {i < APPROVAL_STEPS.length - 1 && (
+                    <span
+                      aria-hidden
+                      className="absolute left-4 top-9 h-[calc(100%-2.25rem)] w-px bg-white/10"
+                    />
+                  )}
+                  <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-flame-500/30 bg-flame-500/15 text-sm font-semibold text-flame-400">
+                    {i + 1}
+                  </span>
+                  <div className="pt-1">
+                    <p className="text-sm font-semibold">{step.title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-white/50">
+                      {step.desc}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
 
         </div>

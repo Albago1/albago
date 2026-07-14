@@ -17,6 +17,9 @@ export type RecurrenceKind = 'none' | 'daily' | 'weekly'
 
 export type Recurring = {
   date: string
+  /** Continuous multi-day range (festival). Only meaningful with recurrence
+   *  none — a range and a repeat cadence are different schedule types. */
+  end_date?: string | null
   time?: string | null
   recurrence?: string | null
   recurrence_until?: string | null
@@ -80,6 +83,44 @@ export function isRecurring(ev: Recurring): boolean {
   return recurrenceKind(ev) !== 'none'
 }
 
+/** Continuous multi-day event (festival) — runs from `date` through
+ *  `end_date` without stopping. NOT the same as repeating daily. */
+export function isMultiDay(ev: Recurring): boolean {
+  return (
+    recurrenceKind(ev) === 'none' && !!ev.end_date && ev.end_date > ev.date
+  )
+}
+
+/** Inclusive day count of a multi-day range (Thu→Sun = 4). */
+export function multiDayDurationDays(date: string, endDate: string): number {
+  const a = parseIso(date)
+  const b = parseIso(endDate)
+  if (!a || !b) return 1
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1
+}
+
+const NUMBER_WORDS = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five',
+  'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+]
+
+/** "Four-day" (words up to ten, digits beyond). */
+export function durationDaysLabel(days: number): string {
+  const word = days >= 1 && days <= 10 ? NUMBER_WORDS[days] : String(days)
+  return `${word}-day`
+}
+
+/** Compact range: "9–12 Jul" or "31 Jul – 2 Aug". */
+export function dateRangeShort(date: string, endDate: string): string {
+  const a = parseIso(date)
+  const b = parseIso(endDate)
+  if (!a || !b) return `${date} – ${endDate}`
+  if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+    return `${a.getDate()}–${b.getDate()} ${MONTH_SHORT[a.getMonth()]}`
+  }
+  return `${a.getDate()} ${MONTH_SHORT[a.getMonth()]} – ${b.getDate()} ${MONTH_SHORT[b.getMonth()]}`
+}
+
 // ---------------------------------------------------------------------------
 // Match a single date
 // ---------------------------------------------------------------------------
@@ -89,6 +130,10 @@ export function eventMatchesDate(ev: Recurring, iso: string): boolean {
   if (!iso) return false
   const kind = recurrenceKind(ev)
   if (kind === 'none') {
+    // Multi-day continuous range matches every day it spans.
+    if (ev.end_date && ev.end_date > ev.date) {
+      return iso >= ev.date && iso <= ev.end_date
+    }
     return ev.date === iso
   }
   // Series start must be on or before the queried date.
@@ -120,6 +165,11 @@ export function nextOccurrence(
 ): string | null {
   const kind = recurrenceKind(ev)
   if (kind === 'none') {
+    // A multi-day event in progress "occurs" today, not on its start date.
+    if (ev.end_date && ev.end_date > ev.date) {
+      if (from <= ev.date) return ev.date
+      return from <= ev.end_date ? from : null
+    }
     return ev.date >= from ? ev.date : null
   }
   let cursor = from < ev.date ? ev.date : from

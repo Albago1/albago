@@ -4,11 +4,11 @@ import HomeClient from './HomeClient'
 export const metadata: Metadata = {
   title: 'AlbaGo — Discover Events, Movements & Nightlife',
   description:
-    'Find peaceful civic gatherings, nightlife, and local events worldwide. Search any city — Tirana, Prishtina, Berlin, New York, London — and join what matters tonight.',
+    'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora. Search any city — Tirana, Prishtina, Berlin, New York, London — and join what matters tonight.',
   openGraph: {
     title: 'AlbaGo — Discover Events, Movements & Nightlife',
     description:
-      'A live, worldwide directory of events and peaceful civic gatherings. Coordinated through AlbaGo — premium, mobile-first, instant.',
+      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora. Starting in Albania and Albanian communities worldwide, with more cities coming next.',
     siteName: 'AlbaGo',
     type: 'website',
   },
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'AlbaGo — Events, Movements & Nightlife',
     description:
-      'Discover and join peaceful gatherings and local events across cities and continents.',
+      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
   },
 }
 

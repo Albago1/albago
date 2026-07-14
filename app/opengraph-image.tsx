@@ -70,7 +70,7 @@ export default async function Image() {
               maxWidth: '900px',
             }}
           >
-            Events, nightlife, and peaceful civic gatherings — worldwide.
+            Events, nightlife and civic gatherings — across Albania and the Albanian diaspora.
           </div>
         </div>
 

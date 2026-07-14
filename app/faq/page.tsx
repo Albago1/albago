@@ -24,9 +24,11 @@ const FAQS: Faq[] = [
     q: 'What is AlbaGo?',
     a: (
       <>
-        AlbaGo is a discovery platform for events, venues, and civic gatherings
-        across Albania and the worldwide Albanian diaspora. From a Tirana club
-        night to a peaceful protest in Berlin, you find it on the same map.
+        AlbaGo is where you discover events, nightlife and civic gatherings
+        across Albania and the Albanian diaspora. From a Tirana club night to a
+        peaceful protest in Berlin, you find it on the same map. We are
+        starting in Albania and Albanian communities worldwide, with more
+        cities coming next.
       </>
     ),
   },

@@ -14,6 +14,10 @@
 
 import { zonedWallClockToUtcMs } from '@/lib/timezone'
 import { activeSocialLinks } from '@/lib/social'
+import {
+  schemaOrgEventStatus,
+  type EventLifecycleStatus,
+} from '@/lib/eventLifecycle'
 
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ?? 'https://albago.org'
@@ -58,6 +62,8 @@ export type EventForSchema = {
   date: string // YYYY-MM-DD
   time: string // HH:MM or HH:MM:SS
   endTime: string | null
+  /** Last day of a multi-day continuous event (YYYY-MM-DD). */
+  endDate?: string | null
   timezone: string | null
   locationName: string | null
   address: string | null
@@ -73,6 +79,8 @@ export type EventForSchema = {
   isCivic: boolean | null
   category: string | null
   expectedAttendees: number | null
+  /** Internal lifecycle status; omitted = EventScheduled. */
+  lifecycleStatus?: EventLifecycleStatus
 }
 
 function isoForDateTime(
@@ -91,9 +99,13 @@ function isoForDateTime(
 
 export function eventSchema(event: EventForSchema) {
   const startDate = isoForDateTime(event.date, event.time, event.timezone)
-  const endDate = event.endTime
-    ? isoForDateTime(event.date, event.endTime, event.timezone)
-    : undefined
+  // Multi-day continuous events end on endDate (last day); single-day
+  // events with an end_time end the same calendar day.
+  const endDay = event.endDate ?? event.date
+  const endDate =
+    event.endTime || event.endDate
+      ? isoForDateTime(endDay, event.endTime, event.timezone)
+      : undefined
 
   const url = `${SITE_URL}/events/${event.slug}`
 
@@ -137,7 +149,9 @@ export function eventSchema(event: EventForSchema) {
     description: (event.description ?? '').slice(0, 5000),
     startDate,
     ...(endDate ? { endDate } : {}),
-    eventStatus: 'https://schema.org/EventScheduled',
+    eventStatus: schemaOrgEventStatus(
+      event.lifecycleStatus ?? 'EventScheduled',
+    ),
     eventAttendanceMode,
     location,
     image: event.images.filter(Boolean),

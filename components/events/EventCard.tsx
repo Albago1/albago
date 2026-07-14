@@ -10,7 +10,16 @@ import { languageLocales } from '@/lib/i18n/config'
 import { pickLocalized } from './LocalizedEventText'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
-import { isRecurring, nextOccurrence, recurrenceLabel } from '@/lib/recurrence'
+import {
+  dateRangeShort,
+  durationDaysLabel,
+  isMultiDay,
+  isRecurring,
+  multiDayDurationDays,
+  nextOccurrence,
+  recurrenceLabel,
+} from '@/lib/recurrence'
+import { formatPriceFrom } from '@/lib/ticketDisplay'
 
 export type PublicEvent = {
   id: string
@@ -23,8 +32,16 @@ export type PublicEvent = {
   category: string
   description: string
   date: string
+  /** Last day of a multi-day continuous event (festival). Optional — feeding
+   *  queries that don't select it just render a single-day card. */
+  end_date?: string | null
   time: string
   price: string | null
+  /** Structured external-ticket fields — present when the feeding query
+   *  selects them; the card falls back to the `price` string otherwise. */
+  price_from_cents?: number | null
+  price_currency?: string | null
+  ticket_sales_status?: string | null
   highlight: boolean | null
   status: string
   location_slug: string
@@ -66,6 +83,17 @@ export default function EventCard({
   const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
   const gradient = CATEGORY_GRADIENTS[category] ?? 'from-white/10 via-ink-900 to-ink-950'
   const recurring = isRecurring(event)
+  const multiDay = isMultiDay(event)
+
+  // Structured price beats the legacy display string when present.
+  const cardPrice =
+    event.ticket_sales_status === 'sold_out'
+      ? 'Sold out'
+      : event.price_from_cents != null
+        ? event.price_from_cents === 0
+          ? 'Free'
+          : `From ${formatPriceFrom(event.price_from_cents, event.price_currency ?? null)}`
+        : event.price
 
   // Calendar-tile date: recurring events show their next occurrence, one-offs
   // their own date. Big day number matches the ProtestCard / share-poster
@@ -172,6 +200,14 @@ export default function EventCard({
                 {recurrenceLabel(event)}
               </span>
             )}
+            {multiDay && event.end_date && (
+              <span className="rounded-full bg-ink-950/70 px-2.5 py-1 text-[11px] font-medium text-flame-200 backdrop-blur-md">
+                {durationDaysLabel(
+                  multiDayDurationDays(event.date, event.end_date),
+                )}{' '}
+                event
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -180,7 +216,9 @@ export default function EventCard({
       <div className="flex flex-1 flex-col p-4">
         {/* Kicker — DICE-style date · time line anchoring the body */}
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-flame-300">
-          {weekday} {day} {month}
+          {multiDay && event.end_date
+            ? dateRangeShort(event.date, event.end_date)
+            : `${weekday} ${day} ${month}`}
           {formatEventTimeLabel(event.time) && <> · {formatEventTimeLabel(event.time)}</>}
         </p>
 
@@ -203,9 +241,9 @@ export default function EventCard({
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/[0.08] pt-3">
-          {event.price ? (
+          {cardPrice ? (
             <span className="truncate text-sm font-semibold text-white">
-              {event.price}
+              {cardPrice}
             </span>
           ) : (
             <span aria-hidden />

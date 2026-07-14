@@ -3,6 +3,7 @@ import type { Language } from "./config"
 export const translations: Record<Language, Record<string, string>> = {
   en: {
     nav_home: "Home",
+    nav_cities: "Cities",
     nav_map: "Map",
     nav_search: "Search",
     nav_events: "Events",
@@ -13,7 +14,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tirana, Albania",
     hero_title: "Find what’s happening tonight",
     hero_subtitle:
-      "Live events, nightlife, and peaceful protests — from any city in the world",
+      "Events, nightlife and civic gatherings — across Albania and the Albanian diaspora",
 
     open_map: "Open Map",
     browse_events: "Browse Events",
@@ -32,7 +33,7 @@ export const translations: Record<Language, Record<string, string>> = {
     cities: "Cities",
 
     submit_event: "Submit Event",
-    submit_event_subtitle: "Anyone can submit an event — no account needed",
+    submit_event_subtitle: "Anyone can suggest an event — AlbaGo reviews it before it goes live",
     submit_event_badge: "Submit an event",
     submit_event_title: "Share an event with AlbaGo",
     submit_event_description:
@@ -267,7 +268,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Footer
     footer_tagline:
-      "A live worldwide directory for events, nightlife, and peaceful civic gatherings. Coordinated through AlbaGo.",
+      "Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.",
     footer_values: "Peaceful · Lawful · Family-friendly",
     footer_explore: "Explore",
     footer_community: "Community",
@@ -496,8 +497,11 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_sub: "Places worth walking into",
     home_upcoming_protests: "Upcoming protests",
     home_upcoming_protests_sub: "The next peaceful gatherings happening worldwide",
+    home_tonight_in: "Tonight in",
+    home_tonight_sub: "Happening today — doors open soon.",
     home_no_protests: "No upcoming protests yet",
-    home_no_protests_hint: "When organizers post peaceful gatherings, they will show here.",
+    home_no_protests_hint: "Explore all events, change your city, or be the first to post a verified gathering.",
+    home_no_protests_explore: "Explore all events",
     home_post_one: "Post one",
     home_movement_title: "Albanian Revolution — a peaceful worldwide civic movement",
     home_movement_body: "Coordinated gatherings across cities and continents. Peaceful, lawful, and open to everyone. Find a square near you or organize your city.",
@@ -555,6 +559,11 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_received_body: "Thanks — your event is in the moderation queue. We'll review it shortly and notify you when it's published.",
     submit_reference: "Reference:",
     submit_signin_banner: "You'll need to sign in to submit — your draft saves automatically on this device as you go.",
+    submit_choice_title: "How would you like to publish?",
+    submit_choice_quick_title: "Suggest one event",
+    submit_choice_quick_desc: "A quick one-off submission — AlbaGo reviews it and publishes it.",
+    submit_choice_organizer_title: "Create an organizer account",
+    submit_choice_organizer_desc: "Create an organizer profile, edit your listings and build a public presence.",
     submit_gate_intro_body: "Fill in your event now — you'll sign in at the end to submit it.",
     submit_gate_signin_body: "Your event is ready — just sign in and it's done.",
     submit_gate_saved_all: "Everything is saved — you'll continue where you left off.",
@@ -619,6 +628,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
   de: {
     nav_home: "Start",
+    nav_cities: "Städte",
     nav_map: "Karte",
     nav_search: "Suche",
     nav_events: "Events",
@@ -629,7 +639,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tirana, Albanien",
     hero_title: "Finde heraus, was heute Abend los ist",
     hero_subtitle:
-      "Live-Events, Nachtleben und friedliche Proteste — aus jeder Stadt der Welt",
+      "Events, Nachtleben und Bürgerversammlungen — in Albanien und der albanischen Diaspora",
 
     open_map: "Karte öffnen",
     browse_events: "Events ansehen",
@@ -649,7 +659,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     submit_event: "Event einreichen",
     submit_event_subtitle:
-      "Jeder kann ein Event einreichen — kein Konto erforderlich",
+      "Jeder kann ein Event vorschlagen — AlbaGo prüft es, bevor es live geht",
     submit_event_badge: "Event einreichen",
     submit_event_title: "Teile ein Event auf AlbaGo",
     submit_event_description:
@@ -884,7 +894,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Footer
     footer_tagline:
-      "Ein weltweites Live-Verzeichnis für Events, Nachtleben und friedliche Bürgerversammlungen. Koordiniert über AlbaGo.",
+      "Entdecke Events, Nachtleben und Bürgerversammlungen in Albanien und der albanischen Diaspora.",
     footer_values: "Friedlich · Rechtmäßig · Familienfreundlich",
     footer_explore: "Entdecken",
     footer_community: "Community",
@@ -1113,8 +1123,11 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_sub: "Orte, die einen Besuch wert sind",
     home_upcoming_protests: "Kommende Proteste",
     home_upcoming_protests_sub: "Die nächsten friedlichen Versammlungen weltweit",
+    home_tonight_in: "Heute Abend in",
+    home_tonight_sub: "Findet heute statt — es geht bald los.",
     home_no_protests: "Noch keine kommenden Proteste",
-    home_no_protests_hint: "Sobald Organisatoren friedliche Versammlungen veröffentlichen, erscheinen sie hier.",
+    home_no_protests_hint: "Entdecke alle Events, wechsle die Stadt oder trage als Erste:r eine verifizierte Versammlung ein.",
+    home_no_protests_explore: "Alle Events entdecken",
     home_post_one: "Eine einreichen",
     home_movement_title: "Albanische Revolution — eine friedliche weltweite Bürgerbewegung",
     home_movement_body: "Koordinierte Versammlungen über Städte und Kontinente hinweg. Friedlich, rechtmäßig und offen für alle. Finde einen Platz in deiner Nähe oder organisiere deine Stadt.",
@@ -1172,6 +1185,11 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_received_body: "Danke — dein Event ist in der Moderationswarteschlange. Wir prüfen es in Kürze und benachrichtigen dich bei Veröffentlichung.",
     submit_reference: "Referenz:",
     submit_signin_banner: "Zum Einreichen musst du dich anmelden — dein Entwurf wird auf diesem Gerät automatisch gespeichert.",
+    submit_choice_title: "Wie möchtest du veröffentlichen?",
+    submit_choice_quick_title: "Ein Event vorschlagen",
+    submit_choice_quick_desc: "Eine schnelle einmalige Einreichung — AlbaGo prüft und veröffentlicht sie.",
+    submit_choice_organizer_title: "Organizer-Konto erstellen",
+    submit_choice_organizer_desc: "Erstelle ein Organizer-Profil, bearbeite deine Einträge und baue eine öffentliche Präsenz auf.",
     submit_gate_intro_body: "Fülle dein Event jetzt aus — angemeldet wird erst am Ende beim Einreichen.",
     submit_gate_signin_body: "Dein Event ist fertig — einfach anmelden und es ist erledigt.",
     submit_gate_saved_all: "Alles ist gespeichert — du machst genau dort weiter, wo du warst.",
@@ -1236,6 +1254,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
   es: {
     nav_home: "Inicio",
+    nav_cities: "Ciudades",
     nav_map: "Mapa",
     nav_search: "Buscar",
     nav_events: "Eventos",
@@ -1246,7 +1265,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tirana, Albania",
     hero_title: "Descubre qué está pasando esta noche",
     hero_subtitle:
-      "Eventos en vivo, vida nocturna y protestas pacíficas — desde cualquier ciudad del mundo",
+      "Eventos, vida nocturna y reuniones cívicas — en Albania y la diáspora albanesa",
 
     open_map: "Abrir mapa",
     browse_events: "Ver eventos",
@@ -1266,7 +1285,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     submit_event: "Enviar evento",
     submit_event_subtitle:
-      "Cualquiera puede enviar un evento — no se necesita cuenta",
+      "Cualquiera puede sugerir un evento — AlbaGo lo revisa antes de publicarlo",
     submit_event_badge: "Enviar evento",
     submit_event_title: "Comparte un evento en AlbaGo",
     submit_event_description:
@@ -1501,7 +1520,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Footer
     footer_tagline:
-      "Un directorio mundial en vivo de eventos, vida nocturna y reuniones cívicas pacíficas. Coordinado a través de AlbaGo.",
+      "Descubre eventos, vida nocturna y reuniones cívicas en Albania y la diáspora albanesa.",
     footer_values: "Pacífico · Legal · Familiar",
     footer_explore: "Explorar",
     footer_community: "Comunidad",
@@ -1730,8 +1749,11 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_sub: "Lugares que vale la pena visitar",
     home_upcoming_protests: "Próximas protestas",
     home_upcoming_protests_sub: "Las próximas concentraciones pacíficas en todo el mundo",
+    home_tonight_in: "Esta noche en",
+    home_tonight_sub: "Sucede hoy — las puertas abren pronto.",
     home_no_protests: "Aún no hay protestas próximas",
-    home_no_protests_hint: "Cuando los organizadores publiquen concentraciones pacíficas, aparecerán aquí.",
+    home_no_protests_hint: "Explora todos los eventos, cambia de ciudad o sé el primero en publicar una concentración verificada.",
+    home_no_protests_explore: "Explorar todos los eventos",
     home_post_one: "Publica una",
     home_movement_title: "Revolución Albanesa — un movimiento cívico pacífico y mundial",
     home_movement_body: "Concentraciones coordinadas en ciudades y continentes. Pacíficas, legales y abiertas a todos. Encuentra una plaza cerca de ti u organiza tu ciudad.",
@@ -1789,6 +1811,11 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_received_body: "Gracias — tu evento está en la cola de moderación. Lo revisaremos pronto y te avisaremos cuando se publique.",
     submit_reference: "Referencia:",
     submit_signin_banner: "Tendrás que iniciar sesión para enviar — tu borrador se guarda automáticamente en este dispositivo.",
+    submit_choice_title: "¿Cómo quieres publicar?",
+    submit_choice_quick_title: "Sugerir un evento",
+    submit_choice_quick_desc: "Una sugerencia rápida y puntual — AlbaGo la revisa y la publica.",
+    submit_choice_organizer_title: "Crear una cuenta de organizador",
+    submit_choice_organizer_desc: "Crea un perfil de organizador, edita tus eventos y construye una presencia pública.",
     submit_gate_intro_body: "Rellena tu evento ahora — iniciarás sesión al final para enviarlo.",
     submit_gate_signin_body: "Tu evento está listo — solo inicia sesión y ya está.",
     submit_gate_saved_all: "Todo está guardado — continuarás donde lo dejaste.",
@@ -1853,6 +1880,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
   sq: {
     nav_home: "Kreu",
+    nav_cities: "Qytetet",
     nav_map: "Harta",
     nav_search: "Kërko",
     nav_events: "Evente",
@@ -1863,7 +1891,7 @@ export const translations: Record<Language, Record<string, string>> = {
     hero_badge: "Tiranë, Shqipëri",
     hero_title: "Gjej çfarë po ndodh sonte",
     hero_subtitle:
-      "Evente live, jetë nate dhe protesta paqësore — nga çdo qytet i botës",
+      "Evente, jetë nate dhe tubime qytetare — në Shqipëri dhe në diasporën shqiptare",
 
     open_map: "Hap Hartën",
     browse_events: "Shiko Eventet",
@@ -1883,7 +1911,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     submit_event: "Shto event",
     submit_event_subtitle:
-      "Kushdo mund të shtojë një event — nuk nevojitet llogari",
+      "Kushdo mund të sugjerojë një event — AlbaGo e shqyrton para se të publikohet",
     submit_event_badge: "Shto një event",
     submit_event_title: "Ndaj një event në AlbaGo",
     submit_event_description:
@@ -2117,7 +2145,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Footer
     footer_tagline:
-      "Një drejtori e gjallë mbarëbotërore për evente, jetë nate dhe tubime qytetare paqësore. E koordinuar përmes AlbaGo.",
+      "Zbulo evente, jetë nate dhe tubime qytetare në Shqipëri dhe në diasporën shqiptare.",
     footer_values: "Paqësore · Ligjore · Për familjen",
     footer_explore: "Eksploro",
     footer_community: "Komuniteti",
@@ -2346,8 +2374,11 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_sub: "Vende që ia vlen t'i vizitosh",
     home_upcoming_protests: "Protestat e ardhshme",
     home_upcoming_protests_sub: "Tubimet e radhës paqësore anembanë botës",
+    home_tonight_in: "Sonte në",
+    home_tonight_sub: "Ndodh sot — dyert hapen së shpejti.",
     home_no_protests: "Ende s'ka protesta të ardhshme",
-    home_no_protests_hint: "Kur organizatorët publikojnë tubime paqësore, ato shfaqen këtu.",
+    home_no_protests_hint: "Shfleto të gjitha eventet, ndrysho qytetin ose bëhu i pari që poston një tubim të verifikuar.",
+    home_no_protests_explore: "Shfleto të gjitha eventet",
     home_post_one: "Publiko një",
     home_movement_title: "Revolucioni Shqiptar — një lëvizje qytetare paqësore mbarëbotërore",
     home_movement_body: "Tubime të koordinuara nëpër qytete e kontinente. Paqësore, të ligjshme dhe të hapura për të gjithë. Gjej sheshin më të afërt ose organizo qytetin tënd.",
@@ -2405,6 +2436,11 @@ export const translations: Record<Language, Record<string, string>> = {
     submit_received_body: "Faleminderit — eventi yt është në radhën e moderimit. Do ta shqyrtojmë së shpejti dhe do të të njoftojmë kur të publikohet.",
     submit_reference: "Referenca:",
     submit_signin_banner: "Duhet të hysh për ta dërguar — drafti ruhet automatikisht në këtë pajisje ndërsa vazhdon.",
+    submit_choice_title: "Si dëshiron të publikosh?",
+    submit_choice_quick_title: "Sugjero një event",
+    submit_choice_quick_desc: "Një dërgim i shpejtë, vetëm një herë — AlbaGo e shqyrton dhe e publikon.",
+    submit_choice_organizer_title: "Krijo llogari organizatori",
+    submit_choice_organizer_desc: "Krijo një profil organizatori, përpuno eventet e tua dhe ndërto një prani publike.",
     submit_gate_intro_body: "Plotësoje eventin tani — hyn në fund për ta dërguar.",
     submit_gate_signin_body: "Eventi yt është gati — mjafton të hysh dhe mbaroi.",
     submit_gate_saved_all: "Gjithçka është e ruajtur — vazhdon aty ku e le.",

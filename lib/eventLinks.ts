@@ -31,3 +31,9 @@ export function buildMapHref(event: MapHrefInput, query?: string) {
 export function buildDirectionsHref(lat: number, lng: number) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
 }
+
+// Non-navigating map view — used on ended events where turn-by-turn
+// directions no longer make sense but the place itself still does.
+export function buildLocationViewHref(lat: number, lng: number) {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+}

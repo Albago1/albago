@@ -4,7 +4,7 @@
 
 ## Overview
 
-AlbaGo is a modern nightlife, events, venues, and local discovery platform initially focused on Albania and the Balkans, designed to scale internationally.
+AlbaGo is a discovery platform for events, nightlife and civic gatherings across Albania and the Albanian diaspora — starting in Albania and Albanian communities worldwide, designed to scale internationally. This is the canonical positioning: every user-facing self-description uses the main sentence "Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora." with the optional expansion "Starting in Albania and Albanian communities worldwide, with more cities coming next."
 
 The product combines:
 

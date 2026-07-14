@@ -38,6 +38,7 @@ AlbaGo is currently two products in one codebase: a beautifully built event-disc
 4. **Albanian is the first language, not a translation.** Any new user-facing string must ship through `t()` with `sq` copy at parity. English is the second language. (Current state: only 10/73 client components are wired — this is the standing i18n debt.)
 5. **Measure before you build.** No `event_views` table exists as of this writing. Until per-event views/saves/shares are tracked, all product decisions are guesses. This is the single highest-leverage engineering task in the backlog.
 6. **User's working style** (from memory, respect it): stage-and-confirm on big visual changes; "make X like Y" means copy Y literally; paste SQL inline; friendly date labels always keep the real date; Pankartat is a photo wall, not a generator; don't ship features the catalog can't back yet.
+7. **One positioning sentence everywhere** (adopted 2026-07-14). Main: *"Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora."* Optional expansion: *"Starting in Albania and Albanian communities worldwide, with more cities coming next."* No page may describe AlbaGo as a generic worldwide directory, a pure nightlife app, or a civic-movement platform — those are facets, not the identity. Section pages (protests, campaigns) may describe their own section, but platform-level self-descriptions (root/home/about/FAQ/press metadata, hero, footer, OG images) use the sentences above.
 
 ## Current-state snapshot (2026-07-06)
 

@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import {
   ArrowLeft,
   BadgeCheck,
+  CalendarX2,
   Clock3,
   ExternalLink,
   Flame,
@@ -17,8 +18,8 @@ import {
   Repeat,
   Send,
   ShieldAlert,
+  Sparkles,
   Ticket,
-  User2,
   Users,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -32,13 +33,27 @@ import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
-import { buildDirectionsHref, buildMapHref } from '@/lib/eventLinks'
+import { formatPriceFrom } from '@/lib/ticketDisplay'
 import {
+  buildDirectionsHref,
+  buildLocationViewHref,
+  buildMapHref,
+} from '@/lib/eventLinks'
+import {
+  durationDaysLabel,
+  isMultiDay,
   isRecurring,
+  multiDayDurationDays,
+  nextOccurrence,
   recurrenceLabel,
   upcomingOccurrences,
 } from '@/lib/recurrence'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import {
+  endedOnIso,
+  getEventLifecycleStatus,
+  isEventEnded,
+} from '@/lib/eventLifecycle'
 import { getEventTimezone } from '@/lib/timezone'
 import { eventSchema, jsonLdScript, type EventForSchema } from '@/lib/seo/jsonLd'
 
@@ -60,16 +75,30 @@ type OrganizerSocials = {
 type EventRecord = {
   id: string
   slug: string
+  status: string
   title: string
   title_i18n: Record<string, string> | null
   description: string | null
   description_i18n: Record<string, string> | null
   category: string
   date: string
+  end_date: string | null
   time: string
   end_time: string | null
   timezone: string | null
   price: string | null
+  ticket_url: string | null
+  ticket_provider: string | null
+  price_from_cents: number | null
+  price_currency: string | null
+  ticket_sales_status: string | null
+  door_tickets: boolean | null
+  age_restriction: string | null
+  official_source_url: string | null
+  last_verified_at: string | null
+  listing_status: string | null
+  doors_time: string | null
+  practical_info: Record<string, string> | null
   highlight: boolean | null
   place_id: string | null
   location_slug: string
@@ -113,6 +142,7 @@ type EventRecord = {
     slug: string
     verification_tier: 'unverified' | 'established' | 'verified'
     created_at: string
+    bio: string | null
   } | null
 }
 
@@ -144,6 +174,44 @@ async function fetchOrganizerTrustStats(
   return { totalPublished: totalRes.count ?? 0, upcoming }
 }
 
+type OrganizerUpcomingEvent = {
+  id: string
+  slug: string
+  title: string
+  category: string
+  date: string
+  time: string
+  end_time: string | null
+  location_slug: string
+  recurrence: string | null
+  recurrence_until: string | null
+  recurrence_days_of_week: number[] | null
+  recurrence_exceptions: string[] | null
+}
+
+// Shown on ended event pages so the dead end still routes visitors somewhere
+// alive — the organizer's next gigs.
+async function fetchOrganizerUpcomingEvents(
+  organizerId: string,
+  excludeEventId: string,
+): Promise<OrganizerUpcomingEvent[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('events')
+    .select(
+      'id, slug, title, category, date, time, end_time, location_slug, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+    )
+    .eq('status', 'published')
+    .eq('organizer_id', organizerId)
+    .neq('id', excludeEventId)
+    .or(activeEventsOrFilter())
+    .order('date', { ascending: true })
+    .limit(8)
+  return ((data as OrganizerUpcomingEvent[] | null) ?? [])
+    .filter(isEventActive)
+    .slice(0, 4)
+}
+
 function formatJoinedShort(ts: string): string {
   const d = new Date(ts)
   return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
@@ -154,12 +222,38 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, title_i18n, description, description_i18n, category, date, time, end_time, timezone, price, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at )'
+      'id, slug, status, title, title_i18n, description, description_i18n, category, date, end_date, time, end_time, timezone, price, ticket_url, ticket_provider, price_from_cents, price_currency, ticket_sales_status, door_tickets, age_restriction, official_source_url, last_verified_at, listing_status, doors_time, practical_info, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at, bio )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
     .maybeSingle()
   return (data as EventRecord | null) ?? null
+}
+
+// "Good to know" keys recognised inside events.practical_info (jsonb).
+// Only populated keys render; the order here is the display order.
+const PRACTICAL_LABELS: Array<[string, string]> = [
+  ['meeting_point', 'Meeting point'],
+  ['route', 'Route'],
+  ['registration', 'Registration'],
+  ['audience', 'Audience'],
+  ['dress_code', 'Dress code'],
+  ['accessibility', 'Accessibility'],
+  ['transport', 'Public transport'],
+  ['parking', 'Parking'],
+  ['food_drink', 'Food & drink'],
+  ['indoor_outdoor', 'Indoor / outdoor'],
+  ['restrictions', 'Restrictions'],
+  ['cancellation_policy', 'Cancellation policy'],
+]
+
+// Monogram avatar fallback until organizers get a real logo_url column
+// (schema-reference Future Reserved).
+function organizerInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '?'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[1][0]).toUpperCase()
 }
 
 function formatTimeRange(time: string | null, endTime: string | null): string {
@@ -369,6 +463,14 @@ export default async function EventDetailPage(
   const countryLabel = event.country || fallbackLocation.country
   const venue = event.places
   const isCivic = !!event.is_civic
+
+  const lifecycleStatus = getEventLifecycleStatus(event)
+  const hasEnded = isEventEnded(lifecycleStatus)
+  // What "similar" means here: same category, same city, still upcoming.
+  const similarEventsHref = isCivic
+    ? '/protests'
+    : `/events?category=${encodeURIComponent(event.category)}&location=${encodeURIComponent(event.location_slug)}`
+
   const mapHref = buildMapHref({
     location_slug: event.location_slug,
     place_id: event.place_id,
@@ -384,10 +486,50 @@ export default async function EventDetailPage(
     isCivic &&
     (event.telegram_link || event.whatsapp_link || event.organizer_contact)
 
+  // External ticketing (structured fields on events). Native tiers from the
+  // TIX track supersede these per-event once they ship. Civic events never
+  // show commerce vocabulary — bible pledge.
+  const soldOut = event.ticket_sales_status === 'sold_out'
+  const ticketUrl =
+    !isCivic && !hasEnded && !soldOut ? event.ticket_url : null
+  const priceFromLabel =
+    !isCivic && event.price_from_cents != null
+      ? event.price_from_cents === 0
+        ? 'Free'
+        : `From ${formatPriceFrom(event.price_from_cents, event.price_currency)}`
+      : null
+  const ticketMeta = [
+    soldOut ? 'Sold out' : null,
+    event.door_tickets ? 'Tickets at the door' : null,
+    event.age_restriction,
+    ticketUrl && event.ticket_provider ? `via ${event.ticket_provider}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  // Civic events lead with the official source (audit §10/§14) — the one
+  // field that answers "is this real?".
+  const officialUrl =
+    isCivic && !hasEnded ? event.official_source_url : null
+  const practicalEntries = PRACTICAL_LABELS.flatMap(([key, label]) => {
+    const value = event.practical_info?.[key]
+    return typeof value === 'string' && value.trim()
+      ? [{ key, label, value }]
+      : []
+  })
+
   const registeredOrganizer = event.organizers
-  const trustStats: OrganizerTrustStats | null = registeredOrganizer
-    ? await fetchOrganizerTrustStats(registeredOrganizer.id)
-    : null
+  const [trustStats, organizerUpcoming]: [
+    OrganizerTrustStats | null,
+    OrganizerUpcomingEvent[],
+  ] = registeredOrganizer
+    ? await Promise.all([
+        fetchOrganizerTrustStats(registeredOrganizer.id),
+        hasEnded
+          ? fetchOrganizerUpcomingEvents(registeredOrganizer.id, event.id)
+          : Promise.resolve([] as OrganizerUpcomingEvent[]),
+      ])
+    : [null, [] as OrganizerUpcomingEvent[]]
 
   const shareData: ShareEventData = {
     title: event.title,
@@ -420,6 +562,7 @@ export default async function EventDetailPage(
     date: event.date,
     time: event.time,
     endTime: event.end_time,
+    endDate: event.end_date,
     // Always derive timezone from location, not from event.timezone — many
     // legacy rows have a stale 'Europe/Tirane' default that misrepresents
     // non-Albanian events. getEventTimezone(slug, country) is the canonical
@@ -442,6 +585,7 @@ export default async function EventDetailPage(
     isCivic,
     category: event.category,
     expectedAttendees: event.expected_attendees,
+    lifecycleStatus,
   }
 
   const supabase = await createClient()
@@ -532,7 +676,14 @@ export default async function EventDetailPage(
                 {event.category}
               </span>
 
-              {event.highlight && (
+              {hasEnded && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-ink-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur-md">
+                  <CalendarX2 className="h-3 w-3" />
+                  Ended
+                </span>
+              )}
+
+              {event.highlight && !hasEnded && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
                   <Flame className="h-3 w-3" />
                   Hot
@@ -595,18 +746,90 @@ export default async function EventDetailPage(
           {/* Action panel — first on mobile, sticky right rail on desktop */}
           <aside className="lg:order-2">
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md lg:sticky lg:top-24">
+              {event.listing_status && event.listing_status !== 'confirmed' && (
+                <div
+                  className={`mb-5 rounded-2xl border px-4 py-3.5 ${
+                    event.listing_status === 'cancelled'
+                      ? 'border-red-500/40 bg-red-500/10'
+                      : event.listing_status === 'postponed'
+                        ? 'border-amber-500/40 bg-amber-500/10'
+                        : 'border-white/15 bg-white/[0.05]'
+                  }`}
+                >
+                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                    <ShieldAlert
+                      className={`h-4 w-4 ${
+                        event.listing_status === 'cancelled'
+                          ? 'text-red-400'
+                          : event.listing_status === 'postponed'
+                            ? 'text-amber-400'
+                            : 'text-white/60'
+                      }`}
+                    />
+                    {event.listing_status === 'cancelled'
+                      ? 'This event has been cancelled'
+                      : event.listing_status === 'postponed'
+                        ? 'This event has been postponed'
+                        : 'Event details have changed'}
+                  </p>
+                  {event.official_source_url && (
+                    <p className="mt-1 text-sm text-white/60">
+                      Check the official source for the latest information.
+                    </p>
+                  )}
+                </div>
+              )}
+              {hasEnded && (
+                <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
+                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                    <CalendarX2 className="h-4 w-4 text-white/50" />
+                    This event has ended
+                  </p>
+                  <p className="mt-1 text-sm text-white/55">
+                    {formatDateLong(endedOnIso(event))}
+                  </p>
+                </div>
+              )}
+
               <div className="flex items-center gap-4">
                 <DateTile iso={event.date} />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">
-                    {isRecurring(event)
-                      ? `Starts ${formatDateLong(event.date)}`
-                      : formatDateLong(event.date)}
-                  </p>
-                  {formatTimeRange(event.time, event.end_time) && (
-                    <p className="mt-1.5 inline-flex items-center gap-2 text-base font-semibold tabular-nums text-white">
-                      <Clock3 className="h-4 w-4 text-flame-400" />
-                      {formatTimeRange(event.time, event.end_time)}
+                  {isMultiDay(event) && event.end_date ? (
+                    <>
+                      <p className="text-sm font-semibold tabular-nums text-white">
+                        {formatDateLong(event.date)}
+                        {event.time ? ` · ${event.time.slice(0, 5)}` : ''}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-white/85">
+                        → {formatDateLong(event.end_date)}
+                        {event.end_time ? ` · ${event.end_time.slice(0, 5)}` : ''}
+                      </p>
+                      <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-flame-300">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {durationDaysLabel(
+                          multiDayDurationDays(event.date, event.end_date),
+                        )}{' '}
+                        event
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-white">
+                        {isRecurring(event)
+                          ? `Starts ${formatDateLong(event.date)}`
+                          : formatDateLong(event.date)}
+                      </p>
+                      {formatTimeRange(event.time, event.end_time) && (
+                        <p className="mt-1.5 inline-flex items-center gap-2 text-base font-semibold tabular-nums text-white">
+                          <Clock3 className="h-4 w-4 text-flame-400" />
+                          {formatTimeRange(event.time, event.end_time)}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {event.doors_time && !hasEnded && (
+                    <p className="mt-1 text-xs tabular-nums text-white/55">
+                      Doors open {event.doors_time.slice(0, 5)}
                     </p>
                   )}
                   {isRecurring(event) && (
@@ -620,13 +843,22 @@ export default async function EventDetailPage(
 
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
 
-              {event.price && (
-                <div className="mt-5 flex items-center justify-between border-t border-white/[0.08] pt-5">
-                  <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                    <Ticket className="h-3.5 w-3.5" />
-                    Price
-                  </span>
-                  <span className="text-lg font-semibold text-white">{event.price}</span>
+              {(priceFromLabel || event.price) && (
+                <div className="mt-5 border-t border-white/[0.08] pt-5">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                      <Ticket className="h-3.5 w-3.5" />
+                      {priceFromLabel ? 'Tickets' : 'Price'}
+                    </span>
+                    <span className="text-lg font-semibold text-white">
+                      {priceFromLabel ?? event.price}
+                    </span>
+                  </div>
+                  {ticketMeta && (
+                    <p className="mt-2 text-right text-xs text-white/50">
+                      {ticketMeta}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -643,23 +875,101 @@ export default async function EventDetailPage(
               )}
 
               <div className="mt-5 flex flex-wrap gap-2.5 border-t border-white/[0.08] pt-5">
-                <SaveEventButton
-                  eventId={event.id}
-                  initialSaved={initialSaved}
-                  isAuthenticated={!!user}
-                  size="md"
-                />
+                {hasEnded && (
+                  <Link
+                    href={similarEventsHref}
+                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Find similar upcoming events
+                  </Link>
+                )}
+
+                {/* One strong primary action per event; every other action
+                    stays visually light. Ticketed events lead with tickets,
+                    online events with joining, everything else with getting
+                    there. */}
+                {ticketUrl && (
+                  <a
+                    href={ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                  >
+                    <Ticket className="h-4 w-4" />
+                    Get tickets
+                  </a>
+                )}
+
+                {officialUrl && (
+                  <a
+                    href={officialUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View official information
+                  </a>
+                )}
+
+                {!hasEnded && !ticketUrl && !officialUrl && event.is_online && event.online_url && (
+                  <a
+                    href={event.online_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                  >
+                    <Globe2 className="h-4 w-4" />
+                    Join online
+                  </a>
+                )}
+
+                {directionsHref && !hasEnded && !ticketUrl && !officialUrl && !(event.is_online && event.online_url) && (
+                  <a
+                    href={directionsHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                  >
+                    <Navigation className="h-4 w-4" />
+                    Get Directions
+                  </a>
+                )}
+
+                {!hasEnded && (
+                  <SaveEventButton
+                    eventId={event.id}
+                    initialSaved={initialSaved}
+                    isAuthenticated={!!user}
+                    size="md"
+                  />
+                )}
 
                 <ShareEventButton data={shareData} studioAccess={studioAccess} />
 
-                <MapPickerButton
-                  albagoHref={mapHref}
-                  lat={directionsLat}
-                  lng={directionsLng}
-                  address={event.address ?? venue?.address ?? null}
-                />
+                {!hasEnded && (
+                  <MapPickerButton
+                    albagoHref={mapHref}
+                    lat={directionsLat}
+                    lng={directionsLng}
+                    address={event.address ?? venue?.address ?? null}
+                  />
+                )}
 
-                {directionsHref && (
+                {!hasEnded && ticketUrl && event.is_online && event.online_url && (
+                  <a
+                    href={event.online_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <Globe2 className="h-4 w-4" />
+                    Join online
+                  </a>
+                )}
+
+                {directionsHref && !hasEnded && (ticketUrl || officialUrl || (event.is_online && event.online_url)) && (
                   <a
                     href={directionsHref}
                     target="_blank"
@@ -671,15 +981,15 @@ export default async function EventDetailPage(
                   </a>
                 )}
 
-                {event.is_online && event.online_url && (
+                {hasEnded && directionsLat != null && directionsLng != null && (
                   <a
-                    href={event.online_url}
+                    href={buildLocationViewHref(directionsLat, directionsLng)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
                   >
-                    <Globe2 className="h-4 w-4" />
-                    Join online
+                    <MapPin className="h-4 w-4" />
+                    View location
                   </a>
                 )}
 
@@ -715,6 +1025,14 @@ export default async function EventDetailPage(
                   </p>
                 </div>
               )}
+
+              {event.last_verified_at && (
+                <p className="mt-5 inline-flex items-center gap-1.5 border-t border-white/[0.08] pt-4 text-xs text-white/45">
+                  <BadgeCheck className="h-3.5 w-3.5 text-flame-300/80" />
+                  Details last verified{' '}
+                  {formatDateLong(event.last_verified_at.slice(0, 10))}
+                </p>
+              )}
             </div>
           </aside>
 
@@ -732,6 +1050,29 @@ export default async function EventDetailPage(
                     asText
                   />
                 </p>
+              </div>
+            )}
+
+            {practicalEntries.length > 0 && (
+              <div className={event.description ? 'mt-10' : ''}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                  Good to know
+                </p>
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {practicalEntries.map((entry) => (
+                    <div
+                      key={entry.key}
+                      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                    >
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
+                        {entry.label}
+                      </dt>
+                      <dd className="mt-1 text-sm leading-6 text-white/75">
+                        {entry.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             )}
 
@@ -830,31 +1171,45 @@ export default async function EventDetailPage(
             event.organizer_socials) && (
             <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                Organizer
+                {registeredOrganizer ? 'Event organizer' : 'Organizer'}
               </p>
               {event.organizer_name && (
-                <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-white">
-                  <User2 className="h-4 w-4 text-flame-300" />
-                  {event.organizers?.slug ? (
-                    <Link
-                      href={`/organizers/${event.organizers.slug}`}
-                      className="underline-offset-4 transition hover:text-flame-200 hover:underline"
-                    >
-                      {event.organizer_name}
-                    </Link>
-                  ) : (
-                    event.organizer_name
-                  )}
-                  {event.organizers?.verification_tier === 'verified' && (
-                    <span
-                      title="Verified organizer — identity confirmed by AlbaGo"
-                      className="inline-flex items-center gap-1 rounded-full border border-flame-500/30 bg-flame-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-flame-300"
-                    >
-                      <BadgeCheck className="h-3 w-3" />
-                      Verified
-                    </span>
-                  )}
-                </p>
+                <div className="mt-3 flex items-start gap-3">
+                  <span
+                    aria-hidden
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-flame-500/30 bg-flame-500/15 text-sm font-bold text-flame-300"
+                  >
+                    {organizerInitials(event.organizer_name)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="inline-flex flex-wrap items-center gap-2 text-lg font-semibold text-white">
+                      {event.organizers?.slug ? (
+                        <Link
+                          href={`/organizers/${event.organizers.slug}`}
+                          className="underline-offset-4 transition hover:text-flame-200 hover:underline"
+                        >
+                          {event.organizer_name}
+                        </Link>
+                      ) : (
+                        event.organizer_name
+                      )}
+                      {event.organizers?.verification_tier === 'verified' && (
+                        <span
+                          title="Verified organizer — identity confirmed by AlbaGo"
+                          className="inline-flex items-center gap-1 rounded-full border border-flame-500/30 bg-flame-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-flame-300"
+                        >
+                          <BadgeCheck className="h-3 w-3" />
+                          Verified
+                        </span>
+                      )}
+                    </p>
+                    {registeredOrganizer?.bio && (
+                      <p className="mt-1 text-sm leading-6 text-white/60">
+                        {registeredOrganizer.bio}
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
               {registeredOrganizer && trustStats && (
                 <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
@@ -889,7 +1244,7 @@ export default async function EventDetailPage(
                   href={`/organizers/${registeredOrganizer.slug}`}
                   className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-flame-300 transition hover:text-flame-200"
                 >
-                  View organizer profile
+                  View all events
                   <ExternalLink className="h-3 w-3" />
                 </Link>
               )}
@@ -929,8 +1284,58 @@ export default async function EventDetailPage(
                       </a>
                     ))}
               </div>
+              {!registeredOrganizer && event.organizer_name && (
+                <p className="mt-4 border-t border-white/[0.06] pt-4 text-xs leading-5 text-white/45">
+                  Independent listing — this page is maintained by AlbaGo, not
+                  by {event.organizer_name}.{' '}
+                  <Link
+                    href="/become-organizer"
+                    className="text-flame-300/90 underline-offset-2 hover:underline"
+                  >
+                    Is this your event? Claim it.
+                  </Link>
+                </p>
+              )}
             </div>
           )}
+
+            {hasEnded && organizerUpcoming.length > 0 && (
+              <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                  Upcoming from this organizer
+                </p>
+                <div className="mt-4 space-y-2">
+                  {organizerUpcoming.map((upcomingEvent) => {
+                    const nextIso =
+                      nextOccurrence(upcomingEvent) ?? upcomingEvent.date
+                    const timeRange = formatTimeRange(
+                      upcomingEvent.time,
+                      upcomingEvent.end_time,
+                    )
+                    return (
+                      <Link
+                        key={upcomingEvent.id}
+                        href={`/events/${upcomingEvent.slug}`}
+                        className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 transition hover:bg-white/[0.06]"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">
+                            {upcomingEvent.title}
+                          </p>
+                          <p className="mt-0.5 text-xs text-white/55">
+                            {formatDateLong(nextIso)}
+                            {timeRange && ` · ${timeRange}`}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/60">
+                          {upcomingEvent.category}
+                        </span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="mt-10 flex justify-center border-t border-white/5 pt-6">
               <ReportEventButton eventId={event.id} />

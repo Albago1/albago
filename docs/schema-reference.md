@@ -234,6 +234,60 @@ created_at     timestamptz   NOT NULL   DEFAULT now()
 updated_at     timestamptz   NOT NULL   DEFAULT now()
 ```
 
+### External-ticket columns (added 2026-07-14, audit §11 — apply SQL before deploying the code that selects them)
+
+Structured fields for events whose tickets are sold on an external site (the
+"Sundance case": a ticket link buried in prose). Display-only — no money moves
+through AlbaGo. The TIX track's native `ticket_tiers` supersede these
+per-event once they ship. Civic events never carry them (CHECK constraint).
+
+```
+ticket_url           text      nullable   —  external checkout/info link; drives the "Get tickets" primary CTA
+ticket_provider      text      nullable   —  display name, e.g. "Eventbrite" ("via Eventbrite" microcopy)
+price_from_cents     integer   nullable   —  starting price in minor units; 0 = free. CHECK >= 0
+price_currency       char(3)   NOT NULL   DEFAULT 'EUR'
+ticket_sales_status  text      nullable   —  CHECK IN ('on_sale','sold_out'); null = unknown/not applicable
+door_tickets         boolean   NOT NULL   DEFAULT false   —  "Tickets at the door" note
+age_restriction      text      nullable   —  display string, e.g. "18+"
+```
+
+- `events_civic_no_tickets` CHECK: an `is_civic` event may not have `ticket_url` or a positive `price_from_cents` (bible pledge, mirrors the TIX guard).
+- UI precedence: `price_from_cents` beats the legacy `price` display string wherever both exist; `sold_out` suppresses the CTA and shows "Sold out".
+
+### Listing-depth columns (added 2026-07-14, audit §14 — same deploy batch as the ticket columns)
+
+```
+official_source_url  text         nullable   —  official page for the event. Civic events render it as the
+                                                PRIMARY action ("View official information")
+last_verified_at     timestamptz  nullable   —  when a human last confirmed the details ("Details last verified …")
+listing_status       text         nullable   —  CHECK IN ('confirmed','updated','postponed','cancelled').
+                                                Public annotation banner; does NOT touch the status lifecycle —
+                                                the row stays 'published' so the page keeps ranking/informing
+                                                (a cancelled civic event must stay visible, not 404)
+doors_time           text         nullable   —  display string "20:00"; "Doors open 20:00" under the time range
+practical_info       jsonb        nullable   —  keyed prose, rendered as the "Good to know" grid. Recognised keys:
+                                                meeting_point, route, registration, audience, dress_code,
+                                                accessibility, transport, parking, food_drink, indoor_outdoor,
+                                                restrictions, cancellation_policy (order = display order,
+                                                see PRACTICAL_LABELS in app/events/[slug]/page.tsx)
+```
+
+Editorial checklist for what a complete listing contains: `docs/listing-quality-standard.md`.
+
+### Multi-day schedule column (added 2026-07-14, audit §16 — MUST be applied before deploy)
+
+```
+end_date  date  nullable  —  last day of a CONTINUOUS multi-day event (festival).
+                             CHECK end_date >= date. Only meaningful with recurrence
+                             none — a range and a repeat cadence are different
+                             schedule types (the "Sundance modeled as Daily" bug).
+```
+
+- ⚠ `activeEventsOrFilter()` (lib/eventActive.ts) now includes `end_date.gte.today` in the wire `.or()` used by ~10 list surfaces. If the column doesn't exist, **every list query on the site fails** — apply the SQL before the code deploys.
+- Schedule-type semantics: single (`date` only) · multi-day continuous (`date`+`end_date`) · daily/weekly repeats (`recurrence`). `multiple_dates` / `ongoing` / `time_slots` from the audit are deliberately NOT modeled yet — no content needs them.
+- For multi-day rows: `time` = start time on the first day, `end_time` = end time on the LAST day.
+- Display: detail page shows both dated lines + "Four-day event"; cards show "9–12 Jul" + duration chip; JSON-LD emits the real multi-day `endDate`.
+
 ### Columns added in Phase 7B (NOT YET IN PRODUCTION)
 
 ```

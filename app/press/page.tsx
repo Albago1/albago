@@ -33,9 +33,9 @@ const FACTS = [
 ]
 
 const TAGLINES = [
-  'A discovery platform for events, venues, and civic gatherings across Albania and the diaspora.',
+  'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
+  'Starting in Albania and Albanian communities worldwide, with more cities coming next.',
   'Find what is happening tonight in any Albanian city — Tirana to Berlin, peaceful protests to nightlife.',
-  'The map for real-world Albanian life. Free for organisers, free for attendees, peaceful by design.',
 ]
 
 export default function PressPage() {

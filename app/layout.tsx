@@ -37,11 +37,11 @@ export const metadata: Metadata = {
     default: 'AlbaGo — Discover Events, Movements & Nightlife',
   },
   description:
-    'AlbaGo is a modern global platform for events, nightlife, civic movements, and public gatherings — peaceful, lawful, and worldwide.',
+    'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora. Starting in Albania and Albanian communities worldwide, with more cities coming next.',
   openGraph: {
     title: 'AlbaGo — Events, Movements & Nightlife',
     description:
-      'Discover events, venues, and civic gatherings across cities and continents.',
+      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
     siteName: 'AlbaGo',
     locale: 'en_US',
     type: 'website',

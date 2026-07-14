@@ -24,6 +24,7 @@ import { nextOccurrence, recurrenceKind, todayIso } from '@/lib/recurrence'
 
 export type ActiveEventShape = {
   date: string
+  end_date?: string | null
   time?: string | null
   end_time?: string | null
   recurrence?: string | null
@@ -46,9 +47,12 @@ export function isEventActive(ev: ActiveEventShape): boolean {
   const today = todayIso()
 
   if (kind === 'none') {
-    if (ev.date > today) return true
-    if (ev.date < today) return false
-    // Same-day cutoff: respect end_time when set; otherwise stay up all day.
+    // Multi-day continuous events (festivals) run through end_date.
+    const lastDay =
+      ev.end_date && ev.end_date > ev.date ? ev.end_date : ev.date
+    if (lastDay > today) return true
+    if (lastDay < today) return false
+    // Final-day cutoff: respect end_time when set; otherwise stay up all day.
     if (!ev.end_time) return true
     const now = localNowHHMM()
     // Compare 'HH:MM' lexicographically — works because both are zero-padded.
@@ -77,6 +81,7 @@ export function isEventActive(ev: ActiveEventShape): boolean {
  * Keeps a row if either:
  *   - `date >= today`  (covers all upcoming one-offs and recurring series
  *     whose stored start date is still ahead), OR
+ *   - `end_date >= today` (multi-day continuous events still in progress), OR
  *   - the row is daily / weekly (recurring with a possibly past start date
  *     but live occurrences ahead — refined client-side by `isEventActive`).
  *
@@ -84,5 +89,5 @@ export function isEventActive(ev: ActiveEventShape): boolean {
  * the network on busy list pages.
  */
 export function activeEventsOrFilter(today: string = todayIso()): string {
-  return `date.gte.${today},recurrence.in.(daily,weekly)`
+  return `date.gte.${today},end_date.gte.${today},recurrence.in.(daily,weekly)`
 }

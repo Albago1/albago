@@ -35,6 +35,11 @@ export default function SubmitEventClient() {
   // null = still checking; signed-out UI only renders once we know.
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null)
   const [gate, setGate] = useState<GateVariant | null>(null)
+  // Fresh visits pick a route first (quick suggestion vs organizer account).
+  // Resume returns from auth skip straight back into the wizard.
+  const [route, setRoute] = useState<'suggest' | null>(
+    resumeAtReview ? 'suggest' : null,
+  )
 
   // Greet signed-out visitors once per page visit with the dismissible intro
   // popup, so the sign-in requirement is never a surprise at the end.
@@ -71,13 +76,14 @@ export default function SubmitEventClient() {
   }, [])
 
   useEffect(() => {
+    if (route !== 'suggest') return
     if (introShownRef.current) return
     if (isAuthed !== false) return
     // Returning from sign-in/sign-up they're authed; this only covers a user
     // who came back signed-out (e.g. abandoned the auth page).
     introShownRef.current = true
     setGate((current) => current ?? 'intro')
-  }, [isAuthed])
+  }, [isAuthed, route])
 
   const handleSubmit = async (draft: EventDraft) => {
     const {
@@ -120,6 +126,49 @@ export default function SubmitEventClient() {
               {t('submit_another')}
             </button>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!route) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="pt-6 text-center">
+          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            {t('submit_choice_title')}
+          </h1>
+        </div>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setRoute('suggest')}
+            className="group rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-left transition hover:border-flame-500/40 hover:bg-white/[0.05]"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15">
+              <PencilLine className="h-5 w-5 text-flame-400" />
+            </div>
+            <p className="mt-4 text-base font-semibold text-white">
+              {t('submit_choice_quick_title')}
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-white/55">
+              {t('submit_choice_quick_desc')}
+            </p>
+          </button>
+          <Link
+            href="/become-organizer"
+            className="group rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-flame-500/40 hover:bg-white/[0.05]"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15">
+              <UserPlus className="h-5 w-5 text-flame-400" />
+            </div>
+            <p className="mt-4 text-base font-semibold text-white">
+              {t('submit_choice_organizer_title')}
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-white/55">
+              {t('submit_choice_organizer_desc')}
+            </p>
+          </Link>
         </div>
       </div>
     )

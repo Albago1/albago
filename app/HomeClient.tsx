@@ -28,6 +28,8 @@ import { CATEGORY_GRADIENTS } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { locations } from '@/lib/locations'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { nextOccurrence } from '@/lib/recurrence'
+import { getTodayDateString } from '@/lib/dateFilters'
 import { useLocations } from '@/lib/useLocations'
 import { createClient } from '@/lib/supabase/browser'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
@@ -790,6 +792,19 @@ export default function HomeClient() {
     return counts
   }, [activeGlobalEvents])
 
+  // Same counts scoped to the active city — decides whether a tile links to
+  // the city-filtered list or the global one, so a tap never lands on an
+  // empty page (audit §28: no empty shells).
+  const cityCategoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const e of activeGlobalEvents) {
+      if (e.location_slug !== activeLocationSlug) continue
+      const c = (e.category ?? '').toLowerCase()
+      if (c) counts.set(c, (counts.get(c) ?? 0) + 1)
+    }
+    return counts
+  }, [activeGlobalEvents, activeLocationSlug])
+
   // Venues for the active city, verified first. No popularity signal yet, so
   // verification + name is the most honest "trending" we can offer.
   const trendingPlaces = useMemo(
@@ -802,6 +817,15 @@ export default function HomeClient() {
         .slice(0, 8),
     [allPlaces],
   )
+
+  // "Tonight" strip (audit §26): the hero promises tonight, so deliver
+  // tonight. Derived from the already-loaded city events — renders only when
+  // the active city genuinely has something on today (no fallback padding).
+  const tonightEvents = useMemo(() => {
+    if (featuredIsFallback) return []
+    const today = getTodayDateString()
+    return featuredEvents.filter((e) => nextOccurrence(e) === today)
+  }, [featuredEvents, featuredIsFallback])
 
   // getLocationBySlug() falls back to Tirana for unknown slugs, so resolve
   // against the dynamic options first, then titleize as a last resort.
@@ -1255,6 +1279,56 @@ export default function HomeClient() {
         </div>
       </section>
 
+      {tonightEvents.length > 0 && (
+        <section className="px-4 pb-4 pt-2">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
+                  <Moon className="h-5 w-5 text-flame-400" />
+                </div>
+                <div>
+                  <h2 className="display-text text-3xl text-white sm:text-4xl">
+                    {t('home_tonight_in')} {cityLabelFor(activeLocationSlug)}
+                  </h2>
+                  <p className="mt-1 text-sm text-white/55">
+                    {t('home_tonight_sub')}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/events?location=${activeLocationSlug}&time=tonight`}
+                className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
+              >
+                {t('view_all')}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {tonightEvents.slice(0, 3).map((event) => {
+                const place = allPlaces.find((item) => item.id === event.place_id)
+                return (
+                  <motion.div
+                    key={event.id}
+                    whileHover={{ y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="h-full"
+                  >
+                    <EventCard
+                      event={event}
+                      venueName={place?.name ?? null}
+                      cityLabel={cityLabelFor(event.location_slug)}
+                      isAuthenticated={isAuth}
+                      initialSaved={savedIds.has(event.id)}
+                    />
+                  </motion.div>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="border-y border-white/10 bg-white/[0.02] py-10">
         <div className="mx-auto max-w-6xl px-4">
           <p className="mb-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
@@ -1340,6 +1414,7 @@ export default function HomeClient() {
       </section>
 
       {/* ── Browse by category (Fever-style showcase tiles) ── */}
+      {categories.some((c) => (categoryCounts.get(c.value) ?? 0) > 0) && (
       <section className="px-4 pb-20">
         <div className="mx-auto max-w-6xl">
           <div className="mb-8 flex items-center gap-3">
@@ -1358,16 +1433,23 @@ export default function HomeClient() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-            {categories.map((category) => {
+            {categories
+              .filter((c) => (categoryCounts.get(c.value) ?? 0) > 0)
+              .map((category) => {
               const Icon = category.icon
               const liveCount = categoryCounts.get(category.value) ?? 0
+              const cityCount = cityCategoryCounts.get(category.value) ?? 0
               const gradient =
                 CATEGORY_GRADIENTS[category.value] ?? 'from-white/10 via-ink-900 to-ink-950'
 
               return (
                 <Link
                   key={category.value}
-                  href={`/events?location=${activeLocationSlug}&category=${category.value}`}
+                  href={
+                    cityCount > 0
+                      ? `/events?location=${activeLocationSlug}&category=${category.value}`
+                      : `/events?category=${category.value}`
+                  }
                   className="on-media group relative block aspect-[16/10] overflow-hidden rounded-3xl border border-white/10 transition hover:border-white/25 sm:aspect-[16/9]"
                 >
                   <div
@@ -1406,6 +1488,7 @@ export default function HomeClient() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── Trending venues rail ── */}
       {trendingPlaces.length > 0 && (
@@ -1525,13 +1608,21 @@ export default function HomeClient() {
               <p className="mt-2 text-sm text-white/55">
                 {t('home_no_protests_hint')}
               </p>
-              <Link
-                href="/submit-event"
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
-              >
-                <Flame className="h-4 w-4" />
-                {t('home_post_one')}
-              </Link>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/submit-event"
+                  className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
+                >
+                  <Flame className="h-4 w-4" />
+                  {t('home_post_one')}
+                </Link>
+                <Link
+                  href="/events"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
+                >
+                  {t('home_no_protests_explore')}
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
