@@ -34,6 +34,14 @@ function XGlyph({ className }: { className?: string }) {
     </svg>
   )
 }
+
+function InstagramGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.336 3.608 1.311.975.975 1.249 2.242 1.311 3.608.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.062 1.366-.336 2.633-1.311 3.608-.975.975-2.242 1.249-3.608 1.311-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.366-.062-2.633-.336-3.608-1.311-.975-.975-1.249-2.242-1.311-3.608C2.175 15.584 2.163 15.204 2.163 12s.012-3.584.07-4.85c.062-1.366.336-2.633 1.311-3.608.975-.975 2.242-1.249 3.608-1.311 1.266-.058 1.646-.07 4.85-.07Zm0 1.802c-3.15 0-3.523.012-4.768.069-1.02.047-1.574.217-1.943.36-.489.19-.837.417-1.203.783-.366.366-.593.714-.783 1.203-.143.369-.313.923-.36 1.943-.057 1.245-.069 1.618-.069 4.768s.012 3.523.069 4.768c.047 1.02.217 1.574.36 1.943.19.489.417.837.783 1.203.366.366.714.593 1.203.783.369.143.923.313 1.943.36 1.245.057 1.618.069 4.768.069s3.523-.012 4.768-.069c1.02-.047 1.574-.217 1.943-.36.489-.19.837-.417 1.203-.783.366-.366.593-.714.783-1.203.143-.369.313-.923.36-1.943.057-1.245.069-1.618.069-4.768s-.012-3.523-.069-4.768c-.047-1.02-.217-1.574-.36-1.943a3.24 3.24 0 0 0-.783-1.203 3.24 3.24 0 0 0-1.203-.783c-.369-.143-.923-.313-1.943-.36-1.245-.057-1.618-.069-4.768-.069Zm0 3.905a5.13 5.13 0 1 1 0 10.26 5.13 5.13 0 0 1 0-10.26Zm0 1.802a3.328 3.328 0 1 0 0 6.656 3.328 3.328 0 0 0 0-6.656Zm5.338-3.205a1.2 1.2 0 1 1 0 2.399 1.2 1.2 0 0 1 0-2.4Z" />
+    </svg>
+  )
+}
 import type { ShareEventData } from '@/lib/share/types'
 import { trackInteraction } from '@/lib/track'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -176,6 +184,22 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
     },
     [data.eventUrl, caption, trackShare],
   )
+
+  // Instagram has no web share intent (no equivalent of wa.me), so we do the
+  // next best thing: copy the link, then open Instagram for the user to paste
+  // it into a story, post or DM.
+  const [igCopied, setIgCopied] = useState(false)
+  const handleInstagram = useCallback(async () => {
+    trackShare('instagram')
+    try {
+      await navigator.clipboard.writeText(data.eventUrl)
+      setIgCopied(true)
+      setTimeout(() => setIgCopied(false), 2600)
+    } catch {
+      // Clipboard unavailable — still open Instagram.
+    }
+    window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer')
+  }, [data.eventUrl, trackShare])
 
   const handleNativeShare = useCallback(async () => {
     if (!canNativeShare) {
@@ -479,7 +503,7 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
             <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
               {t('share_send_platform')}
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
               <a
                 href={whatsappHref}
                 onClick={() => trackShare('whatsapp')}
@@ -490,6 +514,18 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
                 <MessageCircle className="h-5 w-5 text-emerald-300" />
                 WhatsApp
               </a>
+              <button
+                type="button"
+                onClick={handleInstagram}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-xs font-semibold text-white/85 transition hover:bg-white/[0.08]"
+              >
+                {igCopied ? (
+                  <Check className="h-5 w-5 text-emerald-400" />
+                ) : (
+                  <InstagramGlyph className="h-5 w-5 text-pink-400" />
+                )}
+                {igCopied ? t('share_link_copied') : 'Instagram'}
+              </button>
               <a
                 href={telegramHref}
                 onClick={() => trackShare('telegram')}
