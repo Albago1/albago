@@ -21,13 +21,22 @@ export default async function SubmitEventPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Lens/scan entry is only shown to users an admin granted studio access
+  // (admins themselves are redirected below and see it in their own flow).
+  let scanAccess = false
+
   if (user) {
     const [{ data: profile }, { data: organizer }] = await Promise.all([
-      supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+      supabase
+        .from('profiles')
+        .select('role, studio_access')
+        .eq('id', user.id)
+        .maybeSingle(),
       supabase.from('organizers').select('id').eq('id', user.id).maybeSingle(),
     ])
     if (profile?.role === 'admin') redirect('/admin/events/new')
     if (organizer) redirect('/organizer/create')
+    scanAccess = profile?.studio_access === true
   }
 
   return (
@@ -35,7 +44,7 @@ export default async function SubmitEventPage() {
       <LandingNavbar />
       <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
         <Suspense>
-          <SubmitEventClient />
+          <SubmitEventClient scanAccess={scanAccess} />
         </Suspense>
       </main>
     </>

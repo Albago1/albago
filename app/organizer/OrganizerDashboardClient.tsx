@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import ShareModal from '@/components/share/ShareModal'
+import { shareEventLink } from '@/lib/share/nativeShare'
 import EventPagePreview, {
   type EventPreviewData,
 } from '@/components/events/EventPagePreview'
@@ -214,8 +215,26 @@ type EventRowProps = {
 function EventRow({ event, organizer, canRepost, studioAccess }: EventRowProps) {
   const [shareOpen, setShareOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const repostable = canRepost && isRepostable(event)
   const isEditable = event.status === 'draft' || event.status === 'rejected'
+
+  // Studio (templates/reels/AI posters) is admin + granted users only; other
+  // organizers share a plain link via the OS sheet / clipboard.
+  const handleShare = async () => {
+    if (studioAccess) {
+      setShareOpen(true)
+      return
+    }
+    const outcome = await shareEventLink(
+      event.title,
+      `https://albago.org/events/${event.slug}`,
+    )
+    if (outcome === 'copied') {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 1600)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-start">
@@ -297,11 +316,11 @@ function EventRow({ event, organizer, canRepost, studioAccess }: EventRowProps) 
           {event.status === 'published' && (
             <button
               type="button"
-              onClick={() => setShareOpen(true)}
+              onClick={handleShare}
               className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/85 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-100"
             >
               <Share2 className="h-3.5 w-3.5" />
-              Share
+              {linkCopied ? 'Link copied' : 'Share'}
             </button>
           )}
           {repostable && (
@@ -316,7 +335,7 @@ function EventRow({ event, organizer, canRepost, studioAccess }: EventRowProps) 
         </div>
       </div>
 
-      {event.status === 'published' && (
+      {event.status === 'published' && studioAccess && (
         <ShareModal
           open={shareOpen}
           onClose={() => setShareOpen(false)}

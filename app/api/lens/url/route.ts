@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readEventFromUrl } from '@/lib/ai/urlReader'
 import { isPublicHttpUrl } from '@/lib/ssrfGuard'
+import { hasStudioAccess } from '@/lib/ai/studioAccess'
 import { scanLimited } from '@/lib/lens/scanLimiter'
 import { resolveAndTranslate } from '@/lib/lens/enrich'
 
@@ -8,9 +9,9 @@ import { resolveAndTranslate } from '@/lib/lens/enrich'
  * AlbaGo Lens (LENS-4): POST an event URL, get the same structured reading a
  * poster photo would — then the shared resolution + translation layers.
  *
- * Open to signed-out users like the photo scanner; the shared per-IP limit
- * (one bucket across both scan routes) protects the free Gemini quota and the
- * outbound fetch.
+ * Gated like the Poster Studio (admins + profiles.studio_access); the shared
+ * per-IP limit (one bucket across the scan routes) protects the free Gemini
+ * quota and the outbound fetch.
  */
 
 export const maxDuration = 60
@@ -19,6 +20,10 @@ const MIN_CONFIDENCE = 0.3
 
 export async function POST(request: Request) {
   try {
+    if (!(await hasStudioAccess())) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
+    }
+
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     if (scanLimited(ip)) {

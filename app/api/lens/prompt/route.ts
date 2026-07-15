@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { readEventFromPrompt } from '@/lib/ai/promptReader'
+import { hasStudioAccess } from '@/lib/ai/studioAccess'
 import { scanLimited } from '@/lib/lens/scanLimiter'
 import { resolveAndTranslate } from '@/lib/lens/enrich'
 
@@ -20,6 +21,11 @@ const MIN_TEXT_CHARS = 12
 
 export async function POST(request: Request) {
   try {
+    // Lens is gated like the Poster Studio: admins + granted users only.
+    if (!(await hasStudioAccess())) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
+    }
+
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     if (scanLimited(ip)) {

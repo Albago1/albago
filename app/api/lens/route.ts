@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 import { readPosterImage } from '@/lib/ai/posterReader'
+import { hasStudioAccess } from '@/lib/ai/studioAccess'
 import { scanLimited } from '@/lib/lens/scanLimiter'
 import { resolveAndTranslate } from '@/lib/lens/enrich'
 
 /**
  * AlbaGo Lens (LENS-1): POST a poster photo, get a structured event reading.
  *
- * Open to signed-out users on purpose — the submit flow itself is
- * "start now, sign in later", and the auth gate still guards actual
- * submission. The per-IP limit protects the free Gemini quota.
+ * Gated like the Poster Studio (admins + profiles.studio_access) while the
+ * platform grows — Lens is a differentiator we don't want copied early.
+ * The per-IP limit protects the free Gemini quota.
  *
  * Client sends multipart/form-data with an `image` file (downscaled to
  * ≤1600px JPEG on the client before upload).
@@ -25,6 +26,10 @@ const MIN_CONFIDENCE = 0.3
 
 export async function POST(request: Request) {
   try {
+    if (!(await hasStudioAccess())) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
+    }
+
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     if (scanLimited(ip)) {

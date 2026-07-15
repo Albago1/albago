@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import { hasStudioAccess } from '@/lib/ai/studioAccess'
 import ScanClient from './ScanClient'
 
 export const metadata: Metadata = {
@@ -8,7 +10,11 @@ export const metadata: Metadata = {
     'Point your camera at any event poster — AlbaGo reads it and turns it into an event.',
 }
 
-export default function ScanPage() {
+export default async function ScanPage() {
+  // Lens is a differentiator we're not ready to expose broadly: admins plus
+  // individually granted users (profiles.studio_access) only, for now.
+  if (!(await hasStudioAccess())) redirect('/submit-event')
+
   return (
     <>
       <LandingNavbar />
