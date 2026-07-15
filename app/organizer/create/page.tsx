@@ -25,7 +25,7 @@ export default async function CreateEventPage() {
     <>
       <LandingNavbar />
       <main className="min-h-screen bg-ink-950 px-6 pb-12 pt-24 text-white">
-        <CreateEventClient />
+        <CreateEventClient verificationTier={organizer.verification_tier} />
       </main>
     </>
   )

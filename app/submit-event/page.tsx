@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import { createClient } from '@/lib/supabase/server'
 import SubmitEventClient from './SubmitEventClient'
 
 export const metadata: Metadata = {
@@ -9,7 +11,25 @@ export const metadata: Metadata = {
     'Submit an event to AlbaGo — nightlife, music, culture, food, sports, or a civic gathering. Our team reviews submissions before they go live.',
 }
 
-export default function SubmitEventPage() {
+export default async function SubmitEventPage() {
+  // Route by role before showing anything. The suggest-vs-become-organizer
+  // choice only makes sense for visitors and normal users — admins and
+  // existing organizers go straight to their own creation flow (the wizard
+  // draft is shared via localStorage, so a scanned poster follows them).
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (user) {
+    const [{ data: profile }, { data: organizer }] = await Promise.all([
+      supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+      supabase.from('organizers').select('id').eq('id', user.id).maybeSingle(),
+    ])
+    if (profile?.role === 'admin') redirect('/admin/events/new')
+    if (organizer) redirect('/organizer/create')
+  }
+
   return (
     <>
       <LandingNavbar />

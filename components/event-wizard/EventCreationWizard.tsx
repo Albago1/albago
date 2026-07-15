@@ -34,6 +34,8 @@ type Props = {
   onSuccess?: (id: string) => void
   /** Optional starting step (one-shot, applied after the draft hydrates). */
   initialStepKey?: StepKey
+  /** Overrides the mode's default header subtitle (e.g. tier-aware copy). */
+  subtitle?: string
 }
 
 type StepDef = {
@@ -139,7 +141,7 @@ const STEPS: StepDef[] = [
   },
 ]
 
-export default function EventCreationWizard({ onSubmit, mode, onSuccess, initialStepKey }: Props) {
+export default function EventCreationWizard({ onSubmit, mode, onSuccess, initialStepKey, subtitle }: Props) {
   const { draft, patch, addTag, removeTag, reset, clearPersisted, hydrated } = useEventDraft()
   const [stepIndex, setStepIndex] = useState(0)
   const [stepError, setStepError] = useState<string | null>(null)
@@ -241,11 +243,12 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
             {mode === 'community' ? 'Submit an event' : 'Create event'}
           </h1>
           <p className="mt-1 text-sm text-white/55">
-            {mode === 'admin'
-              ? 'Publishing as AlbaGo — this event goes live on the public site the moment you submit.'
-              : mode === 'organizer'
-                ? 'Goes into your draft list. Submit for review when you are ready.'
-                : 'Your submission goes to the moderation queue. Approved events appear on the public site.'}
+            {subtitle ??
+              (mode === 'admin'
+                ? 'Publishing as AlbaGo — this event goes live on the public site the moment you submit.'
+                : mode === 'organizer'
+                  ? 'Goes into your draft list. Submit for review when you are ready.'
+                  : 'Your submission goes to the moderation queue. Approved events appear on the public site.')}
           </p>
         </div>
         <button

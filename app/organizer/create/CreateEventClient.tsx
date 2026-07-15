@@ -7,8 +7,10 @@ import { AlertTriangle, CheckCircle2, Loader2, RotateCcw } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import type { StepKey } from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
+import { submitOrganizerEvent } from '@/lib/events-organizer'
 import { submitOrganizerDraft } from '@/lib/wizardSubmit'
 import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
+import type { VerificationTier } from '@/types/organizer'
 
 const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
 
@@ -74,9 +76,20 @@ function eventRowToDraft(row: Record<string, unknown>): EventDraft {
   }
 }
 
-export default function CreateEventClient() {
+// What actually happened to the created event, so the success screen tells
+// the truth: verified/established tiers publish instantly inside
+// organizer_create_event_v2; unverified drafts are auto-submitted to the
+// admin queue right after creation ('draft' only remains if that call fails).
+type CreatedOutcome = 'live' | 'review' | 'draft'
+
+export default function CreateEventClient({
+  verificationTier,
+}: {
+  verificationTier: VerificationTier
+}) {
   const router = useRouter()
   const [createdId, setCreatedId] = useState<string | null>(null)
+  const [createdOutcome, setCreatedOutcome] = useState<CreatedOutcome>('draft')
   const [phase, setPhase] = useState<Phase>('ready')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [reposted, setReposted] = useState(false)
@@ -140,19 +153,39 @@ export default function CreateEventClient() {
 
   const handleSubmit = async (draft: EventDraft) => {
     const supabase = createClient()
-    return submitOrganizerDraft(supabase, draft)
+    const result = await submitOrganizerDraft(supabase, draft)
+    if (result.error || !result.id) return result
+
+    if (verificationTier === 'unverified') {
+      // Send the fresh draft straight to the admin queue so unverified
+      // organizers don't need a second manual "submit for review" step.
+      const { error } = await submitOrganizerEvent(supabase, result.id)
+      setCreatedOutcome(error ? 'draft' : 'review')
+    } else {
+      setCreatedOutcome('live')
+    }
+    return result
   }
 
   if (createdId) {
+    const heading =
+      createdOutcome === 'live'
+        ? 'Your event is live'
+        : createdOutcome === 'review'
+          ? 'Sent for review'
+          : 'Draft saved'
+    const body =
+      createdOutcome === 'live'
+        ? 'It was published right away and is now visible to everyone.'
+        : createdOutcome === 'review'
+          ? 'Our team will confirm it shortly — it goes live as soon as an admin approves it.'
+          : "Your event is in your drafts. Review it, then submit it for moderation when you're ready."
     return (
       <div className="mx-auto max-w-3xl">
         <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/[0.06] p-8 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-300" />
-          <h2 className="mt-4 text-2xl font-bold text-white">Draft saved</h2>
-          <p className="mt-2 text-sm text-emerald-100/80">
-            Your event is in your drafts. Review it, then submit it for
-            moderation when you&apos;re ready.
-          </p>
+          <h2 className="mt-4 text-2xl font-bold text-white">{heading}</h2>
+          <p className="mt-2 text-sm text-emerald-100/80">{body}</p>
           <p className="mt-3 text-xs text-white/45">
             Event id: <span className="font-mono">{createdId}</span>
           </p>
@@ -223,6 +256,11 @@ export default function CreateEventClient() {
       )}
       <EventCreationWizard
         mode="organizer"
+        subtitle={
+          verificationTier === 'unverified'
+            ? 'Your event goes to our team for confirmation and appears on the site once approved.'
+            : 'Publishing as a trusted organizer — your event goes live the moment you submit.'
+        }
         onSubmit={handleSubmit}
         onSuccess={(id) => setCreatedId(id)}
         initialStepKey={reposted ? ('when' as StepKey) : undefined}
