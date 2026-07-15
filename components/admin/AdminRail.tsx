@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Radio,
   Send,
   Users as UsersIcon,
 } from 'lucide-react'
@@ -64,6 +65,7 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
     { href: '/admin/events', label: 'Events', icon: Megaphone },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/share-batch', label: 'Share batch', icon: Send },
+    { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
   ]
 
   const handleSignOut = async () => {
