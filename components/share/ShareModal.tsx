@@ -344,10 +344,12 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
   // cached (one generation per event, forever), a one-time creation for
   // Studio accounts otherwise.
   useEffect(() => {
+    // The Studio sections don't render without access — skip the fetches too.
+    if (!studioAccess) return
     if (!open || aiStatus !== 'idle') return
     fetchAiPoster({ auto: true })
     fetchAiCaptions()
-  }, [open, aiStatus, fetchAiPoster, fetchAiCaptions])
+  }, [open, aiStatus, fetchAiPoster, fetchAiCaptions, studioAccess])
 
   // Swap the caption to the sharer's language whenever the pack (or the UI
   // language) changes — unless they already typed their own.
@@ -520,6 +522,11 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
               </a>
             </div>
 
+            {/* Studio — AI posters, image templates, reels, caption pack.
+                Admins + granted users only; everyone above keeps plain link
+                sharing (copy, OS sheet, platform buttons). */}
+            {studioAccess && (
+              <>
             <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
               {t('share_ai_title')}
             </p>
@@ -810,6 +817,8 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
               className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/85 leading-6 focus:border-flame-500/40 focus:outline-none"
               spellCheck={false}
             />
+              </>
+            )}
 
             {error && (
               <p className="mt-3 rounded-2xl border border-flame-500/30 bg-flame-500/[0.08] px-3.5 py-2.5 text-[12px] text-flame-200">
@@ -820,25 +829,29 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
         </div>
       </div>
 
-      <div
-        aria-hidden
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: -100000,
-          width: 1080,
-          pointerEvents: 'none',
-        }}
-      >
-        <StoryShareTemplate
-          data={data}
-          qrDataUrl={qrDataUrl}
-          innerRef={storyRef}
-          backdropUrl={backdropMode === 'ai' ? aiBackdrop : null}
-        />
-        <SquareShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={squareRef} />
-        <FacebookShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={facebookRef} />
-      </div>
+      {/* Off-screen capture DOM for the studio templates — don't render the
+          designs at all for users without access. */}
+      {studioAccess && (
+        <div
+          aria-hidden
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: -100000,
+            width: 1080,
+            pointerEvents: 'none',
+          }}
+        >
+          <StoryShareTemplate
+            data={data}
+            qrDataUrl={qrDataUrl}
+            innerRef={storyRef}
+            backdropUrl={backdropMode === 'ai' ? aiBackdrop : null}
+          />
+          <SquareShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={squareRef} />
+          <FacebookShareTemplate data={data} qrDataUrl={qrDataUrl} innerRef={facebookRef} />
+        </div>
+      )}
     </>,
     document.body,
   )
