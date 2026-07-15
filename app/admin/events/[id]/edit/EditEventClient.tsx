@@ -238,6 +238,10 @@ function diffPatch(initial: EditableEvent, current: FormState): Record<string, u
 
   text('title', initial.title)
   text('description', initial.description)
+  // A manual edit invalidates the LENS-3 translation packs — display prefers
+  // them over the base text, so a stale pack keeps showing the old wording.
+  if ('title' in patch) patch.title_i18n = null
+  if ('description' in patch) patch.description_i18n = null
   text('category', initial.category)
   text('date', initial.date)
   text('time', initial.time)
