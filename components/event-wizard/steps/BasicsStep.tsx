@@ -57,13 +57,16 @@ export default function BasicsStep({ draft, patch, addTag, removeTag }: Props) {
     <div className="space-y-5">
       <h2 className="text-xl font-semibold text-white">Tell us about it</h2>
 
+      {/* Manual edits drop the LENS-3 translation packs (title_i18n /
+          description_i18n): display prefers the pack over the base text, so a
+          stale pack would keep showing the original scanned wording. */}
       <Field label="Title" htmlFor="basics-title" required>
         <input
           id="basics-title"
           type="text"
           required
           value={draft.title}
-          onChange={(e) => patch({ title: e.target.value })}
+          onChange={(e) => patch({ title: e.target.value, title_i18n: null })}
           placeholder="Something specific and clear"
           className="input"
         />
@@ -77,7 +80,9 @@ export default function BasicsStep({ draft, patch, addTag, removeTag }: Props) {
           id="basics-description"
           required
           value={draft.description}
-          onChange={(e) => patch({ description: e.target.value })}
+          onChange={(e) =>
+            patch({ description: e.target.value, description_i18n: null })
+          }
           rows={6}
           placeholder="What's happening, who's hosting, what should people expect..."
           className="input resize-y"
