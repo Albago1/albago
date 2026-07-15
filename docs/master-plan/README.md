@@ -11,6 +11,7 @@ This directory is the single source of truth for the commerce + apps buildout. A
 | **TIX** — E-Ticketing | `02-ticketing.md` | Tiers, orders, QR tickets, door scanning, refunds, waitlists, transfers | DICE, Eventbrite (machinery), RA (restraint) |
 | **PAY** — Payments | `01-payments.md` | Provider-agnostic money layer, Stripe first, organizer ledger + payouts | Stripe-native platforms; Shopify's ledger discipline |
 | **APP** — Store Apps | `03-apps.md` | PWA hardening → Capacitor store shells → native gate | Instagram (nav), DICE app (tickets in pocket) |
+| **BC** — Broadcast | `06-broadcast.md` | Admin-only social distribution engine: bulk asset generation from the Studio, scheduling queue, auto-publish to Telegram/IG/FB/X | Buffer/Later machinery at €0, cinematic brand assets no scheduler has |
 
 ## Why this order (the one big insight)
 
