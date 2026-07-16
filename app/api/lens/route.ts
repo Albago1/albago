@@ -72,9 +72,9 @@ export async function POST(request: Request) {
     const bytes = new Uint8Array(await file.arrayBuffer())
     const todayIso = new Date().toISOString().slice(0, 10)
 
-    let reading
+    let scan
     try {
-      reading = await readPosterImage(bytes, todayIso, file.type)
+      scan = await readPosterImage(bytes, todayIso, file.type)
     } catch (error) {
       console.error('[lens] extraction failed:', error)
       return NextResponse.json(
@@ -83,12 +83,13 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!reading) {
+    if (!scan) {
       return NextResponse.json(
         { ok: false, error: 'unreadable' },
         { status: 500 },
       )
     }
+    const { reading, regions } = scan
     if (!reading.is_event || !reading.title || reading.confidence < MIN_CONFIDENCE) {
       return NextResponse.json(
         { ok: false, error: 'not_a_poster' },
@@ -99,7 +100,8 @@ export async function POST(request: Request) {
     // LENS-2 resolution + LENS-3 translation in parallel, both fail-open.
     const { resolution, translation } = await resolveAndTranslate(reading, 'lens')
 
-    return NextResponse.json({ ok: true, reading, resolution, translation })
+    // `regions` powers the scan-theater reveal on the client; null = no theater.
+    return NextResponse.json({ ok: true, reading, resolution, translation, regions })
   } catch (error) {
     console.error('[lens] unexpected error:', error)
     return NextResponse.json({ ok: false, error: 'server' }, { status: 500 })

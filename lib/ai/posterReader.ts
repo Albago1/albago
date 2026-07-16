@@ -55,6 +55,26 @@ export type PosterReading = {
 export const LENS_JSON_SHAPE =
   '{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","is_civic":bool,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":""}'
 
+/** Scan-theater regions (photo scans only): where key fields sit ON the
+ *  poster image, as Gemini-native boxes [ymin,xmin,ymax,xmax] ∈ 0..1000. */
+export const LENS_REGION_KEYS = [
+  'title',
+  'date',
+  'time',
+  'venue',
+  'price',
+] as const
+export type LensRegionKey = (typeof LENS_REGION_KEYS)[number]
+export type LensRegionBox = [number, number, number, number]
+export type LensRegions = Partial<Record<LensRegionKey, LensRegionBox>>
+
+/** A photo scan = the reading plus (best-effort) field regions. Regions are
+ *  pure presentation for the scan-theater reveal — never part of the draft. */
+export type PosterScan = {
+  reading: PosterReading
+  regions: LensRegions | null
+}
+
 const SYSTEM_PROMPT = `You read photographs of real-world event posters (street posters, flyers, banners, screens) and extract the event as strict JSON.
 
 Rules:
@@ -68,9 +88,10 @@ Rules:
 8. tags: up to 5 lowercase single words drawn from the poster (genre, scene, occasion).
 9. artists: performer/speaker names printed on the poster, largest billing first.
 10. is_event: false when the photo is not an event announcement (product ad, menu, street scene, document...). Set confidence honestly — blur, glare, partial framing lower it.
+11. regions: for each of title, date, time, venue, price that is VISIBLY PRINTED on the poster, the bounding box of that printed text as [ymin,xmin,ymax,xmax] with each value 0-1000 relative to the image. Omit any field you did not locate; an empty object is fine. Boxes describe where text sits — they never change what you extract.
 
 Return ONLY a JSON object with exactly these keys:
-{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","is_civic":bool,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":""}
+{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","is_civic":bool,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","regions":{"title":[ymin,xmin,ymax,xmax]}}
 No markdown fences, no commentary.`
 
 function str(value: unknown, max = 400): string {
@@ -126,6 +147,32 @@ export function coercePosterReading(raw: unknown): PosterReading | null {
   }
 }
 
+/** Validate + clamp the raw regions object, or null when nothing usable.
+ *  Strictly best-effort: a malformed box is dropped, never an error — the
+ *  scan-theater reveal simply skips fields it has no box for. */
+export function coerceLensRegions(raw: unknown): LensRegions | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  const regions: LensRegions = {}
+
+  for (const key of LENS_REGION_KEYS) {
+    const box = r[key]
+    if (!Array.isArray(box) || box.length !== 4) continue
+    const nums = box.map((v) =>
+      typeof v === 'number' && Number.isFinite(v)
+        ? Math.round(Math.min(1000, Math.max(0, v)))
+        : null,
+    )
+    if (nums.some((v) => v === null)) continue
+    const [ymin, xmin, ymax, xmax] = nums as number[]
+    // Degenerate slivers (or inverted boxes) draw as visual noise — drop them.
+    if (ymax - ymin < 8 || xmax - xmin < 8) continue
+    regions[key] = [ymin, xmin, ymax, xmax]
+  }
+
+  return Object.keys(regions).length > 0 ? regions : null
+}
+
 /**
  * Read one poster photo. Returns null when the model output is unusable
  * (the route maps that to an "unreadable" error, distinct from is_event:false).
@@ -134,7 +181,7 @@ export async function readPosterImage(
   image: Uint8Array,
   todayIso: string,
   mediaType = 'image/jpeg',
-): Promise<PosterReading | null> {
+): Promise<PosterScan | null> {
   const messages: ModelMessage[] = [
     {
       role: 'user',
@@ -155,5 +202,12 @@ export async function readPosterImage(
     maxOutputTokens: 1600,
   })
 
-  return coercePosterReading(parseModelJson(text))
+  const raw = parseModelJson(text)
+  const reading = coercePosterReading(raw)
+  if (!reading) return null
+
+  const regions = coerceLensRegions(
+    (raw as Record<string, unknown> | null)?.regions,
+  )
+  return { reading, regions }
 }

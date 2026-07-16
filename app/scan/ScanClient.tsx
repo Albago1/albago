@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -28,7 +28,12 @@ import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
 import { getEventTimezone } from '@/lib/timezone'
 import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
-import type { PosterReading } from '@/lib/ai/posterReader'
+import type {
+  LensRegionBox,
+  LensRegionKey,
+  LensRegions,
+  PosterReading,
+} from '@/lib/ai/posterReader'
 import type { LensResolution, LensResolvedPlace } from '@/lib/lens/resolve'
 import type { EventTranslation, LangKey } from '@/lib/ai/translateEvent'
 
@@ -45,6 +50,16 @@ const MAX_DIMENSION = 1600
 type Phase =
   | { name: 'idle' }
   | { name: 'scanning'; previewUrl: string | null }
+  | {
+      // Scan theater: the poster stays on screen and each extracted field
+      // lights up where it sits on the image, then flows into the result card.
+      name: 'reveal'
+      previewUrl: string
+      reading: PosterReading
+      resolution: LensResolution | null
+      translation: EventTranslation | null
+      regions: LensRegions
+    }
   | {
       name: 'result'
       previewUrl: string | null
@@ -175,6 +190,39 @@ function resolvedDraftPatch(
   return patch
 }
 
+/** Scan-theater choreography (seconds). Each step = one field lighting up. */
+const REVEAL_FIRST_DELAY = 0.5
+const REVEAL_STEP_GAP = 0.7
+const REVEAL_TAIL_MS = 1400
+
+const REVEAL_ORDER: LensRegionKey[] = ['title', 'date', 'time', 'venue', 'price']
+
+type RevealStep = { key: LensRegionKey; box: LensRegionBox; value: string }
+
+/** Pair each detected region with the extracted value it belongs to.
+ *  A box without a value (or vice versa) is silently skipped — the theater
+ *  only ever spotlights fields the reading actually produced. */
+function buildRevealSteps(
+  reading: PosterReading,
+  regions: LensRegions,
+): RevealStep[] {
+  const values: Record<LensRegionKey, string> = {
+    title: reading.title,
+    date: reading.date,
+    time: reading.time
+      ? `${reading.time}${reading.end_time ? `–${reading.end_time}` : ''}`
+      : '',
+    venue: reading.venue_name,
+    price: reading.price,
+  }
+  const steps: RevealStep[] = []
+  for (const key of REVEAL_ORDER) {
+    const box = regions[key]
+    if (box && values[key]) steps.push({ key, box, value: values[key] })
+  }
+  return steps
+}
+
 /** True when resolution produced at least one usable hit worth tracking. */
 function resolutionHasHit(resolution: LensResolution | null): boolean {
   if (!resolution) return false
@@ -200,11 +248,14 @@ export default function ScanClient() {
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
   // Shared success handling for both the photo scanner and the URL reader.
+  // Photo scans that came back with field regions detour through the
+  // scan-theater reveal before landing on the same result card.
   const enterResult = (
     reading: PosterReading,
     resolution: LensResolution | null,
     translation: EventTranslation | null,
     previewUrl: string | null,
+    regions: LensRegions | null = null,
   ) => {
     // Warn when applying will overwrite a draft the user already started.
     try {
@@ -230,8 +281,49 @@ export default function ScanClient() {
         meta: { status: resolution.duplicate.status },
       })
     }
+    if (
+      previewUrl &&
+      regions &&
+      buildRevealSteps(reading, regions).length > 0
+    ) {
+      setPhase({
+        name: 'reveal',
+        previewUrl,
+        reading,
+        resolution,
+        translation,
+        regions,
+      })
+      return
+    }
     setPhase({ name: 'result', previewUrl, reading, resolution, translation })
   }
+
+  // Reveal → result, shared by the auto-advance timer and tap-to-skip.
+  const finishReveal = () => {
+    setPhase((current) =>
+      current.name === 'reveal'
+        ? {
+            name: 'result',
+            previewUrl: current.previewUrl,
+            reading: current.reading,
+            resolution: current.resolution,
+            translation: current.translation,
+          }
+        : current,
+    )
+  }
+
+  // Auto-advance once the last field has had its moment on stage.
+  useEffect(() => {
+    if (phase.name !== 'reveal') return
+    const steps = buildRevealSteps(phase.reading, phase.regions).length
+    const total =
+      (REVEAL_FIRST_DELAY + Math.max(0, steps - 1) * REVEAL_STEP_GAP) * 1000 +
+      REVEAL_TAIL_MS
+    const id = window.setTimeout(finishReveal, total)
+    return () => window.clearTimeout(id)
+  }, [phase])
 
   const handleUrl = async () => {
     const url = urlInput.trim()
@@ -338,6 +430,7 @@ export default function ScanClient() {
         reading?: PosterReading
         resolution?: LensResolution | null
         translation?: EventTranslation | null
+        regions?: LensRegions | null
         error?: string
       }
 
@@ -347,6 +440,7 @@ export default function ScanClient() {
           payload.resolution ?? null,
           payload.translation ?? null,
           previewUrl,
+          payload.regions ?? null,
         )
         return
       }
@@ -386,7 +480,9 @@ export default function ScanClient() {
 
   const reset = () => {
     if (
-      (phase.name === 'scanning' || phase.name === 'result') &&
+      (phase.name === 'scanning' ||
+        phase.name === 'reveal' ||
+        phase.name === 'result') &&
       phase.previewUrl?.startsWith('blob:')
     ) {
       URL.revokeObjectURL(phase.previewUrl)
@@ -586,6 +682,95 @@ export default function ScanClient() {
             </div>
           </motion.div>
         )}
+
+        {phase.name === 'reveal' &&
+          (() => {
+            const steps = buildRevealSteps(phase.reading, phase.regions)
+            const chipIcons: Record<LensRegionKey, typeof Calendar> = {
+              title: Sparkles,
+              date: Calendar,
+              time: Clock,
+              venue: MapPin,
+              price: Ticket,
+            }
+            return (
+              <motion.div
+                key="reveal"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-10"
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-flame-400">
+                  <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                  {t('lens_scanning')}
+                </div>
+                <button
+                  type="button"
+                  onClick={finishReveal}
+                  className="mt-3 block w-full cursor-pointer"
+                  aria-label={t('lens_reveal_hint')}
+                >
+                  <span className="relative mx-auto block w-fit overflow-hidden rounded-3xl border border-white/10">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={phase.previewUrl}
+                      alt=""
+                      className="block max-h-[26rem] w-auto max-w-full brightness-[0.55]"
+                    />
+                    {steps.map((step, i) => {
+                      const [ymin, xmin, ymax, xmax] = step.box
+                      const delay = REVEAL_FIRST_DELAY + i * REVEAL_STEP_GAP
+                      const Icon = chipIcons[step.key]
+                      // Chip sits under its box; near the bottom edge it flips above.
+                      const chipAbove = ymax > 820
+                      const chipValue =
+                        step.key === 'date' ? formatDate(step.value) : step.value
+                      return (
+                        <span key={step.key} className="contents">
+                          <motion.span
+                            initial={{ opacity: 0, scale: 1.15 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay, duration: 0.35, ease: 'easeOut' }}
+                            className="absolute block rounded-lg border-2 border-flame-400 bg-flame-500/10 shadow-[0_0_18px_2px_rgba(238,28,37,0.45)]"
+                            style={{
+                              top: `${ymin / 10}%`,
+                              left: `${xmin / 10}%`,
+                              height: `${(ymax - ymin) / 10}%`,
+                              width: `${(xmax - xmin) / 10}%`,
+                            }}
+                          />
+                          <motion.span
+                            initial={{ opacity: 0, y: chipAbove ? 6 : -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: delay + 0.18, duration: 0.3 }}
+                            className="absolute z-10 inline-flex max-w-[92%] items-center gap-1.5 truncate rounded-full border border-flame-500/40 bg-ink-950/90 px-2.5 py-1 text-xs font-semibold text-white"
+                            style={
+                              chipAbove
+                                ? {
+                                    left: `${Math.min(xmin, 600) / 10}%`,
+                                    bottom: `${100 - ymin / 10 + 1}%`,
+                                  }
+                                : {
+                                    left: `${Math.min(xmin, 600) / 10}%`,
+                                    top: `${ymax / 10 + 1}%`,
+                                  }
+                            }
+                          >
+                            <Icon className="h-3 w-3 shrink-0 text-flame-400" />
+                            <span className="truncate">{chipValue}</span>
+                          </motion.span>
+                        </span>
+                      )
+                    })}
+                  </span>
+                  <span className="mt-3 block text-center text-xs text-white/40">
+                    {t('lens_reveal_hint')}
+                  </span>
+                </button>
+              </motion.div>
+            )
+          })()}
 
         {phase.name === 'result' &&
           (() => {

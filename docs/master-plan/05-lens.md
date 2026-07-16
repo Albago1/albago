@@ -226,6 +226,39 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
 - [ ] "Street scout" attribution: scans that go live credit the scanner on
       the event page; badges per city. TikTok-able ("scan your city").
 
+### LENS-6 — scan theater (shipped 2026-07-16)
+The reveal: instead of spinner → result card, the poster photo stays on
+screen and each extracted field **lights up where it sits on the image** —
+glowing flame box + a chip showing the extracted value, drawn in sequence
+(title → date → time → venue → price) — then flows into the normal result
+card. The demo moment; also the bounding-box foundation that "wall sweep"
+(multi-poster) and poster-crop-as-event-image would build on.
+
+- [x] `regions` added to the PHOTO extraction call only (rule 11 + shape in
+      the poster prompt; `LENS_JSON_SHAPE` shared with the URL/prompt readers
+      is untouched): Gemini-native boxes `[ymin,xmin,ymax,xmax]` ∈ 0..1000
+      for title/date/time/venue/price. Same single call — no second vision
+      request (free-tier quota, no added latency).
+- [x] `coerceLensRegions` (exported, posterReader.ts): strict best-effort —
+      4 finite numbers, clamped + rounded, degenerate slivers (<8 units) and
+      inverted boxes dropped, empty → null. `readPosterImage` now returns
+      `PosterScan = { reading, regions }`; `/api/lens` passes `regions`
+      through (null = no theater).
+- [x] ScanClient: new `reveal` phase between scanning and result (photo scans
+      only — URL/prompt paths go straight to result). Steps pair each box
+      with its extracted value via `buildRevealSteps` — a box without a value
+      (or vice versa) is skipped, so the theater only spotlights fields the
+      reading produced. Image dimmed (brightness .55), boxes animate in at
+      0.7s intervals with a labeled chip (chip flips above the box near the
+      bottom edge), auto-advance ~1.4s after the last step, tap anywhere
+      skips. Overlay coordinates are % of a shrink-wrapped (`w-fit`) image
+      box so they track the rendered image exactly; button wraps only
+      phrasing content (spans, not divs). 1 i18n key ×4 (lens_reveal_hint).
+- **Verified:** 12/12 coercer unit tests; live synthetic-poster probe —
+  extraction unchanged (100% fields, confidence 1.0) and 4/5 boxes within
+  Δ≤10/1000 of the true text position; the missing venue box exercised the
+  silent per-field fallback. tsc/eslint/build clean.
+
 ## Decision Log
 
 | Date | Decision | Why |
@@ -243,3 +276,5 @@ garbage on another continent. Accepted → prefill `lat/lng/address`
 | 2026-07-12 | Dropped the client-side country-agreement gate on remote city fallback | Localized Nominatim country names ("Shqipëria") can't be compared across languages to the reading's country; caused valid-city false negatives. Country is already in the query so Nominatim biases correctly (matches existing searchRemoteCities) |
 | 2026-07-13 | Pending-submission dedup uses the service client, returns boolean-only | `event_submissions` is not anon-readable (RLS) so the resolver's anon client can't see it; the service client can, but the response must never carry submission fields — titles are matched server-side and discarded, only `{status:'in_review'}` crosses |
 | 2026-07-13 | Dedup keyed on exact date + location_slug, title match in TS (Jaccard ≥0.6 or subset) | Keeps candidate sets tiny (no pg_trgm dep); the reader already resolves dates to ISO so exact-date keying is safe; title only disambiguates within the tight date+location set |
+| 2026-07-16 | Regions ride the SAME extraction call, photo prompt only | A second vision call would double free-tier image tokens and add latency; live probe confirmed extraction quality unchanged with regions in the contract. URL/prompt readers have no image — shared LENS_JSON_SHAPE stays untouched |
+| 2026-07-16 | Theater is per-field best-effort and always skippable | Boxes are presentation, never data: a missing/garbage box skips that field's highlight (or the whole theater) and the flow degrades to the LENS-1 result card; a tap skips instantly. Regions never enter the draft |
