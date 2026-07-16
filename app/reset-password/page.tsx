@@ -3,19 +3,19 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  ArrowLeft,
-  Loader2,
-  Lock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-} from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { authErrorKey, passwordOk } from '@/lib/authErrors'
+import AuthShell from '@/components/auth/AuthShell'
+import AuthErrorNote from '@/components/auth/AuthErrorNote'
+import PasswordChecklist from '@/components/auth/PasswordChecklist'
+import { AuthPasswordInput } from '@/components/auth/AuthInput'
 
 function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useLanguage()
   const next = searchParams.get('next') ?? '/dashboard'
   const safeNext =
     next.startsWith('/') &&
@@ -28,8 +28,8 @@ function ResetPasswordForm() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [hasSession, setHasSession] = useState<boolean | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+  const [errorKey, setErrorKey] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -45,15 +45,15 @@ function ResetPasswordForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setMessage(null)
-    setErrorMessage(null)
+    setErrorKey(null)
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.')
+    // Same standard the sign-up checklist shows (the old page said 6 here).
+    if (!passwordOk(password)) {
+      setErrorKey('auth_err_weak_password')
       return
     }
     if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match.')
+      setErrorKey('auth_err_password_mismatch')
       return
     }
 
@@ -62,11 +62,11 @@ function ResetPasswordForm() {
     setIsLoading(false)
 
     if (error) {
-      setErrorMessage(error.message)
+      setErrorKey(authErrorKey(error))
       return
     }
 
-    setMessage('Password updated. Taking you back...')
+    setDone(true)
     setTimeout(() => {
       router.push(safeNext)
       router.refresh()
@@ -74,112 +74,67 @@ function ResetPasswordForm() {
   }
 
   return (
-    <main className="min-h-screen bg-ink-950 px-4 py-16 text-white">
-      <div className="mx-auto w-full max-w-md">
-        <Link
-          href="/sign-in"
-          className="mb-8 inline-flex items-center gap-1.5 text-sm text-white/55 transition hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to sign in
-        </Link>
-
-        <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-8 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
-          <div className="text-center">
-            <p className="font-display text-2xl font-normal text-white/85">
-              AlbaGo
-            </p>
-            <h1 className="mt-6 text-3xl font-bold tracking-tight">
-              Set new password
-            </h1>
-            <p className="mt-2 text-sm text-white/55">
-              Choose a new password for your AlbaGo account.
-            </p>
+    <AuthShell
+      backHref="/sign-in"
+      backLabel={t('auth_back_signin')}
+      title={t('auth_reset_title')}
+      subtitle={t('auth_reset_sub')}
+    >
+      {hasSession === false ? (
+        <div className="mt-8 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6 text-center">
+          <AlertTriangle className="mx-auto h-8 w-8 text-amber-300" />
+          <p className="mt-4 text-sm text-amber-100">{t('auth_reset_expired')}</p>
+          <Link
+            href="/forgot-password"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/30"
+          >
+            {t('auth_reset_request_new')}
+          </Link>
+        </div>
+      ) : done ? (
+        <div className="mt-8 rounded-3xl border border-green-500/20 bg-green-500/10 p-6 text-center">
+          <CheckCircle2 className="mx-auto h-8 w-8 text-green-300" />
+          <p className="mt-4 text-sm text-green-100">{t('auth_reset_done')}</p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <div>
+            <AuthPasswordInput
+              label={t('auth_new_password_label')}
+              icon={Lock}
+              required
+              autoComplete="new-password"
+              placeholder={t('auth_password_placeholder_new')}
+              minLength={8}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <PasswordChecklist password={password} />
           </div>
 
-          {hasSession === false ? (
-            <div className="mt-8 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6 text-center">
-              <AlertTriangle className="mx-auto h-8 w-8 text-amber-300" />
-              <p className="mt-4 text-sm text-amber-100">
-                This link is invalid or has expired.
-              </p>
-              <Link
-                href="/forgot-password"
-                className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/30"
-              >
-                Request a new link
-              </Link>
-            </div>
-          ) : message ? (
-            <div className="mt-8 rounded-3xl border border-green-500/20 bg-green-500/10 p-6 text-center">
-              <CheckCircle2 className="mx-auto h-8 w-8 text-green-300" />
-              <p className="mt-4 text-sm text-green-100">{message}</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
-                  New password
-                </span>
-                <div className="relative">
-                  <Lock
-                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
-                    aria-hidden="true"
-                  />
-                  <input
-                    required
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder="At least 6 characters"
-                    minLength={6}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm outline-none transition placeholder:text-white/30 focus:border-flame-500/40 focus:ring-2 focus:ring-flame-500/20"
-                  />
-                </div>
-              </label>
+          <AuthPasswordInput
+            label={t('auth_confirm_password_label')}
+            icon={Lock}
+            required
+            autoComplete="new-password"
+            placeholder={t('auth_confirm_password_placeholder')}
+            minLength={8}
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
 
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
-                  Confirm password
-                </span>
-                <div className="relative">
-                  <Lock
-                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
-                    aria-hidden="true"
-                  />
-                  <input
-                    required
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder="Re-enter your new password"
-                    minLength={6}
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-11 pr-4 text-sm outline-none transition placeholder:text-white/30 focus:border-flame-500/40 focus:ring-2 focus:ring-flame-500/20"
-                  />
-                </div>
-              </label>
+          {errorKey && <AuthErrorNote message={t(errorKey)} />}
 
-              {errorMessage && (
-                <div className="flex items-start gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              <button
-                disabled={isLoading || hasSession === null}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-flame-500 text-sm font-semibold shadow-[0_12px_30px_-12px_rgba(238,28,37,0.6)] transition hover:bg-flame-400 disabled:opacity-60"
-              >
-                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isLoading ? 'Updating...' : 'Update password'}
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    </main>
+          <button
+            disabled={isLoading || hasSession === null}
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-flame-500 text-sm font-semibold shadow-[0_12px_30px_-12px_rgba(238,28,37,0.6)] transition hover:bg-flame-400 disabled:opacity-60"
+          >
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isLoading ? t('auth_reset_button_loading') : t('auth_reset_button')}
+          </button>
+        </form>
+      )}
+    </AuthShell>
   )
 }
 
