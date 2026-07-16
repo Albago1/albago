@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
+import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
 type Props = {
   initialSavedEventUpdates: boolean
@@ -10,6 +11,7 @@ type Props = {
 export default function NotificationPreferencesForm({
   initialSavedEventUpdates,
 }: Props) {
+  const { t } = useLanguage()
   const supabase = createClient()
 
   const [savedEventUpdates, setSavedEventUpdates] = useState(
@@ -34,7 +36,7 @@ export default function NotificationPreferencesForm({
     if (!user) {
       setSavedEventUpdates(previous)
       setSavingKey(null)
-      setErrorMessage('Session expired — please sign in again.')
+      setErrorMessage(t('settings_err_session'))
       return
     }
 
@@ -62,7 +64,7 @@ export default function NotificationPreferencesForm({
       return
     }
 
-    setMessage('Saved.')
+    setMessage(t('settings_saved'))
     setTimeout(() => setMessage(null), 1500)
   }
 
@@ -71,11 +73,10 @@ export default function NotificationPreferencesForm({
       <div className="flex items-start justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5">
         <div className="flex-1">
           <h2 className="text-sm font-semibold text-white">
-            Saved event updates
+            {t('settings_notif_saved_title')}
           </h2>
           <p className="mt-1 text-sm text-white/55">
-            Email me when a saved event changes — new date, time, address, or
-            cancellation.
+            {t('settings_notif_saved_sub')}
           </p>
         </div>
         <button
