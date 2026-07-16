@@ -13,11 +13,6 @@ export const translations: Record<Language, Record<string, string>> = {
     open_menu: 'Open menu',
     hero_badge: "Tirana, Albania",
     hero_title: "Every Event. One Map.",
-    hero_title_2: "Experience More.",
-    hero_title_3: "Live More. Explore More.",
-    hero_title_4: "What’s Next?",
-    hero_title_5: "Where Memories Begin",
-    hero_title_6: "Find Your Next Experience",
     hero_subtitle:
       "Events, nightlife and civic gatherings — across Albania and the Albanian diaspora",
 
@@ -742,11 +737,6 @@ export const translations: Record<Language, Record<string, string>> = {
     open_menu: 'Menü öffnen',
     hero_badge: "Tirana, Albanien",
     hero_title: "Jedes Event. Eine Karte.",
-    hero_title_2: "Erlebe mehr.",
-    hero_title_3: "Lebe mehr. Entdecke mehr.",
-    hero_title_4: "Was kommt als Nächstes?",
-    hero_title_5: "Wo Erinnerungen beginnen",
-    hero_title_6: "Finde dein nächstes Erlebnis",
     hero_subtitle:
       "Events, Nachtleben und Bürgerversammlungen — in Albanien und der albanischen Diaspora",
 
@@ -1472,11 +1462,6 @@ export const translations: Record<Language, Record<string, string>> = {
     open_menu: 'Abrir menú',
     hero_badge: "Tirana, Albania",
     hero_title: "Cada evento. Un mapa.",
-    hero_title_2: "Vive más.",
-    hero_title_3: "Sal más. Explora más.",
-    hero_title_4: "¿Qué sigue?",
-    hero_title_5: "Donde empiezan los recuerdos",
-    hero_title_6: "Encuentra tu próxima experiencia",
     hero_subtitle:
       "Eventos, vida nocturna y reuniones cívicas — en Albania y la diáspora albanesa",
 
@@ -2202,11 +2187,6 @@ export const translations: Record<Language, Record<string, string>> = {
     open_menu: 'Hap menunë',
     hero_badge: "Tiranë, Shqipëri",
     hero_title: "Çdo event. Një hartë.",
-    hero_title_2: "Përjeto më shumë.",
-    hero_title_3: "Jeto më shumë. Eksploro më shumë.",
-    hero_title_4: "Çfarë vjen më pas?",
-    hero_title_5: "Aty ku nisin kujtimet",
-    hero_title_6: "Gjej përjetimin tënd të radhës",
     hero_subtitle:
       "Evente, jetë nate dhe tubime qytetare — në Shqipëri dhe në diasporën shqiptare",
 

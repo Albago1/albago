@@ -35,7 +35,6 @@ import { createClient } from '@/lib/supabase/browser'
 import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { aiPosterUrl } from '@/lib/eventArt'
 import HeroSpotlight from '@/components/home/HeroSpotlight'
-import HeroRotator from '@/components/home/HeroRotator'
 import type { Place } from '@/types/place'
 
 const categories = [
@@ -988,18 +987,8 @@ export default function HomeClient() {
             <span className="text-white/80">Events · Nightlife · Civic Movements</span>
           </div>
 
-          <h1 className="display-text mt-10 w-full max-w-5xl text-5xl sm:text-7xl lg:text-[96px] xl:text-[112px] leading-[0.92] tracking-tight">
-            <span className="sr-only">{t('hero_title')}</span>
-            <HeroRotator
-              slogans={[
-                t('hero_title'),
-                t('hero_title_2'),
-                t('hero_title_3'),
-                t('hero_title_4'),
-                t('hero_title_5'),
-                t('hero_title_6'),
-              ]}
-            />
+          <h1 className="display-text mt-10 max-w-5xl text-5xl sm:text-7xl lg:text-[96px] xl:text-[112px] leading-[0.92] tracking-tight">
+            {t('hero_title')}
           </h1>
 
           <p className="mt-8 max-w-3xl text-lg leading-8 text-white/55 sm:text-2xl">
