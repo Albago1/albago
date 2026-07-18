@@ -2,7 +2,7 @@
  * JSON-LD schema builders for SEO rich results.
  *
  * Schema.org types we emit:
- *   - WebSite + SearchAction  → site-wide, enables Google sitelinks search box
+ *   - WebSite                 → site-wide identity
  *   - Event                   → /events/[slug] rich event cards in Google Search
  *   - Organization            → /organizers/[slug] knowledge panel info
  *   - Place                   → /places/[slug] venue card
@@ -30,17 +30,15 @@ export function jsonLdScript(obj: unknown): string {
 }
 
 export function websiteSchema() {
+  // No SearchAction: Google retired the sitelinks search box (Oct 2024), and
+  // the literal `{search_term_string}` template URL was getting crawled and
+  // indexed as a real page.
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'AlbaGo',
     alternateName: 'AlbaGo · Events, Movements & Nightlife',
     url: SITE_URL,
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: `${SITE_URL}/events?q={search_term_string}`,
-      'query-input': 'required name=search_term_string',
-    },
   }
 }
 

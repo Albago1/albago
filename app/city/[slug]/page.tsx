@@ -43,6 +43,9 @@ type CityEvent = {
 }
 
 async function fetchCity(slug: string): Promise<CityRow | null> {
+  // 'unknown' is the ingestion fallback for unresolved locations — it must
+  // never be a public, indexable city destination (audit ALB-002).
+  if (slug === 'unknown') return null
   const supabase = await createClient()
   const { data } = await supabase
     .from('cities')

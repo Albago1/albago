@@ -50,8 +50,9 @@ const FAQS: Faq[] = [
         <Link href="/become-organizer" className="text-flame-300 hover:underline">
           /become-organizer
         </Link>{' '}
-        and follow the 3-step wizard: profile, event types, confirm. Takes about
-        two minutes. You can create events right after.
+        and create your organizer profile — takes about two minutes. Then
+        submit your first event: it gets one quick review, and after 2 approved
+        events in 90 days your events publish instantly.
       </>
     ),
   },

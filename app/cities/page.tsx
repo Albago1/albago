@@ -37,7 +37,11 @@ export default async function CitiesPage() {
       .or(activeEventsOrFilter()),
   ])
 
-  const cities = (citiesRes.data as CityRow[] | null) ?? []
+  // 'unknown' is the ingestion fallback for unresolved locations, not a real
+  // city — never show it as a destination (audit ALB-002).
+  const cities = ((citiesRes.data as CityRow[] | null) ?? []).filter(
+    (c) => c.slug !== 'unknown',
+  )
   const activeEvents = ((eventsRes.data as Array<
     { location_slug: string } & Parameters<typeof isEventActive>[0]
   > | null) ?? []).filter(isEventActive)

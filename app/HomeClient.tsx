@@ -159,7 +159,9 @@ type SuggestionEvent = { id: string; slug: string; title: string; category: stri
 function CountUp({ value }: { value: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(false)
-  const [display, setDisplay] = useState(0)
+  // Starts at the server-provided value (not 0) so the prerendered HTML shows
+  // real inventory to crawlers and no-JS visitors; changes animate from there.
+  const [display, setDisplay] = useState(value)
 
   useEffect(() => {
     const el = ref.current
@@ -199,7 +201,14 @@ function CountUp({ value }: { value: number }) {
   )
 }
 
-export default function HomeClient() {
+/** Server-computed inventory counters passed in for a truthful first paint. */
+export type HomeStats = { events: number; cities: number; places: number }
+
+export default function HomeClient({
+  initialStats,
+}: {
+  initialStats?: HomeStats | null
+}) {
   const { t } = useLanguage()
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -249,6 +258,9 @@ export default function HomeClient() {
     recurrence_exceptions: string[] | null
     status: string
   }>>([])
+  // True once the client-side inventory fetch has landed; until then the stat
+  // counters fall back to the server-computed initialStats.
+  const [globalLoaded, setGlobalLoaded] = useState(false)
   // Bumped every 60s so isEventActive re-runs against the current wall clock —
   // handles the end_time cutoff and the midnight rollover without needing a DB
   // event to fire.
@@ -587,6 +599,7 @@ export default function HomeClient() {
 
       if (globalEventsRes.data) {
         setGlobalEventRows(globalEventsRes.data)
+        setGlobalLoaded(true)
       }
     }
 
@@ -764,14 +777,19 @@ export default function HomeClient() {
   // it as "used" inside the filter callback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const activeGlobalEvents = useMemo(() => globalEventRows.filter(isEventActive), [globalEventRows, nowTick])
-  const totalEventsCount = activeGlobalEvents.length
-  const totalCitiesCount = useMemo(
+  // Until the client fetch lands, fall back to the server-computed stats so
+  // the first paint (and the prerendered HTML) never shows a false zero.
+  const totalEventsCount = globalLoaded
+    ? activeGlobalEvents.length
+    : (initialStats?.events ?? 0)
+  const liveCitiesCount = useMemo(
     () => new Set(activeGlobalEvents.map((e) => e.location_slug)).size,
     [activeGlobalEvents],
   )
+  const totalCitiesCount = globalLoaded ? liveCitiesCount : (initialStats?.cities ?? 0)
   // Distinct venues with at least one live event. Civic/online events without a
   // place_id don't contribute — "venues" should mean actual venues.
-  const totalPlacesCount = useMemo(
+  const livePlacesCount = useMemo(
     () =>
       new Set(
         activeGlobalEvents
@@ -780,6 +798,7 @@ export default function HomeClient() {
       ).size,
     [activeGlobalEvents],
   )
+  const totalPlacesCount = globalLoaded ? livePlacesCount : (initialStats?.places ?? 0)
 
   // Live events per category — drives the "N live" badges on the showcase
   // tiles and re-derives on every realtime change / wall-clock tick.

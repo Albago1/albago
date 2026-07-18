@@ -99,6 +99,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     const cityEntries: MetadataRoute.Sitemap = (citiesRes.data ?? [])
       .filter((row): row is { slug: string } => !!row?.slug)
+      // 'unknown' is the unresolved-location fallback, not a real city page.
+      .filter((row) => row.slug !== 'unknown')
       .map((row) => ({
         url: `${SITE_URL}/city/${row.slug}`,
         lastModified: now,

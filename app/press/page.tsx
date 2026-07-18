@@ -35,7 +35,7 @@ const FACTS = [
 const TAGLINES = [
   'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
   'Starting in Albania and Albanian communities worldwide, with more cities coming next.',
-  'Find what is happening tonight in any Albanian city — Tirana to Berlin, peaceful protests to nightlife.',
+  'Find what is happening tonight, from Tirana to the Albanian diaspora in Berlin and beyond — peaceful protests to nightlife.',
 ]
 
 export default function PressPage() {

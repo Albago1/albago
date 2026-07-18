@@ -49,7 +49,7 @@ const SECTIONS: Section[] = [
     title: '3. Your content',
     body: [
       'You retain ownership of everything you submit: event listings, organizer profiles, placard photos, captions, volunteer signups.',
-      'By submitting content, you grant AlbaGo a worldwide, non-exclusive, royalty-free licence to display, distribute, and share that content on the platform and in promotional posts (e.g. share posters generated through /admin/share-batch).',
+      'By submitting content, you grant AlbaGo a worldwide, non-exclusive, royalty-free licence to display, distribute, and share that content on the platform and in promotional material (e.g. share posters our team creates to promote listings).',
       'You confirm you have the right to share what you upload — including photos of other people, copyrighted material, or trademarks. If you don\'t own it, don\'t post it.',
       'AlbaGo does not pre-screen submissions. Content goes live after admin moderation where moderation exists (placards, organizer applications), and immediately where it does not (saved events, volunteer signups).',
     ],
