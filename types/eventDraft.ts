@@ -248,6 +248,9 @@ export type UseEventDraftReturn = {
   reset: () => void
   clearPersisted: () => void
   hydrated: boolean
+  /** When the draft was last autosaved to this device (null until the first
+   *  persist after hydration). Drives the wizard's autosave indicator. */
+  lastSavedAt: Date | null
 }
 
 /**
@@ -260,6 +263,7 @@ export function useEventDraft(): UseEventDraftReturn {
     timezone: detectTimezone(),
   }))
   const [hydrated, setHydrated] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
 
   // Load persisted draft once.
   useEffect(() => {
@@ -274,6 +278,9 @@ export function useEventDraft(): UseEventDraftReturn {
   useEffect(() => {
     if (!hydrated) return
     saveToStorage(draft)
+    // Timestamp for the autosave indicator; follows the persist it describes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLastSavedAt(new Date())
   }, [draft, hydrated])
 
   const patch = useCallback((p: Partial<EventDraft>) => {
@@ -303,5 +310,6 @@ export function useEventDraft(): UseEventDraftReturn {
     reset,
     clearPersisted,
     hydrated,
+    lastSavedAt,
   }
 }

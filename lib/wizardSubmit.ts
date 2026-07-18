@@ -141,18 +141,15 @@ export async function submitCommunityEvent(
 }
 
 /**
- * Submit an organizer-mode wizard draft via the organizer_create_event_v2 RPC.
- * Creates a draft event owned by auth.uid() with origin='organizer_dashboard'
- * and status='draft'. The organizer can submit it for review separately.
+ * Shared draft → RPC input mapping for the organizer create/update RPCs.
+ * organizer_create_event_v2 and organizer_update_event take the same shape,
+ * so the two callers must never drift apart.
  */
-export async function submitOrganizerDraft(
-  supabase: SupabaseClient,
-  draft: EventDraft,
-): Promise<SubmitResult> {
+function buildOrganizerEventInput(draft: EventDraft) {
   const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
   const category = draft.category || (isCivic ? 'civic' : 'culture')
 
-  const input = {
+  return {
     title: draft.title.trim(),
     place_id: null,
     category,
@@ -200,9 +197,19 @@ export async function submitOrganizerDraft(
     recurrence_days_of_week: draft.recurrence_days_of_week,
     recurrence_exceptions: draft.recurrence_exceptions,
   }
+}
 
+/**
+ * Submit an organizer-mode wizard draft via the organizer_create_event_v2 RPC.
+ * Creates a draft event owned by auth.uid() with origin='organizer_dashboard'
+ * and status='draft'. The organizer can submit it for review separately.
+ */
+export async function submitOrganizerDraft(
+  supabase: SupabaseClient,
+  draft: EventDraft,
+): Promise<SubmitResult> {
   const { data, error } = await supabase.rpc('organizer_create_event_v2', {
-    input,
+    input: buildOrganizerEventInput(draft),
   })
 
   if (error) {
@@ -217,6 +224,56 @@ export async function submitOrganizerDraft(
     }
     logSubmitError('submitOrganizerDraft', error)
     return { id: null, error: GENERIC_SUBMIT_ERROR }
+  }
+
+  return { id: data as string, error: null }
+}
+
+const GENERIC_UPDATE_ERROR =
+  "Something went wrong on our side and your changes weren't saved. Your edits are safe on this device — please try again in a moment, or reach us via the contact page if it keeps happening."
+
+/**
+ * Update an existing organizer-owned event (status 'draft' or 'rejected')
+ * via the organizer_update_event RPC (phase 32). Full-replace semantics: the
+ * wizard always carries the complete draft, so every editable column is
+ * rewritten from it. Trusted tiers republish instantly; everyone else lands
+ * back on 'draft' and the caller auto-submits for review, mirroring create.
+ */
+export async function updateOrganizerDraft(
+  supabase: SupabaseClient,
+  eventId: string,
+  draft: EventDraft,
+): Promise<SubmitResult> {
+  const { data, error } = await supabase.rpc('organizer_update_event', {
+    event_id: eventId,
+    input: buildOrganizerEventInput(draft),
+  })
+
+  if (error) {
+    if (error.message.includes('not_authenticated')) {
+      return { id: null, error: 'Sign in to edit this event.' }
+    }
+    if (error.message.includes('not_organizer')) {
+      return {
+        id: null,
+        error: 'Complete organizer onboarding before editing events.',
+      }
+    }
+    if (error.message.includes('not_found_or_not_owner')) {
+      return {
+        id: null,
+        error: 'This event could not be found, or it belongs to a different account.',
+      }
+    }
+    if (error.message.includes('invalid_status')) {
+      return {
+        id: null,
+        error:
+          'This event can no longer be edited here — it has already been submitted for review or published.',
+      }
+    }
+    logSubmitError('updateOrganizerDraft', error)
+    return { id: null, error: GENERIC_UPDATE_ERROR }
   }
 
   return { id: data as string, error: null }

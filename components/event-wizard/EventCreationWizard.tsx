@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2 } from 'lucide-react'
 import SubmitErrorModal from './SubmitErrorModal'
 import type { EventDraft } from '@/types/eventDraft'
 import { useEventDraft } from '@/types/eventDraft'
@@ -36,6 +36,15 @@ type Props = {
   initialStepKey?: StepKey
   /** Overrides the mode's default header subtitle (e.g. tier-aware copy). */
   subtitle?: string
+  /** Overrides the mode-derived H1 (e.g. "Edit event"). */
+  heading?: string
+  /** Label for the final submit button. Default "Submit". */
+  submitLabel?: string
+  /** Title for the submit-failure modal. Default "Couldn't submit your event". */
+  errorTitle?: string
+  /** Replaces the built-in "Reset draft" button (edit mode uses this to
+   *  restore the saved event instead of wiping to a blank draft). */
+  resetControl?: { label: string; confirmText: string; onReset: () => void }
 }
 
 type StepDef = {
@@ -96,7 +105,6 @@ const STEPS: StepDef[] = [
         if (!d.online_url.trim()) return 'Add an online URL.'
         try {
           // Accept anything URL-shaped; minimal sanity check.
-          // eslint-disable-next-line no-new
           new URL(d.online_url)
         } catch {
           return 'Online URL is not valid.'
@@ -141,17 +149,39 @@ const STEPS: StepDef[] = [
   },
 ]
 
-export default function EventCreationWizard({ onSubmit, mode, onSuccess, initialStepKey, subtitle }: Props) {
-  const { draft, patch, addTag, removeTag, reset, clearPersisted, hydrated } = useEventDraft()
+export default function EventCreationWizard({
+  onSubmit,
+  mode,
+  onSuccess,
+  initialStepKey,
+  subtitle,
+  heading,
+  submitLabel,
+  errorTitle,
+  resetControl,
+}: Props) {
+  const { draft, patch, addTag, removeTag, reset, clearPersisted, hydrated, lastSavedAt } =
+    useEventDraft()
   const [stepIndex, setStepIndex] = useState(0)
   const [stepError, setStepError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   const activeSteps = useMemo(
     () => STEPS.filter((step) => !step.skip?.(draft)),
     [draft],
   )
+
+  // Farthest step the draft's current data justifies jumping to: everything
+  // before it validates. Lets people who already filled the form (editing, or
+  // coming back to a complete draft) hop between steps freely.
+  const firstInvalidIndex = useMemo(
+    () => activeSteps.findIndex((s) => s.validate(draft) !== null),
+    [activeSteps, draft],
+  )
+  const maxJumpIndex =
+    firstInvalidIndex === -1 ? activeSteps.length - 1 : firstInvalidIndex
 
   const initialStepAppliedRef = useRef(false)
   useEffect(() => {
@@ -166,13 +196,21 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
     const firstInvalid = activeSteps.findIndex((s) => s.validate(draft) !== null)
     const target = firstInvalid >= 0 ? Math.min(firstInvalid, idx) : idx
     // One-shot jump once the wizard's persisted draft has finished loading.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStepIndex(target)
   }, [hydrated, initialStepKey, activeSteps, draft])
 
   const activeStep = activeSteps[stepIndex] ?? activeSteps[0]
   const isLast = stepIndex >= activeSteps.length - 1
   const isFirst = stepIndex === 0
+
+  // On mobile a step change can leave the viewport scrolled to where the
+  // previous (taller) step ended — snap back to the top of the wizard.
+  const prevStepIndexRef = useRef(stepIndex)
+  useEffect(() => {
+    if (prevStepIndexRef.current === stepIndex) return
+    prevStepIndexRef.current = stepIndex
+    rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [stepIndex])
 
   const jumpToKey = useCallback(
     (key: string) => {
@@ -186,6 +224,7 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
   )
 
   const handleNext = async () => {
+    if (submitting) return
     setStepError(null)
     const err = activeStep.validate(draft)
     if (err) {
@@ -198,22 +237,36 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
       return
     }
 
-    // Last step → submit. (For now there's no "review" step yet so submitting
-    // happens off the last available step. D6 will move the submit button into
-    // the dedicated review step.)
-    setSubmitting(true)
-    setSubmitError(null)
-    const result = await onSubmit(draft)
-    setSubmitting(false)
-
-    if (result.error) {
-      setSubmitError(result.error)
+    // Last step → submit. Re-validate every step first so a draft that went
+    // stale (e.g. its date slipped into the past) can never slip through.
+    const firstInvalid = activeSteps.findIndex((s) => s.validate(draft) !== null)
+    if (firstInvalid >= 0 && firstInvalid < stepIndex) {
+      setStepIndex(firstInvalid)
+      setStepError(activeSteps[firstInvalid].validate(draft))
       return
     }
 
-    if (result.id) {
-      clearPersisted()
-      onSuccess?.(result.id)
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const result = await onSubmit(draft)
+
+      if (result.error) {
+        setSubmitError(result.error)
+        return
+      }
+
+      if (result.id) {
+        clearPersisted()
+        onSuccess?.(result.id)
+      }
+    } catch (e) {
+      console.error('wizard submit error:', e)
+      setSubmitError(
+        'Could not reach the server — check your connection and try again. Your draft is safe on this device.',
+      )
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -223,12 +276,13 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
   }
 
   const handleReset = () => {
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm('Discard this draft and start over?')
-    ) {
+    if (typeof window === 'undefined') return
+    if (resetControl) {
+      if (!window.confirm(resetControl.confirmText)) return
+      resetControl.onReset()
       return
     }
+    if (!window.confirm('Discard this draft and start over?')) return
     reset()
     setStepIndex(0)
     setStepError(null)
@@ -236,11 +290,11 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div ref={rootRef} className="mx-auto max-w-3xl scroll-mt-24">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">
-            {mode === 'community' ? 'Submit an event' : 'Create event'}
+            {heading ?? (mode === 'community' ? 'Submit an event' : 'Create event')}
           </h1>
           <p className="mt-1 text-sm text-white/55">
             {subtitle ??
@@ -250,17 +304,32 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
                   ? 'Goes into your draft list. Submit for review when you are ready.'
                   : 'Your submission goes to the moderation queue. Approved events appear on the public site.')}
           </p>
+          {hydrated && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-white/40">
+              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-400/80" />
+              Draft autosaved on this device
+              {lastSavedAt
+                ? ` · ${lastSavedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+                : ''}
+            </p>
+          )}
         </div>
         <button
           type="button"
           onClick={handleReset}
           className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/[0.08] hover:text-white"
         >
-          Reset draft
+          {resetControl?.label ?? 'Reset draft'}
         </button>
       </div>
 
-      <Stepper steps={activeSteps} activeIndex={stepIndex} onJump={(i) => { setStepIndex(i); setStepError(null) }} draft={draft} />
+      <Stepper
+        steps={activeSteps}
+        activeIndex={stepIndex}
+        maxJumpIndex={maxJumpIndex}
+        onJump={(i) => { setStepIndex(i); setStepError(null) }}
+        draft={draft}
+      />
 
       <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
         {activeStep.key === 'type' && (
@@ -291,6 +360,7 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
 
       {submitError && (
         <SubmitErrorModal
+          title={errorTitle}
           message={submitError}
           onDismiss={() => setSubmitError(null)}
         />
@@ -315,14 +385,17 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
           type="button"
           onClick={handleNext}
           disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? (
-            'Submitting...'
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Submitting…
+            </>
           ) : isLast ? (
             <>
               <Check className="h-3.5 w-3.5" />
-              Submit
+              {submitLabel ?? 'Submit'}
             </>
           ) : (
             <>
@@ -339,32 +412,37 @@ export default function EventCreationWizard({ onSubmit, mode, onSuccess, initial
 function Stepper(props: {
   steps: StepDef[]
   activeIndex: number
+  /** Farthest index reachable by direct jump (every step before it passes). */
+  maxJumpIndex: number
   onJump: (i: number) => void
   draft: EventDraft
 }) {
-  const { steps, activeIndex, onJump, draft } = props
+  const { steps, activeIndex, maxJumpIndex, onJump, draft } = props
 
   return (
     <ol className="flex flex-wrap gap-2">
       {steps.map((step, idx) => {
         const isActive = idx === activeIndex
         const isPast = idx < activeIndex
+        const reachable = idx <= activeIndex || idx <= maxJumpIndex
         const passes = step.validate(draft) === null
         return (
           <li key={step.key}>
             <button
               type="button"
               onClick={() => {
-                if (idx <= activeIndex) onJump(idx)
+                if (reachable) onJump(idx)
               }}
-              disabled={idx > activeIndex}
+              disabled={!reachable}
               className={[
                 'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
                 isActive
                   ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
                   : isPast
                     ? 'border-white/15 bg-white/[0.06] text-white/85 hover:bg-white/[0.10]'
-                    : 'border-white/10 bg-transparent text-white/40',
+                    : reachable
+                      ? 'border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08] hover:text-white'
+                      : 'border-white/10 bg-transparent text-white/40',
               ].join(' ')}
             >
               <span

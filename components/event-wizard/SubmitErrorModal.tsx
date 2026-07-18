@@ -5,9 +5,11 @@ import { useEffect } from 'react'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 
 export default function SubmitErrorModal({
+  title,
   message,
   onDismiss,
 }: {
+  title?: string
   message: string
   onDismiss: () => void
 }) {
@@ -37,7 +39,7 @@ export default function SubmitErrorModal({
           <AlertTriangle className="h-6 w-6 text-red-300" />
         </div>
         <h2 id="submit-error-title" className="mt-5 text-xl font-bold text-white">
-          Couldn&apos;t submit your event
+          {title ?? "Couldn't submit your event"}
         </h2>
         <p className="mt-3 text-sm leading-6 text-white/65">{message}</p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
