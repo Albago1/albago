@@ -18,6 +18,7 @@ import {
   MapPin,
   Music,
   RefreshCw,
+  Repeat,
   ScanLine,
   Sparkles,
   Ticket,
@@ -128,6 +129,9 @@ function readingToDraftPatch(reading: PosterReading): Partial<EventDraft> {
     price: reading.price,
     organizer_name: reading.organizer_name,
     organizer_website: reading.organizer_website,
+    recurrence: reading.recurrence,
+    recurrence_until: reading.recurrence_until,
+    recurrence_days_of_week: reading.recurrence_days_of_week,
   }
 }
 
@@ -799,6 +803,32 @@ export default function ScanClient() {
               (resolution && resolution.city.status !== 'none'
                 ? resolution.city.label
                 : reading.city)
+            // "Repeats daily · until 24 Aug" / "Repeats weekly · Fri · until …"
+            const weekdayShort = (iso: number) => {
+              // 2024-01-01 was a Monday, so +offset walks the ISO week.
+              const d = new Date(Date.UTC(2024, 0, iso))
+              return new Intl.DateTimeFormat(languageLocales[language], {
+                weekday: 'short',
+                timeZone: 'UTC',
+              }).format(d)
+            }
+            const recurrenceLabel =
+              reading.recurrence === 'none'
+                ? null
+                : [
+                    reading.recurrence === 'daily'
+                      ? t('lens_repeat_daily')
+                      : t('lens_repeat_weekly'),
+                    reading.recurrence === 'weekly' &&
+                    reading.recurrence_days_of_week.length > 0
+                      ? reading.recurrence_days_of_week.map(weekdayShort).join(', ')
+                      : null,
+                    reading.recurrence_until
+                      ? `${t('lens_repeat_until')} ${formatDate(reading.recurrence_until)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
 
             return (
               <motion.div
@@ -846,6 +876,12 @@ export default function ScanClient() {
                               {reading.end_time ? `–${reading.end_time}` : ''}
                             </span>
                           )}
+                        </p>
+                      )}
+                      {recurrenceLabel && (
+                        <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-flame-300/90">
+                          <Repeat className="h-4 w-4 shrink-0" />
+                          {recurrenceLabel}
                         </p>
                       )}
                       {(displayVenue || displayCity) && (

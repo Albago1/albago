@@ -27,7 +27,7 @@ const SYSTEM_PROMPT = `You read a person's own free-text description of an event
 Rules:
 1. NEVER invent information. If the description does not state a field, return "" (or [] for lists). The person reviews and completes the draft afterwards — an empty field is correct, a guessed one damages trust. Do not embellish.
 2. description: rewrite the person's own wording as 1–4 clean sentences in the SAME language they wrote in. Only facts they stated — no marketing additions, no invented details.
-3. Dates: resolve relative expressions ("next Friday", "nesër", "të shtunën", "übermorgen", "mañana") to ISO YYYY-MM-DD using the reference date you are given. Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), German, Spanish, or Italian. If a year is missing, assume the next occurrence. If no date is stated, return "".
+3. Dates: resolve relative expressions ("next Friday", "nesër", "të shtunën", "übermorgen", "mañana") to ISO YYYY-MM-DD using the reference date you are given. Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), German, Spanish, or Italian. If a year is missing, assume the next occurrence. If they describe a range of consecutive days ("22–24 August", "nga 22 deri më 24 gusht"), set date to the FIRST day, recurrence to "daily" and recurrence_until to the LAST day. If no date is stated, return "".
 4. Times: 24h HH:MM. Prefer the start time over doors.
 5. category: exactly one of nightlife, music, sports, culture, food, civic — or "" if unclear. Protests, marches, commemorations, civic assemblies → civic and is_civic true.
 6. price: exactly as stated, including currency. Free → the person's own wording.
@@ -35,6 +35,7 @@ Rules:
 8. tags: up to 5 lowercase single words (genre, scene, occasion).
 9. artists: performer/speaker names if the person named any, largest billing first.
 10. is_event: false when the text is not describing a single real-world event (a question, a complaint, a business ad with no event in it). Vague or very thin descriptions get low confidence — be honest, the UI warns the user.
+11. Repetition — ONLY when the person states it, never guessed: a weekly pattern ("every Friday", "çdo të premte", "jeden Freitag", "cada viernes") → recurrence "weekly" with recurrence_days_of_week as ISO numbers (1=Monday … 7=Sunday) and date = the next occurrence. "every day" / "çdo ditë" / "daily" → recurrence "daily". A stated series end ("until Sep 30", "deri më 30 shtator") → recurrence_until as ISO date. A one-off event → recurrence "none" with empty recurrence_until and [].
 
 Return ONLY a JSON object with exactly these keys:
 ${LENS_JSON_SHAPE}
