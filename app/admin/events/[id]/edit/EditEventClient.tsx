@@ -4,16 +4,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
+  AlertTriangle,
   ArrowLeft,
+  CheckCircle2,
   ChevronDown,
   Flame,
   Globe2,
   ImageIcon,
   Link as LinkIcon,
+  Loader2,
   MapPin,
   Save,
   Trash2,
   UploadCloud,
+  X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import LocationAutocomplete, {
@@ -117,6 +121,8 @@ type FormState = {
   recurrence_until: string
   recurrence_dow: number[]
 }
+
+type FieldErrors = Partial<Record<string, string>>
 
 const STATUS_OPTIONS = [
   { value: 'published', label: 'Published' },
@@ -335,51 +341,334 @@ function diffPatch(initial: EditableEvent, current: FormState): Record<string, u
   return patch
 }
 
+// After a successful save the form must diff against what is now in the DB,
+// not the row the page loaded with — otherwise the dirty indicator never
+// clears and every later save re-sends already-saved fields.
+function formToBaseline(prev: EditableEvent, form: FormState): EditableEvent {
+  const socials: OrganizerSocials = {}
+  if (form.social_instagram.trim()) socials.instagram = form.social_instagram.trim()
+  if (form.social_facebook.trim()) socials.facebook = form.social_facebook.trim()
+  if (form.social_tiktok.trim()) socials.tiktok = form.social_tiktok.trim()
+  if (form.social_twitter.trim()) socials.twitter = form.social_twitter.trim()
+
+  const latTrim = form.lat.trim()
+  const lngTrim = form.lng.trim()
+  const attendeesTrim = form.expected_attendees.trim()
+
+  return {
+    ...prev,
+    title: form.title,
+    description: form.description,
+    category: form.category,
+    date: form.date,
+    time: form.time === '' ? null : form.time,
+    end_time: form.end_time === '' ? null : form.end_time,
+    timezone: form.timezone === '' ? null : form.timezone,
+    price: form.price === '' ? null : form.price,
+    highlight: form.highlight,
+    status: form.status,
+    location_slug: form.location_slug,
+    country: form.country,
+    region: form.region === '' ? null : form.region,
+    lat: latTrim === '' ? null : parseFloat(latTrim),
+    lng: lngTrim === '' ? null : parseFloat(lngTrim),
+    address: form.address === '' ? null : form.address,
+    is_online: form.is_online,
+    online_url: form.online_url === '' ? null : form.online_url,
+    tags: parseTagsInput(form.tagsRaw),
+    language: form.language === '' ? null : form.language,
+    banner_url: form.banner_url === '' ? null : form.banner_url,
+    admin_note: form.admin_note === '' ? null : form.admin_note,
+    event_type: form.event_type === '' ? null : form.event_type,
+    is_civic: form.is_civic,
+    featured_movement_slug:
+      form.featured_movement_slug === '' ? null : form.featured_movement_slug,
+    organizer_contact: form.organizer_contact === '' ? null : form.organizer_contact,
+    organizer_name: form.organizer_name === '' ? null : form.organizer_name,
+    organizer_phone: form.organizer_phone === '' ? null : form.organizer_phone,
+    organizer_website: form.organizer_website === '' ? null : form.organizer_website,
+    organizer_socials: Object.keys(socials).length ? socials : null,
+    telegram_link: form.telegram_link === '' ? null : form.telegram_link,
+    whatsapp_link: form.whatsapp_link === '' ? null : form.whatsapp_link,
+    safety_notes: form.safety_notes === '' ? null : form.safety_notes,
+    expected_attendees: attendeesTrim === '' ? null : parseInt(attendeesTrim, 10),
+    recurrence: form.recurrence,
+    recurrence_until:
+      form.recurrence_until.trim() === '' ? null : form.recurrence_until.trim(),
+    recurrence_days_of_week: [...form.recurrence_dow].sort((a, b) => a - b),
+  }
+}
+
+const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/
+
+function isHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const URL_HINT = 'Enter a full URL starting with https://'
+
+function validateForm(form: FormState): FieldErrors {
+  const errs: FieldErrors = {}
+
+  if (!form.title.trim()) errs.title = 'Title is required.'
+  if (!form.description.trim()) errs.description = 'Description is required.'
+  if (!form.date) errs.date = 'Date is required.'
+  if (form.time.trim() && !TIME_RE.test(form.time.trim()))
+    errs.time = 'Use 24h HH:MM, e.g. 22:00.'
+  if (form.end_time.trim() && !TIME_RE.test(form.end_time.trim()))
+    errs.end_time = 'Use 24h HH:MM, e.g. 02:00.'
+
+  if (form.is_online) {
+    if (!form.online_url.trim()) errs.online_url = 'Online events need a join URL.'
+    else if (!isHttpUrl(form.online_url.trim())) errs.online_url = URL_HINT
+  }
+
+  const lat = form.lat.trim()
+  const lng = form.lng.trim()
+  if (lat !== '' || lng !== '') {
+    const latNum = parseFloat(lat)
+    const lngNum = parseFloat(lng)
+    if (lat === '') errs.lat = 'Latitude and longitude go together.'
+    else if (Number.isNaN(latNum) || latNum < -90 || latNum > 90)
+      errs.lat = 'Latitude must be between -90 and 90.'
+    if (lng === '') errs.lng = 'Latitude and longitude go together.'
+    else if (Number.isNaN(lngNum) || lngNum < -180 || lngNum > 180)
+      errs.lng = 'Longitude must be between -180 and 180.'
+  }
+
+  if (form.expected_attendees.trim()) {
+    const n = Number(form.expected_attendees)
+    if (!Number.isInteger(n) || n < 0)
+      errs.expected_attendees = 'Enter a whole number of people.'
+  }
+
+  for (const k of ['organizer_website', 'telegram_link', 'whatsapp_link', 'banner_url'] as const) {
+    const v = form[k].trim()
+    if (v && !isHttpUrl(v)) errs[k] = URL_HINT
+  }
+
+  if (form.recurrence === 'weekly' && form.recurrence_dow.length === 0)
+    errs.recurrence_dow = 'Pick at least one weekday.'
+  if (
+    form.recurrence !== 'none' &&
+    form.recurrence_until &&
+    form.date &&
+    form.recurrence_until < form.date
+  )
+    errs.recurrence_until = 'Repeat-until is before the event date.'
+
+  return errs
+}
+
+const FIELD_IDS: Record<string, string> = {
+  title: 'f-title',
+  description: 'f-description',
+  date: 'f-date',
+  time: 'f-time',
+  end_time: 'f-end-time',
+  online_url: 'f-online-url',
+  lat: 'f-lat',
+  lng: 'f-lng',
+  expected_attendees: 'f-attendees',
+  organizer_website: 'f-org-web',
+  telegram_link: 'f-tg',
+  whatsapp_link: 'f-wa',
+  banner_url: 'f-banner',
+  recurrence_dow: 'f-rec-until',
+  recurrence_until: 'f-rec-until',
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Title',
+  description: 'Description',
+  date: 'Date',
+  time: 'Start time',
+  end_time: 'End time',
+  online_url: 'Online URL',
+  lat: 'Latitude',
+  lng: 'Longitude',
+  expected_attendees: 'Expected attendees',
+  organizer_website: 'Organizer website',
+  telegram_link: 'Telegram link',
+  whatsapp_link: 'WhatsApp link',
+  banner_url: 'Cover image URL',
+  recurrence_dow: 'Repeat weekdays',
+  recurrence_until: 'Repeat until',
+}
+
+const VALIDATION_ERROR_MSG = 'Fix the highlighted fields, then save again.'
+
+// Fields synced silently by the LENS-3 pack invalidation — not shown in the
+// unsaved-changes count because the admin never touched them directly.
+const HIDDEN_PATCH_KEYS = new Set(['title_i18n', 'description_i18n'])
+
+function countVisibleChanges(patch: Record<string, unknown>): number {
+  return Object.keys(patch).filter((k) => !HIDDEN_PATCH_KEYS.has(k)).length
+}
+
+function formatSavedTime(d: Date): string {
+  const now = new Date()
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  return d.toDateString() === now.toDateString()
+    ? time
+    : `${d.toLocaleDateString()} ${time}`
+}
+
 export default function EditEventClient({ initial }: { initial: EditableEvent }) {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
+  const [baseline, setBaseline] = useState<EditableEvent>(initial)
   const [form, setForm] = useState<FormState>(() => toFormState(initial))
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(() =>
+    initial.updated_at ? new Date(initial.updated_at) : null,
+  )
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const patch = useMemo(() => diffPatch(baseline, form), [baseline, form])
+  const dirtyCount = countVisibleChanges(patch)
+  const dirty = dirtyCount > 0
+
+  const showToast = (text: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ id: Date.now(), text })
+    toastTimer.current = setTimeout(() => setToast(null), 3500)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
+  }, [])
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key as string]
+      return next
+    })
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setError(null)
-    setMessage(null)
+  // Once every flagged field is corrected, retire the validation banner too.
+  useEffect(() => {
+    if (error === VALIDATION_ERROR_MSG && Object.keys(fieldErrors).length === 0) {
+      setError(null)
+    }
+  }, [fieldErrors, error])
 
-    const patch = diffPatch(initial, form)
-    if (Object.keys(patch).length === 0) {
-      setMessage('No changes to save.')
+  const focusField = (key: string) => {
+    const id = FIELD_IDS[key]
+    if (!id) return
+    // Small delay so conditionally-rendered panels (advanced location, URL
+    // override) can mount before we scroll to them.
+    setTimeout(() => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.focus({ preventScroll: true })
+    }, 80)
+  }
+
+  const performSave = async () => {
+    if (saving) return
+    setError(null)
+
+    const errs = validateForm(form)
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs)
+      setError(VALIDATION_ERROR_MSG)
+      focusField(Object.keys(errs)[0])
+      return
+    }
+    setFieldErrors({})
+
+    const patchNow = diffPatch(baseline, form)
+    if (Object.keys(patchNow).length === 0) {
+      showToast('Everything is already saved.')
       return
     }
 
     setSaving(true)
-    const { error: rpcError } = await supabase.rpc('admin_update_event', {
-      event_id: initial.id,
-      patch,
-    })
-    setSaving(false)
+    try {
+      const { error: rpcError } = await supabase.rpc('admin_update_event', {
+        event_id: initial.id,
+        patch: patchNow,
+      })
 
-    if (rpcError) {
-      console.error('admin_update_event error:', rpcError)
-      if (rpcError.code === '42501') {
-        setError(
-          'Update not allowed. Has the Phase 11 RPC been applied? See docs/seeds/phase-11-admin-event-update.sql.',
-        )
+      if (rpcError) {
+        console.error('admin_update_event error:', rpcError)
+        if (rpcError.code === '42501') {
+          setError(
+            'Update not allowed. Has the Phase 11 RPC been applied? See docs/seeds/phase-11-admin-event-update.sql.',
+          )
+        } else {
+          setError(`Save failed — nothing was changed. ${rpcError.message}`)
+        }
         return
       }
-      setError(rpcError.message)
-      return
-    }
 
-    setMessage('Saved.')
-    router.refresh()
+      const changed = countVisibleChanges(patchNow)
+      setBaseline((prev) => formToBaseline(prev, form))
+      setLastSavedAt(new Date())
+      showToast(changed === 1 ? 'Saved 1 change.' : `Saved ${changed} changes.`)
+      router.refresh()
+    } catch (err) {
+      console.error('admin_update_event network error:', err)
+      setError('Could not reach the server — check your connection and try again. Nothing was changed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Latest-save closure for the global Ctrl+S listener.
+  const performSaveRef = useRef(performSave)
+  useEffect(() => {
+    performSaveRef.current = performSave
+  })
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void performSaveRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
+
+  const guardInAppNav = (e: React.MouseEvent) => {
+    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) {
+      e.preventDefault()
+    }
+  }
+
+  const discardChanges = () => {
+    if (!window.confirm('Discard all unsaved changes?')) return
+    setForm(toFormState(baseline))
+    setFieldErrors({})
+    setError(null)
   }
 
   const deleteEvent = async () => {
@@ -391,48 +680,76 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
       return
     }
     setError(null)
-    setMessage(null)
     setSaving(true)
-    const { error: deleteError } = await supabase
-      .from('events')
-      .delete()
-      .eq('id', initial.id)
-    setSaving(false)
-    if (deleteError) {
-      console.error('events delete error:', deleteError)
-      if (deleteError.code === '42501') {
-        setError('Delete not allowed. Check the events_admin_write RLS policy.')
+    try {
+      const { error: deleteError } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', initial.id)
+      if (deleteError) {
+        console.error('events delete error:', deleteError)
+        if (deleteError.code === '42501') {
+          setError('Delete not allowed. Check the events_admin_write RLS policy.')
+          return
+        }
+        setError(`Delete failed: ${deleteError.message}`)
         return
       }
-      setError(`Delete failed: ${deleteError.message}`)
-      return
+      router.push('/admin/events')
+    } catch (err) {
+      console.error('events delete network error:', err)
+      setError('Delete failed — could not reach the server. The event was not deleted.')
+    } finally {
+      setSaving(false)
     }
-    router.push('/admin/events')
   }
 
   const quickStatus = async (status: string, label: string) => {
+    if (saving) return
     setError(null)
-    setMessage(null)
     setSaving(true)
-    const { error: rpcError } = await supabase.rpc('admin_update_event', {
-      event_id: initial.id,
-      patch: { status },
-    })
-    setSaving(false)
-    if (rpcError) {
-      console.error('admin_update_event error:', rpcError)
-      setError(`${label} failed: ${rpcError.message}`)
-      return
+    try {
+      const { error: rpcError } = await supabase.rpc('admin_update_event', {
+        event_id: initial.id,
+        patch: { status },
+      })
+      if (rpcError) {
+        console.error('admin_update_event error:', rpcError)
+        setError(`${label} failed: ${rpcError.message}`)
+        return
+      }
+      setForm((prev) => ({ ...prev, status }))
+      setBaseline((prev) => ({ ...prev, status }))
+      setLastSavedAt(new Date())
+      showToast(`${label} succeeded.`)
+      router.refresh()
+    } catch (err) {
+      console.error('admin_update_event network error:', err)
+      setError(`${label} failed — could not reach the server.`)
+    } finally {
+      setSaving(false)
     }
-    setForm((prev) => ({ ...prev, status }))
-    setMessage(`${label} succeeded.`)
-    router.refresh()
   }
 
   return (
     <div className="mx-auto max-w-3xl">
+      {toast && (
+        <div
+          key={toast.id}
+          role="status"
+          aria-live="polite"
+          className="toast-pop fixed left-1/2 top-5 z-[90] -translate-x-1/2"
+        >
+          <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/90 py-2.5 pl-3.5 pr-5 text-sm font-semibold text-emerald-100 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-400" />
+            {toast.text}
+          </div>
+        </div>
+      )}
+
       <Link
         href="/admin/events"
+        onClick={guardInAppNav}
         className="mb-3 inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
@@ -515,69 +832,74 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
         </button>
       </div>
 
-      {message && (
-        <div className="mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          void performSave()
+        }}
+        noValidate
+        className="mt-6 space-y-5"
+      >
         <Section title="Basics">
-          <Field label="Title" htmlFor="f-title">
+          <Field label="Title" htmlFor="f-title" error={fieldErrors.title}>
             <input
               id="f-title"
               type="text"
               value={form.title}
               onChange={(e) => setField('title', e.target.value)}
               required
+              aria-invalid={fieldErrors.title ? true : undefined}
               className="input"
             />
           </Field>
 
-          <Field label="Description" htmlFor="f-description">
+          <Field
+            label="Description"
+            htmlFor="f-description"
+            error={fieldErrors.description}
+          >
             <textarea
               id="f-description"
               value={form.description}
               onChange={(e) => setField('description', e.target.value)}
               rows={5}
               required
+              aria-invalid={fieldErrors.description ? true : undefined}
               className="input resize-y"
             />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-4">
-            <Field label="Date" htmlFor="f-date">
+            <Field label="Date" htmlFor="f-date" error={fieldErrors.date}>
               <input
                 id="f-date"
                 type="date"
                 value={form.date}
                 onChange={(e) => setField('date', e.target.value)}
                 required
+                aria-invalid={fieldErrors.date ? true : undefined}
                 className="input"
               />
             </Field>
-            <Field label="Start time" htmlFor="f-time">
+            <Field label="Start time" htmlFor="f-time" error={fieldErrors.time}>
               <input
                 id="f-time"
                 type="text"
                 value={form.time}
                 onChange={(e) => setField('time', e.target.value)}
                 placeholder="22:00"
+                aria-invalid={fieldErrors.time ? true : undefined}
                 className="input"
               />
             </Field>
-            <Field label="End time" htmlFor="f-end-time">
+            <Field label="End time" htmlFor="f-end-time" error={fieldErrors.end_time}>
               <input
                 id="f-end-time"
                 type="text"
                 value={form.end_time}
                 onChange={(e) => setField('end_time', e.target.value)}
                 placeholder="02:00"
+                aria-invalid={fieldErrors.end_time ? true : undefined}
                 className="input"
               />
             </Field>
@@ -620,7 +942,12 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
             </Field>
           </div>
 
-          <RecurrenceEditor form={form} setField={setField} />
+          <RecurrenceEditor
+            form={form}
+            setField={setField}
+            dowError={fieldErrors.recurrence_dow}
+            untilError={fieldErrors.recurrence_until}
+          />
 
           <Field label="Tags (comma-separated)" htmlFor="f-tags">
             <input
@@ -679,13 +1006,14 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
         </Section>
 
         <Section title="Location">
-          <LocationEditor form={form} setField={setField} />
+          <LocationEditor form={form} setField={setField} errors={fieldErrors} />
         </Section>
 
         <Section title="Media & moderation">
           <BannerEditor
             bannerUrl={form.banner_url}
             onChange={(url) => setField('banner_url', url)}
+            urlError={fieldErrors.banner_url}
           />
           <Field
             label="Admin note (visible to owning organizer)"
@@ -722,13 +1050,18 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
               />
             </Field>
           </div>
-          <Field label="Organizer website" htmlFor="f-org-web">
+          <Field
+            label="Organizer website"
+            htmlFor="f-org-web"
+            error={fieldErrors.organizer_website}
+          >
             <input
               id="f-org-web"
               type="url"
               value={form.organizer_website}
               onChange={(e) => setField('organizer_website', e.target.value)}
               placeholder="https://..."
+              aria-invalid={fieldErrors.organizer_website ? true : undefined}
               className="input"
             />
           </Field>
@@ -826,7 +1159,11 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
                 className="input"
               />
             </Field>
-            <Field label="Expected attendees" htmlFor="f-attendees">
+            <Field
+              label="Expected attendees"
+              htmlFor="f-attendees"
+              error={fieldErrors.expected_attendees}
+            >
               <input
                 id="f-attendees"
                 type="number"
@@ -834,29 +1171,40 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
                 max={5_000_000}
                 value={form.expected_attendees}
                 onChange={(e) => setField('expected_attendees', e.target.value)}
+                aria-invalid={fieldErrors.expected_attendees ? true : undefined}
                 className="input font-mono"
               />
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Telegram link" htmlFor="f-tg">
+            <Field
+              label="Telegram link"
+              htmlFor="f-tg"
+              error={fieldErrors.telegram_link}
+            >
               <input
                 id="f-tg"
                 type="url"
                 value={form.telegram_link}
                 onChange={(e) => setField('telegram_link', e.target.value)}
                 placeholder="https://t.me/..."
+                aria-invalid={fieldErrors.telegram_link ? true : undefined}
                 className="input"
               />
             </Field>
-            <Field label="WhatsApp link" htmlFor="f-wa">
+            <Field
+              label="WhatsApp link"
+              htmlFor="f-wa"
+              error={fieldErrors.whatsapp_link}
+            >
               <input
                 id="f-wa"
                 type="url"
                 value={form.whatsapp_link}
                 onChange={(e) => setField('whatsapp_link', e.target.value)}
                 placeholder="https://chat.whatsapp.com/..."
+                aria-invalid={fieldErrors.whatsapp_link ? true : undefined}
                 className="input"
               />
             </Field>
@@ -873,15 +1221,90 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
           </Field>
         </Section>
 
-        <div className="sticky bottom-3 z-10 -mx-2 flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_30px_rgba(238,28,37,0.35)] transition hover:bg-flame-400 disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {saving ? 'Saving...' : 'Save changes'}
-          </button>
+        <div className="sticky bottom-3 z-10 space-y-2">
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 rounded-2xl border border-red-500/30 bg-red-950/90 p-4 text-sm text-red-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-300" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{error}</p>
+                {Object.keys(fieldErrors).length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5 text-xs text-red-200/85">
+                    {Object.entries(fieldErrors).map(([k, msg]) => (
+                      <li key={k}>
+                        <button
+                          type="button"
+                          onClick={() => focusField(k)}
+                          className="font-semibold underline underline-offset-2 transition hover:text-white"
+                        >
+                          {FIELD_LABELS[k] ?? k}
+                        </button>
+                        {': '}
+                        {msg}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                aria-label="Dismiss error"
+                className="flex-shrink-0 rounded-full p-1 text-red-200/70 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-ink-950/90 px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+            <div className="min-w-0 text-xs" aria-live="polite">
+              {saving ? (
+                <span className="inline-flex items-center gap-1.5 font-semibold text-white/70">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Saving…
+                </span>
+              ) : dirty ? (
+                <span className="inline-flex items-center gap-1.5 font-semibold text-amber-200">
+                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-300" />
+                  {dirtyCount === 1 ? '1 unsaved change' : `${dirtyCount} unsaved changes`}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-white/45">
+                  <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-400" />
+                  All changes saved
+                  {lastSavedAt ? ` · ${formatSavedTime(lastSavedAt)}` : ''}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-shrink-0 items-center gap-2">
+              {dirty && !saving && (
+                <button
+                  type="button"
+                  onClick={discardChanges}
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  Discard
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={saving || !dirty}
+                title="Ctrl+S / ⌘S"
+                className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_30px_rgba(238,28,37,0.35)] transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
+              </button>
+            </div>
+          </div>
         </div>
       </form>
 
@@ -899,6 +1322,27 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
         }
         :global(.input:focus) {
           border-color: rgba(255, 255, 255, 0.25);
+        }
+        :global(.input[aria-invalid='true']) {
+          border-color: rgba(248, 113, 113, 0.55);
+        }
+        :global(.input[aria-invalid='true']:focus) {
+          border-color: rgba(248, 113, 113, 0.8);
+        }
+      `}</style>
+      <style jsx global>{`
+        .toast-pop {
+          animation: albago-toast-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes albago-toast-pop {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -8px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
         }
       `}</style>
     </div>
@@ -925,10 +1369,12 @@ function Section({
 function Field({
   label,
   htmlFor,
+  error,
   children,
 }: {
   label: string
   htmlFor: string
+  error?: string
   children: React.ReactNode
 }) {
   return (
@@ -937,6 +1383,9 @@ function Field({
         {label}
       </label>
       {children}
+      {error && (
+        <p className="mt-1.5 text-xs font-medium text-red-300">{error}</p>
+      )}
     </div>
   )
 }
@@ -954,9 +1403,13 @@ const EDIT_WEEKDAYS = [
 function RecurrenceEditor({
   form,
   setField,
+  dowError,
+  untilError,
 }: {
   form: FormState
   setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void
+  dowError?: string
+  untilError?: string
 }) {
   const toggleDay = (iso: number) => {
     const set = new Set(form.recurrence_dow)
@@ -1023,16 +1476,20 @@ function RecurrenceEditor({
               )
             })}
           </div>
+          {dowError && (
+            <p className="mt-1.5 text-xs font-medium text-red-300">{dowError}</p>
+          )}
         </div>
       )}
 
       {form.recurrence !== 'none' && (
-        <Field label="Repeat until (optional)" htmlFor="f-rec-until">
+        <Field label="Repeat until (optional)" htmlFor="f-rec-until" error={untilError}>
           <input
             id="f-rec-until"
             type="date"
             value={form.recurrence_until}
             onChange={(e) => setField('recurrence_until', e.target.value)}
+            aria-invalid={untilError ? true : undefined}
             className="input"
           />
         </Field>
@@ -1068,9 +1525,11 @@ function formToResolved(form: FormState): ResolvedAddress | null {
 function LocationEditor({
   form,
   setField,
+  errors,
 }: {
   form: FormState
   setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void
+  errors: FieldErrors
 }) {
   const [query, setQuery] = useState<string>(
     () => form.address || form.location_slug || '',
@@ -1079,6 +1538,9 @@ function LocationEditor({
     formToResolved(form),
   )
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  // Validation errors on the manual lat/lng fields force the panel open so
+  // the flagged inputs are reachable.
+  const advancedShown = advancedOpen || !!errors.lat || !!errors.lng
 
   // Keep the resolved view in sync if the raw lat/lng/slug are edited via
   // the Advanced override panel.
@@ -1162,9 +1624,13 @@ function LocationEditor({
               value={form.online_url}
               onChange={(e) => setField('online_url', e.target.value)}
               placeholder="https://zoom.us/j/..."
+              aria-invalid={errors.online_url ? true : undefined}
               className="input pl-10"
             />
           </div>
+          {errors.online_url && (
+            <p className="text-xs font-medium text-red-300">{errors.online_url}</p>
+          )}
 
           {/* Even online events get a tagged city for discovery (optional). */}
           <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -1220,11 +1686,11 @@ function LocationEditor({
           <ChevronDown
             className={[
               'h-4 w-4 transition-transform',
-              advancedOpen ? 'rotate-180' : '',
+              advancedShown ? 'rotate-180' : '',
             ].join(' ')}
           />
         </button>
-        {advancedOpen && (
+        {advancedShown && (
           <div className="space-y-4 border-t border-white/10 px-4 py-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="City slug" htmlFor="f-loc-slug">
@@ -1267,23 +1733,25 @@ function LocationEditor({
                   className="input"
                 />
               </Field>
-              <Field label="Latitude" htmlFor="f-lat">
+              <Field label="Latitude" htmlFor="f-lat" error={errors.lat}>
                 <input
                   id="f-lat"
                   type="number"
                   step="any"
                   value={form.lat}
                   onChange={(e) => setField('lat', e.target.value)}
+                  aria-invalid={errors.lat ? true : undefined}
                   className="input font-mono"
                 />
               </Field>
-              <Field label="Longitude" htmlFor="f-lng">
+              <Field label="Longitude" htmlFor="f-lng" error={errors.lng}>
                 <input
                   id="f-lng"
                   type="number"
                   step="any"
                   value={form.lng}
                   onChange={(e) => setField('lng', e.target.value)}
+                  aria-invalid={errors.lng ? true : undefined}
                   className="input font-mono"
                 />
               </Field>
@@ -1298,14 +1766,19 @@ function LocationEditor({
 function BannerEditor({
   bannerUrl,
   onChange,
+  urlError,
 }: {
   bannerUrl: string
   onChange: (url: string) => void
+  urlError?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const { upload, uploading, error: uploadError } = useImageUpload('event-covers')
   const [localPreview, setLocalPreview] = useState<string | null>(null)
   const [urlOverrideOpen, setUrlOverrideOpen] = useState(false)
+  // A validation error on the pasted URL forces the override open so the
+  // flagged input is visible.
+  const urlOverrideShown = urlOverrideOpen || !!urlError
 
   useEffect(() => {
     return () => {
@@ -1435,11 +1908,11 @@ function BannerEditor({
           <ChevronDown
             className={[
               'h-4 w-4 transition-transform',
-              urlOverrideOpen ? 'rotate-180' : '',
+              urlOverrideShown ? 'rotate-180' : '',
             ].join(' ')}
           />
         </button>
-        {urlOverrideOpen && (
+        {urlOverrideShown && (
           <div className="border-t border-white/10 px-4 py-3">
             <input
               id="f-banner"
@@ -1447,8 +1920,12 @@ function BannerEditor({
               value={bannerUrl}
               onChange={(e) => onChange(e.target.value)}
               placeholder="https://..."
+              aria-invalid={urlError ? true : undefined}
               className="input"
             />
+            {urlError && (
+              <p className="mt-1.5 text-xs font-medium text-red-300">{urlError}</p>
+            )}
           </div>
         )}
       </div>
