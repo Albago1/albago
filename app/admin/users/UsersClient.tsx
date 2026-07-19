@@ -419,7 +419,9 @@ export default function UsersClient({
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Joined</th>
                 <th className="px-4 py-3">Last seen</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                {/* Fixed width so the action buttons wrap into rows instead
+                    of stretching the table wider than the screen. */}
+                <th className="w-[260px] px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -433,7 +435,10 @@ export default function UsersClient({
                     className="border-t border-white/[0.06] transition hover:bg-white/[0.02]"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-mono text-xs text-white/90">
+                      <div
+                        className="max-w-[240px] truncate font-mono text-xs text-white/90"
+                        title={u.email}
+                      >
                         {u.email}
                       </div>
                       {isSelf && (
@@ -500,7 +505,7 @@ export default function UsersClient({
                     <td className="px-4 py-3 text-xs text-white/55">
                       {timeAgo(u.last_sign_in_at)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="w-[260px] px-4 py-3">
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {!confirmed && (
                           <button
