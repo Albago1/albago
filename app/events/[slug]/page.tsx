@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
@@ -29,6 +30,7 @@ import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
 import EventGallery from '@/components/EventGallery'
 import LocalizedEventText from '@/components/events/LocalizedEventText'
+import EventWeatherCard from '@/components/events/EventWeatherCard'
 import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
@@ -844,6 +846,31 @@ export default async function EventDetailPage(
               </div>
 
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
+
+              {/* Forecast at the event's start hour. Only renders when the
+                  event is soon (~16-day forecast window), physical, and has
+                  coordinates — otherwise the section doesn't exist at all. */}
+              {!hasEnded &&
+                !event.is_online &&
+                directionsLat != null &&
+                directionsLng != null && (
+                  <Suspense fallback={null}>
+                    <EventWeatherCard
+                      lat={directionsLat}
+                      lng={directionsLng}
+                      date={
+                        isRecurring(event)
+                          ? (nextOccurrence(event) ?? event.date)
+                          : event.date
+                      }
+                      time={event.time}
+                      timezone={getEventTimezone(
+                        event.location_slug,
+                        event.country,
+                      )}
+                    />
+                  </Suspense>
+                )}
 
               {(priceFromLabel || event.price) && (
                 <div className="mt-5 border-t border-white/[0.08] pt-5">
