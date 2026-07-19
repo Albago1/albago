@@ -407,8 +407,11 @@ export default function UsersClient({
           No users match this filter.
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-3xl border border-white/10 bg-white/[0.03]">
+          {/* overflow-x-auto (not hidden) on the wrapper: on phones the table
+              is wider than the screen and must swipe sideways to reach the
+              Actions column. */}
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-white/[0.04] text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
               <tr>
                 <th className="px-4 py-3">Email</th>
