@@ -41,8 +41,11 @@ see ThemeToggle / CookieConsent / AdminCommandPalette for the house patterns).
 
 1. **Albanian i18n sweep** (operating plan §3; audit P1 #6) — the platform is still
    English-first for an Albanian audience. Biggest open "perfect what exists" item.
-2. **/submit-event end-to-end verification** (audit P0 #4) — still never verified with
-   a real submission reaching the moderation queue. Needs a real test run + cleanup.
+2. ~~/submit-event end-to-end verification~~ — **CLOSED 2026-07-19.** Real run:
+   fresh user → confirm → submit_event_submission RPC → row pending in queue →
+   submitter delete correctly blocked by RLS. Side catches fixed the same day:
+   admin users table unscrollable on mobile, and admin_confirm_user_email
+   writing the now-GENERATED confirmed_at column (seed + live DB both fixed).
 3. **Events discovery page is fully client-rendered** (audit P2 #10) — server-render
    the first page of results for SEO/first-paint on the core discovery surface.
 4. **Wizard step consolidation** (audit P2 #8) — 8 steps, two are single-choice
