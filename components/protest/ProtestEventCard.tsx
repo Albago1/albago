@@ -20,6 +20,7 @@ import {
 } from '@/lib/recurrence'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
 import { zonedWallClockToUtcMs } from '@/lib/timezone'
+import ProtestWeatherMeta from '@/components/protest/ProtestWeatherMeta'
 
 export type ProtestEvent = {
   id: string
@@ -178,6 +179,15 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
             {formatProtestNumber(event.expectedAttendees)} expected
           </Meta>
         )}
+        {/* Forecast chip — appears only once the browser has a forecast for
+            the (next) occurrence; nothing renders for far-off dates. */}
+        <ProtestWeatherMeta
+          lat={event.lat}
+          lng={event.lng}
+          date={baseDate}
+          time={event.time}
+          timezone={event.timezone}
+        />
         {event.address && (
           <Meta icon={<MapPin className="h-3.5 w-3.5" />} className="col-span-2">
             {event.address}
