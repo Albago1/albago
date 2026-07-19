@@ -72,10 +72,11 @@ BEGIN
     RAISE EXCEPTION 'not_admin' USING ERRCODE = '42501';
   END IF;
 
+  -- confirmed_at is a GENERATED column (derived from email/phone confirmation)
+  -- on current Supabase — writing it fails with 'column "confirmed_at" can
+  -- only be updated to DEFAULT'. Setting email_confirmed_at is sufficient.
   UPDATE auth.users
-  SET
-    email_confirmed_at = COALESCE(email_confirmed_at, now()),
-    confirmed_at       = COALESCE(confirmed_at, now())
+  SET email_confirmed_at = COALESCE(email_confirmed_at, now())
   WHERE id = target_user;
 END;
 $$;
