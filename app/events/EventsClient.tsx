@@ -261,8 +261,9 @@ function EventsContent() {
         setIsLoading(false)
 
         if (error) {
+          // Raw DB errors stay in the console; visitors get a human message.
           console.error('[events] search fetch failed:', error.message)
-          setErrorMessage(error.message)
+          setErrorMessage("We couldn't load events right now — please try again in a moment.")
           return
         }
 
@@ -303,7 +304,7 @@ function EventsContent() {
 
         if (eventsRes.error) {
           console.error('[events] fetch failed:', eventsRes.error.message)
-          setErrorMessage(eventsRes.error.message)
+          setErrorMessage("We couldn't load events right now — please try again in a moment.")
           return
         }
 

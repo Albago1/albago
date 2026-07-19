@@ -91,7 +91,12 @@ export default function ReportEventButton({ eventId }: Props) {
     setIsSubmitting(false)
 
     if (error) {
-      setErrorMessage(error.message)
+      console.error('[report_event]', error.message)
+      setErrorMessage(
+        /rate limit/i.test(error.message)
+          ? "You've sent several reports recently — please try again later."
+          : "Couldn't send your report — please try again in a moment.",
+      )
       return
     }
     setSuccess(true)

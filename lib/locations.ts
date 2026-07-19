@@ -45,11 +45,27 @@ export const locations: LocationOption[] = [
 
 export const defaultLocationSlug = 'tirana'
 
-export function getLocationBySlug(slug?: string | null) {
-  return (
-    locations.find((location) => location.slug === slug) ??
-    locations.find((location) => location.slug === defaultLocationSlug)!
-  )
+export function getLocationBySlug(slug?: string | null): LocationOption {
+  const known = locations.find((location) => location.slug === slug)
+  if (known) return known
+
+  const home = locations.find(
+    (location) => location.slug === defaultLocationSlug,
+  )!
+  if (!slug) return home
+
+  // Unknown slug (Nominatim-derived cities like "berlin"): synthesize an
+  // honest option — real slug, titleized label, no country claim — instead
+  // of silently answering "Tirana" (audit M2). Tirana's geometry stays as a
+  // neutral map anchor only; map surfaces fit to real marker data anyway.
+  return {
+    ...home,
+    slug,
+    label: titleizeSlug(slug),
+    country: '',
+    city: undefined,
+    region: undefined,
+  }
 }
 
 function titleizeSlug(slug: string): string {

@@ -60,7 +60,8 @@ export default function NotificationPreferencesForm({
 
     if (error) {
       setSavedEventUpdates(previous)
-      setErrorMessage(error.message)
+      console.error('[notification_preferences]', error.message)
+      setErrorMessage("Couldn't save your preferences — please try again.")
       return
     }
 
