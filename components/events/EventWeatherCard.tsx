@@ -1,5 +1,9 @@
 import { getEventForecast, isWetWeather, weatherLabel } from '@/lib/weather'
-import { isSnowCode, weatherIcon } from '@/components/events/weatherIcon'
+import {
+  WEATHER_ICONS,
+  isSnowCode,
+  weatherIconKey,
+} from '@/components/events/weatherIcon'
 
 function rainLine(code: number, probability: number | null): string {
   const word = isSnowCode(code) ? 'snow' : 'rain'
@@ -27,7 +31,7 @@ export default async function EventWeatherCard(props: {
   const forecast = await getEventForecast(props)
   if (!forecast) return null
 
-  const Icon = weatherIcon(forecast.weatherCode)
+  const Icon = WEATHER_ICONS[weatherIconKey(forecast.weatherCode)]
   const wet =
     isWetWeather(forecast.weatherCode) ||
     (forecast.precipitationProbability ?? 0) >= 50

@@ -2,7 +2,11 @@
 
 import { useEventForecast } from '@/hooks/useEventForecast'
 import { isWetWeather, weatherLabel } from '@/lib/weather'
-import { isSnowCode, weatherIcon } from '@/components/events/weatherIcon'
+import {
+  WEATHER_ICONS,
+  isSnowCode,
+  weatherIconKey,
+} from '@/components/events/weatherIcon'
 
 /**
  * Compact forecast chip for protest/event list cards: "16°C · 38% rain".
@@ -19,7 +23,7 @@ export default function ProtestWeatherMeta(props: {
   const forecast = useEventForecast(props)
   if (!forecast) return null
 
-  const Icon = weatherIcon(forecast.weatherCode)
+  const Icon = WEATHER_ICONS[weatherIconKey(forecast.weatherCode)]
   const prob = forecast.precipitationProbability
   const wet = isWetWeather(forecast.weatherCode) || (prob ?? 0) >= 50
   const detail =

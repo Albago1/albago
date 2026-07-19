@@ -210,6 +210,7 @@ export default function AddressSearchField({
                 key={s.placeId}
                 type="button"
                 role="option"
+                aria-selected={false}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => applySuggestion(rich)}
                 className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:bg-white/[0.06]"

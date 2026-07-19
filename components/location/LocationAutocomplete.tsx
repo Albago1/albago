@@ -107,7 +107,6 @@ export default function LocationAutocomplete(props: Props) {
       ctrl.abort()
       clearTimeout(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, suggestionsLimit])
 
   // --- Mini-map setup ----------------------------------------------------

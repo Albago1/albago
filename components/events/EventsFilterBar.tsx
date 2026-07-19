@@ -56,10 +56,6 @@ function titleizeSlug(slug: string): string {
   return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
 type PanelId = 'location' | 'date' | 'sort' | null
 
 export type EventsFilterBarProps = {

@@ -8,6 +8,12 @@ export const metadata: Metadata = {
   title: 'Organizer Verification',
 }
 
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+}
+
 export default async function OrganizerVerificationPage() {
   const supabase = await createClient()
 
@@ -21,9 +27,7 @@ export default async function OrganizerVerificationPage() {
   if (!organizer) redirect('/onboarding/organizer')
 
   // Count published events in the last 90 days for the auto-promote progress bar.
-  const ninetyDaysAgoIso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const ninetyDaysAgoIso = isoDaysAgo(90)
 
   const { count: publishedRecentCount } = await supabase
     .from('events')

@@ -88,7 +88,7 @@ export default function BasicsStep({ draft, patch, addTag, removeTag }: Props) {
           className="input resize-y"
         />
         <p className="mt-1 text-xs text-white/40">
-          Minimum 20 characters. Markdown isn't supported yet.
+          Minimum 20 characters. Markdown isn&apos;t supported yet.
         </p>
       </Field>
 

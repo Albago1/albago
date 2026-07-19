@@ -849,7 +849,10 @@ export default async function EventDetailPage(
 
               {/* Forecast at the event's start hour. Only renders when the
                   event is soon (~16-day forecast window), physical, and has
-                  coordinates — otherwise the section doesn't exist at all. */}
+                  coordinates — otherwise the section doesn't exist at all.
+                  nextOccurrence resolves recurring events to their next date
+                  and in-progress multi-day events to today, so the widget
+                  stays alive mid-festival. */}
               {!hasEnded &&
                 !event.is_online &&
                 directionsLat != null &&
@@ -858,11 +861,7 @@ export default async function EventDetailPage(
                     <EventWeatherCard
                       lat={directionsLat}
                       lng={directionsLng}
-                      date={
-                        isRecurring(event)
-                          ? (nextOccurrence(event) ?? event.date)
-                          : event.date
-                      }
+                      date={nextOccurrence(event) ?? event.date}
                       time={event.time}
                       timezone={getEventTimezone(
                         event.location_slug,
