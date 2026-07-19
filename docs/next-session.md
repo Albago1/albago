@@ -46,10 +46,10 @@ see ThemeToggle / CookieConsent / AdminCommandPalette for the house patterns).
    submitter delete correctly blocked by RLS. Side catches fixed the same day:
    admin users table unscrollable on mobile, and admin_confirm_user_email
    writing the now-GENERATED confirmed_at column (seed + live DB both fixed).
-3. **Events discovery page is fully client-rendered** (audit P2 #10) — server-render
-   the first page of results for SEO/first-paint on the core discovery surface.
-4. **Wizard step consolidation** (audit P2 #8) — 8 steps, two are single-choice
-   screens. UX restructure: stage-and-confirm with the user before shipping.
+3. ~~Events discovery client-rendered~~ — **CLOSED 2026-07-19.** /events now
+   server-renders the initial list (search mode stays client-side).
+4. ~~Wizard step consolidation~~ — **CLOSED 2026-07-19.** Type+Category merged
+   into one screen; 8 steps → 7. User should eyeball the new combined step.
 5. **Seeds reconciliation** — `docs/seeds/` has drifted from the live DB before;
    verify deployed RPC signatures before any `CREATE OR REPLACE` (see memory note).
 
