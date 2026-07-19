@@ -57,16 +57,16 @@ type StepDef = {
 
 const STEPS: StepDef[] = [
   {
+    // Type + category merged into one screen (audit P2 #8): both were
+    // single-choice steps, and category only exists for non-protest events
+    // (protest auto-sets category to 'civic').
     key: 'type',
     label: 'Type',
-    validate: (d) => (d.event_type ? null : 'Pick an event type.'),
-  },
-  {
-    key: 'category',
-    label: 'Category',
-    skip: (d) => d.event_type === 'protest', // protest → category auto-set to 'civic'
-    validate: (d) =>
-      d.event_type === 'protest' || d.category ? null : 'Pick a category.',
+    validate: (d) => {
+      if (!d.event_type) return 'Pick an event type.'
+      if (d.event_type !== 'protest' && !d.category) return 'Pick a category.'
+      return null
+    },
   },
   {
     key: 'basics',
@@ -333,10 +333,14 @@ export default function EventCreationWizard({
 
       <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
         {activeStep.key === 'type' && (
-          <EventTypeStep draft={draft} patch={patch} />
-        )}
-        {activeStep.key === 'category' && (
-          <CategoryStep draft={draft} patch={patch} />
+          <>
+            <EventTypeStep draft={draft} patch={patch} />
+            {draft.event_type && draft.event_type !== 'protest' && (
+              <div className="mt-8 border-t border-white/[0.08] pt-8">
+                <CategoryStep draft={draft} patch={patch} />
+              </div>
+            )}
+          </>
         )}
         {activeStep.key === 'basics' && (
           <BasicsStep draft={draft} patch={patch} addTag={addTag} removeTag={removeTag} />
