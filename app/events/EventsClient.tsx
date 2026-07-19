@@ -109,15 +109,27 @@ function sortEventsByPriority(list: PublicEvent[]) {
   })
 }
 
-export default function EventsClient() {
+type EventsClientProps = {
+  /** Server-rendered initial list (null when SSR skipped, e.g. search mode). */
+  initialEvents?: PublicEvent[] | null
+  initialPlaceNames?: Array<[string, string]> | null
+}
+
+export default function EventsClient({
+  initialEvents = null,
+  initialPlaceNames = null,
+}: EventsClientProps) {
   return (
     <Suspense>
-      <EventsContent />
+      <EventsContent
+        initialEvents={initialEvents}
+        initialPlaceNames={initialPlaceNames}
+      />
     </Suspense>
   )
 }
 
-function EventsContent() {
+function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) {
   const { t } = useLanguage()
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
@@ -162,9 +174,15 @@ function EventsContent() {
   // the bottom-nav Search tab). The param is stripped right away so tapping
   // the tab again re-triggers the focus.
   const [searchFocusSignal, setSearchFocusSignal] = useState(0)
-  const [events, setEvents] = useState<PublicEvent[]>([])
-  const [placeNames, setPlaceNames] = useState<Map<string, string>>(new Map())
-  const [isLoading, setIsLoading] = useState(true)
+  const [events, setEvents] = useState<PublicEvent[]>(initialEvents ?? [])
+  const [placeNames, setPlaceNames] = useState<Map<string, string>>(
+    () => new Map(initialPlaceNames ?? []),
+  )
+  const [isLoading, setIsLoading] = useState(initialEvents == null)
+  // The server already rendered the list for the initial URL — skip the
+  // mount-time client refetch of identical data. Later runs (city change,
+  // search, dynamic location list arriving) fetch as before.
+  const serverSeededRef = useRef(initialEvents != null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
   const [isAuth, setIsAuth] = useState(false)
@@ -316,6 +334,10 @@ function EventsContent() {
       }
     }
 
+    if (serverSeededRef.current) {
+      serverSeededRef.current = false
+      return
+    }
     fetchEvents()
   }, [supabase, activeLocationSlug, debouncedSearch, locationOptions])
 
