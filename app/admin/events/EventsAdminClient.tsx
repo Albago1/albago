@@ -74,9 +74,10 @@ export default function EventsAdminClient() {
 
   const [repostSource, setRepostSource] = useState<{ id: string; title: string } | null>(null)
 
+  // No synchronous setState before the first await — the mount effect calls
+  // this directly (loading starts true); refresh() handles spinner resets.
+  // Success messages set by callers (e.g. repost created) survive a refetch.
   const fetchRows = useCallback(async () => {
-    setLoading(true)
-    setMessage(null)
     const { data, error } = await supabase
       .from('events')
       .select(
@@ -94,8 +95,17 @@ export default function EventsAdminClient() {
     setLoading(false)
   }, [supabase])
 
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setMessage(null)
+    await fetchRows()
+  }, [fetchRows])
+
   useEffect(() => {
-    fetchRows()
+    // Mount fetch: fetchRows only calls setState after its await, but the
+    // rule can't trace through the function call. Same pattern as UsersClient.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchRows()
   }, [fetchRows])
 
   const counts = useMemo(() => {
@@ -145,7 +155,7 @@ export default function EventsAdminClient() {
       setMessage(`${verbed} failed: ${error.message}`)
       return
     }
-    await fetchRows()
+    await refresh()
   }
 
   const unpublishRow = (row: EventRow) => patchStatus(row, 'draft', 'Unpublish')
@@ -176,7 +186,7 @@ export default function EventsAdminClient() {
       setMessage(`Delete failed: ${error.message}`)
       return
     }
-    await fetchRows()
+    await refresh()
   }
 
   return (

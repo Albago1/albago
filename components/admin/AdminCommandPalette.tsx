@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -142,21 +143,11 @@ function detectMac(): boolean {
   return /mac/i.test(navigator.platform)
 }
 
+// Shell: owns only the open flag and global listeners. The dialog body is
+// mounted only while open, so closing resets all palette state by unmount —
+// no reset-on-close effect required.
 export default function AdminCommandPalette() {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [organizers, setOrganizers] = useState<OrganizerItem[]>([])
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const [mac, setMac] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const requestIdRef = useRef(0)
-  const selectedRowRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    setMac(detectMac())
-  }, [])
 
   // Global hotkey + custom event from the top-bar button
   useEffect(() => {
@@ -175,17 +166,39 @@ export default function AdminCommandPalette() {
     }
   }, [])
 
-  // Reset on close, focus on open
+  if (!open) return null
+  return <PaletteBody onClose={() => setOpen(false)} />
+}
+
+const emptySubscribe = () => () => {}
+
+function PaletteBody({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  const [query, setQuery] = useState('')
+  const [events, setEvents] = useState<EventItem[]>([])
+  const [organizers, setOrganizers] = useState<OrganizerItem[]>([])
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const mac = useSyncExternalStore(emptySubscribe, detectMac, () => false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const requestIdRef = useRef(0)
+  const selectedRowRef = useRef<HTMLButtonElement>(null)
+
+  // Mounted only while open — grab focus once.
   useEffect(() => {
-    if (open) {
-      const t = setTimeout(() => inputRef.current?.focus(), 0)
-      return () => clearTimeout(t)
-    }
-    setQuery('')
-    setEvents([])
-    setOrganizers([])
+    const t = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(t)
+  }, [])
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value)
     setSelectedIndex(0)
-  }, [open])
+    if (value.trim().length < 2) {
+      // Invalidate any in-flight request and drop stale remote results.
+      requestIdRef.current += 1
+      setEvents([])
+      setOrganizers([])
+    }
+  }
 
   // Filter the static nav items against the query
   const filteredNav = useMemo(() => {
@@ -199,16 +212,11 @@ export default function AdminCommandPalette() {
     )
   }, [query])
 
-  // Debounced async search for events + organizers
+  // Debounced async search for events + organizers. All setState happens in
+  // the debounce callback; the < 2-chars case is cleared in handleQueryChange.
   useEffect(() => {
     const q = query.trim()
-    if (q.length < 2) {
-      // Invalidate any in-flight request
-      requestIdRef.current += 1
-      setEvents([])
-      setOrganizers([])
-      return
-    }
+    if (q.length < 2) return
     const reqId = ++requestIdRef.current
     const timer = setTimeout(async () => {
       const supabase = createClient()
@@ -267,48 +275,46 @@ export default function AdminCommandPalette() {
     [filteredNav, events, organizers],
   )
 
-  // Reset selection whenever the result set changes
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [items.length, query])
+  // Async results can shrink the list underneath the cursor — clamp at
+  // render time instead of resetting via an effect. Query changes reset the
+  // selection in handleQueryChange.
+  const activeIndex = Math.min(selectedIndex, Math.max(items.length - 1, 0))
 
-  // Keep selected row in view
+  // Keep selected row in view (DOM-only, no state)
   useEffect(() => {
-    if (open) selectedRowRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [selectedIndex, open])
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
 
   const activate = useCallback(
     (item: Item) => {
       router.push(item.href)
-      setOpen(false)
+      onClose()
     },
-    [router],
+    [router, onClose],
   )
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
-      setOpen(false)
+      onClose()
       return
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setSelectedIndex((i) => Math.min(i + 1, Math.max(items.length - 1, 0)))
+      setSelectedIndex(Math.min(activeIndex + 1, Math.max(items.length - 1, 0)))
       return
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setSelectedIndex((i) => Math.max(i - 1, 0))
+      setSelectedIndex(Math.max(activeIndex - 1, 0))
       return
     }
     if (e.key === 'Enter') {
       e.preventDefault()
-      const item = items[selectedIndex]
+      const item = items[activeIndex]
       if (item) activate(item)
     }
   }
-
-  if (!open) return null
 
   let runningIndex = 0
   const navStartIndex = runningIndex
@@ -321,7 +327,7 @@ export default function AdminCommandPalette() {
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 pt-[10vh] backdrop-blur-sm"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) setOpen(false)
+        if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
@@ -337,7 +343,7 @@ export default function AdminCommandPalette() {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Search events, organizers… or jump to a section"
             className="h-12 flex-1 bg-transparent text-[14px] text-white placeholder-white/35 outline-none"
             autoComplete="off"
@@ -362,8 +368,8 @@ export default function AdminCommandPalette() {
                     return (
                       <Row
                         key={n.id}
-                        rowRef={selectedIndex === idx ? selectedRowRef : null}
-                        active={selectedIndex === idx}
+                        rowRef={activeIndex === idx ? selectedRowRef : null}
+                        active={activeIndex === idx}
                         onClick={() => activate(n)}
                         onMouseMove={() => setSelectedIndex(idx)}
                         icon={<n.icon className="h-4 w-4" />}
@@ -381,8 +387,8 @@ export default function AdminCommandPalette() {
                     return (
                       <Row
                         key={ev.id}
-                        rowRef={selectedIndex === idx ? selectedRowRef : null}
-                        active={selectedIndex === idx}
+                        rowRef={activeIndex === idx ? selectedRowRef : null}
+                        active={activeIndex === idx}
                         onClick={() => activate(ev)}
                         onMouseMove={() => setSelectedIndex(idx)}
                         icon={<Calendar className="h-4 w-4" />}
@@ -401,8 +407,8 @@ export default function AdminCommandPalette() {
                     return (
                       <Row
                         key={o.id}
-                        rowRef={selectedIndex === idx ? selectedRowRef : null}
-                        active={selectedIndex === idx}
+                        rowRef={activeIndex === idx ? selectedRowRef : null}
+                        active={activeIndex === idx}
                         onClick={() => activate(o)}
                         onMouseMove={() => setSelectedIndex(idx)}
                         icon={<BadgeCheck className="h-4 w-4" />}

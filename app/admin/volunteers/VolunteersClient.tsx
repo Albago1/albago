@@ -50,9 +50,9 @@ export default function VolunteersClient() {
   const [filter, setFilter] = useState<StatusKey>('new')
   const [movementFilter, setMovementFilter] = useState<string | null>(null)
 
+  // Only called from the mount effect; loading starts true, so no
+  // synchronous setState is needed before the first await.
   const fetchRows = useCallback(async () => {
-    setLoading(true)
-    setMessage(null)
     const { data, error } = await supabase
       .from('volunteer_signups')
       .select('*')
@@ -84,7 +84,10 @@ export default function VolunteersClient() {
   }, [supabase])
 
   useEffect(() => {
-    fetchRows()
+    // Mount fetch: fetchRows only calls setState after its await, but the
+    // rule can't trace through the function call. Same pattern as UsersClient.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchRows()
   }, [fetchRows])
 
   const movementSlugs = useMemo(() => {

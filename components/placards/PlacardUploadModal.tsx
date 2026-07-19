@@ -20,7 +20,14 @@ type Props = {
 
 type FormStep = 'editing' | 'submitting' | 'success'
 
+// Shell: the form body mounts only while open, so every open starts fresh
+// and closing resets state by unmount — no reset effect.
 export default function PlacardUploadModal({ open, onClose, onSubmitted }: Props) {
+  if (!open) return null
+  return <UploadModalBody onClose={onClose} onSubmitted={onSubmitted} />
+}
+
+function UploadModalBody({ onClose, onSubmitted }: Omit<Props, 'open'>) {
   const [step, setStep] = useState<FormStep>('editing')
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -32,21 +39,22 @@ export default function PlacardUploadModal({ open, onClose, onSubmitted }: Props
   const [authChecked, setAuthChecked] = useState(false)
   const [isAuthed, setIsAuthed] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
   const { upload, uploading } = useImageUpload(PLACARD_PHOTO_BUCKET)
 
+  // Object URLs are created in selectFile (event handler) and the previous
+  // one revoked there; these two effects only cover revoke-on-unmount.
   useEffect(() => {
-    if (!open) return
-    setStep('editing')
-    setFile(null)
-    setPreviewUrl(null)
-    setCaption('')
-    setLanguage('sq')
-    setCity('')
-    setErrorMessage(null)
-  }, [open])
+    previewUrlRef.current = previewUrl
+  }, [previewUrl])
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    },
+    [],
+  )
 
   useEffect(() => {
-    if (!open) return
     let cancelled = false
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
@@ -64,50 +72,36 @@ export default function PlacardUploadModal({ open, onClose, onSubmitted }: Props
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [])
 
   useEffect(() => {
-    if (!open) return
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = ''
     }
-  }, [open])
+  }, [])
 
   useEffect(() => {
-    if (!open) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [onClose])
 
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null)
-      return
-    }
-    const url = URL.createObjectURL(file)
-    setPreviewUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [file])
-
-  if (!open) return null
+  function selectFile(next: File | null) {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setFile(next)
+    setPreviewUrl(next ? URL.createObjectURL(next) : null)
+  }
 
   function resetAndClose() {
-    setStep('editing')
-    setFile(null)
-    setCaption('')
-    setLanguage('sq')
-    setCity('')
-    setErrorMessage(null)
     onClose()
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.files?.[0] ?? null
-    setFile(next)
+    selectFile(next)
     setErrorMessage(null)
   }
 
@@ -278,7 +272,7 @@ export default function PlacardUploadModal({ open, onClose, onSubmitted }: Props
                       <button
                         type="button"
                         onClick={() => {
-                          setFile(null)
+                          selectFile(null)
                           if (fileInputRef.current) fileInputRef.current.value = ''
                         }}
                         className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-white/70 hover:text-white"

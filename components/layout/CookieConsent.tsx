@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
@@ -8,38 +8,58 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 const STORAGE_KEY = 'albago:cookie-consent'
 
 type Consent = 'accepted' | 'rejected'
+// 'ssr' = server/hydration render (show nothing, avoid mismatch),
+// 'none' = hydrated but the user hasn't chosen yet (show the banner).
+type ConsentState = Consent | 'none' | 'ssr'
 
-function readConsent(): Consent | null {
-  if (typeof window === 'undefined') return null
-  const v = window.localStorage.getItem(STORAGE_KEY)
-  return v === 'accepted' || v === 'rejected' ? v : null
+// localStorage is the store; useSyncExternalStore mirrors it so the banner
+// state never needs a mount effect and stays consistent across tabs of the
+// same page tree.
+const listeners = new Set<() => void>()
+
+// Session-only fallback so the banner still dismisses when localStorage is
+// unavailable (private mode / storage disabled).
+let memoryConsent: Consent | null = null
+
+function subscribe(callback: () => void) {
+  listeners.add(callback)
+  return () => {
+    listeners.delete(callback)
+  }
+}
+
+function readConsent(): ConsentState {
+  try {
+    const v = window.localStorage.getItem(STORAGE_KEY)
+    if (v === 'accepted' || v === 'rejected') return v
+  } catch {
+    /* fall through to memory */
+  }
+  return memoryConsent ?? 'none'
+}
+
+function serverConsent(): ConsentState {
+  return 'ssr'
 }
 
 function writeConsent(value: Consent) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, value)
+  memoryConsent = value
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value)
+  } catch {
+    /* private mode / storage disabled — memoryConsent covers the session */
+  }
+  listeners.forEach((notify) => notify())
 }
 
 export default function CookieConsent() {
-  // null = not yet hydrated, undefined = hydrated but no choice yet,
-  // 'accepted' / 'rejected' = user picked.
-  const [consent, setConsent] = useState<Consent | null | undefined>(null)
+  const consent = useSyncExternalStore(subscribe, readConsent, serverConsent)
 
-  useEffect(() => {
-    setConsent(readConsent() ?? undefined)
-  }, [])
+  const accept = () => writeConsent('accepted')
+  const reject = () => writeConsent('rejected')
 
-  const accept = () => {
-    writeConsent('accepted')
-    setConsent('accepted')
-  }
-  const reject = () => {
-    writeConsent('rejected')
-    setConsent('rejected')
-  }
-
-  // Pre-hydration → render nothing (avoid SSR mismatch).
-  if (consent === null) return null
+  // Server + hydration render → nothing (avoid SSR mismatch).
+  if (consent === 'ssr') return null
 
   return (
     <>
@@ -50,7 +70,7 @@ export default function CookieConsent() {
         </>
       )}
 
-      {consent === undefined && (
+      {consent === 'none' && (
         <div
           role="dialog"
           aria-label="Cookie consent"

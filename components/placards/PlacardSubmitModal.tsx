@@ -24,14 +24,20 @@ type Props = {
 
 type FormStep = 'editing' | 'submitting' | 'success'
 
-export default function PlacardSubmitModal({
-  open,
+// Shell: the form body mounts only while open, so every open starts from the
+// initial props and closing resets state by unmount — no reset effect.
+export default function PlacardSubmitModal({ open, onClose, ...rest }: Props) {
+  if (!open) return null
+  return <SubmitModalBody onClose={onClose} {...rest} />
+}
+
+function SubmitModalBody({
   onClose,
   initialSlogan = '',
   initialLanguage = 'sq',
   initialCategories,
   initialCity = '',
-}: Props) {
+}: Omit<Props, 'open'>) {
   const [step, setStep] = useState<FormStep>('editing')
   const [slogan, setSlogan] = useState(initialSlogan)
   const [language, setLanguage] = useState<PlacardLanguage>(initialLanguage)
@@ -44,17 +50,6 @@ export default function PlacardSubmitModal({
   const sloganRef = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
-    if (!open) return
-    setSlogan(initialSlogan)
-    setLanguage(initialLanguage)
-    setCategories(initialCategories ?? [])
-    setCity(initialCity)
-    setStep('editing')
-    setErrorMessage(null)
-  }, [open, initialSlogan, initialLanguage, initialCategories, initialCity])
-
-  useEffect(() => {
-    if (!open) return
     let cancelled = false
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
@@ -71,32 +66,28 @@ export default function PlacardSubmitModal({
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [])
 
   useEffect(() => {
-    if (!open) return
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = ''
     }
-  }, [open])
+  }, [])
 
   useEffect(() => {
-    if (!open) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [onClose])
 
   useEffect(() => {
-    if (open && authChecked && isAuthed && step === 'editing') {
+    if (authChecked && isAuthed && step === 'editing') {
       sloganRef.current?.focus()
     }
-  }, [open, authChecked, isAuthed, step])
-
-  if (!open) return null
+  }, [authChecked, isAuthed, step])
 
   function resetAndClose() {
     setStep('editing')

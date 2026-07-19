@@ -113,6 +113,12 @@ function getWeekIsoRange(): { from: string; to: string } {
   return { from: fmtLocalIso(today), to: fmtLocalIso(end) }
 }
 
+// Worldwide view: roughly Europe-centered, low zoom. Sits just above the
+// adapter's minZoom floor so the fully-zoomed-out map still pans. Module
+// constants so effects can use them without depending on render values.
+const worldCenter: [number, number] = [10, 30]
+const worldZoom = 2.6
+
 export default function MapView() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -150,10 +156,6 @@ export default function MapView() {
   const isWorldwide = locationSlug === 'all'
   const initialCountry = searchParams.get('country')
   const location = getLocationBySlug(locationSlug)
-  // Worldwide view: roughly Europe-centered, low zoom. Sits just above the
-  // adapter's minZoom floor so the fully-zoomed-out map still pans.
-  const worldCenter: [number, number] = [10, 30]
-  const worldZoom = 2.6
 
   const initialCategory = searchParams.get('category') || 'all'
   const initialPlaceId = searchParams.get('place')
@@ -350,7 +352,7 @@ export default function MapView() {
     }
 
     fetchData()
-  }, [locationSlug])
+  }, [locationSlug, isWorldwide])
 
   useEffect(() => {
     const nextCategory = searchParams.get('category') || 'all'
@@ -489,7 +491,7 @@ export default function MapView() {
 
       return categoryMatch && timeMatch && optionMatch && searchMatch
     })
-  }, [activeCategory, activeTimeFilter, filteredEvents, optionFilter, searchQuery])
+  }, [places, activeCategory, activeTimeFilter, filteredEvents, optionFilter, searchQuery])
 
   const visiblePlaceIds = useMemo(() => {
     return new Set(visiblePlaces.map((place) => place.id))
@@ -535,6 +537,11 @@ export default function MapView() {
       mapAdapterRef.current?.destroy()
       mapAdapterRef.current = null
     }
+    // Mount-only by design: isWorldwide/location.* are just the initial
+    // camera. The adapter is created once; later location changes are
+    // handled by the fly-to / initial-fit effects, and recreating the map
+    // here would destroy it on every city switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Google Maps behavior: the map opens centered on the visitor. Trigger
@@ -1102,7 +1109,10 @@ export default function MapView() {
         </div>
       )}
 
+      {/* key: remount on place change so per-place UI state (drag offsets)
+          resets naturally instead of via a state-reset effect. */}
       <PlacePanel
+        key={selectedPlace?.id ?? 'none'}
         place={selectedPlace}
         events={selectedPlaceEvents}
         isMobile={isMobile}

@@ -4,9 +4,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react"
 import { defaultLanguage, type Language } from "./config"
@@ -20,26 +19,57 @@ type LanguageContextValue = {
 
 const STORAGE_KEY = "albago_language"
 
+// localStorage is the source of truth; useSyncExternalStore mirrors it so
+// the saved language applies right after hydration without a mount effect.
+const listeners = new Set<() => void>()
+
+// Session-only fallback so switching still works when localStorage is
+// unavailable (private mode / storage disabled).
+let memoryLanguage: Language | null = null
+
+function subscribe(callback: () => void) {
+  listeners.add(callback)
+  return () => {
+    listeners.delete(callback)
+  }
+}
+
+function readStoredLanguage(): Language {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY)
+    // "al" was our old code for Albanian before switching to ISO "sq".
+    // Normalized on read; the write-back happens on the next setLanguage.
+    const normalized = saved === "al" ? "sq" : saved
+    if (normalized && normalized in translations) {
+      return normalized as Language
+    }
+  } catch {
+    /* private mode / storage disabled — fall through to memory */
+  }
+  return memoryLanguage ?? defaultLanguage
+}
+
+function serverLanguage(): Language {
+  return defaultLanguage
+}
+
 const LanguageContext = createContext<LanguageContextValue | null>(null)
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(defaultLanguage)
-
-  useEffect(() => {
-    let saved = window.localStorage.getItem(STORAGE_KEY)
-    // "al" was our old code for Albanian before switching to ISO "sq"
-    if (saved === "al") {
-      saved = "sq"
-      window.localStorage.setItem(STORAGE_KEY, saved)
-    }
-    if (saved && saved in translations) {
-      setLanguageState(saved as Language)
-    }
-  }, [])
+  const language = useSyncExternalStore(
+    subscribe,
+    readStoredLanguage,
+    serverLanguage,
+  )
 
   const setLanguage = useCallback((nextLanguage: Language) => {
-    setLanguageState(nextLanguage)
-    window.localStorage.setItem(STORAGE_KEY, nextLanguage)
+    memoryLanguage = nextLanguage
+    try {
+      window.localStorage.setItem(STORAGE_KEY, nextLanguage)
+    } catch {
+      /* private mode — memoryLanguage covers the session */
+    }
+    listeners.forEach((notify) => notify())
   }, [])
 
   const t = useCallback(

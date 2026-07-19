@@ -52,9 +52,9 @@ export default function OrganizerQueue() {
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState('')
 
+  // No synchronous setState before the first await — the mount effect calls
+  // this directly (loading starts true); refresh() handles spinner resets.
   const fetchRows = useCallback(async () => {
-    setLoading(true)
-    setMessage(null)
     const { data, error } = await supabase
       .from('events')
       .select(
@@ -74,8 +74,17 @@ export default function OrganizerQueue() {
     setLoading(false)
   }, [supabase])
 
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setMessage(null)
+    await fetchRows()
+  }, [fetchRows])
+
   useEffect(() => {
-    fetchRows()
+    // Mount fetch: fetchRows only calls setState after its await, but the
+    // rule can't trace through the function call. Same pattern as UsersClient.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchRows()
   }, [fetchRows])
 
   const counts = useMemo(
@@ -110,7 +119,7 @@ export default function OrganizerQueue() {
       setMessage(`Publish failed: ${error.message}`)
       return
     }
-    await fetchRows()
+    await refresh()
   }
 
   const rejectRow = async (row: OrganizerEventRow) => {
@@ -128,7 +137,7 @@ export default function OrganizerQueue() {
       setMessage(`Reject failed: ${error.message}`)
       return
     }
-    await fetchRows()
+    await refresh()
   }
 
   const tabs: { key: StatusFilter; label: string }[] = [

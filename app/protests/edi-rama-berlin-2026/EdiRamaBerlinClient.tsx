@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useHydrated } from '@/hooks/useHydrated'
 import {
   ArrowLeft,
   Calendar,
@@ -33,15 +34,12 @@ const GOOGLE_MAPS_HREF =
 export default function EdiRamaBerlinClient({ pageUrl, pdfUrl }: Props) {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
-  const [origin, setOrigin] = useState<string>(pageUrl)
-
-  // Use the live origin once mounted so share links work from preview /
-  // localhost too — falls back to canonical URL for the SSR pass.
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setOrigin(`${window.location.origin}/protests/edi-rama-berlin-2026`)
-    }
-  }, [])
+  // Use the live origin once hydrated so share links work from preview /
+  // localhost too — the canonical URL covers the SSR pass.
+  const hydrated = useHydrated()
+  const origin = hydrated
+    ? `${window.location.origin}/protests/edi-rama-berlin-2026`
+    : pageUrl
 
   const caption = t('er_share_caption')
   const encodedUrl = encodeURIComponent(origin)

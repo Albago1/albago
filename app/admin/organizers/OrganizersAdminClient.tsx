@@ -58,10 +58,10 @@ export default function OrganizersAdminClient() {
   )
   const [notesByRow, setNotesByRow] = useState<Record<string, string>>({})
 
+  // No synchronous setState before the first await — the tab-change effect
+  // calls this directly (loading starts true; switchTab resets the spinner);
+  // refresh() handles spinner resets after admin actions.
   const load = useCallback(async () => {
-    setIsLoading(true)
-    setErrorMessage(null)
-
     let q = supabase
       .from('organizers')
       .select('*')
@@ -86,7 +86,22 @@ export default function OrganizersAdminClient() {
     setRows((data ?? []) as Row[])
   }, [supabase, tab])
 
+  const refresh = useCallback(async () => {
+    setIsLoading(true)
+    setErrorMessage(null)
+    await load()
+  }, [load])
+
+  const switchTab = (next: Tab) => {
+    setTab(next)
+    setIsLoading(true)
+    setErrorMessage(null)
+  }
+
   useEffect(() => {
+    // Tab-change fetch: load only calls setState after its await, but the
+    // rule can't trace through the function call. Same pattern as UsersClient.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
 
@@ -120,7 +135,7 @@ export default function OrganizersAdminClient() {
       setErrorMessage(error.message)
       return
     }
-    await load()
+    await refresh()
   }
 
   const reject = async (row: Row) => {
@@ -143,7 +158,7 @@ export default function OrganizersAdminClient() {
       setErrorMessage(error.message)
       return
     }
-    await load()
+    await refresh()
   }
 
   const unverify = async (row: Row) => {
@@ -162,7 +177,7 @@ export default function OrganizersAdminClient() {
       setErrorMessage(error.message)
       return
     }
-    await load()
+    await refresh()
   }
 
   return (
@@ -198,7 +213,7 @@ export default function OrganizersAdminClient() {
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => switchTab(t.key)}
             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
               tab === t.key
                 ? 'border-white/20 bg-white/[0.08] text-white'

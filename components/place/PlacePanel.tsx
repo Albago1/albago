@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { X, Clock3, Music2, Banknote, MapPin, Navigation, Globe, ArrowRight } from 'lucide-react'
 import { Event } from '@/types/event'
@@ -44,15 +44,14 @@ export default function PlacePanel({
   const [dragOffsetY, setDragOffsetY] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
 
-  const safeEvents = Array.isArray(events) ? events : []
-  const sortedEvents = useMemo(() => sortEvents(safeEvents), [safeEvents])
+  const sortedEvents = useMemo(
+    () => sortEvents(Array.isArray(events) ? events : []),
+    [events],
+  )
   const highlightedEventsCount = sortedEvents.filter((event) => event.highlight).length
 
-  useEffect(() => {
-    setDragStartY(null)
-    setDragOffsetY(0)
-    setIsDragging(false)
-  }, [place])
+  // Drag state resets when the place changes because MapView keys this
+  // component by place id — a new place remounts the panel fresh.
 
   if (!place) return null
 

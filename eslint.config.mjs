@@ -15,15 +15,6 @@ const eslintConfig = defineConfig([
     // Claude Code scratch worktrees — never lint tool-managed copies.
     ".claude/**",
   ]),
-  {
-    rules: {
-      // Existing mount-time init patterns (localStorage hydration, admin
-      // fetch-on-mount, palette open/close sync) predate this rule becoming
-      // an error. Kept visible as warnings; migrate call sites gradually
-      // instead of blocking lint. Do not add new violations.
-      "react-hooks/set-state-in-effect": "warn",
-    },
-  },
 ]);
 
 export default eslintConfig;

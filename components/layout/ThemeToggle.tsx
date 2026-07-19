@@ -1,21 +1,38 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
 type Theme = 'dark' | 'light'
 
 const STORAGE_KEY = 'albago-theme'
 
+// The theme lives outside React: an inline <head> script applies the saved
+// value to <html data-theme> before hydration, and CSS keys off it. This
+// component just mirrors that external store via useSyncExternalStore —
+// server/hydration renders assume dark (matching SSR markup), then React
+// swaps in the real DOM value immediately after hydration.
+
+const listeners = new Set<() => void>()
+
+function subscribe(callback: () => void) {
+  listeners.add(callback)
+  return () => {
+    listeners.delete(callback)
+  }
+}
+
 function readTheme(): Theme {
-  if (typeof document === 'undefined') return 'dark'
   return document.documentElement.getAttribute('data-theme') === 'light'
     ? 'light'
     : 'dark'
 }
 
+function serverTheme(): Theme {
+  return 'dark'
+}
+
 function applyTheme(next: Theme) {
-  if (typeof document === 'undefined') return
   if (next === 'light') {
     document.documentElement.setAttribute('data-theme', 'light')
   } else {
@@ -26,6 +43,7 @@ function applyTheme(next: Theme) {
   } catch {
     /* private mode / storage disabled — ignore */
   }
+  listeners.forEach((notify) => notify())
 }
 
 export default function ThemeToggle({
@@ -33,23 +51,13 @@ export default function ThemeToggle({
 }: {
   className?: string
 }) {
-  // Always render the same icon on the server (sun, since dark is default)
-  // to avoid hydration warnings. Replace with the real value after mount.
-  const [theme, setTheme] = useState<Theme>('dark')
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setTheme(readTheme())
-    setMounted(true)
-  }, [])
+  const theme = useSyncExternalStore(subscribe, readTheme, serverTheme)
 
   const handleClick = () => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    applyTheme(next)
+    applyTheme(theme === 'dark' ? 'light' : 'dark')
   }
 
-  const isLight = mounted && theme === 'light'
+  const isLight = theme === 'light'
   const label = isLight ? 'Switch to dark mode' : 'Switch to light mode'
 
   return (

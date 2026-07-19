@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useHydrated } from '@/hooks/useHydrated'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Flame, X, ArrowUpRight } from 'lucide-react'
 import { getLocationBySlug } from '@/lib/locations'
@@ -69,19 +70,17 @@ function formatBigCount(n: number): string {
 }
 
 export default function LiveProtestsBanner({ protests, totals }: Props) {
-  const [mounted, setMounted] = useState(false)
+  const hydrated = useHydrated()
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    if (typeof window === 'undefined') return
     const dismissUntil = Number(localStorage.getItem(DISMISS_KEY) ?? 0)
     if (dismissUntil > Date.now()) return
     const t = setTimeout(() => setVisible(true), 900)
     return () => clearTimeout(t)
   }, [])
 
-  if (!mounted || protests.length === 0) return null
+  if (!hydrated || protests.length === 0) return null
 
   const next = protests[0]
   const cityLabel =
