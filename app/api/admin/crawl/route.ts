@@ -16,6 +16,8 @@ import { crawlSources } from '@/lib/crawl/crawl'
  *     on each and reads them all (the "search over a page of events" mode).
  *   - siteUrls: just a domain — the crawler reads the site's sitemap (or
  *     homepage) to find its event pages itself (site mode).
+ *   - pastedText: a block of text (e.g. an events list copied from ChatGPT) —
+ *     every event in it is extracted, no fetching. Sidesteps JS-walled sites.
  *   - all omitted: crawl the enabled entries in lib/crawl/sources.ts.
  *
  * Built for HUGE lists: a single call runs within a time budget and returns
@@ -69,8 +71,11 @@ type Body = {
   sourceUrls?: unknown
   listingUrls?: unknown
   siteUrls?: unknown
+  pastedText?: unknown
   maxEventsPerListing?: unknown
 }
+
+const MAX_PASTED_CHARS = 40_000
 
 /** Validate a raw URL array into public http(s) URLs (structural SSRF check).
  *  Returns null when the field is present but not an array. */
@@ -101,6 +106,7 @@ export async function GET() {
       sourceUrls: 'array of single event pages',
       listingUrls: 'array of listing/index pages (all events on each)',
       siteUrls: 'array of bare domains (events discovered via sitemap/homepage)',
+      pastedText: 'a text blob (e.g. events copied from ChatGPT) — no fetching',
     },
     dryRunDefault: true,
     auth: 'admin session, or Authorization: Bearer <CRAWL_SECRET>',
@@ -137,15 +143,22 @@ export async function POST(request: Request) {
   if (siteUrls === null) {
     return NextResponse.json({ error: 'siteUrls_must_be_array' }, { status: 400 })
   }
-  // If the caller named URL fields but none survived validation, say so rather
-  // than silently falling back to the registry.
+
+  const pastedText =
+    typeof body.pastedText === 'string' && body.pastedText.trim()
+      ? body.pastedText.slice(0, MAX_PASTED_CHARS)
+      : undefined
+
+  // If the caller named URL fields but none survived validation — and there's no
+  // pasted text either — say so rather than silently falling back to the registry.
   if (
     (body.sourceUrls !== undefined ||
       body.listingUrls !== undefined ||
       body.siteUrls !== undefined) &&
     !urls?.length &&
     !listingUrls?.length &&
-    !siteUrls?.length
+    !siteUrls?.length &&
+    !pastedText
   ) {
     return NextResponse.json({ error: 'no_valid_urls' }, { status: 400 })
   }
@@ -162,6 +175,7 @@ export async function POST(request: Request) {
       urls,
       listingUrls,
       siteUrls,
+      pastedText,
       maxEventsPerListing,
     })
     return NextResponse.json({ ok: true, report })

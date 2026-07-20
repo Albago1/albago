@@ -107,6 +107,15 @@ Prove the whole chain end-to-end with **zero schema** and a human at the wheel.
       loops each request on `remaining` to completion, and writes an aggregated
       results JSON. Auth via `CRAWL_SECRET` (user sets this env var). This is the
       "give it a huge list and let it go through them" path.
+- [x] **CRAWL-1.10 paste-text mode (the JS-render workaround).** Paste a block
+      of text (e.g. an events list the user gathered via ChatGPT) → every event
+      in it is extracted and queued, no fetching. Offloads the hard "get past
+      JS/login walls and find the events" work to a browsing AI the user already
+      drives, and uses AlbaGo for what it's good at: structuring + resolving +
+      de-duping + queueing. `readEventListFromText` (urlReader) + `crawlFromText`
+      (crawl.ts) + `pastedText` on the route + a paste box on `/admin/crawl`.
+      The strategic answer for a one-person operation until a headless renderer
+      exists — human-in-the-loop gathering, automatic structuring.
 - [x] **CRAWL-1.9 multi-event LIST extraction.** The big accuracy jump: instead
       of one-event-per-page + keyword link-hunting (which found nothing on pages
       that list events inline), listing/site modes now read the whole page and

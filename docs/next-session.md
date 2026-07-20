@@ -46,7 +46,11 @@ see ThemeToggle / CookieConsent / AdminCommandPalette for the house patterns).
   "found nothing" on inline-listing pages (ChatGPT-style). `classifyReading`
   shared; `crawlListing`/`crawlSite` do list-extract → link/sitemap fallbacks.
   KNOWN CEILING: JS-rendered pages still yield little from raw fetch (needs a
-  headless renderer later). Source registry ships as disabled templates.
+  headless renderer later). CRAWL-1.10 paste-text mode works AROUND that ceiling:
+  `pastedText` on the route + paste box on `/admin/crawl` → user pastes an events
+  list (e.g. gathered via ChatGPT) → `readEventListFromText`/`crawlFromText`
+  structure + resolve + queue them, no fetching. Source registry ships as
+  disabled templates.
   tsc/eslint/build clean. **USER VERIFY:** open `/admin/crawl`, paste a real
   Albanian venue domain, Dry run, eyeball results; or POST `/api/admin/crawl`
   `{ "sourceUrls": ["<a real Albanian venue/ticket page>"] }` (dry-run) and eyeball

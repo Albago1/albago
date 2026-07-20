@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { readEventFromUrl, readEventListFromUrl } from '@/lib/ai/urlReader'
+import {
+  readEventFromUrl,
+  readEventListFromUrl,
+  readEventListFromText,
+} from '@/lib/ai/urlReader'
 import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { crawlReadingToSubmission, type CrawlSubmission } from '@/lib/crawl/toSubmission'
@@ -308,6 +312,32 @@ type CrawlInput =
   | { kind: 'listing'; url: string }
   | { kind: 'site'; url: string }
 
+/**
+ * Crawl from a block of PASTED text (e.g. an events list copied from ChatGPT).
+ * Extracts every event in the text and classifies each — the human already did
+ * the gathering, so this never fetches anything.
+ */
+export async function crawlFromText(
+  text: string,
+  opts: { dryRun: boolean; maxEvents: number },
+): Promise<CrawlItemResult[]> {
+  const todayIso = new Date().toISOString().slice(0, 10)
+  let readings
+  try {
+    readings = await readEventListFromText(text, todayIso, opts.maxEvents)
+  } catch (err) {
+    return [{ url: '', outcome: 'error', note: err instanceof Error ? err.message : 'read_failed' }]
+  }
+
+  const results: CrawlItemResult[] = []
+  for (let i = 0; i < readings.length; i++) {
+    const base: CrawlBase = { url: '', discoveredFrom: 'pasted text' }
+    results.push(await classifyReading(readings[i], base, opts.dryRun))
+    if (i < readings.length - 1) await wait(POLITE_DELAY_MS)
+  }
+  return results
+}
+
 /** Run one input to a set of per-event results (list-aware). */
 async function processInput(
   input: CrawlInput,
@@ -365,6 +395,7 @@ export async function crawlSources(opts: {
   urls?: string[]
   listingUrls?: string[]
   siteUrls?: string[]
+  pastedText?: string
   maxEventsPerListing?: number
   deadlineMs?: number
 }): Promise<CrawlReport> {
@@ -374,9 +405,24 @@ export async function crawlSources(opts: {
   )
   const deadline = Date.now() + (opts.deadlineMs ?? DEFAULT_DEADLINE_MS)
 
-  const inputs = buildInputs(opts)
   const counts = emptyCounts()
   const items: CrawlItemResult[] = []
+
+  // Pasted text is one blob → one extraction, handled up front (not part of the
+  // URL input/remaining machinery). Callers send it once per run.
+  const pasted = opts.pastedText?.trim()
+  if (pasted) {
+    const textResults = await crawlFromText(pasted, { dryRun: opts.dryRun, maxEvents })
+    for (const result of textResults) {
+      counts[result.outcome]++
+      items.push(result)
+    }
+  }
+
+  // Only fall back to the enabled registry when the caller gave no explicit
+  // inputs at all (no URLs and no pasted text).
+  const hasUrlInputs = !!(opts.urls?.length || opts.listingUrls?.length || opts.siteUrls?.length)
+  const inputs = !hasUrlInputs && pasted ? [] : buildInputs(opts)
 
   let processed = 0
   for (let i = 0; i < inputs.length; i++) {

@@ -279,3 +279,20 @@ export async function readEventListFromUrl(
   const readings = await readEventListFromContent(content, todayIso, max)
   return { readings, imageUrl: content.imageUrl }
 }
+
+/**
+ * Extract every event from a block of PASTED text — e.g. an events list a user
+ * copied out of ChatGPT, an email, or a PDF. This is the "let a browsing AI
+ * gather the messy events, then structure them here" path: it sidesteps
+ * JS-rendered/login-walled sites entirely because the human already collected
+ * the text. Same per-event contract and coercion as every other reader.
+ */
+export async function readEventListFromText(
+  pastedText: string,
+  todayIso: string,
+  max: number = LIST_DEFAULT_MAX,
+): Promise<PosterReading[]> {
+  const clipped = pastedText.slice(0, LIST_MAX_CHARS)
+  if (clipped.trim().length < 10) return []
+  return readEventListFromContent({ text: clipped, imageUrl: null }, todayIso, max)
+}

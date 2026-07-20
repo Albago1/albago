@@ -92,6 +92,7 @@ const MAX_ROUNDS = 200
 
 export default function CrawlClient() {
   const [text, setText] = useState('')
+  const [pasteText, setPasteText] = useState('')
   const [live, setLive] = useState(false)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
@@ -101,16 +102,14 @@ export default function CrawlClient() {
 
   const parsed = useMemo(() => classifyInputs(text), [text])
   const inputCount = parsed.siteUrls.length + parsed.listingUrls.length
+  const hasPaste = pasteText.trim().length > 0
+  const canRun = inputCount > 0 || hasPaste
 
-  async function postOnce(remaining: CrawlRemaining, dryRun: boolean): Promise<CrawlReport> {
+  async function postOnce(body: Record<string, unknown>): Promise<CrawlReport> {
     const res = await fetch('/api/admin/crawl', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        dryRun,
-        siteUrls: remaining.siteUrls ?? [],
-        listingUrls: remaining.listingUrls ?? [],
-      }),
+      body: JSON.stringify(body),
     })
     const json = await res.json().catch(() => null)
     if (!res.ok || !json?.ok) {
@@ -125,7 +124,7 @@ export default function CrawlClient() {
   }
 
   async function run(dryRun: boolean) {
-    if (inputCount === 0 || running) return
+    if (!canRun || running) return
     setRunning(true)
     setError(null)
     setItems([])
@@ -136,16 +135,21 @@ export default function CrawlClient() {
     const runningTotals: Record<string, number> = {}
     let remaining: CrawlRemaining = { siteUrls: parsed.siteUrls, listingUrls: parsed.listingUrls }
     let rounds = 0
+    let first = true
 
     try {
-      while (
-        (remaining.siteUrls?.length || 0) + (remaining.listingUrls?.length || 0) > 0 &&
-        rounds < MAX_ROUNDS
-      ) {
+      do {
         rounds++
         const left = (remaining.siteUrls?.length || 0) + (remaining.listingUrls?.length || 0)
-        setProgress(`Reading… ${collected.length} event(s) so far, ${left} source(s) left`)
-        const report = await postOnce(remaining, dryRun)
+        setProgress(`Reading… ${collected.length} event(s) so far${left ? `, ${left} source(s) left` : ''}`)
+        // Pasted text is sent once, on the first round only.
+        const report = await postOnce({
+          dryRun,
+          siteUrls: remaining.siteUrls ?? [],
+          listingUrls: remaining.listingUrls ?? [],
+          ...(first && hasPaste ? { pastedText: pasteText } : {}),
+        })
+        first = false
         for (const it of report.items) collected.push(it)
         for (const [k, v] of Object.entries(report.counts)) {
           runningTotals[k] = (runningTotals[k] || 0) + v
@@ -153,7 +157,10 @@ export default function CrawlClient() {
         setItems([...collected])
         setTotals({ ...runningTotals })
         remaining = report.remaining ?? { siteUrls: [], listingUrls: [] }
-      }
+      } while (
+        (remaining.siteUrls?.length || 0) + (remaining.listingUrls?.length || 0) > 0 &&
+        rounds < MAX_ROUNDS
+      )
       setProgress(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
@@ -212,11 +219,35 @@ export default function CrawlClient() {
         </label>
       </div>
 
+      <div className="mt-6">
+        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+          <span className="h-px flex-1 bg-white/[0.07]" />
+          or paste events as text
+          <span className="h-px flex-1 bg-white/[0.07]" />
+        </div>
+        <p className="mb-2 text-xs text-white/45">
+          Copied a list of events from ChatGPT (or anywhere)? Paste it here and the
+          same engine will pull out each event — no fetching, so it works even for
+          sites the crawler can’t read directly.
+        </p>
+        <textarea
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          rows={6}
+          spellCheck={false}
+          placeholder={'Paste an events list here — e.g.\n\n1. Jazz Night at Hemingway Bar — Fri 22 Aug, 21:00, free entry. Live quartet…\n2. Tirana Marathon — Sun 12 Oct, 08:00, city center…'}
+          className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-[13px] text-white placeholder:text-white/25 focus:border-flame-500/40 focus:outline-none focus:ring-1 focus:ring-flame-500/30"
+        />
+        {hasPaste && (
+          <p className="mt-1.5 text-xs text-white/45">Pasted text will be read for events.</p>
+        )}
+      </div>
+
       <div className="mt-4 flex items-center gap-3">
         <button
           type="button"
           onClick={() => run(!live)}
-          disabled={inputCount === 0 || running}
+          disabled={!canRun || running}
           className="inline-flex h-9 items-center gap-2 rounded-lg bg-flame-500 px-4 text-sm font-semibold text-white transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
@@ -269,14 +300,20 @@ export default function CrawlClient() {
                         <div className="truncate font-medium text-white/90">
                           {it.title || <span className="text-white/40">{it.note || '—'}</span>}
                         </div>
-                        <a
-                          href={it.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block truncate text-[11px] text-white/35 hover:text-white/60"
-                        >
-                          {it.url}
-                        </a>
+                        {it.url ? (
+                          <a
+                            href={it.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate text-[11px] text-white/35 hover:text-white/60"
+                          >
+                            {it.url}
+                          </a>
+                        ) : (
+                          <span className="block truncate text-[11px] text-white/30">
+                            {it.discoveredFrom ?? 'pasted text'}
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-3.5 py-2.5 text-white/60">
                         {it.resolution?.city || '—'}
