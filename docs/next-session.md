@@ -18,6 +18,33 @@ error strength; new mount-time setState patterns will fail lint (use
 `hooks/useHydrated.ts`, `useSyncExternalStore`, or mount-gated child components —
 see ThemeToggle / CookieConsent / AdminCommandPalette for the house patterns).
 
+**Recently shipped (July 20):**
+- AlbaGo Crawl CRAWL-1 (`docs/master-plan/07-crawl.md`): autonomous website
+  crawler that feeds the moderation queue. `lib/crawl/{sources,toSubmission,crawl}.ts`
+  + `app/api/admin/crawl/route.ts`. Reuses `readEventFromUrl` + `resolvePoster`
+  end-to-end; writes crawler finds as `event_submissions` pending rows with
+  `submitted_by_user_id = NULL` via the service client (no schema change — frozen
+  table, null submitter is admin-only readable). Admin-gated POST, dry-run by
+  default. Also CRAWL-1.5 multi-event discovery (`lib/crawl/discover.ts`):
+  `listingUrls` mode fetches an index page, finds the event links on it
+  (same-host, event-looking, +schema.org Event urls), and reads each — the
+  "search over a page of events" ask. And CRAWL-1.6 site mode
+  (`lib/crawl/site.ts`): `siteUrls` mode takes just a domain, reads the site's
+  sitemap (via robots.txt / conventional locations, sitemap-index aware) or
+  falls back to the homepage, to find its event pages itself. And CRAWL-1.7
+  huge-list batching: `crawlSources` is time-budgeted (45s) and returns
+  `report.remaining` grouped by mode; `scripts/crawl-batch.mjs` drives a whole
+  file of domains/URLs to completion by looping on `remaining` (chunked). Route
+  auth now also accepts a `CRAWL_SECRET` bearer (env var — NEW user P0 for the
+  batch script / future cron) alongside the admin session. Route body
+  `{ dryRun, sourceUrls, listingUrls, siteUrls, maxEventsPerListing }`. Source
+  registry ships as disabled templates — curate real URLs before enabling.
+  tsc/eslint/build clean. **USER VERIFY:** POST `/api/admin/crawl`
+  `{ "sourceUrls": ["<a real Albanian venue/ticket page>"] }` (dry-run) and eyeball
+  the would_submit payload; then `{ "dryRun": false, "sourceUrls": [...] }` and
+  confirm one pending row appears in `/admin/queue`. CRAWL-2 (DB source table +
+  Vercel Cron + rejected-dedup) is spec'd, not built.
+
 **Recently shipped (July 19):**
 - Weather forecast widget on event detail pages (`components/events/EventWeatherCard.tsx`,
   `lib/weather.ts` — Open-Meteo, no key) + compact chip on protest cards

@@ -13,6 +13,15 @@ This directory is the single source of truth for the commerce + apps buildout. A
 | **APP** — Store Apps | `03-apps.md` | PWA hardening → Capacitor store shells → native gate | Instagram (nav), DICE app (tickets in pocket) |
 | **BC** — Broadcast | `06-broadcast.md` | Admin-only social distribution engine: bulk asset generation from the Studio, scheduling queue, auto-publish to Telegram/IG/FB/X | Buffer/Later machinery at €0, cinematic brand assets no scheduler has |
 
+## Supply engines (fill the catalog — the bible's #1 problem)
+
+| Engine | Doc | What it delivers | Trigger |
+|---|---|---|---|
+| **LENS** — Scan | `05-lens.md` | Point a camera at a poster, or paste a URL → prefilled, resolved, de-duped submission | Pull (a human scans/pastes) |
+| **CRAWL** — Autonomous crawl | `07-crawl.md` | Scheduled agent reads curated public event pages → pending queue submissions, via the Lens engine | Push (scheduled/admin-triggered) |
+
+Both feed the **existing moderation queue as pending** and never publish directly — same single-path trust model. CRAWL-1 (pipeline + admin dry-run/live trigger) shipped 2026-07-20; social media arrives only via opt-in organizer Graph-API connections (CRAWL-4), never scraping.
+
 ## Why this order (the one big insight)
 
 **Ticketing ships first, WITHOUT payments.** A "free ticket" is an order with `total_cents = 0` — it exercises the entire machine (tiers, inventory locking, orders, QR issuance, email delivery, door scanning, My Tickets) with zero payment dependencies, zero legal prerequisites, zero cost. This is how the platform gets real ticketing muscle while the catalog is still protest/free-event heavy — and it makes the paid flip a **configuration change, not a rebuild**.
