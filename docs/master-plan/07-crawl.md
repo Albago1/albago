@@ -107,6 +107,15 @@ Prove the whole chain end-to-end with **zero schema** and a human at the wheel.
       loops each request on `remaining` to completion, and writes an aggregated
       results JSON. Auth via `CRAWL_SECRET` (user sets this env var). This is the
       "give it a huge list and let it go through them" path.
+- [x] **CRAWL-1.8 admin UI** (`/admin/crawl`, `app/admin/crawl/{page,CrawlClient}.tsx`
+      + rail link in `components/admin/AdminRail.tsx`). Paste a list of
+      domains/pages, "Dry run" → results table (event, city, outcome badge),
+      then tick "Send finds to the queue" and run again to insert pending rows.
+      Uses the admin session (same-origin fetch carries the cookie), so **no
+      CRAWL_SECRET needed from the browser** — the token is only for the headless
+      script. Client loops on `report.remaining`, so the UI drives huge lists
+      too. Matches the existing admin pattern (layout guard + sibling Client,
+      plain-English strings like the rest of admin — no i18n).
 - **DoD:** dry-run against a handful of real Albanian venue/ticketing URLs
   returns correct per-URL outcomes (would_submit / duplicate_live /
   duplicate_in_review / not_an_event / unreadable); flipping `dryRun:false` for

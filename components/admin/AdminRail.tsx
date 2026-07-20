@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Radar,
   Radio,
   Send,
   Users as UsersIcon,
@@ -66,6 +67,7 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/share-batch', label: 'Share batch', icon: Send },
     { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
+    { href: '/admin/crawl', label: 'Crawl', icon: Radar },
   ]
 
   const handleSignOut = async () => {

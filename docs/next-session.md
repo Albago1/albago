@@ -35,11 +35,15 @@ see ThemeToggle / CookieConsent / AdminCommandPalette for the house patterns).
   huge-list batching: `crawlSources` is time-budgeted (45s) and returns
   `report.remaining` grouped by mode; `scripts/crawl-batch.mjs` drives a whole
   file of domains/URLs to completion by looping on `remaining` (chunked). Route
-  auth now also accepts a `CRAWL_SECRET` bearer (env var — NEW user P0 for the
-  batch script / future cron) alongside the admin session. Route body
-  `{ dryRun, sourceUrls, listingUrls, siteUrls, maxEventsPerListing }`. Source
-  registry ships as disabled templates — curate real URLs before enabling.
-  tsc/eslint/build clean. **USER VERIFY:** POST `/api/admin/crawl`
+  auth now also accepts a `CRAWL_SECRET` bearer (env var — for the batch script /
+  future cron) alongside the admin session. CRAWL-1.8 admin UI at `/admin/crawl`
+  (rail link added): paste domains/pages → Dry run → results table → tick "send
+  to queue" to insert pending rows. Uses the admin session (no CRAWL_SECRET
+  needed in-browser); client loops on `report.remaining` so it drives huge lists.
+  Route body `{ dryRun, sourceUrls, listingUrls, siteUrls, maxEventsPerListing }`.
+  Source registry ships as disabled templates — curate real URLs before enabling.
+  tsc/eslint/build clean. **USER VERIFY:** open `/admin/crawl`, paste a real
+  Albanian venue domain, Dry run, eyeball results; or POST `/api/admin/crawl`
   `{ "sourceUrls": ["<a real Albanian venue/ticket page>"] }` (dry-run) and eyeball
   the would_submit payload; then `{ "dryRun": false, "sourceUrls": [...] }` and
   confirm one pending row appears in `/admin/queue`. CRAWL-2 (DB source table +
