@@ -104,7 +104,10 @@ function visibleText(html: string): string {
  * Fetch a URL and distill it to the signal worth handing the model. Returns
  * null on network failure, non-HTML, or an empty page.
  */
-async function fetchUrlContent(url: string): Promise<UrlContent | null> {
+export async function fetchUrlContent(
+  url: string,
+  maxChars: number = MAX_MODEL_CHARS,
+): Promise<UrlContent | null> {
   let res: Response
   try {
     // safeFetch re-validates every redirect hop against private IPs (SSRF).
@@ -146,7 +149,7 @@ async function fetchUrlContent(url: string): Promise<UrlContent | null> {
     body ? `Page text:\n${body}` : null,
   ].filter(Boolean)
 
-  const text = parts.join('\n\n').slice(0, MAX_MODEL_CHARS)
+  const text = parts.join('\n\n').slice(0, maxChars)
   // Nothing usable at all — treat as unreadable.
   if (!ogTitle && !ogDesc && !jsonLd && body.length < 40) return null
 
@@ -200,4 +203,79 @@ export async function readEventFromUrl(
   const reading = await readEventFromContent(content, todayIso)
   if (!reading) return null
   return { reading, imageUrl: content.imageUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-event LIST extraction (CRAWL-1.9). A listing / "what's on" / homepage
+// page describes MANY events at once; this reads the whole page and returns
+// every distinct event on it — the "paste a domain, get its event list"
+// behaviour. Same per-event contract as the single reader; each item is
+// coerced identically so the rest of the pipeline can't tell how it arrived.
+// ---------------------------------------------------------------------------
+
+// Listing pages are long — give the model much more of the page than a single
+// event page needs, so events far down the list aren't truncated away.
+const LIST_MAX_CHARS = 32_000
+const LIST_DEFAULT_MAX = 15
+
+const SYSTEM_PROMPT_LIST = `You read the text and metadata scraped from an events web page (a venue "what's on" page, a promoter or ticketing listing, a culture calendar, a homepage that lists upcoming events) and extract EVERY distinct event you can see as a JSON array.
+
+Rules:
+1. NEVER invent information. If the page does not state a field for an event, return "" (or [] for lists). Wrong guesses damage trust; empty fields are fine. Ignore navigation menus, cookie banners, footers, and comments.
+2. List EVERY separate upcoming event on the page, each as one object — a listing may hold many. If the page really describes only one event, return one. If there are genuinely no events, return an empty array.
+3. Do NOT return the same event twice. Merge obvious duplicates (same title + date).
+4. The description must be built ONLY from the page's own text for that event, 1–3 clean sentences in the event's own language. No marketing additions.
+5. Dates: resolve to ISO YYYY-MM-DD using the reference date you are given. If a year is missing, assume the next occurrence. Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), English, German, Spanish, or Italian. Prefer explicit startDate in structured data. Consecutive-day ranges → date = first day, recurrence "daily", recurrence_until = last day. If no date is readable for an event, return "" for its date (still include it).
+6. Times: 24h HH:MM, prefer start over doors. category: exactly one of nightlife, music, sports, culture, food, civic — or "". Protests/marches/commemorations → civic, is_civic true. price: exactly as stated. language: one of en, sq, de, es, it, fr. tags: up to 5 lowercase words. artists: performer names, biggest first.
+7. is_event: true for a real event; set confidence honestly per event.
+8. Repetition — ONLY when stated: weekly ("every Friday", "çdo të premte", repeatFrequency weekly/byDay) → recurrence "weekly", recurrence_days_of_week as ISO numbers (1=Mon…7=Sun), date = next occurrence. "every day"/"daily" → "daily". A stated end → recurrence_until. One-off → "none", "", [].
+
+Return ONLY a JSON object of the form {"events":[ EVENT, EVENT, ... ]} where each EVENT has exactly these keys:
+${LENS_JSON_SHAPE}
+No markdown fences, no commentary. Cap the array at ${LIST_DEFAULT_MAX} events (the soonest/most prominent).`
+
+/** Pull the events array out of the model's JSON, tolerating either
+ *  {"events":[…]} or a bare […]. */
+function eventsArray(parsed: unknown): unknown[] {
+  if (Array.isArray(parsed)) return parsed
+  if (parsed && typeof parsed === 'object') {
+    const events = (parsed as Record<string, unknown>).events
+    if (Array.isArray(events)) return events
+  }
+  return []
+}
+
+/** Extract all events described on already-fetched page content. */
+export async function readEventListFromContent(
+  content: UrlContent,
+  todayIso: string,
+  max: number = LIST_DEFAULT_MAX,
+): Promise<PosterReading[]> {
+  const { text } = await generateText({
+    model: textModel(),
+    system: SYSTEM_PROMPT_LIST,
+    prompt: `Reference date (today): ${todayIso}.\n\n${content.text}`,
+    maxOutputTokens: 4000,
+  })
+
+  const items = eventsArray(parseModelJson(text))
+  const readings: PosterReading[] = []
+  for (const item of items.slice(0, max)) {
+    const reading = coercePosterReading(item)
+    if (reading) readings.push(reading)
+  }
+  return readings
+}
+
+/** Fetch a page and extract every event on it. Returns null when the page can't
+ *  be fetched at all; an empty array means fetched-but-no-events-found. */
+export async function readEventListFromUrl(
+  url: string,
+  todayIso: string,
+  max: number = LIST_DEFAULT_MAX,
+): Promise<{ readings: PosterReading[]; imageUrl: string | null } | null> {
+  const content = await fetchUrlContent(url, LIST_MAX_CHARS)
+  if (!content) return null
+  const readings = await readEventListFromContent(content, todayIso, max)
+  return { readings, imageUrl: content.imageUrl }
 }

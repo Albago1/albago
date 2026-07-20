@@ -107,6 +107,18 @@ Prove the whole chain end-to-end with **zero schema** and a human at the wheel.
       loops each request on `remaining` to completion, and writes an aggregated
       results JSON. Auth via `CRAWL_SECRET` (user sets this env var). This is the
       "give it a huge list and let it go through them" path.
+- [x] **CRAWL-1.9 multi-event LIST extraction.** The big accuracy jump: instead
+      of one-event-per-page + keyword link-hunting (which found nothing on pages
+      that list events inline), listing/site modes now read the whole page and
+      extract EVERY event on it as an array — the "paste a domain, get its event
+      list" behaviour, like ChatGPT browsing. `lib/ai/urlReader.ts` gains
+      `readEventListFromUrl` (multi-event prompt → `{events:[…]}`, each coerced by
+      the shared `coercePosterReading`, bigger fetch window). `crawl.ts`:
+      `classifyReading` factored out and shared; `crawlListing` = list-extract →
+      link-follow fallback → single-read; `crawlSite` = homepage-as-listing →
+      sitemap fallback. KNOWN CEILING: pages that render events only via
+      client-side JS still yield little from a raw fetch — that needs a headless
+      renderer (CRAWL-3+), a deliberate later add given the no-cost constraint.
 - [x] **CRAWL-1.8 admin UI** (`/admin/crawl`, `app/admin/crawl/{page,CrawlClient}.tsx`
       + rail link in `components/admin/AdminRail.tsx`). Paste a list of
       domains/pages, "Dry run" → results table (event, city, outcome badge),

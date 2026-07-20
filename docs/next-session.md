@@ -41,7 +41,12 @@ see ThemeToggle / CookieConsent / AdminCommandPalette for the house patterns).
   to queue" to insert pending rows. Uses the admin session (no CRAWL_SECRET
   needed in-browser); client loops on `report.remaining` so it drives huge lists.
   Route body `{ dryRun, sourceUrls, listingUrls, siteUrls, maxEventsPerListing }`.
-  Source registry ships as disabled templates — curate real URLs before enabling.
+  CRAWL-1.9 multi-event LIST extraction: listing/site modes now read the whole
+  page and extract EVERY event (array) via `readEventListFromUrl` — fixes the
+  "found nothing" on inline-listing pages (ChatGPT-style). `classifyReading`
+  shared; `crawlListing`/`crawlSite` do list-extract → link/sitemap fallbacks.
+  KNOWN CEILING: JS-rendered pages still yield little from raw fetch (needs a
+  headless renderer later). Source registry ships as disabled templates.
   tsc/eslint/build clean. **USER VERIFY:** open `/admin/crawl`, paste a real
   Albanian venue domain, Dry run, eyeball results; or POST `/api/admin/crawl`
   `{ "sourceUrls": ["<a real Albanian venue/ticket page>"] }` (dry-run) and eyeball

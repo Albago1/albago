@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { readEventFromUrl } from '@/lib/ai/urlReader'
+import { readEventFromUrl, readEventListFromUrl } from '@/lib/ai/urlReader'
 import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { crawlReadingToSubmission, type CrawlSubmission } from '@/lib/crawl/toSubmission'
@@ -137,27 +137,18 @@ async function insertSubmission(submission: CrawlSubmission): Promise<string | n
   }
 }
 
+type CrawlBase = { url: string; label?: string; discoveredFrom?: string }
+
 /**
- * Read one public URL and classify what the crawler would do with it. In a dry
- * run nothing is written; in live mode a passing find is inserted as pending.
+ * Resolve + de-dupe + (dry-run or insert) ONE already-extracted reading into a
+ * result. Shared by single-page reads and multi-event list reads so both paths
+ * classify identically.
  */
-export async function crawlUrl(
-  url: string,
-  opts: { dryRun: boolean; label?: string; discoveredFrom?: string } = { dryRun: true },
+async function classifyReading(
+  reading: PosterReading,
+  base: CrawlBase,
+  dryRun: boolean,
 ): Promise<CrawlItemResult> {
-  const base = { url, label: opts.label, discoveredFrom: opts.discoveredFrom }
-  const todayIso = new Date().toISOString().slice(0, 10)
-
-  let read: Awaited<ReturnType<typeof readEventFromUrl>>
-  try {
-    read = await readEventFromUrl(url, todayIso)
-  } catch (err) {
-    return { ...base, outcome: 'error', note: err instanceof Error ? err.message : 'read_failed' }
-  }
-  // Fetch blocked / login-walled / JS-only / no event signal on the page.
-  if (!read) return { ...base, outcome: 'unreadable' }
-
-  const { reading } = read
   if (!reading.is_event || !reading.title || reading.confidence < CRAWL_MIN_CONFIDENCE) {
     return { ...base, outcome: 'not_an_event', title: reading.title || undefined, confidence: reading.confidence }
   }
@@ -185,7 +176,7 @@ export async function crawlUrl(
 
   const submission = crawlReadingToSubmission(reading, resolution)
 
-  if (opts.dryRun) {
+  if (dryRun) {
     return { ...shared, outcome: 'would_submit', submission }
   }
 
@@ -196,37 +187,117 @@ export async function crawlUrl(
   return { ...shared, outcome: 'submitted', submission, submissionId }
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-type CrawlTask = { url: string; label?: string; discoveredFrom?: string }
-
 /**
- * Expand a listing page into per-event tasks: discover the event links on it,
- * one task each. If discovery finds nothing (the "listing" is really a single
- * event page, or its events aren't individually linked), fall back to reading
- * the page itself as one event so nothing is silently lost.
+ * Read one public URL as a SINGLE event and classify it. In a dry run nothing
+ * is written; in live mode a passing find is inserted as pending.
  */
-async function tasksFromListing(
-  listingUrl: string,
-  maxEvents: number,
-): Promise<CrawlTask[]> {
-  const links = await discoverEventLinks(listingUrl)
-  if (links.length === 0) {
-    return [{ url: listingUrl }] // fall back to single-page read
+export async function crawlUrl(
+  url: string,
+  opts: { dryRun: boolean; label?: string; discoveredFrom?: string } = { dryRun: true },
+): Promise<CrawlItemResult> {
+  const base = { url, label: opts.label, discoveredFrom: opts.discoveredFrom }
+  const todayIso = new Date().toISOString().slice(0, 10)
+
+  let read: Awaited<ReturnType<typeof readEventFromUrl>>
+  try {
+    read = await readEventFromUrl(url, todayIso)
+  } catch (err) {
+    return { ...base, outcome: 'error', note: err instanceof Error ? err.message : 'read_failed' }
   }
-  return links
-    .slice(0, maxEvents)
-    .map((url) => ({ url, discoveredFrom: listingUrl }))
+  // Fetch blocked / login-walled / JS-only / no event signal on the page.
+  if (!read) return { ...base, outcome: 'unreadable' }
+
+  return classifyReading(read.reading, base, opts.dryRun)
 }
 
 /**
- * Expand a whole site (given just its domain) into per-event tasks: read the
- * site's sitemap/homepage to find its event pages, then one task each. Yields
- * nothing when the site exposes no discoverable events (recorded by the caller).
+ * Read one page as a LIST of events (the "paste a page, get all its events"
+ * path) and classify each. Returns null when the page can't be fetched at all;
+ * an empty array means fetched but no events were found on it.
  */
-async function tasksFromSite(siteUrl: string, maxEvents: number): Promise<CrawlTask[]> {
-  const { eventUrls } = await discoverFromSite(siteUrl)
-  return eventUrls.slice(0, maxEvents).map((url) => ({ url, discoveredFrom: siteUrl }))
+async function crawlPageAsList(
+  url: string,
+  opts: { dryRun: boolean; discoveredFrom?: string; maxEvents: number },
+): Promise<CrawlItemResult[] | null> {
+  const todayIso = new Date().toISOString().slice(0, 10)
+
+  let listed: Awaited<ReturnType<typeof readEventListFromUrl>>
+  try {
+    listed = await readEventListFromUrl(url, todayIso, opts.maxEvents)
+  } catch {
+    return null
+  }
+  if (!listed) return null
+
+  const results: CrawlItemResult[] = []
+  for (let i = 0; i < listed.readings.length; i++) {
+    const base: CrawlBase = { url, discoveredFrom: opts.discoveredFrom }
+    results.push(await classifyReading(listed.readings[i], base, opts.dryRun))
+    if (i < listed.readings.length - 1) await wait(POLITE_DELAY_MS)
+  }
+  return results
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Did a batch of results actually surface any usable event? */
+function hasUsableEvent(results: CrawlItemResult[]): boolean {
+  return results.some((r) => r.outcome !== 'not_an_event' && r.outcome !== 'unreadable' && r.outcome !== 'error')
+}
+
+/**
+ * Crawl a LISTING page. Primary path: read the page as a list and extract every
+ * event on it (a "what's on" page usually names them all inline). Fallbacks, in
+ * order: follow event links to detail pages and read each; finally a single-page
+ * read so the page is never silently dropped.
+ */
+async function crawlListing(
+  url: string,
+  opts: { dryRun: boolean; maxEvents: number },
+): Promise<CrawlItemResult[]> {
+  const listed = await crawlPageAsList(url, { dryRun: opts.dryRun, maxEvents: opts.maxEvents })
+  if (listed && hasUsableEvent(listed)) return listed
+
+  // Nothing inline — the page may be an index of links to detail pages.
+  const links = await discoverEventLinks(url)
+  if (links.length > 0) {
+    const results: CrawlItemResult[] = []
+    const slice = links.slice(0, opts.maxEvents)
+    for (let i = 0; i < slice.length; i++) {
+      results.push(await crawlUrl(slice[i], { dryRun: opts.dryRun, discoveredFrom: url }))
+      if (i < slice.length - 1) await wait(POLITE_DELAY_MS)
+    }
+    if (hasUsableEvent(results)) return results
+  }
+
+  if (listed && listed.length > 0) return listed
+  return [await crawlUrl(url, { dryRun: opts.dryRun })]
+}
+
+/**
+ * Crawl a whole SITE from just its domain. Reads the homepage as a listing
+ * first (list extraction + link fallback); if that yields nothing usable, falls
+ * back to the site's sitemap event pages (single reads).
+ */
+async function crawlSite(
+  url: string,
+  opts: { dryRun: boolean; maxEvents: number },
+): Promise<CrawlItemResult[]> {
+  const viaHome = await crawlListing(url, opts)
+  if (hasUsableEvent(viaHome)) return viaHome
+
+  const { eventUrls } = await discoverFromSite(url)
+  if (eventUrls.length > 0) {
+    const results: CrawlItemResult[] = []
+    const slice = eventUrls.slice(0, opts.maxEvents)
+    for (let i = 0; i < slice.length; i++) {
+      results.push(await crawlUrl(slice[i], { dryRun: opts.dryRun, discoveredFrom: url }))
+      if (i < slice.length - 1) await wait(POLITE_DELAY_MS)
+    }
+    if (hasUsableEvent(results)) return results
+  }
+
+  return viaHome
 }
 
 /** A single crawl input before expansion. `site`/`listing` fan out into many
@@ -236,6 +307,18 @@ type CrawlInput =
   | { kind: 'single'; url: string; label?: string }
   | { kind: 'listing'; url: string }
   | { kind: 'site'; url: string }
+
+/** Run one input to a set of per-event results (list-aware). */
+async function processInput(
+  input: CrawlInput,
+  opts: { dryRun: boolean; maxEvents: number },
+): Promise<CrawlItemResult[]> {
+  if (input.kind === 'single') {
+    return [await crawlUrl(input.url, { dryRun: opts.dryRun, label: input.label })]
+  }
+  if (input.kind === 'listing') return crawlListing(input.url, opts)
+  return crawlSite(input.url, opts)
+}
 
 /** Build the ordered input list from the request (or the enabled registry). */
 function buildInputs(opts: {
@@ -264,13 +347,6 @@ function groupRemaining(inputs: CrawlInput[]): CrawlRemaining {
     ;(remaining[key] ??= []).push(input.url)
   }
   return remaining
-}
-
-/** Expand one input into the event tasks to crawl (discovery happens here). */
-async function expandInput(input: CrawlInput, maxEvents: number): Promise<CrawlTask[]> {
-  if (input.kind === 'single') return [{ url: input.url, label: input.label }]
-  if (input.kind === 'listing') return tasksFromListing(input.url, maxEvents)
-  return tasksFromSite(input.url, maxEvents)
 }
 
 /**
@@ -308,13 +384,10 @@ export async function crawlSources(opts: {
     // `remaining`. We always finish an input we've begun (bounded by maxEvents).
     if (i > 0 && Date.now() > deadline) break
 
-    const tasks = await expandInput(inputs[i], maxEvents)
-    for (let j = 0; j < tasks.length; j++) {
-      const { url, label, discoveredFrom } = tasks[j]
-      const result = await crawlUrl(url, { dryRun: opts.dryRun, label, discoveredFrom })
+    const results = await processInput(inputs[i], { dryRun: opts.dryRun, maxEvents })
+    for (const result of results) {
       counts[result.outcome]++
       items.push(result)
-      if (j < tasks.length - 1) await wait(POLITE_DELAY_MS)
     }
     processed++
     if (i < inputs.length - 1) await wait(POLITE_DELAY_MS)
