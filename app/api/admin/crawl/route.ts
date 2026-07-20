@@ -86,6 +86,27 @@ function cleanUrlList(raw: unknown): string[] | null | undefined {
   return out.slice(0, MAX_URLS_PER_REQUEST)
 }
 
+/**
+ * Health / usage probe. This endpoint does its real work over POST, so a browser
+ * visit (a GET) would otherwise look "broken" — this returns a friendly note
+ * confirming it is deployed and how to call it. No auth, no side effects, no
+ * secrets: it never crawls and never reveals whether CRAWL_SECRET is set.
+ */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: 'albago-crawl',
+    note: 'This endpoint runs over POST, not GET — a browser visit cannot trigger a crawl. Send a POST request (see modes).',
+    modes: {
+      sourceUrls: 'array of single event pages',
+      listingUrls: 'array of listing/index pages (all events on each)',
+      siteUrls: 'array of bare domains (events discovered via sitemap/homepage)',
+    },
+    dryRunDefault: true,
+    auth: 'admin session, or Authorization: Bearer <CRAWL_SECRET>',
+  })
+}
+
 export async function POST(request: Request) {
   // 1. Caller must be an admin session OR present the CRAWL_SECRET bearer token.
   if (!hasValidToken(request) && !(await isAdmin())) {
