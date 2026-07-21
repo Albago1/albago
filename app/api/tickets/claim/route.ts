@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { sendTicketConfirmationEmail } from '@/lib/tickets/sendTicketEmail'
 
 export const runtime = 'nodejs'
+// PDF generation + artwork fetch for the confirmation email can take a few
+// seconds on top of the claim itself.
+export const maxDuration = 30
 
 // Free-ticket claim (TIX-1 Stage C). All correctness lives in the
 // claim_free_tickets RPC — one transaction, tier row locked FOR UPDATE, so a
@@ -74,5 +78,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'claim_failed' }, { status: 500 })
   }
 
-  return NextResponse.json(data as ClaimResult)
+  // Stage E: confirmation email (PDF + .ics attached), strictly best-effort
+  // AFTER the claim transaction committed — a mail hiccup never unclaims.
+  const result = data as ClaimResult
+  let emailed = false
+  if (user.email) {
+    emailed = await sendTicketConfirmationEmail(supabase, {
+      toEmail: user.email,
+      eventId: result.event_id,
+      orderId: result.order_id,
+      tierId,
+      tickets: result.tickets,
+    })
+  }
+
+  return NextResponse.json({ ...result, emailed })
 }

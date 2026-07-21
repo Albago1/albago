@@ -785,6 +785,8 @@ export const translations: Record<Language, Record<string, string>> = {
     tix_status_valid: "Valid",
     tix_status_checked_in: "Checked in",
     tix_status_void: "Cancelled",
+    tix_download_pdf: "Download PDF ticket",
+    tix_success_email: "We also emailed your ticket PDF to you.",
   },
 
   de: {
@@ -1572,6 +1574,8 @@ export const translations: Record<Language, Record<string, string>> = {
     tix_status_valid: "Gültig",
     tix_status_checked_in: "Eingecheckt",
     tix_status_void: "Storniert",
+    tix_download_pdf: "PDF-Ticket herunterladen",
+    tix_success_email: "Dein Ticket-PDF haben wir dir auch per E-Mail geschickt.",
   },
 
   es: {
@@ -2359,6 +2363,8 @@ export const translations: Record<Language, Record<string, string>> = {
     tix_status_valid: "Válida",
     tix_status_checked_in: "Registrada",
     tix_status_void: "Anulada",
+    tix_download_pdf: "Descargar entrada en PDF",
+    tix_success_email: "También te hemos enviado tu entrada en PDF por correo.",
   },
 
   sq: {
@@ -3145,5 +3151,7 @@ export const translations: Record<Language, Record<string, string>> = {
     tix_status_valid: "E vlefshme",
     tix_status_checked_in: "E regjistruar",
     tix_status_void: "E anuluar",
+    tix_download_pdf: "Shkarko biletën PDF",
+    tix_success_email: "Biletën PDF ta dërguam edhe me email.",
   },
 }

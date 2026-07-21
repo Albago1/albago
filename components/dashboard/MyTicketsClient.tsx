@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { CheckCircle2, MapPin, QrCode, Ticket, X } from 'lucide-react'
+import { CheckCircle2, Download, MapPin, QrCode, Ticket, X } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import LocalizedEventText from '@/components/events/LocalizedEventText'
@@ -147,18 +147,29 @@ function TicketCard({
             </p>
           </div>
           {showable && (
-            <button
-              type="button"
-              onClick={() => onShowQr(ticket)}
-              className={`inline-flex flex-shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition ${
-                ticket.isPast
-                  ? 'border border-white/15 bg-white/[0.05] text-white/75 hover:bg-white/10'
-                  : 'bg-flame-500 text-white shadow-glow-flame hover:bg-flame-400'
-              }`}
-            >
-              <QrCode className="h-3.5 w-3.5" />
-              {t('tix_show_qr')}
-            </button>
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <a
+                href={`/api/tickets/${ticket.id}/pdf`}
+                download
+                aria-label={t('tix_download_pdf')}
+                title={t('tix_download_pdf')}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-white/70 transition hover:bg-white/10 hover:text-white"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </a>
+              <button
+                type="button"
+                onClick={() => onShowQr(ticket)}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition ${
+                  ticket.isPast
+                    ? 'border border-white/15 bg-white/[0.05] text-white/75 hover:bg-white/10'
+                    : 'bg-flame-500 text-white shadow-glow-flame hover:bg-flame-400'
+                }`}
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                {t('tix_show_qr')}
+              </button>
+            </div>
           )}
         </div>
       </div>

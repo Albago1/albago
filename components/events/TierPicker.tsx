@@ -93,6 +93,7 @@ export default function TierPicker({
   const [claiming, setClaiming] = useState(false)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [claimedSerials, setClaimedSerials] = useState<string[] | null>(null)
+  const [emailedTo, setEmailedTo] = useState(false)
 
   useEffect(() => {
     trackInteraction('ticket_view_tiers', {
@@ -136,10 +137,11 @@ export default function TierPicker({
         body: JSON.stringify({ tierId: selected.id, quantity: boundedQuantity }),
       })
       const payload = (await res.json().catch(() => null)) as
-        | { error?: string; tickets?: Array<{ serial: string }> }
+        | { error?: string; tickets?: Array<{ serial: string }>; emailed?: boolean }
         | null
       if (res.ok && payload?.tickets) {
         setClaimedSerials(payload.tickets.map((ticket) => ticket.serial))
+        setEmailedTo(payload.emailed === true)
         trackInteraction('ticket_claim', {
           entityType: 'event',
           entityId: eventId,
@@ -180,7 +182,10 @@ export default function TierPicker({
             <CheckCircle2 className="h-5 w-5 text-emerald-300" />
             {t('tix_success_title')}
           </p>
-          <p className="mt-1.5 text-sm text-white/75">{t('tix_success_sub')}</p>
+          <p className="mt-1.5 text-sm text-white/75">
+            {t('tix_success_sub')}
+            {emailedTo ? ` ${t('tix_success_email')}` : ''}
+          </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {claimedSerials.map((serial) => (
               <span
