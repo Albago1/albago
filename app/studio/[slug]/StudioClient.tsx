@@ -73,7 +73,7 @@ const FORMAT_DIMS: Record<Format, { w: number; h: number; label: string }> = {
 
 const LANGS: Lang[] = ['sq', 'en', 'de', 'es']
 const MOTIONS: ReelMotion[] = ['drift', 'pulse', 'sweep']
-const GRADED_LOOKS: ReadonlyArray<Look> = ['cinematic', 'noir']
+const GRADED_LOOKS: ReadonlyArray<Look> = ['cinematic', 'noir', 'ai']
 
 function draftKey(slug: string): string {
   return `albago:studio:draft:${slug}`
@@ -151,7 +151,19 @@ export default function StudioClient({ data, images }: Props) {
   const resolveBackdrop = useCallback(
     async (nextLook: Look, idx: number, seedVal: number): Promise<string | null> => {
       if (nextLook === 'ink') return null
-      if (nextLook === 'ai') return aiBackdrop
+      if (nextLook === 'ai') {
+        // Raw flux output is never shown — it always passes through the same
+        // brand grade as the Cinematic look. The duotone crushes the cheap
+        // AI palette and the grain hides its artifacts; Shuffle re-seeds it.
+        if (!aiBackdrop) return null
+        const key = `ai:${seedVal}`
+        const hit = gradeCache.current.get(key)
+        if (hit) return hit
+        const mod = await import('@/lib/share/gradeBackdrop')
+        const url = await mod.gradeBackdrop(aiBackdrop, { variant: 'flame', seed: seedVal })
+        gradeCache.current.set(key, url)
+        return url
+      }
       const key = `${nextLook}:${idx}:${nextLook === 'photo' ? 0 : seedVal}`
       const hit = gradeCache.current.get(key)
       if (hit) return hit
@@ -200,6 +212,8 @@ export default function StudioClient({ data, images }: Props) {
   }, [applyLook, backdropLoading, look, photoIdx, track])
 
   // AI look: generate on first use, then cached (server caches per event too).
+  // The raw render is only ever an ingredient — it is brand-graded before it
+  // touches the poster, exactly like an event photo.
   const paintAi = useCallback(
     async (regenerate = false) => {
       setAiPainting(true)
@@ -218,8 +232,15 @@ export default function StudioClient({ data, images }: Props) {
           reader.onerror = () => reject(new Error('read failed'))
           reader.readAsDataURL(blob)
         })
+        const mod = await import('@/lib/share/gradeBackdrop')
+        const graded = await mod.gradeBackdrop(dataUrl, { variant: 'flame', seed })
+        // Fresh artwork invalidates every grade of the previous one.
+        for (const k of [...gradeCache.current.keys()]) {
+          if (k.startsWith('ai:')) gradeCache.current.delete(k)
+        }
+        gradeCache.current.set(`ai:${seed}`, graded)
         setAiBackdrop(dataUrl)
-        setBackdrop(dataUrl)
+        setBackdrop(graded)
         setLook('ai')
         track('studio_look', { look: 'ai', regenerate })
       } catch (e) {
@@ -229,7 +250,7 @@ export default function StudioClient({ data, images }: Props) {
         setAiPainting(false)
       }
     },
-    [data.slug, showToast, t, track],
+    [data.slug, seed, showToast, t, track],
   )
 
   // ---- entry: restore the draft, build the kit (reveal tied to real work) --
@@ -748,9 +769,6 @@ export default function StudioClient({ data, images }: Props) {
                     track('studio_look', { look: l.id })
                     if (l.id === 'ai' && !aiBackdrop) {
                       paintAi()
-                    } else if (l.id === 'ai') {
-                      setBackdrop(aiBackdrop)
-                      setLook('ai')
                     } else {
                       applyLook(l.id)
                     }
