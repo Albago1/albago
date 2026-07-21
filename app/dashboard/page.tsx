@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Send,
   Settings,
+  Ticket as TicketIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -160,7 +161,7 @@ export default async function DashboardPage() {
   if (profile?.role === 'admin') redirect('/admin')
 
   // — Regular user view —
-  const [submissionsRes, savedEvents, organizer, placardsRes, prefsRes] =
+  const [submissionsRes, savedEvents, organizer, placardsRes, prefsRes, ticketsRes] =
     await Promise.all([
       supabase
         .from('event_submissions')
@@ -182,9 +183,15 @@ export default async function DashboardPage() {
         .select('notification_preferences')
         .eq('id', user.id)
         .maybeSingle(),
+      supabase
+        .from('tickets')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_user_id', user.id)
+        .in('status', ['valid', 'checked_in']),
     ])
 
   const userSubmissions: Submission[] = submissionsRes.data ?? []
+  const ticketCount = ticketsRes.count ?? 0
 
   // Split saved events into Upcoming vs Past so the section reads at a glance
   // instead of mixing tomorrow's protest with last month's gig.
@@ -481,6 +488,27 @@ export default async function DashboardPage() {
               <ArrowRight className="ml-auto h-4 w-4 text-white/45 transition group-hover:translate-x-0.5 group-hover:text-white/85" />
             </Link>
           </div>
+
+          {/* My Tickets hand-off */}
+          <Link
+            href="/dashboard/tickets"
+            className="group mt-8 flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-white/15 hover:bg-white/[0.05]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                <TicketIcon className="h-5 w-5 text-flame-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-white">My Tickets</p>
+                <p className="mt-0.5 text-sm text-white/50">
+                  {ticketCount > 0
+                    ? `${ticketCount} ticket${ticketCount === 1 ? '' : 's'} · QR codes ready at the door`
+                    : 'Free tickets you claim appear here'}
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
+          </Link>
 
           {/* Organizer hand-off */}
           <Link
