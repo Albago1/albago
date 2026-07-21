@@ -8,6 +8,7 @@ import {
   bilingualLabel,
   categoryLabel,
   ctaLine,
+  fitSize,
   formatTimeRangeForCard,
   shortAddress,
 } from './shared'
@@ -103,7 +104,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
             className="mt-8 leading-[0.92]"
             style={{
               fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
-              fontSize: 120,
+              fontSize: fitSize(data.city, 120, 76, 12),
               letterSpacing: '-0.04em',
               color: '#ffffff',
               textShadow: '0 4px 30px rgba(5,5,5,0.85)',
@@ -116,7 +117,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
             className="mt-6 max-w-[820px] leading-[1.15]"
             style={{
               fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
-              fontSize: 44,
+              fontSize: fitSize(data.title, 44, 32, 56),
               letterSpacing: '-0.02em',
               color: 'rgba(255,255,255,0.92)',
               textShadow: '0 3px 24px rgba(5,5,5,0.85)',

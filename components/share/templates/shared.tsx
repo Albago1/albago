@@ -21,6 +21,21 @@ export function bilingualLabel(sq: string, en: string, isCivic: boolean): string
   return isCivic ? `${sq} · ${en}` : en
 }
 
+/* Length-aware type size. Text up to `comfortable` characters renders at
+   `base`; longer text scales down proportionally, floored at `min`, so a
+   long title or city name shrinks gracefully instead of overflowing the
+   fixed-size poster frame. */
+export function fitSize(
+  text: string | null | undefined,
+  base: number,
+  min: number,
+  comfortable: number,
+): number {
+  const len = (text ?? '').trim().length
+  if (len <= comfortable) return base
+  return Math.max(min, Math.round((base * comfortable) / len))
+}
+
 /* Date hero block — big day number + month / weekday underneath. When civic,
    month + weekday are bilingual (Albanian · English) to match caption tone.
    Three scales tuned to the three templates' canvas sizes. */

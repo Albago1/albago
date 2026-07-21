@@ -9,10 +9,29 @@
  * exactly as they do over the AI backdrop. The templates apply their own
  * legibility scrim, so this pass is purely tonal — duotone + grain + a light
  * vignette — and deliberately does NOT bake in gradients of its own.
+ *
+ * Two grades share the pipeline:
+ *   flame — ink shadows → flame reds → ember speculars (the Cinematic look)
+ *   noir  — neutral silver gelatin with the flame bloom kept as the single
+ *           brand accent (the Noir look)
+ *
+ * A `seed` varies the taste parameters (gamma, bloom placement/strength,
+ * vignette) inside art-directed bounds — that is the Shuffle button: every
+ * press is a different-but-always-on-brand variation of the same photo.
  */
 
-// Luminance → [r,g,b] ramp: ink shadows, flame highlights, ember speculars.
-const STOPS: ReadonlyArray<readonly [number, number, number, number]> = [
+export type GradeVariant = 'flame' | 'noir'
+
+export type GradeOptions = {
+  width?: number
+  height?: number
+  variant?: GradeVariant
+  /** Same seed → same grade. Omit (or 0) for the house default. */
+  seed?: number
+}
+
+// Luminance → [r,g,b] ramps.
+const FLAME_STOPS: ReadonlyArray<readonly [number, number, number, number]> = [
   [0.0, 5, 5, 5],
   [0.42, 74, 10, 13],
   [0.72, 200, 22, 29],
@@ -20,15 +39,25 @@ const STOPS: ReadonlyArray<readonly [number, number, number, number]> = [
   [1.0, 255, 122, 92],
 ]
 
-function buildLUT(): Uint8ClampedArray {
+const NOIR_STOPS: ReadonlyArray<readonly [number, number, number, number]> = [
+  [0.0, 5, 5, 6],
+  [0.45, 92, 92, 97],
+  [0.8, 205, 205, 210],
+  [1.0, 250, 250, 252],
+]
+
+function buildLUT(
+  stops: ReadonlyArray<readonly [number, number, number, number]>,
+  gamma: number,
+): Uint8ClampedArray {
   const lut = new Uint8ClampedArray(256 * 3)
   for (let i = 0; i < 256; i++) {
     // gamma < 1 deepens shadows so the frame keeps dark negative space
-    const t = Math.pow(i / 255, 1.28)
+    const t = Math.pow(i / 255, gamma)
     let s = 0
-    while (s < STOPS.length - 1 && t > STOPS[s + 1][0]) s++
-    const a = STOPS[s]
-    const b = STOPS[Math.min(s + 1, STOPS.length - 1)]
+    while (s < stops.length - 1 && t > stops[s + 1][0]) s++
+    const a = stops[s]
+    const b = stops[Math.min(s + 1, stops.length - 1)]
     const span = b[0] - a[0] || 1
     let f = (t - a[0]) / span
     if (f < 0) f = 0
@@ -40,7 +69,34 @@ function buildLUT(): Uint8ClampedArray {
   return lut
 }
 
-const LUT = buildLUT()
+/** Deterministic PRNG so a seed always reproduces the exact same grade. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** Taste parameters, either the house defaults (seed 0) or a seeded riff
+ *  inside art-directed bounds — never outside the brand. */
+function gradeParams(seed: number) {
+  if (!seed) {
+    return { gamma: 1.28, glowX: 0.5, glowY: 0.9, glowR: 0.85, glowA: 0.14, vignette: 0.4 }
+  }
+  const rnd = mulberry32(seed)
+  return {
+    gamma: 1.16 + rnd() * 0.26,
+    glowX: 0.25 + rnd() * 0.5,
+    glowY: 0.78 + rnd() * 0.18,
+    glowR: 0.7 + rnd() * 0.45,
+    glowA: 0.1 + rnd() * 0.1,
+    vignette: 0.3 + rnd() * 0.22,
+  }
+}
 
 let grainTile: HTMLCanvasElement | null = null
 function getGrain(): HTMLCanvasElement {
@@ -83,11 +139,11 @@ export async function imageToDataUrl(src: string): Promise<string> {
  * tainted and `toDataURL` stays readable. Throws on fetch/decode failure —
  * the caller falls back to the brand or AI backdrop.
  */
-export async function gradeBackdrop(
-  src: string,
-  width = 1080,
-  height = 1920,
-): Promise<string> {
+export async function gradeBackdrop(src: string, opts: GradeOptions = {}): Promise<string> {
+  const { width = 1080, height = 1920, variant = 'flame', seed = 0 } = opts
+  const p = gradeParams(seed)
+  const lut = buildLUT(variant === 'noir' ? NOIR_STOPS : FLAME_STOPS, p.gamma)
+
   const res = await fetch(src, { mode: 'cors', cache: 'force-cache' })
   if (!res.ok) throw new Error(`backdrop image fetch failed: ${res.status}`)
   const blob = await res.blob()
@@ -111,9 +167,9 @@ export async function gradeBackdrop(
   const d = frame.data
   for (let i = 0; i < d.length; i += 4) {
     const L = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0
-    d[i] = LUT[L * 3]
-    d[i + 1] = LUT[L * 3 + 1]
-    d[i + 2] = LUT[L * 3 + 2]
+    d[i] = lut[L * 3]
+    d[i + 1] = lut[L * 3 + 1]
+    d[i + 2] = lut[L * 3 + 2]
   }
   ctx.putImageData(frame, 0, 0)
 
@@ -138,21 +194,23 @@ export async function gradeBackdrop(
     height * 0.75,
   )
   vg.addColorStop(0, 'rgba(5,5,5,0)')
-  vg.addColorStop(1, 'rgba(5,5,5,0.4)')
+  vg.addColorStop(1, `rgba(5,5,5,${p.vignette})`)
   ctx.fillStyle = vg
   ctx.fillRect(0, 0, width, height)
 
-  // Faint flame bloom low in the frame — echoes the brand light source.
+  // Faint flame bloom — echoes the brand light source. Kept even in noir:
+  // the single red accent on silver is the AlbaGo signature.
   ctx.globalCompositeOperation = 'screen'
   const glow = ctx.createRadialGradient(
-    width * 0.5,
-    height * 0.9,
+    width * p.glowX,
+    height * p.glowY,
     0,
-    width * 0.5,
-    height * 0.9,
-    width * 0.85,
+    width * p.glowX,
+    height * p.glowY,
+    width * p.glowR,
   )
-  glow.addColorStop(0, 'rgba(238,28,37,0.14)')
+  const glowA = variant === 'noir' ? Math.min(p.glowA, 0.11) : p.glowA
+  glow.addColorStop(0, `rgba(238,28,37,${glowA})`)
   glow.addColorStop(1, 'rgba(238,28,37,0)')
   ctx.fillStyle = glow
   ctx.fillRect(0, 0, width, height)

@@ -9,12 +9,16 @@ import {
   Download,
   Image as ImageIcon,
   Loader2,
+  Package,
   RefreshCw,
+  Shuffle,
   Smartphone,
   Sparkles,
   Video,
+  X,
 } from 'lucide-react'
 import type { ShareEventData } from '@/lib/share/types'
+import type { ReelMotion } from '@/lib/share/recordPosterVideo'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { trackInteraction } from '@/lib/track'
 import { buildCaption } from '@/lib/share/captions'
@@ -32,9 +36,12 @@ import FacebookShareTemplate from '@/components/share/templates/FacebookShareTem
  *   2. No blank states. The kit builds itself on entry (reveal sequence tied
  *      to real work, not fake progress) and lands on a finished poster.
  *   3. Taste controls, not tools. Looks restyle every format coherently;
- *      photos are picked, not cropped; captions arrive written.
+ *      Shuffle riffs inside the brand; photos are picked, not cropped;
+ *      captions arrive written.
  *   4. Loud feedback. Every action ends in a visible toast — shared, copied,
  *      saved — never a silent download.
+ *   5. Nothing is lost. Look, format, photo and edited captions persist per
+ *      event, so closing the tab never throws work away.
  */
 
 type Props = {
@@ -43,10 +50,20 @@ type Props = {
   images: string[]
 }
 
-type Look = 'cinematic' | 'photo' | 'ink' | 'ai'
+type Look = 'cinematic' | 'photo' | 'noir' | 'ink' | 'ai'
 type Format = 'story' | 'square' | 'card'
 type Lang = 'en' | 'sq' | 'de' | 'es'
 type CaptionPack = Record<Lang, string>
+
+type Draft = {
+  look?: Look
+  photoIdx?: number
+  format?: Format
+  motion?: ReelMotion
+  captionLang?: Lang
+  seed?: number
+  captions?: Partial<Record<Lang, string>>
+}
 
 const FORMAT_DIMS: Record<Format, { w: number; h: number; label: string }> = {
   story: { w: 1080, h: 1920, label: 'Story' },
@@ -55,6 +72,12 @@ const FORMAT_DIMS: Record<Format, { w: number; h: number; label: string }> = {
 }
 
 const LANGS: Lang[] = ['sq', 'en', 'de', 'es']
+const MOTIONS: ReelMotion[] = ['drift', 'pulse', 'sweep']
+const GRADED_LOOKS: ReadonlyArray<Look> = ['cinematic', 'noir']
+
+function draftKey(slug: string): string {
+  return `albago:studio:draft:${slug}`
+}
 
 export default function StudioClient({ data, images }: Props) {
   const { t, language } = useLanguage()
@@ -64,15 +87,16 @@ export default function StudioClient({ data, images }: Props) {
   const [look, setLook] = useState<Look>(hasPhotos ? 'cinematic' : 'ink')
   const [photoIdx, setPhotoIdx] = useState(0)
   const [format, setFormat] = useState<Format>('story')
+  const [seed, setSeed] = useState(0)
+  const [motion, setMotion] = useState<ReelMotion>('drift')
   const [backdrop, setBackdrop] = useState<string | null>(null)
   const [backdropLoading, setBackdropLoading] = useState(false)
   const [aiBackdrop, setAiBackdrop] = useState<string | null>(null)
   const [aiPainting, setAiPainting] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
-  // Per-photo caches so switching looks/photos is instant after first grade.
-  const cinematicCache = useRef(new Map<number, string>())
-  const photoCache = useRef(new Map<number, string>())
+  // Grade cache (look:photo:seed) so revisiting a combination is instant.
+  const gradeCache = useRef(new Map<string, string>())
 
   // ---- captions --------------------------------------------------------
   const fallbackCaption = useMemo(() => buildCaption(data), [data])
@@ -86,9 +110,12 @@ export default function StudioClient({ data, images }: Props) {
     (LANGS as string[]).includes(language) ? (language as Lang) : 'en',
   )
   const [captionsDone, setCaptionsDone] = useState(false)
+  // Languages the user has touched — the AI response never overwrites these,
+  // and only these are persisted in the draft.
+  const editedLangs = useRef(new Set<Lang>())
 
   // ---- action state ----------------------------------------------------
-  const [busy, setBusy] = useState<'share' | 'download' | null>(null)
+  const [busy, setBusy] = useState<'share' | 'download' | 'kit' | null>(null)
   const [recording, setRecording] = useState<15 | 30 | null>(null)
   const [recordProgress, setRecordProgress] = useState(0)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
@@ -97,6 +124,7 @@ export default function StudioClient({ data, images }: Props) {
   // ---- reveal ----------------------------------------------------------
   const [revealDone, setRevealDone] = useState(false)
   const [steps, setSteps] = useState({ read: false, art: false, type: false })
+  const [draftReady, setDraftReady] = useState(false)
 
   const showToast = useCallback((msg: string, ok = true) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -121,33 +149,37 @@ export default function StudioClient({ data, images }: Props) {
 
   // ---- backdrop resolution --------------------------------------------
   const resolveBackdrop = useCallback(
-    async (nextLook: Look, idx: number): Promise<string | null> => {
+    async (nextLook: Look, idx: number, seedVal: number): Promise<string | null> => {
       if (nextLook === 'ink') return null
       if (nextLook === 'ai') return aiBackdrop
-      const cache = nextLook === 'cinematic' ? cinematicCache : photoCache
-      const hit = cache.current.get(idx)
+      const key = `${nextLook}:${idx}:${nextLook === 'photo' ? 0 : seedVal}`
+      const hit = gradeCache.current.get(key)
       if (hit) return hit
       const src = images[idx]
       if (!src) return null
       const mod = await import('@/lib/share/gradeBackdrop')
       const url =
-        nextLook === 'cinematic'
-          ? await mod.gradeBackdrop(src)
-          : await mod.imageToDataUrl(src)
-      cache.current.set(idx, url)
+        nextLook === 'photo'
+          ? await mod.imageToDataUrl(src)
+          : await mod.gradeBackdrop(src, {
+              variant: nextLook === 'noir' ? 'noir' : 'flame',
+              seed: seedVal,
+            })
+      gradeCache.current.set(key, url)
       return url
     },
     [images, aiBackdrop],
   )
 
   const applyLook = useCallback(
-    async (nextLook: Look, idx = photoIdx) => {
+    async (nextLook: Look, idx = photoIdx, seedVal = seed) => {
       setBackdropLoading(true)
       try {
-        const url = await resolveBackdrop(nextLook, idx)
+        const url = await resolveBackdrop(nextLook, idx, seedVal)
         setBackdrop(url)
         setLook(nextLook)
         setPhotoIdx(idx)
+        setSeed(seedVal)
       } catch (e) {
         console.error('studio backdrop failed:', e)
         showToast(t('share_ai_error'), false)
@@ -155,8 +187,17 @@ export default function StudioClient({ data, images }: Props) {
         setBackdropLoading(false)
       }
     },
-    [photoIdx, resolveBackdrop, showToast, t],
+    [photoIdx, seed, resolveBackdrop, showToast, t],
   )
+
+  // Shuffle — a new seeded riff on the current grade: bloom placement,
+  // depth and vignette move inside art-directed bounds. Always on brand.
+  const handleShuffle = useCallback(() => {
+    if (backdropLoading) return
+    const s = Math.max(1, (Math.random() * 0x7fffffff) | 0)
+    track('studio_shuffle', { look })
+    applyLook(look, photoIdx, s)
+  }, [applyLook, backdropLoading, look, photoIdx, track])
 
   // AI look: generate on first use, then cached (server caches per event too).
   const paintAi = useCallback(
@@ -191,7 +232,7 @@ export default function StudioClient({ data, images }: Props) {
     [data.slug, showToast, t, track],
   )
 
-  // ---- entry: build the kit (reveal tied to real work) -----------------
+  // ---- entry: restore the draft, build the kit (reveal tied to real work) --
   useEffect(() => {
     let cancelled = false
     track('studio_open')
@@ -201,9 +242,43 @@ export default function StudioClient({ data, images }: Props) {
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const minShow = reduced ? 0 : 2200
 
+    // Last session's work comes back exactly as it was left. The AI look is
+    // never auto-restored (it would fire a generation on entry).
+    let draft: Draft | null = null
+    try {
+      draft = JSON.parse(localStorage.getItem(draftKey(data.slug)) ?? 'null') as Draft | null
+    } catch {
+      draft = null
+    }
+    const defaultLook: Look = hasPhotos ? 'cinematic' : 'ink'
+    let startLook = draft?.look && draft.look !== 'ai' ? draft.look : defaultLook
+    if (!hasPhotos && startLook !== 'ink') startLook = 'ink'
+    const startIdx = Math.min(Math.max(draft?.photoIdx ?? 0, 0), Math.max(images.length - 1, 0))
+    const startSeed = draft?.seed ?? 0
+    if (draft?.format && draft.format in FORMAT_DIMS) setFormat(draft.format)
+    if (draft?.motion && (MOTIONS as string[]).includes(draft.motion)) setMotion(draft.motion)
+    if (draft?.captionLang && (LANGS as string[]).includes(draft.captionLang)) {
+      setCaptionLang(draft.captionLang)
+    }
+    if (draft?.captions) {
+      const restored: Partial<Record<Lang, string>> = {}
+      for (const l of LANGS) {
+        const v = draft.captions[l]
+        if (typeof v === 'string' && v.trim()) {
+          restored[l] = v
+          editedLangs.current.add(l)
+        }
+      }
+      if (Object.keys(restored).length > 0) setCaptions((c) => ({ ...c, ...restored }))
+    }
+    setLook(startLook)
+    setPhotoIdx(startIdx)
+    setSeed(startSeed)
+    setDraftReady(true)
+
     setTimeout(() => !cancelled && setSteps((s) => ({ ...s, read: true })), reduced ? 0 : 450)
 
-    const artwork = resolveBackdrop(hasPhotos ? 'cinematic' : 'ink', 0)
+    const artwork = resolveBackdrop(startLook, startIdx, startSeed)
       .then((url) => {
         if (!cancelled) setBackdrop(url)
       })
@@ -227,7 +302,16 @@ export default function StudioClient({ data, images }: Props) {
     })
       .then((res) => res.json())
       .then((json: { ok: boolean; captions?: CaptionPack }) => {
-        if (!cancelled && json.ok && json.captions) setCaptions(json.captions)
+        if (cancelled || !json.ok || !json.captions) return
+        const fresh = json.captions
+        // Never clobber what the user (or the restored draft) already wrote.
+        setCaptions((c) => {
+          const next = { ...c }
+          for (const l of LANGS) {
+            if (!editedLangs.current.has(l) && fresh[l]) next[l] = fresh[l]
+          }
+          return next
+        })
       })
       .catch(() => {})
       .finally(() => !cancelled && setCaptionsDone(true))
@@ -243,6 +327,32 @@ export default function StudioClient({ data, images }: Props) {
     // Entry sequence runs exactly once per mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ---- draft persistence (debounced; only after the restore has applied) --
+  useEffect(() => {
+    if (!draftReady) return
+    const id = setTimeout(() => {
+      const edited: Partial<Record<Lang, string>> = {}
+      editedLangs.current.forEach((l) => {
+        edited[l] = captions[l]
+      })
+      const draft: Draft = {
+        look,
+        photoIdx,
+        format,
+        motion,
+        captionLang,
+        seed,
+        ...(Object.keys(edited).length > 0 ? { captions: edited } : {}),
+      }
+      try {
+        localStorage.setItem(draftKey(data.slug), JSON.stringify(draft))
+      } catch {
+        // Quota/private mode — persistence is a nicety, never an error.
+      }
+    }, 400)
+    return () => clearTimeout(id)
+  }, [draftReady, look, photoIdx, format, motion, captionLang, seed, captions, data.slug])
 
   // ---- capture & actions ----------------------------------------------
   const storyRef = useRef<HTMLDivElement | null>(null)
@@ -266,16 +376,23 @@ export default function StudioClient({ data, images }: Props) {
 
   const safeSlug = (data.slug || 'event').replace(/[^a-z0-9-]/gi, '-').toLowerCase()
 
+  const savePngFile = useCallback(
+    (dataUrl: string, name: string) => {
+      const link = document.createElement('a')
+      link.download = name
+      link.href = dataUrl
+      link.click()
+    },
+    [],
+  )
+
   const handleDownload = useCallback(async () => {
-    if (busy) return
+    if (busy || recording) return
     setBusy('download')
     track('studio_download', { format, look })
     try {
       const dataUrl = await capturePng()
-      const link = document.createElement('a')
-      link.download = `albago-${safeSlug}-${format}.png`
-      link.href = dataUrl
-      link.click()
+      savePngFile(dataUrl, `albago-${safeSlug}-${format}.png`)
       showToast(t('studio_downloaded'))
     } catch (e) {
       console.error(e)
@@ -283,10 +400,10 @@ export default function StudioClient({ data, images }: Props) {
     } finally {
       setBusy(null)
     }
-  }, [busy, capturePng, format, look, safeSlug, showToast, t, track])
+  }, [busy, recording, capturePng, format, look, safeSlug, savePngFile, showToast, t, track])
 
   const handleShare = useCallback(async () => {
-    if (busy) return
+    if (busy || recording) return
     setBusy('share')
     try {
       const dataUrl = await capturePng()
@@ -299,17 +416,26 @@ export default function StudioClient({ data, images }: Props) {
         typeof navigator.canShare === 'function' &&
         navigator.canShare({ files: [file] })
       ) {
-        track('studio_share', { format, look, via: 'native' })
         await navigator.share({
           files: [file],
           title: data.title,
           text: captions[captionLang],
         })
+        track('studio_share', { format, look, via: 'native' })
         showToast(t('studio_shared'))
       } else {
-        track('studio_share', { format, look, via: 'clipboard' })
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        showToast(t('studio_image_copied'))
+        // Clipboard image support varies (Firefox lacks ClipboardItem) —
+        // the design must always end up in the user's hands, so fall back
+        // to a straight file save rather than a dead error.
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          track('studio_share', { format, look, via: 'clipboard' })
+          showToast(t('studio_image_copied'))
+        } catch {
+          savePngFile(dataUrl, `albago-${safeSlug}-${format}.png`)
+          track('studio_share', { format, look, via: 'download' })
+          showToast(t('studio_downloaded'))
+        }
       }
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
@@ -319,14 +445,55 @@ export default function StudioClient({ data, images }: Props) {
     } finally {
       setBusy(null)
     }
-  }, [busy, capturePng, captions, captionLang, data.title, format, look, safeSlug, showToast, t, track])
+  }, [busy, recording, capturePng, captions, captionLang, data.title, format, look, safeSlug, savePngFile, showToast, t, track])
 
+  // The whole kit in one tap: every format + all four captions, zipped.
+  const handleKit = useCallback(async () => {
+    if (busy || recording) return
+    setBusy('kit')
+    track('studio_kit', { look })
+    try {
+      const { captureNodePng } = await import('@/lib/share/captureNode')
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      const nodes: Array<[Format, HTMLElement | null]> = [
+        ['story', storyRef.current],
+        ['square', squareRef.current],
+        ['card', cardRef.current],
+      ]
+      for (const [name, node] of nodes) {
+        if (!node) continue
+        const dataUrl = await captureNodePng(node)
+        zip.file(`albago-${safeSlug}-${name}.png`, dataUrl.split(',')[1], { base64: true })
+      }
+      const captionsTxt = LANGS.map(
+        (l) => `────────  ${l.toUpperCase()}  ────────\n\n${captions[l]}`,
+      ).join('\n\n\n')
+      zip.file(`albago-${safeSlug}-captions.txt`, captionsTxt)
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.download = `albago-${safeSlug}-kit.zip`
+      link.href = url
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      showToast(t('studio_kit_done'))
+    } catch (e) {
+      console.error(e)
+      showToast(t('share_ai_error'), false)
+    } finally {
+      setBusy(null)
+    }
+  }, [busy, recording, captions, look, safeSlug, showToast, t, track])
+
+  // Reels always animate the Story artwork — its node is permanently mounted
+  // off-screen, so recording works from any visible format.
   const handleReel = useCallback(
     async (sec: 15 | 30) => {
       if (recording || busy) return
       setRecording(sec)
       setRecordProgress(0)
-      track('studio_reel', { seconds: sec, look })
+      track('studio_reel', { seconds: sec, look, motion })
       try {
         const node = storyRef.current
         if (!node) throw new Error('Template not ready')
@@ -334,6 +501,7 @@ export default function StudioClient({ data, images }: Props) {
         const { blob, ext } = await recordPosterVideo({
           node,
           durationSec: sec,
+          motion,
           onProgress: (frac) => setRecordProgress(frac),
         })
         const url = URL.createObjectURL(blob)
@@ -351,7 +519,7 @@ export default function StudioClient({ data, images }: Props) {
         setRecordProgress(0)
       }
     },
-    [busy, look, recording, safeSlug, showToast, t, track],
+    [busy, look, motion, recording, safeSlug, showToast, t, track],
   )
 
   const copyCaption = useCallback(async () => {
@@ -363,6 +531,53 @@ export default function StudioClient({ data, images }: Props) {
       showToast(t('share_ai_error'), false)
     }
   }, [captions, captionLang, showToast, t, track])
+
+  // ---- keyboard shortcuts (desktop power flow) -------------------------
+  const canBrowsePhotos =
+    hasPhotos && images.length > 1 && (look === 'cinematic' || look === 'photo' || look === 'noir')
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable)) {
+        return
+      }
+      switch (e.key) {
+        case '1':
+          setFormat('story')
+          break
+        case '2':
+          setFormat('square')
+          break
+        case '3':
+          setFormat('card')
+          break
+        case 'ArrowLeft':
+        case 'ArrowRight': {
+          if (!canBrowsePhotos) return
+          e.preventDefault()
+          const dir = e.key === 'ArrowRight' ? 1 : -1
+          applyLook(look, (photoIdx + dir + images.length) % images.length)
+          break
+        }
+        case 's':
+        case 'S':
+          handleShare()
+          break
+        case 'd':
+        case 'D':
+          handleDownload()
+          break
+        case 'k':
+        case 'K':
+          handleKit()
+          break
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [applyLook, canBrowsePhotos, handleDownload, handleKit, handleShare, images.length, look, photoIdx])
 
   // ---- preview scaling -------------------------------------------------
   const previewWrapRef = useRef<HTMLDivElement | null>(null)
@@ -384,11 +599,18 @@ export default function StudioClient({ data, images }: Props) {
       ? ([
           { id: 'cinematic', label: t('studio_look_cinematic') },
           { id: 'photo', label: t('studio_look_photo') },
+          { id: 'noir', label: t('studio_look_noir') },
         ] as const)
       : []),
     { id: 'ink', label: t('studio_look_ink') },
     { id: 'ai', label: t('studio_look_ai') },
   ]
+
+  const motionLabels: Record<ReelMotion, string> = {
+    drift: t('studio_motion_drift'),
+    pulse: t('studio_motion_pulse'),
+    sweep: t('studio_motion_sweep'),
+  }
 
   const templateProps = { data, qrDataUrl, backdropUrl: backdrop }
 
@@ -501,6 +723,11 @@ export default function StudioClient({ data, images }: Props) {
               )}
             </div>
           </div>
+
+          {/* keyboard hint — desktop only */}
+          <p className="mt-3 hidden text-[11px] text-white/30 lg:block">
+            {t('studio_shortcuts')}
+          </p>
         </div>
 
         {/* ---- controls rail ---- */}
@@ -542,6 +769,17 @@ export default function StudioClient({ data, images }: Props) {
                   {l.id === 'ai' && aiPainting ? t('studio_ai_painting') : l.label}
                 </button>
               ))}
+              {GRADED_LOOKS.includes(look) && (
+                <button
+                  type="button"
+                  onClick={handleShuffle}
+                  disabled={backdropLoading}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-4 py-2 text-[12px] font-semibold text-white/65 transition hover:bg-white/[0.09] disabled:opacity-60"
+                >
+                  <Shuffle className="h-3 w-3" />
+                  {t('studio_shuffle')}
+                </button>
+              )}
               {look === 'ai' && aiBackdrop && (
                 <button
                   type="button"
@@ -557,7 +795,7 @@ export default function StudioClient({ data, images }: Props) {
           </div>
 
           {/* Photo picker */}
-          {hasPhotos && images.length > 1 && (look === 'cinematic' || look === 'photo') && (
+          {canBrowsePhotos && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
                 {t('studio_photo')}
@@ -597,6 +835,19 @@ export default function StudioClient({ data, images }: Props) {
               )}
               {t('studio_share')}
             </button>
+            <button
+              type="button"
+              onClick={handleKit}
+              disabled={busy !== null || recording !== null}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-5 py-3 text-[13px] font-bold text-flame-100 transition hover:bg-flame-500/[0.14] disabled:opacity-60"
+            >
+              {busy === 'kit' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Package className="h-4 w-4" />
+              )}
+              {t('studio_kit')}
+            </button>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
@@ -616,8 +867,7 @@ export default function StudioClient({ data, images }: Props) {
                   key={sec}
                   type="button"
                   onClick={() => handleReel(sec)}
-                  disabled={busy !== null || recording !== null || format !== 'story'}
-                  title={format !== 'story' ? 'Reels use the Story format' : undefined}
+                  disabled={busy !== null || recording !== null}
                   className="relative inline-flex items-center justify-center gap-1.5 overflow-hidden rounded-full border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[12px] font-semibold text-white/85 transition hover:bg-white/[0.08] disabled:opacity-50"
                 >
                   {recording === sec && (
@@ -633,6 +883,27 @@ export default function StudioClient({ data, images }: Props) {
                     <Video className="relative h-3.5 w-3.5" />
                   )}
                   <span className="relative">{sec}s</span>
+                </button>
+              ))}
+            </div>
+            {/* Motion preset for the reels */}
+            <div className="flex items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                {t('studio_motion')}
+              </span>
+              {MOTIONS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMotion(m)}
+                  disabled={recording !== null}
+                  className={`rounded-full px-3 py-1 text-[11px] font-semibold transition disabled:opacity-60 ${
+                    motion === m
+                      ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/40'
+                      : 'bg-white/[0.05] text-white/50 hover:bg-white/[0.09]'
+                  }`}
+                >
+                  {motionLabels[m]}
                 </button>
               ))}
             </div>
@@ -677,9 +948,10 @@ export default function StudioClient({ data, images }: Props) {
             </div>
             <textarea
               value={captions[captionLang]}
-              onChange={(e) =>
+              onChange={(e) => {
+                editedLangs.current.add(captionLang)
                 setCaptions((c) => ({ ...c, [captionLang]: e.target.value }))
-              }
+              }}
               rows={7}
               className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-white/85 focus:border-flame-500/40 focus:outline-none"
               spellCheck={false}
@@ -713,7 +985,11 @@ export default function StudioClient({ data, images }: Props) {
               : 'border-flame-500/30 bg-[#1a0505]/90 text-flame-200'
           }`}
         >
-          <Check className={`h-4 w-4 ${toast.ok ? 'text-emerald-400' : 'text-flame-400'}`} />
+          {toast.ok ? (
+            <Check className="h-4 w-4 text-emerald-400" />
+          ) : (
+            <X className="h-4 w-4 text-flame-400" />
+          )}
           {toast.msg}
         </div>
       )}

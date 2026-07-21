@@ -8,6 +8,7 @@ import {
   bilingualLabel,
   categoryLabel,
   ctaLine,
+  fitSize,
   formatTimeRangeForCard,
   locationLine,
   shortAddress,
@@ -107,7 +108,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
             className="mt-5 leading-[0.95]"
             style={{
               fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
-              fontSize: 72,
+              fontSize: fitSize(data.title, 72, 50, 42),
               letterSpacing: '-0.03em',
               color: '#ffffff',
               textShadow: '0 3px 22px rgba(5,5,5,0.85)',

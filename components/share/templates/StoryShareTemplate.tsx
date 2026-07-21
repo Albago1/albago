@@ -8,6 +8,7 @@ import {
   bilingualLabel,
   categoryLabel,
   ctaLine,
+  fitSize,
   formatDateForCard,
   formatTimeRangeForCard,
   shortAddress,
@@ -105,7 +106,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
             className="leading-[0.95]"
             style={{
               fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
-              fontSize: 168,
+              fontSize: fitSize(data.city, 168, 104, 11),
               letterSpacing: '-0.04em',
               color: '#ffffff',
               textShadow: '0 6px 40px rgba(5,5,5,0.85)',
@@ -124,7 +125,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
             className="mt-2 max-w-[900px] leading-[1.1]"
             style={{
               fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
-              fontSize: 64,
+              fontSize: fitSize(data.title, 64, 42, 52),
               letterSpacing: '-0.02em',
               color: 'rgba(255,255,255,0.92)',
               textShadow: '0 4px 30px rgba(5,5,5,0.85)',
