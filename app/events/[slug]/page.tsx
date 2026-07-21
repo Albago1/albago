@@ -548,6 +548,7 @@ export default async function EventDetailPage(
     organizerName: event.organizer_name,
     isCivic,
     eventUrl: `https://albago.org/events/${event.slug}`,
+    imageUrl: event.banner_url ?? event.gallery_urls?.[0] ?? null,
   }
 
   const eventImages = [

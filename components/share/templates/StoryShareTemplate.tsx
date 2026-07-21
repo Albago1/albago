@@ -104,7 +104,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
           <h1
             className="leading-[0.95]"
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
               fontSize: 168,
               letterSpacing: '-0.04em',
               color: '#ffffff',
@@ -123,7 +123,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
           <div
             className="mt-2 max-w-[900px] leading-[1.1]"
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
               fontSize: 64,
               letterSpacing: '-0.02em',
               color: 'rgba(255,255,255,0.92)',

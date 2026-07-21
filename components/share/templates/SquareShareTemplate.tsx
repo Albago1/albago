@@ -16,9 +16,11 @@ type Props = {
   data: ShareEventData
   qrDataUrl: string | null
   innerRef?: React.RefObject<HTMLDivElement | null>
+  /** Backdrop artwork (data URL) painted behind the typography. */
+  backdropUrl?: string | null
 }
 
-export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props) {
+export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
   const where = shortAddress(data.address)
@@ -34,26 +36,48 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
         fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
       }}
     >
-      <GridBackdrop />
-
-      {/* Flamingo motif — centered behind the foreground content. */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <FlamingoHalo size={620} />
-        <div style={{ position: 'relative' }}>
-          <FlamingoMotif width={420} opacity={0.45} />
+      {backdropUrl ? (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={backdropUrl}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          {/* Scrim so the typography stays readable over any art. */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(180deg, rgba(5,5,5,0.60) 0%, rgba(5,5,5,0.28) 40%, rgba(5,5,5,0.86) 100%)',
+            }}
+          />
         </div>
-      </div>
+      ) : (
+        <>
+          <GridBackdrop />
+
+          {/* Flamingo motif — centered behind the foreground content. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FlamingoHalo size={620} />
+            <div style={{ position: 'relative' }}>
+              <FlamingoMotif width={420} opacity={0.45} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="relative z-10 flex h-full flex-col px-20 py-20">
         <div className="flex items-center justify-between">
@@ -78,7 +102,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
           <h1
             className="mt-8 leading-[0.92]"
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
               fontSize: 120,
               letterSpacing: '-0.04em',
               color: '#ffffff',
@@ -91,7 +115,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef }: Props
           <div
             className="mt-6 max-w-[820px] leading-[1.15]"
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
               fontSize: 44,
               letterSpacing: '-0.02em',
               color: 'rgba(255,255,255,0.92)',

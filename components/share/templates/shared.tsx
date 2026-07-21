@@ -56,7 +56,7 @@ export function DateHero({
     >
       <div
         style={{
-          fontFamily: "'Instrument Serif', Georgia, serif",
+          fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
           fontSize: numberSize,
           lineHeight: 0.82,
           letterSpacing: '-0.04em',
@@ -183,7 +183,7 @@ export function AlbaGoWordmark({ size = 'lg' }: { size?: 'sm' | 'md' | 'lg' }) {
         Alba
         <span
           style={{
-            fontFamily: "'Instrument Serif', Georgia, serif",
+            fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
             fontStyle: 'italic',
             fontWeight: 400,
             color: '#ee1c25',

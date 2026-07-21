@@ -17,9 +17,11 @@ type Props = {
   data: ShareEventData
   qrDataUrl: string | null
   innerRef?: React.RefObject<HTMLDivElement | null>
+  /** Backdrop artwork (data URL) painted behind the typography. */
+  backdropUrl?: string | null
 }
 
-export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Props) {
+export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
   const where = shortAddress(data.address)
@@ -35,26 +37,48 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
         fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
       }}
     >
-      <GridBackdrop />
-
-      {/* Flamingo motif — centered behind the foreground content. */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <FlamingoHalo size={500} />
-        <div style={{ position: 'relative' }}>
-          <FlamingoMotif width={300} opacity={0.38} />
+      {backdropUrl ? (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={backdropUrl}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          {/* Scrim so the typography stays readable over any art. */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(90deg, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.46) 55%, rgba(5,5,5,0.66) 100%)',
+            }}
+          />
         </div>
-      </div>
+      ) : (
+        <>
+          <GridBackdrop />
+
+          {/* Flamingo motif — centered behind the foreground content. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FlamingoHalo size={500} />
+            <div style={{ position: 'relative' }}>
+              <FlamingoMotif width={300} opacity={0.38} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="relative z-10 grid h-full grid-cols-[auto_1fr_auto] items-stretch gap-10 px-16 py-12">
         <div className="flex flex-col justify-center">
@@ -82,7 +106,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
           <h1
             className="mt-5 leading-[0.95]"
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
               fontSize: 72,
               letterSpacing: '-0.03em',
               color: '#ffffff',
@@ -147,7 +171,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef }: Pro
           <div
             className="text-right text-[18px] leading-[1.1]"
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
+              fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
               letterSpacing: '-0.02em',
             }}
           >
