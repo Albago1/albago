@@ -24,12 +24,9 @@ CREATE TABLE IF NOT EXISTS ticket_tiers (
   max_per_order  int           NOT NULL DEFAULT 6 CHECK (max_per_order > 0),
   sales_start    timestamptz,
   sales_end      timestamptz,
-  visibility     text          NOT NULL DEFAULT 'public'
-                               CHECK (visibility IN ('public','hidden','unlock_code')),
-  fee_mode       text          NOT NULL DEFAULT 'pass'
-                               CHECK (fee_mode IN ('absorb','pass')),
-  status         text          NOT NULL DEFAULT 'active'
-                               CHECK (status IN ('active','paused','sold_out_manual','archived')),
+  visibility     text          NOT NULL DEFAULT 'public' CHECK (visibility IN ('public','hidden','unlock_code')),
+  fee_mode       text          NOT NULL DEFAULT 'pass' CHECK (fee_mode IN ('absorb','pass')),
+  status         text          NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','sold_out_manual','archived')),
   sort_order     int           NOT NULL DEFAULT 0,
   created_at     timestamptz   NOT NULL DEFAULT now(),
   updated_at     timestamptz   NOT NULL DEFAULT now()
@@ -50,11 +47,8 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id                  uuid        REFERENCES profiles(id) ON DELETE SET NULL,
   event_id                 uuid        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   organizer_id             uuid        REFERENCES organizers(id) ON DELETE SET NULL,
-  status                   text        NOT NULL
-                                       CHECK (status IN ('pending','awaiting_door','paid',
-                                              'cancelled','expired','refunded','partially_refunded')),
-  provider                 text        NOT NULL
-                                       CHECK (provider IN ('free','stripe','cash_at_door')),
+  status                   text        NOT NULL CHECK (status IN ('pending','awaiting_door','paid','cancelled','expired','refunded','partially_refunded')),
+  provider                 text        NOT NULL CHECK (provider IN ('free','stripe','cash_at_door')),
   provider_session_id      text,
   provider_payment_intent  text,
   subtotal_cents           int         NOT NULL DEFAULT 0,
@@ -97,8 +91,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   owner_user_id        uuid        REFERENCES profiles(id) ON DELETE SET NULL,
   serial               text        NOT NULL UNIQUE,
   attendee_name        text,
-  status               text        NOT NULL DEFAULT 'valid'
-                                   CHECK (status IN ('valid','checked_in','void','refunded')),
+  status               text        NOT NULL DEFAULT 'valid' CHECK (status IN ('valid','checked_in','void','refunded')),
   qr_version           int         NOT NULL DEFAULT 1,
   payment_due_at_door  boolean     NOT NULL DEFAULT false,
   checked_in_at        timestamptz,
@@ -119,9 +112,7 @@ CREATE TABLE IF NOT EXISTS ticket_scans (
   ticket_id    uuid        REFERENCES tickets(id) ON DELETE SET NULL,
   event_id     uuid        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   scanned_by   uuid        REFERENCES profiles(id) ON DELETE SET NULL,
-  result       text        NOT NULL
-                           CHECK (result IN ('ok','duplicate','void','refunded',
-                                  'wrong_event','bad_signature','not_found')),
+  result       text        NOT NULL CHECK (result IN ('ok','duplicate','void','refunded','wrong_event','bad_signature','not_found')),
   raw          text,
   device_note  text,
   scanned_at   timestamptz NOT NULL DEFAULT now()
