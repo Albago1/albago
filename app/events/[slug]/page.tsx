@@ -31,6 +31,7 @@ import MapPickerButton from '@/components/MapPickerButton'
 import EventGallery from '@/components/EventGallery'
 import LocalizedEventText from '@/components/events/LocalizedEventText'
 import EventWeatherCard from '@/components/events/EventWeatherCard'
+import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
@@ -230,6 +231,48 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
     .eq('slug', slug)
     .maybeSingle()
   return (data as EventRecord | null) ?? null
+}
+
+// Native free-ticket tiers (TIX-1). Anon RLS already scopes the read to
+// public tiers of published events; price_cents = 0 keeps future paid tiers
+// out of the free picker until PAY ships. Availability is the computed
+// tier_available RPC — never a stored count.
+async function fetchTicketTiers(eventId: string): Promise<TierView[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('ticket_tiers')
+    .select(
+      'id, name, description, capacity, max_per_order, sales_start, sales_end',
+    )
+    .eq('event_id', eventId)
+    .eq('status', 'active')
+    .eq('price_cents', 0)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  const rows = (data ?? []) as Array<{
+    id: string
+    name: string
+    description: string | null
+    capacity: number
+    max_per_order: number
+    sales_start: string | null
+    sales_end: string | null
+  }>
+  if (rows.length === 0) return []
+  const availability = await Promise.all(
+    rows.map((row) => supabase.rpc('tier_available', { p_tier_id: row.id })),
+  )
+  return rows.map((row, index) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    capacity: row.capacity,
+    maxPerOrder: row.max_per_order,
+    available:
+      typeof availability[index].data === 'number' ? availability[index].data : 0,
+    salesStart: row.sales_start,
+    salesEnd: row.sales_end,
+  }))
 }
 
 // "Good to know" keys recognised inside events.practical_info (jsonb).
@@ -488,12 +531,21 @@ export default async function EventDetailPage(
     isCivic &&
     (event.telegram_link || event.whatsapp_link || event.organizer_contact)
 
+  // Native free-ticket tiers (TIX-1) supersede the external ticket link and
+  // the static price row whenever they exist — never both CTAs. Civic events
+  // never get tiers (schema guard) but we don't even fetch for them.
+  const ticketTiers =
+    !isCivic && !hasEnded && event.listing_status !== 'cancelled'
+      ? await fetchTicketTiers(event.id)
+      : []
+  const hasNativeTickets = ticketTiers.length > 0
+
   // External ticketing (structured fields on events). Native tiers from the
-  // TIX track supersede these per-event once they ship. Civic events never
-  // show commerce vocabulary — bible pledge.
+  // TIX track supersede these per-event. Civic events never show commerce
+  // vocabulary — bible pledge.
   const soldOut = event.ticket_sales_status === 'sold_out'
   const ticketUrl =
-    !isCivic && !hasEnded && !soldOut
+    !isCivic && !hasEnded && !soldOut && !hasNativeTickets
       ? safeExternalUrl(event.ticket_url)
       : null
   const priceFromLabel =
@@ -872,7 +924,18 @@ export default async function EventDetailPage(
                   </Suspense>
                 )}
 
-              {(priceFromLabel || event.price) && (
+              {hasNativeTickets && (
+                <TierPicker
+                  eventId={event.id}
+                  slug={event.slug}
+                  tiers={ticketTiers}
+                  isAuthenticated={!!user}
+                  city={event.location_slug}
+                  country={event.country}
+                />
+              )}
+
+              {!hasNativeTickets && (priceFromLabel || event.price) && (
                 <div className="mt-5 border-t border-white/[0.08] pt-5">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
@@ -942,7 +1005,7 @@ export default async function EventDetailPage(
                   </a>
                 )}
 
-                {!hasEnded && !ticketUrl && !officialUrl && event.is_online && event.online_url && (
+                {!hasEnded && !hasNativeTickets && !ticketUrl && !officialUrl && event.is_online && event.online_url && (
                   <a
                     href={event.online_url}
                     target="_blank"
@@ -954,7 +1017,7 @@ export default async function EventDetailPage(
                   </a>
                 )}
 
-                {directionsHref && !hasEnded && !ticketUrl && !officialUrl && !(event.is_online && event.online_url) && (
+                {directionsHref && !hasEnded && !hasNativeTickets && !ticketUrl && !officialUrl && !(event.is_online && event.online_url) && (
                   <a
                     href={directionsHref}
                     target="_blank"
@@ -986,7 +1049,7 @@ export default async function EventDetailPage(
                   />
                 )}
 
-                {!hasEnded && ticketUrl && event.is_online && event.online_url && (
+                {!hasEnded && (ticketUrl || hasNativeTickets) && event.is_online && event.online_url && (
                   <a
                     href={event.online_url}
                     target="_blank"
@@ -998,7 +1061,7 @@ export default async function EventDetailPage(
                   </a>
                 )}
 
-                {directionsHref && !hasEnded && (ticketUrl || officialUrl || (event.is_online && event.online_url)) && (
+                {directionsHref && !hasEnded && (ticketUrl || hasNativeTickets || officialUrl || (event.is_online && event.online_url)) && (
                   <a
                     href={directionsHref}
                     target="_blank"

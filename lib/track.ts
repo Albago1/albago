@@ -25,6 +25,9 @@ export type TrackType =
   | 'lens_apply'
   | 'lens_resolved'
   | 'lens_dup_shown'
+  | 'ticket_view_tiers'
+  | 'ticket_claim'
+  | 'ticket_claim_blocked'
 
 export type TrackOptions = {
   entityType?: 'event' | 'place' | 'placard' | 'submission'

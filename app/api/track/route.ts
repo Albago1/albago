@@ -34,6 +34,9 @@ const ALLOWED_TYPES = new Set([
   'lens_apply',
   'lens_resolved',
   'lens_dup_shown',
+  'ticket_view_tiers',
+  'ticket_claim',
+  'ticket_claim_blocked',
 ])
 
 const ALLOWED_ENTITY_TYPES = new Set(['event', 'place', 'placard', 'submission'])
