@@ -59,24 +59,27 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
         <>
           <GridBackdrop />
 
-          {/* Flamingo motif — centered behind the foreground content. */}
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FlamingoHalo size={620} />
-            <div style={{ position: 'relative' }}>
-              <FlamingoMotif width={420} opacity={0.45} />
+          {/* Flamingo motif — the protest campaign's mark, civic events only.
+              Normal events get the pure brand backdrop (grid + flame glow). */}
+          {isCivic && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FlamingoHalo size={620} />
+              <div style={{ position: 'relative' }}>
+                <FlamingoMotif width={420} opacity={0.45} />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 

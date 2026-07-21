@@ -60,24 +60,27 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
         <>
           <GridBackdrop />
 
-          {/* Flamingo motif — centered behind the foreground content. */}
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FlamingoHalo size={500} />
-            <div style={{ position: 'relative' }}>
-              <FlamingoMotif width={300} opacity={0.38} />
+          {/* Flamingo motif — the protest campaign's mark, civic events only.
+              Normal events get the pure brand backdrop (grid + flame glow). */}
+          {isCivic && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FlamingoHalo size={500} />
+              <div style={{ position: 'relative' }}>
+                <FlamingoMotif width={300} opacity={0.38} />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 

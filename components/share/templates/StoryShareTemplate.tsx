@@ -61,24 +61,27 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
         <>
           <GridBackdrop />
 
-          {/* Flamingo motif — centered behind the foreground content. */}
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '38%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FlamingoHalo size={900} />
-            <div style={{ position: 'relative' }}>
-              <FlamingoMotif width={620} opacity={0.5} />
+          {/* Flamingo motif — the protest campaign's mark, civic events only.
+              Normal events get the pure brand backdrop (grid + flame glow). */}
+          {isCivic && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: '38%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FlamingoHalo size={900} />
+              <div style={{ position: 'relative' }}>
+                <FlamingoMotif width={620} opacity={0.5} />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
