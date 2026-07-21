@@ -71,7 +71,10 @@ CREATE INDEX IF NOT EXISTS orders_pending_idx ON orders (event_id) WHERE status 
 CREATE TABLE IF NOT EXISTS order_items (
   id               uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id         uuid  NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  tier_id          uuid  NOT NULL REFERENCES ticket_tiers(id) ON DELETE RESTRICT,
+  -- Deferred so a whole-event CASCADE delete can empty the subtree in one
+  -- statement; deleting a tier that still has orders is still rejected at
+  -- commit (phase-33b fix).
+  tier_id          uuid  NOT NULL REFERENCES ticket_tiers(id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
   quantity         int   NOT NULL CHECK (quantity > 0),
   unit_price_cents int   NOT NULL DEFAULT 0,
   unit_fee_cents   int   NOT NULL DEFAULT 0
@@ -85,9 +88,9 @@ CREATE INDEX IF NOT EXISTS order_items_tier_idx  ON order_items (tier_id);
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tickets (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_item_id        uuid        NOT NULL REFERENCES order_items(id) ON DELETE RESTRICT,
+  order_item_id        uuid        NOT NULL REFERENCES order_items(id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
   event_id             uuid        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  tier_id              uuid        NOT NULL REFERENCES ticket_tiers(id) ON DELETE RESTRICT,
+  tier_id              uuid        NOT NULL REFERENCES ticket_tiers(id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
   owner_user_id        uuid        REFERENCES profiles(id) ON DELETE SET NULL,
   serial               text        NOT NULL UNIQUE,
   attendee_name        text,
