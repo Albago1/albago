@@ -139,3 +139,4 @@ Any staff phone, no install (PWA later wraps it natively):
 | 2026-07-12 | Offline door verdicts = authenticity only; version/duplicate/void settle via at-open snapshot + ~30s re-sync | Honest about what an offline HMAC check can prove; old QRs do not die "instantly" offline |
 | 2026-07-12 | Per-user free-tier claim cap in create_order | max_per_order alone is defeated by repeat orders; free inventory drains trivially |
 | 2026-07-12 | Hidden/unlock tiers excluded from anon RLS read | Public-read tiers would leak unlock-code tiers, making them decorative |
+| 2026-07-21 | Execution plan authored: `docs/phase-33-ticketing-plan.md` (TIX-1 + TIX-2, free-only) | User approved starting ticketing without payments; free path fulfills via single `claim_free_tickets` RPC (no pending hold needed for zero-total orders); paid columns ship now so PAY needs zero migrations |
