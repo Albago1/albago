@@ -5,10 +5,12 @@ import {
   FlamingoHalo,
   FlamingoMotif,
   GridBackdrop,
+  InkBackdrop,
   bilingualLabel,
   categoryLabel,
   ctaLine,
   fitSize,
+  inkGlyph,
   formatTimeRangeForCard,
   locationLine,
   shortAddress,
@@ -56,32 +58,30 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
             }}
           />
         </div>
-      ) : (
+      ) : isCivic ? (
         <>
+          {/* Flamingo motif — the protest campaign's mark, civic events only. */}
           <GridBackdrop />
-
-          {/* Flamingo motif — the protest campaign's mark, civic events only.
-              Normal events get the pure brand backdrop (grid + flame glow). */}
-          {isCivic && (
-            <div
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FlamingoHalo size={500} />
-              <div style={{ position: 'relative' }}>
-                <FlamingoMotif width={300} opacity={0.38} />
-              </div>
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FlamingoHalo size={500} />
+            <div style={{ position: 'relative' }}>
+              <FlamingoMotif width={300} opacity={0.38} />
             </div>
-          )}
+          </div>
         </>
+      ) : (
+        <InkBackdrop glyph={inkGlyph(data.title)} glyphSize={560} glyphRight="10%" glyphTop="48%" />
       )}
 
       <div className="relative z-10 grid h-full grid-cols-[auto_1fr_auto] items-stretch gap-10 px-16 py-12">

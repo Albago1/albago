@@ -211,6 +211,88 @@ export function AlbaGoWordmark({ size = 'lg' }: { size?: 'sm' | 'md' | 'lg' }) {
   )
 }
 
+/* Ink backdrop — the no-photo look for NORMAL events (civic events use the
+   flamingo instead). Editorial rather than techy: a deep black field with
+   ember blooms rising from the lower-left, faint concentric light rings from
+   the same source, one diagonal sheen, and a giant ghosted Instrument Serif
+   monogram — the event title's initial — so every Ink poster is unique.
+   Pure CSS gradients (no SVG <defs>) so html-to-image renders it
+   deterministically even with all three templates mounted at once. */
+export function InkBackdrop({
+  glyph,
+  glyphSize,
+  glyphRight = '-4%',
+  glyphTop = '44%',
+}: {
+  glyph: string
+  glyphSize: number
+  glyphRight?: string
+  glyphTop?: string
+}) {
+  return (
+    <>
+      {/* ember blooms — one strong source low-left, two faint echoes */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'radial-gradient(58% 44% at 16% 106%, rgba(238,28,37,0.36) 0%, rgba(238,28,37,0) 70%), ' +
+            'radial-gradient(48% 36% at 90% -8%, rgba(238,28,37,0.14) 0%, rgba(238,28,37,0) 70%), ' +
+            'radial-gradient(32% 24% at 80% 86%, rgba(255,122,92,0.10) 0%, rgba(255,122,92,0) 70%)',
+        }}
+      />
+      {/* concentric light rings radiating from the bloom */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'repeating-radial-gradient(circle at 16% 106%, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 120px)',
+        }}
+      />
+      {/* one diagonal sheen — a projector beam across the black */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.05) 50%, transparent 60%)',
+        }}
+      />
+      {/* ghost monogram — the event's initial, oversized serif italic */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          right: glyphRight,
+          top: glyphTop,
+          transform: 'translateY(-50%)',
+          fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
+          fontStyle: 'italic',
+          fontSize: glyphSize,
+          lineHeight: 0.8,
+          color: 'rgba(238,28,37,0.06)',
+          WebkitTextStroke: '2px rgba(238,28,37,0.17)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      >
+        {glyph}
+      </div>
+    </>
+  )
+}
+
+/** The ghost monogram for the Ink backdrop — the title's first letter. */
+export function inkGlyph(title: string): string {
+  const ch = (title || '').trim().charAt(0).toUpperCase()
+  return /[A-ZÀ-ÿ0-9]/.test(ch) ? ch : 'A'
+}
+
 export function GridBackdrop() {
   return (
     <>

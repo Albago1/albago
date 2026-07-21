@@ -5,10 +5,12 @@ import {
   FlamingoHalo,
   FlamingoMotif,
   GridBackdrop,
+  InkBackdrop,
   bilingualLabel,
   categoryLabel,
   ctaLine,
   fitSize,
+  inkGlyph,
   formatDateForCard,
   formatTimeRangeForCard,
   shortAddress,
@@ -57,32 +59,30 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
             }}
           />
         </div>
-      ) : (
+      ) : isCivic ? (
         <>
+          {/* Flamingo motif — the protest campaign's mark, civic events only. */}
           <GridBackdrop />
-
-          {/* Flamingo motif — the protest campaign's mark, civic events only.
-              Normal events get the pure brand backdrop (grid + flame glow). */}
-          {isCivic && (
-            <div
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: '38%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FlamingoHalo size={900} />
-              <div style={{ position: 'relative' }}>
-                <FlamingoMotif width={620} opacity={0.5} />
-              </div>
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: '38%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FlamingoHalo size={900} />
+            <div style={{ position: 'relative' }}>
+              <FlamingoMotif width={620} opacity={0.5} />
             </div>
-          )}
+          </div>
         </>
+      ) : (
+        <InkBackdrop glyph={inkGlyph(data.title)} glyphSize={1350} glyphTop="36%" />
       )}
 
       <div className="relative z-10 flex h-full flex-col px-20 py-24">
