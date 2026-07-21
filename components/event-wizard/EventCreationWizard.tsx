@@ -11,6 +11,7 @@ import BasicsStep from './steps/BasicsStep'
 import WhenStep from './steps/WhenStep'
 import WhereStep from './steps/WhereStep'
 import MediaStep from './steps/MediaStep'
+import TicketsStep from './steps/TicketsStep'
 import OrganizerStep from './steps/OrganizerStep'
 import ReviewStep from './steps/ReviewStep'
 
@@ -23,7 +24,7 @@ export type WizardSubmit = (draft: EventDraft) => Promise<
 
 export type WizardMode = 'community' | 'organizer' | 'admin'
 
-export type StepKey = 'type' | 'category' | 'basics' | 'when' | 'where' | 'media' | 'organizer' | 'review'
+export type StepKey = 'type' | 'category' | 'basics' | 'when' | 'where' | 'media' | 'tickets' | 'organizer' | 'review'
 
 type Props = {
   /** What does the wizard call when the user hits Submit? */
@@ -125,6 +126,34 @@ const STEPS: StepDef[] = [
     validate: () => null,
   },
   {
+    // Phase 33: optional free AlbaGo tickets. Only organizer/admin modes see
+    // this step (community events don't exist until approval — filtered in
+    // activeSteps); civic events never get tiers (schema guard), so the step
+    // disappears entirely for protests.
+    key: 'tickets',
+    label: 'Tickets',
+    validate: (d) => {
+      if (!d.ticket_tiers) return null
+      if (d.ticket_tiers.length === 0) {
+        return 'Add at least one ticket type, or choose "No tickets".'
+      }
+      for (const tier of d.ticket_tiers) {
+        if (!tier.name.trim()) return 'Every ticket type needs a name.'
+        const capacity = Number(tier.capacity)
+        if (!Number.isInteger(capacity) || capacity < 1) {
+          return 'Capacity must be a whole number of at least 1.'
+        }
+        if (capacity > 100000) return 'Capacity looks unrealistically large.'
+        const maxPerOrder = Number(tier.maxPerOrder)
+        if (!Number.isInteger(maxPerOrder) || maxPerOrder < 1 || maxPerOrder > 10) {
+          return 'Max per person must be between 1 and 10.'
+        }
+      }
+      return null
+    },
+    skip: (d) => d.event_type === 'protest' || d.is_civic,
+  },
+  {
     key: 'organizer',
     label: 'Organizer',
     validate: (d) => {
@@ -169,8 +198,15 @@ export default function EventCreationWizard({
   const rootRef = useRef<HTMLDivElement>(null)
 
   const activeSteps = useMemo(
-    () => STEPS.filter((step) => !step.skip?.(draft)),
-    [draft],
+    () =>
+      STEPS.filter(
+        (step) =>
+          !step.skip?.(draft) &&
+          // Tickets need an events row owned by the submitter — community
+          // submissions have neither until an admin approves them.
+          !(step.key === 'tickets' && mode === 'community'),
+      ),
+    [draft, mode],
   )
 
   // Farthest step the draft's current data justifies jumping to: everything
@@ -348,6 +384,7 @@ export default function EventCreationWizard({
         {activeStep.key === 'when' && <WhenStep draft={draft} patch={patch} />}
         {activeStep.key === 'where' && <WhereStep draft={draft} patch={patch} />}
         {activeStep.key === 'media' && <MediaStep draft={draft} patch={patch} />}
+        {activeStep.key === 'tickets' && <TicketsStep draft={draft} patch={patch} />}
         {activeStep.key === 'organizer' && (
           <OrganizerStep draft={draft} patch={patch} mode={mode} />
         )}

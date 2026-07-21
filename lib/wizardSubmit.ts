@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { EventDraft } from '@/types/eventDraft'
+import type { DraftTicketTier, EventDraft } from '@/types/eventDraft'
 
 export type SubmitResult =
   | { id: string; error: null }
@@ -141,6 +141,71 @@ export async function submitCommunityEvent(
 }
 
 /**
+ * Sync the event's free ticket tiers with the wizard draft (Phase 33). Runs
+ * AFTER the event row exists, via the organizer_save_tier /
+ * organizer_set_tier_status RPCs (owner-or-admin enforced server-side).
+ *
+ * - draft tier with id → update; without id → create
+ * - existing active/paused tier missing from the draft → archived
+ * - draft.ticket_tiers null → all existing tiers archived (tickets turned off)
+ *
+ * FAIL-SOFT by design: the event is already created/updated at this point, so
+ * throwing would make a retry duplicate the event. Failures are logged and
+ * counted; tiers can always be fixed by re-editing the event.
+ */
+async function saveDraftTiers(
+  supabase: SupabaseClient,
+  eventId: string,
+  tiers: DraftTicketTier[] | null,
+): Promise<number> {
+  const desired = tiers ?? []
+  let failures = 0
+
+  const { data: existing, error: readError } = await supabase
+    .from('ticket_tiers')
+    .select('id')
+    .eq('event_id', eventId)
+    .in('status', ['active', 'paused'])
+  if (readError) {
+    logSubmitError('saveDraftTiers.read', readError)
+    failures += 1
+  }
+
+  const keptIds = new Set(desired.map((tier) => tier.id).filter(Boolean))
+  for (const row of (existing as Array<{ id: string }> | null) ?? []) {
+    if (keptIds.has(row.id)) continue
+    const { error } = await supabase.rpc('organizer_set_tier_status', {
+      p_tier_id: row.id,
+      p_status: 'archived',
+    })
+    if (error) {
+      logSubmitError('saveDraftTiers.archive', error)
+      failures += 1
+    }
+  }
+
+  for (const [index, tier] of desired.entries()) {
+    const { error } = await supabase.rpc('organizer_save_tier', {
+      p_event_id: eventId,
+      p_tier_id: tier.id,
+      p_name: tier.name.trim(),
+      p_description: null,
+      p_capacity: parseInt(tier.capacity, 10),
+      p_max_per_order: parseInt(tier.maxPerOrder, 10),
+      p_sales_start: null,
+      p_sales_end: null,
+      p_sort_order: index,
+    })
+    if (error) {
+      logSubmitError('saveDraftTiers.save', error)
+      failures += 1
+    }
+  }
+
+  return failures
+}
+
+/**
  * Shared draft → RPC input mapping for the organizer create/update RPCs.
  * organizer_create_event_v2 and organizer_update_event take the same shape,
  * so the two callers must never drift apart.
@@ -226,7 +291,12 @@ export async function submitOrganizerDraft(
     return { id: null, error: GENERIC_SUBMIT_ERROR }
   }
 
-  return { id: data as string, error: null }
+  const eventId = data as string
+  if (draft.ticket_tiers && !draft.is_civic && draft.event_type !== 'protest') {
+    await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
+  }
+
+  return { id: eventId, error: null }
 }
 
 const GENERIC_UPDATE_ERROR =
@@ -276,7 +346,13 @@ export async function updateOrganizerDraft(
     return { id: null, error: GENERIC_UPDATE_ERROR }
   }
 
-  return { id: data as string, error: null }
+  const updatedId = data as string
+  if (!draft.is_civic && draft.event_type !== 'protest') {
+    // Full sync incl. archiving removed tiers / turning tickets off.
+    await saveDraftTiers(supabase, updatedId, draft.ticket_tiers)
+  }
+
+  return { id: updatedId, error: null }
 }
 
 function createSlug(value: string): string {
@@ -378,5 +454,10 @@ export async function submitAdminEvent(
     return { id: null, slug: null, error: GENERIC_SUBMIT_ERROR }
   }
 
-  return { id: (data as { id: string }).id, slug, error: null }
+  const eventId = (data as { id: string }).id
+  if (draft.ticket_tiers && !isCivic) {
+    await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
+  }
+
+  return { id: eventId, slug, error: null }
 }

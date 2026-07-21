@@ -9,7 +9,11 @@ import type { StepKey } from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
 import { submitOrganizerEvent } from '@/lib/events-organizer'
 import { submitOrganizerDraft, updateOrganizerDraft } from '@/lib/wizardSubmit'
-import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
+import {
+  defaultEventDraft,
+  type DraftTicketTier,
+  type EventDraft,
+} from '@/types/eventDraft'
 import type { VerificationTier } from '@/types/organizer'
 
 const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
@@ -120,6 +124,38 @@ function eventRowToDraft(
   }
 }
 
+/**
+ * Load an event's live free tiers into the wizard draft shape (Phase 33).
+ * Editing keeps the tier ids so saving updates them in place; reposting
+ * strips the ids so the setup is recreated fresh on the new event.
+ */
+async function fetchDraftTiers(
+  supabase: ReturnType<typeof createClient>,
+  eventId: string,
+  opts: { keepIds: boolean },
+): Promise<DraftTicketTier[] | null> {
+  const { data } = await supabase
+    .from('ticket_tiers')
+    .select('id, name, capacity, max_per_order')
+    .eq('event_id', eventId)
+    .in('status', ['active', 'paused'])
+    .order('sort_order', { ascending: true })
+  const rows =
+    (data as Array<{
+      id: string
+      name: string
+      capacity: number
+      max_per_order: number
+    }> | null) ?? []
+  if (rows.length === 0) return null
+  return rows.map((row) => ({
+    id: opts.keepIds ? row.id : null,
+    name: row.name,
+    capacity: String(row.capacity),
+    maxPerOrder: String(row.max_per_order),
+  }))
+}
+
 // What actually happened to the created/updated event, so the success screen
 // tells the truth: verified/established tiers publish instantly inside the
 // RPC; unverified drafts are auto-submitted to the admin queue right after
@@ -224,6 +260,9 @@ export default function CreateEventClient({
         const seeded = eventRowToDraft(data as Record<string, unknown>, {
           keepSchedule: true,
         })
+        seeded.ticket_tiers = await fetchDraftTiers(supabase, editId, {
+          keepIds: true,
+        })
         window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
         const target: EditTarget = {
           id: editId,
@@ -263,6 +302,11 @@ export default function CreateEventClient({
       }
 
       const seeded = eventRowToDraft(data as Record<string, unknown>)
+      // Carry the ticket setup onto the repost as brand-new tiers (no ids —
+      // updating the OLD event's tiers from here would be a bug).
+      seeded.ticket_tiers = await fetchDraftTiers(supabase, repostId as string, {
+        keepIds: false,
+      })
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
       // A repost is a brand-new event — make sure no stale edit session can
       // reroute the submit into an update.
@@ -356,6 +400,9 @@ export default function CreateEventClient({
       }
       const seeded = eventRowToDraft(data as Record<string, unknown>, {
         keepSchedule: true,
+      })
+      seeded.ticket_tiers = await fetchDraftTiers(supabase, target.id, {
+        keepIds: true,
       })
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
       setWizardKey((k) => k + 1)

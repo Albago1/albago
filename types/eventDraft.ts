@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useReducer, useState } from 'react'
 
 export const MAX_EVENT_PHOTOS = 5
+export const MAX_TICKET_TIERS = 5
+
+/**
+ * One free ticket tier configured inside the wizard (Phase 33). Numbers stay
+ * strings while in the form (same rule as expected_attendees); parsed at
+ * submit. `id` is set only in edit mode, so saving updates the existing tier
+ * instead of creating a duplicate.
+ */
+export type DraftTicketTier = {
+  id: string | null
+  name: string
+  capacity: string
+  maxPerOrder: string
+}
 
 /**
  * The full event creation draft. Mirrors the columns on `events` /
@@ -89,6 +103,13 @@ export type EventDraft = {
   safety_notes: string
   expected_attendees: string // string in form, parse on submit
 
+  // Tickets (Phase 33) — organizer/admin modes only. null = not offering
+  // tickets (the default); an array (even of one) = free tiers to create on
+  // the event at submit time. Community submissions never carry tiers: their
+  // events row only exists after admin approval and the submitter isn't the
+  // event's organizer.
+  ticket_tiers: DraftTicketTier[] | null
+
   // Recurrence (Phase 15)
   /** 'none' | 'daily' | 'weekly'. Default 'none' for one-off events. */
   recurrence: 'none' | 'daily' | 'weekly'
@@ -155,6 +176,8 @@ export const defaultEventDraft: EventDraft = {
   whatsapp_link: '',
   safety_notes: '',
   expected_attendees: '',
+
+  ticket_tiers: null,
 
   recurrence: 'none',
   recurrence_until: '',

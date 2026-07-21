@@ -12,6 +12,7 @@ import {
   X,
   MapPin,
   Tag,
+  Ticket,
   User2,
 } from 'lucide-react'
 import type { EventDraft } from '@/types/eventDraft'
@@ -323,6 +324,30 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
           }
         />
       </Section>
+
+      {/* Section: Tickets (Phase 33) — only when the organizer enabled them;
+          community mode never sees the step, civic events never have tiers. */}
+      {!isCivic && draft.ticket_tiers !== null && (
+        <Section
+          title="Tickets"
+          icon={<Ticket className="h-3.5 w-3.5" />}
+          onEdit={() => onJumpTo('tickets')}
+        >
+          {draft.ticket_tiers.map((tier, index) => (
+            <Row
+              key={index}
+              label={tier.name.trim() || `Ticket ${index + 1}`}
+              value={
+                <span className="inline-flex items-center gap-1.5 text-emerald-200">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Free · {tier.capacity || '?'} spots · max {tier.maxPerOrder || '?'}
+                  /person
+                </span>
+              }
+            />
+          ))}
+        </Section>
+      )}
 
       {/* Section: Organizer */}
       <Section
