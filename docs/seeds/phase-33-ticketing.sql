@@ -414,10 +414,12 @@ BEGIN
     p_event_id, v_uid, v_result, p_raw, p_device_note
   );
 
-  SELECT count(*) FILTER (WHERE status IN ('valid','checked_in')),
-         count(*) FILTER (WHERE status = 'checked_in')
-    INTO v_issued, v_in
-  FROM tickets WHERE event_id = p_event_id;
+  -- Two plain counts on purpose: FILTER-aggregates directly before plpgsql's
+  -- INTO clause trip the plpgsql parser (syntax error at or near INTO).
+  SELECT count(*)::int INTO v_issued
+    FROM tickets WHERE event_id = p_event_id AND status IN ('valid','checked_in');
+  SELECT count(*)::int INTO v_in
+    FROM tickets WHERE event_id = p_event_id AND status = 'checked_in';
 
   RETURN jsonb_build_object(
     'result', v_result,
