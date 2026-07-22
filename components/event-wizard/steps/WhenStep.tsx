@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
-import { CalendarDays, Clock, Globe, Repeat } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CalendarDays, Clock, Globe, MoonStar, Plus, Repeat, X } from 'lucide-react'
+import { isOvernight } from '@/lib/recurrence'
 import type { EventDraft } from '@/types/eventDraft'
 
 const WEEKDAYS = [
@@ -144,12 +145,30 @@ function todayIso(): string {
   return `${y}-${m}-${day}`
 }
 
+/** "Sat, 26 Jul" for the day after the given ISO date; null if unparsable. */
+function nextDayLabel(dateIso: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return null
+  const [y, m, d] = dateIso.split('-').map(Number)
+  return new Date(y, m - 1, d + 1).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
 export default function WhenStep({ draft, patch }: Props) {
   const today = useMemo(() => todayIso(), [])
   const extraTimezone = useMemo(() => {
     if (!draft.timezone) return null
     return ALL_KNOWN_ZONES.has(draft.timezone) ? null : draft.timezone
   }, [draft.timezone])
+
+  // End time is opt-in: the field only exists once the user asks for it (or a
+  // hydrated/edited draft already carries one). Clearing it collapses back.
+  const [endOpen, setEndOpen] = useState(false)
+  const showEnd = endOpen || draft.end_time !== ''
+  const overnight = isOvernight(draft.time, draft.end_time)
+  const overnightDay = draft.date ? nextDayLabel(draft.date) : null
 
   return (
     <div className="space-y-5">
@@ -172,26 +191,40 @@ export default function WhenStep({ draft, patch }: Props) {
           />
         </Field>
         <Field label="Start time (optional)" htmlFor="when-time" icon={Clock}>
-          <input
+          <TimeInput
             id="when-time"
-            type="time"
             value={draft.time}
-            onChange={(e) => patch({ time: e.target.value })}
-            className="input"
+            onChange={(v) => patch({ time: v })}
+            onClear={() => patch({ time: '' })}
           />
         </Field>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="End time (optional)" htmlFor="when-end" icon={Clock}>
-          <input
-            id="when-end"
-            type="time"
-            value={draft.end_time}
-            onChange={(e) => patch({ end_time: e.target.value })}
-            className="input"
-          />
-        </Field>
+        {showEnd ? (
+          <Field label="End time" htmlFor="when-end" icon={Clock}>
+            <TimeInput
+              id="when-end"
+              value={draft.end_time}
+              onChange={(v) => patch({ end_time: v })}
+              onClear={() => {
+                patch({ end_time: '' })
+                setEndOpen(false)
+              }}
+            />
+          </Field>
+        ) : (
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => setEndOpen(true)}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-4 py-[0.7rem] text-sm font-medium text-white/55 transition hover:border-white/30 hover:bg-white/[0.04] hover:text-white"
+            >
+              <Plus className="h-4 w-4" />
+              Add end time
+            </button>
+          </div>
+        )}
         <Field label="Timezone" htmlFor="when-tz" icon={Globe}>
           <select
             id="when-tz"
@@ -218,6 +251,15 @@ export default function WhenStep({ draft, patch }: Props) {
           </select>
         </Field>
       </div>
+
+      {overnight && (
+        <p className="flex items-center gap-1.5 text-xs text-flame-200/90">
+          <MoonStar className="h-3.5 w-3.5 flex-shrink-0" />
+          {draft.recurrence !== 'none'
+            ? `Runs overnight — each date ends at ${draft.end_time} the next morning.`
+            : `Ends the next day${overnightDay ? ` — ${overnightDay}` : ''} at ${draft.end_time}.`}
+        </p>
+      )}
 
       <p className="text-xs text-white/40">
         Detected timezone: <span className="font-mono text-white/60">{draft.timezone}</span>.
@@ -340,7 +382,55 @@ export default function WhenStep({ draft, patch }: Props) {
           border-color: rgba(255, 255, 255, 0.25);
           background: rgba(255, 255, 255, 0.06);
         }
+        /* Our own clear × sits where the native picker icon would be; the
+           whole field opens the picker via showPicker() instead. */
+        :global(.time-input::-webkit-calendar-picker-indicator) {
+          display: none;
+        }
       `}</style>
+    </div>
+  )
+}
+
+/** Time input with a clear × once a value is set. Native pickers have no
+ *  reliable "clear" (their Reset restores the last value), so we own it. */
+function TimeInput({
+  id,
+  value,
+  onChange,
+  onClear,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  onClear: () => void
+}) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onClick={(e) => {
+          try {
+            e.currentTarget.showPicker?.()
+          } catch {
+            /* unsupported or no gesture — typing still works */
+          }
+        }}
+        className="input time-input pr-10"
+      />
+      {value !== '' && (
+        <button
+          type="button"
+          aria-label="Clear time"
+          onClick={onClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
     </div>
   )
 }

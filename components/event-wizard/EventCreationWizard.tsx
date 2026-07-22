@@ -92,9 +92,8 @@ const STEPS: StepDef[] = [
       const picked = new Date(d.date + 'T00:00:00')
       if (Number.isNaN(picked.getTime())) return 'Date is invalid.'
       if (picked < today) return 'Date is in the past.'
-      if (d.end_time && d.time && d.end_time <= d.time) {
-        return 'End time must be after start time.'
-      }
+      // End time <= start time is valid: it means the event runs overnight
+      // into the next day (22:00–04:00). WhenStep surfaces this to the user.
       return null
     },
   },

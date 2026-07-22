@@ -55,11 +55,21 @@ function toIso(d: Date): string {
   ].join('-')
 }
 
-function addDays(iso: string, n: number): string {
+export function addDays(iso: string, n: number): string {
   const d = parseIso(iso)
   if (!d) return iso
   d.setDate(d.getDate() + n)
   return toIso(d)
+}
+
+/** True when the end time means the event spills past midnight into the next
+ *  calendar day (club night 22:00–04:00). End equal to start reads as a
+ *  24-hour run, not a zero-minute one, so it counts as overnight too. */
+export function isOvernight(
+  time?: string | null,
+  endTime?: string | null,
+): boolean {
+  return !!time && !!endTime && endTime <= time
 }
 
 /** ISO weekday: Mon=1..Sun=7. */

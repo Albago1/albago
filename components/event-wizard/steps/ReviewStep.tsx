@@ -15,6 +15,7 @@ import {
   Ticket,
   User2,
 } from 'lucide-react'
+import { isOvernight } from '@/lib/recurrence'
 import type { EventDraft } from '@/types/eventDraft'
 import EventPagePreview, { type EventPreviewData } from '@/components/events/EventPagePreview'
 
@@ -59,7 +60,11 @@ function formatDate(d: string): string {
 
 function formatTimeRange(start: string, end: string): string {
   if (!start) return '—'
-  if (end) return `${start} → ${end}`
+  if (end) {
+    return isOvernight(start, end)
+      ? `${start} → ${end} (next day)`
+      : `${start} → ${end}`
+  }
   return start
 }
 

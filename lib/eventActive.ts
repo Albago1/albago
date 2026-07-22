@@ -20,7 +20,13 @@
  * remain editable / viewable by URL — only the public list views call it.
  */
 
-import { nextOccurrence, recurrenceKind, todayIso } from '@/lib/recurrence'
+import {
+  addDays,
+  isOvernight,
+  nextOccurrence,
+  recurrenceKind,
+  todayIso,
+} from '@/lib/recurrence'
 
 export type ActiveEventShape = {
   date: string
@@ -50,9 +56,14 @@ export function isEventActive(ev: ActiveEventShape): boolean {
     // Multi-day continuous events (festivals) run through end_date.
     const lastDay =
       ev.end_date && ev.end_date > ev.date ? ev.end_date : ev.date
-    if (lastDay > today) return true
-    if (lastDay < today) return false
-    // Final-day cutoff: respect end_time when set; otherwise stay up all day.
+    // Overnight events (end_time <= time, e.g. 22:00–04:00) actually finish
+    // the morning after their last day — the cutoff day shifts by one.
+    const cutoffDay = isOvernight(ev.time, ev.end_time)
+      ? addDays(lastDay, 1)
+      : lastDay
+    if (cutoffDay > today) return true
+    if (cutoffDay < today) return false
+    // Cutoff-day check: respect end_time when set; otherwise stay up all day.
     if (!ev.end_time) return true
     const now = localNowHHMM()
     // Compare 'HH:MM' lexicographically — works because both are zero-padded.
@@ -89,5 +100,10 @@ export function isEventActive(ev: ActiveEventShape): boolean {
  * the network on busy list pages.
  */
 export function activeEventsOrFilter(today: string = todayIso()): string {
-  return `date.gte.${today},end_date.gte.${today},recurrence.in.(daily,weekly)`
+  // date/end_date >= *yesterday*, not today: an overnight event (22:00–04:00)
+  // is still live the morning after its stored last day, and PostgREST can't
+  // compare end_time to time at the wire. The one extra day of finished rows
+  // this lets through is culled client-side by `isEventActive`.
+  const yesterday = addDays(today, -1)
+  return `date.gte.${yesterday},end_date.gte.${yesterday},recurrence.in.(daily,weekly)`
 }
