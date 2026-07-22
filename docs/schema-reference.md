@@ -419,6 +419,10 @@ category                text          NOT NULL   —  same values as events.cate
 description             text          NOT NULL
 date                    text          NOT NULL   —  ⚠ stored as text (ISO date string), not date type.
                                                     Cast to date at approval time when copying to events.
+end_date                date          nullable   —  last day of a continuous multi-day event (festival);
+                                                    mirrors events.end_date. Real date type (unlike date
+                                                    above). Added 2026-07-22 (docs/seeds/multiday-end-date.sql);
+                                                    NULL on all rows submitted before then.
 time                    text          NOT NULL   —  display string e.g. "22:00"
 price                   text          nullable   —  display string; same semantics as events.price
 contact_email           text          NOT NULL   —  submitter's contact email (may differ from auth email)
