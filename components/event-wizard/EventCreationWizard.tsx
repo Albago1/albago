@@ -94,6 +94,9 @@ const STEPS: StepDef[] = [
       if (picked < today) return 'Date is in the past.'
       // End time <= start time is valid: it means the event runs overnight
       // into the next day (22:00–04:00). WhenStep surfaces this to the user.
+      if (d.end_date && d.end_date <= d.date) {
+        return 'The last day must be after the start date.'
+      }
       return null
     },
   },

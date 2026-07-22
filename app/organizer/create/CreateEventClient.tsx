@@ -84,6 +84,7 @@ function eventRowToDraft(
     // Repost clears the schedule so the organizer must enter fresh dates;
     // editing keeps it — the whole point is amending the existing listing.
     date: opts?.keepSchedule ? ((row.date as string) ?? '') : '',
+    end_date: opts?.keepSchedule ? ((row.end_date as string) ?? '') : '',
     time: opts?.keepSchedule ? ((row.time as string) ?? '') : '',
     end_time: opts?.keepSchedule ? ((row.end_time as string) ?? '') : '',
     timezone: (row.timezone as string) ?? defaultEventDraft.timezone,

@@ -1,8 +1,22 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CalendarDays, Clock, Globe, MoonStar, Plus, Repeat, X } from 'lucide-react'
-import { isOvernight } from '@/lib/recurrence'
+import {
+  CalendarDays,
+  CalendarRange,
+  Clock,
+  Globe,
+  MoonStar,
+  Plus,
+  Repeat,
+  X,
+} from 'lucide-react'
+import {
+  addDays,
+  dateRangeShort,
+  isOvernight,
+  multiDayDurationDays,
+} from '@/lib/recurrence'
 import type { EventDraft } from '@/types/eventDraft'
 
 const WEEKDAYS = [
@@ -170,6 +184,13 @@ export default function WhenStep({ draft, patch }: Props) {
   const overnight = isOvernight(draft.time, draft.end_time)
   const overnightDay = draft.date ? nextDayLabel(draft.date) : null
 
+  // Multi-day (festival) range — same opt-in pattern. Only one-off events can
+  // be continuous ranges; repeats use "Repeat until" instead.
+  const [multiDayOpen, setMultiDayOpen] = useState(false)
+  const showMultiDay =
+    draft.recurrence === 'none' && (multiDayOpen || draft.end_date !== '')
+  const multiDayValid = !!draft.end_date && draft.end_date > draft.date
+
   return (
     <div className="space-y-5">
       <h2 className="text-xl font-semibold text-white">When is it happening?</h2>
@@ -252,12 +273,59 @@ export default function WhenStep({ draft, patch }: Props) {
         </Field>
       </div>
 
+      {showMultiDay ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Last day" htmlFor="when-end-date" icon={CalendarRange}>
+            <div className="relative">
+              <input
+                id="when-end-date"
+                type="date"
+                value={draft.end_date}
+                min={draft.date ? addDays(draft.date, 1) : today}
+                onChange={(e) => patch({ end_date: e.target.value })}
+                className="input pr-10"
+              />
+              <button
+                type="button"
+                aria-label="Remove last day"
+                onClick={() => {
+                  patch({ end_date: '' })
+                  setMultiDayOpen(false)
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </Field>
+          {multiDayValid && (
+            <p className="flex items-end pb-3 text-xs text-white/55 sm:pb-3.5">
+              Runs {dateRangeShort(draft.date, draft.end_date)} —{' '}
+              {multiDayDurationDays(draft.date, draft.end_date)} days straight.
+            </p>
+          )}
+        </div>
+      ) : (
+        draft.recurrence === 'none' && (
+          <button
+            type="button"
+            onClick={() => setMultiDayOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition hover:text-white"
+          >
+            <CalendarRange className="h-3.5 w-3.5" />
+            Ends on a different day (festival, multi-day event)
+          </button>
+        )
+      )}
+
       {overnight && (
         <p className="flex items-center gap-1.5 text-xs text-flame-200/90">
           <MoonStar className="h-3.5 w-3.5 flex-shrink-0" />
           {draft.recurrence !== 'none'
             ? `Runs overnight — each date ends at ${draft.end_time} the next morning.`
-            : `Ends the next day${overnightDay ? ` — ${overnightDay}` : ''} at ${draft.end_time}.`}
+            : multiDayValid
+              ? `Ends at ${draft.end_time} the morning after the last day.`
+              : `Ends the next day${overnightDay ? ` — ${overnightDay}` : ''} at ${draft.end_time}.`}
         </p>
       )}
 
@@ -283,8 +351,11 @@ export default function WhenStep({ draft, patch }: Props) {
                 if (opt === 'none') {
                   next.recurrence_until = ''
                   next.recurrence_days_of_week = []
-                } else if (opt === 'daily') {
-                  next.recurrence_days_of_week = []
+                } else {
+                  // A repeating cadence and a continuous multi-day range are
+                  // different schedule types — a series has no single last day.
+                  next.end_date = ''
+                  if (opt === 'daily') next.recurrence_days_of_week = []
                 }
                 patch(next)
               }}

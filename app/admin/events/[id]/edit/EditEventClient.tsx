@@ -39,6 +39,7 @@ export type EditableEvent = {
   description: string
   category: string
   date: string
+  end_date: string | null
   time: string | null
   end_time: string | null
   timezone: string | null
@@ -84,6 +85,7 @@ type FormState = {
   description: string
   category: string
   date: string
+  end_date: string
   time: string
   end_time: string
   timezone: string
@@ -169,6 +171,7 @@ function toFormState(initial: EditableEvent): FormState {
     description: initial.description,
     category: initial.category,
     date: initial.date,
+    end_date: initial.end_date ?? '',
     time: initial.time ?? '',
     end_time: initial.end_time ?? '',
     timezone: initial.timezone ?? 'Europe/Tirane',
@@ -250,6 +253,7 @@ function diffPatch(initial: EditableEvent, current: FormState): Record<string, u
   if ('description' in patch) patch.description_i18n = null
   text('category', initial.category)
   text('date', initial.date)
+  text('end_date', initial.end_date)
   text('time', initial.time)
   text('end_time', initial.end_time)
   text('timezone', initial.timezone)
@@ -361,6 +365,7 @@ function formToBaseline(prev: EditableEvent, form: FormState): EditableEvent {
     description: form.description,
     category: form.category,
     date: form.date,
+    end_date: form.end_date === '' ? null : form.end_date,
     time: form.time === '' ? null : form.time,
     end_time: form.end_time === '' ? null : form.end_time,
     timezone: form.timezone === '' ? null : form.timezone,
@@ -422,6 +427,8 @@ function validateForm(form: FormState): FieldErrors {
     errs.time = 'Use 24h HH:MM, e.g. 22:00.'
   if (form.end_time.trim() && !TIME_RE.test(form.end_time.trim()))
     errs.end_time = 'Use 24h HH:MM, e.g. 02:00.'
+  if (form.end_date && form.date && form.end_date <= form.date)
+    errs.end_date = 'Last day must be after the start date.'
 
   if (form.is_online) {
     if (!form.online_url.trim()) errs.online_url = 'Online events need a join URL.'
@@ -469,6 +476,7 @@ const FIELD_IDS: Record<string, string> = {
   title: 'f-title',
   description: 'f-description',
   date: 'f-date',
+  end_date: 'f-end-date',
   time: 'f-time',
   end_time: 'f-end-time',
   online_url: 'f-online-url',
@@ -487,6 +495,7 @@ const FIELD_LABELS: Record<string, string> = {
   title: 'Title',
   description: 'Description',
   date: 'Date',
+  end_date: 'Last day',
   time: 'Start time',
   end_time: 'End time',
   online_url: 'Online URL',
@@ -878,6 +887,20 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
                 onChange={(e) => setField('date', e.target.value)}
                 required
                 aria-invalid={fieldErrors.date ? true : undefined}
+                className="input"
+              />
+            </Field>
+            <Field
+              label="Last day (multi-day)"
+              htmlFor="f-end-date"
+              error={fieldErrors.end_date}
+            >
+              <input
+                id="f-end-date"
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setField('end_date', e.target.value)}
+                aria-invalid={fieldErrors.end_date ? true : undefined}
                 className="input"
               />
             </Field>

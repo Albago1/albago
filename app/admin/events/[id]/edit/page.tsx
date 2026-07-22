@@ -32,7 +32,7 @@ export default async function AdminEditEventPage({
   const { data: event, error } = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, category, date, time, end_time, timezone, price, highlight, status, location_slug, country, region, lat, lng, address, is_online, online_url, tags, language, banner_url, admin_note, event_type, is_civic, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, origin, organizer_id, created_at, updated_at',
+      'id, slug, title, description, category, date, end_date, time, end_time, timezone, price, highlight, status, location_slug, country, region, lat, lng, address, is_online, online_url, tags, language, banner_url, admin_note, event_type, is_civic, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, origin, organizer_id, created_at, updated_at',
     )
     .eq('id', id)
     .maybeSingle()

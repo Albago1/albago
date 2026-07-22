@@ -52,9 +52,14 @@ export type EventDraft = {
   // Step 4 — Date & time
   /** ISO date: 'YYYY-MM-DD'. */
   date: string
+  /** Last day of a continuous multi-day event (festival). ISO date, must be
+   *  after `date`. Empty for single-day events; only meaningful with
+   *  recurrence 'none'. */
+  end_date: string
   /** 'HH:MM' display string. */
   time: string
-  /** 'HH:MM' end time. Optional. */
+  /** 'HH:MM' end time. Optional. `end_time <= time` means the event runs
+   *  overnight into the day after `end_date || date`. */
   end_time: string
   /** IANA TZ, e.g. 'Europe/Tirane'. Auto-detected at init. */
   timezone: string
@@ -147,6 +152,7 @@ export const defaultEventDraft: EventDraft = {
   description_i18n: null,
 
   date: '',
+  end_date: '',
   time: '',
   end_time: '',
   timezone: 'Europe/Tirane',

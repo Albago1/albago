@@ -34,6 +34,7 @@ type SubmissionRow = {
   description: string
   description_i18n: Record<string, string> | null
   date: string
+  end_date: string | null
   time: string
   end_time: string | null
   timezone: string | null
@@ -437,6 +438,8 @@ export default function AdminClient() {
         description: s.description,
         description_i18n: s.description_i18n ?? null,
         date: s.date,
+        // Stays null for rows submitted before event_submissions.end_date.
+        end_date: s.end_date ?? null,
         time: s.time,
         end_time: s.end_time ?? null,
         timezone: s.timezone ?? null,
