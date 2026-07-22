@@ -53,14 +53,18 @@ export function isEventActive(ev: ActiveEventShape): boolean {
   const today = todayIso()
 
   if (kind === 'none') {
-    // Multi-day continuous events (festivals) run through end_date.
-    const lastDay =
-      ev.end_date && ev.end_date > ev.date ? ev.end_date : ev.date
-    // Overnight events (end_time <= time, e.g. 22:00–04:00) actually finish
-    // the morning after their last day — the cutoff day shifts by one.
-    const cutoffDay = isOvernight(ev.time, ev.end_time)
-      ? addDays(lastDay, 1)
-      : lastDay
+    const hasEndDate = !!ev.end_date && ev.end_date > ev.date
+    // Two shapes share this branch:
+    //   • Continuous multi-day (explicit end_date): end_time is the clock time
+    //     the run finishes ON end_date, so the cutoff day is end_date itself —
+    //     no overnight inference.
+    //   • Single-day: with no end_date, an end_time at/before the start rolls
+    //     into the next morning (22:00–04:00), shifting the cutoff by a day.
+    const cutoffDay = hasEndDate
+      ? ev.end_date!
+      : isOvernight(ev.time, ev.end_time)
+        ? addDays(ev.date, 1)
+        : ev.date
     if (cutoffDay > today) return true
     if (cutoffDay < today) return false
     // Cutoff-day check: respect end_time when set; otherwise stay up all day.

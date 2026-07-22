@@ -170,6 +170,49 @@ function nextDayLabel(dateIso: string): string | null {
   })
 }
 
+/** "Wed, 22 Jul · 14:00" (time optional). Falls back to the raw string. */
+function formatDayTime(dateIso: string, time: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return dateIso
+  const [y, m, d] = dateIso.split('-').map(Number)
+  const label = new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+  return time ? `${label} · ${time}` : label
+}
+
+/** Whole-number epoch-day count for an ISO date, for span arithmetic. */
+function isoToDays(dateIso: string): number {
+  const [y, m, d] = dateIso.split('-').map(Number)
+  return Math.round(new Date(y, m - 1, d).getTime() / 86_400_000)
+}
+
+/**
+ * Human length of a continuous span from `date`@`time` to `endDate`@`endTime`.
+ * "24 hours", "1 day 4 hours", "3 days". Times must both be present; without
+ * them the caller falls back to a plain day count.
+ */
+function nonStopDurationLabel(
+  date: string,
+  time: string,
+  endDate: string,
+  endTime: string,
+): string {
+  const [sh, sm] = time.split(':').map(Number)
+  const [eh, em] = endTime.split(':').map(Number)
+  const startMin = isoToDays(date) * 1440 + sh * 60 + sm
+  const endMin = isoToDays(endDate) * 1440 + eh * 60 + em
+  const diff = endMin - startMin
+  if (diff <= 0) return `${multiDayDurationDays(date, endDate)} days`
+  const days = Math.floor(diff / 1440)
+  const hours = Math.floor((diff % 1440) / 60)
+  const parts: string[] = []
+  if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`)
+  if (hours) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`)
+  return parts.length ? parts.join(' ') : 'under an hour'
+}
+
 export default function WhenStep({ draft, patch }: Props) {
   const today = useMemo(() => todayIso(), [])
   const extraTimezone = useMemo(() => {
@@ -177,19 +220,23 @@ export default function WhenStep({ draft, patch }: Props) {
     return ALL_KNOWN_ZONES.has(draft.timezone) ? null : draft.timezone
   }, [draft.timezone])
 
-  // End time is opt-in: the field only exists once the user asks for it (or a
-  // hydrated/edited draft already carries one). Clearing it collapses back.
-  const [endOpen, setEndOpen] = useState(false)
-  const showEnd = endOpen || draft.end_time !== ''
-  const overnight = isOvernight(draft.time, draft.end_time)
-  const overnightDay = draft.date ? nextDayLabel(draft.date) : null
-
-  // Multi-day (festival) range — same opt-in pattern. Only one-off events can
-  // be continuous ranges; repeats use "Repeat until" instead.
+  // Multi-day (festival) range — opt-in. Only one-off events can be continuous
+  // ranges; repeats use "Repeat until" instead.
   const [multiDayOpen, setMultiDayOpen] = useState(false)
   const showMultiDay =
     draft.recurrence === 'none' && (multiDayOpen || draft.end_date !== '')
   const multiDayValid = !!draft.end_date && draft.end_date > draft.date
+
+  // End time is opt-in too, but a multi-day range almost always wants one (it's
+  // the clock time the run finishes on the last day), so opening the range
+  // reveals the end-time field automatically.
+  const [endOpen, setEndOpen] = useState(false)
+  const showEnd = endOpen || draft.end_time !== '' || showMultiDay
+  // Overnight inference only applies to SINGLE-day events: with no end date, an
+  // end time at or before the start rolls into the next morning. When an end
+  // date is set, end_time is simply the clock time on that day — no inference.
+  const overnight = !multiDayValid && isOvernight(draft.time, draft.end_time)
+  const overnightDay = draft.date ? nextDayLabel(draft.date) : null
 
   return (
     <div className="space-y-5">
@@ -223,7 +270,11 @@ export default function WhenStep({ draft, patch }: Props) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {showEnd ? (
-          <Field label="End time" htmlFor="when-end" icon={Clock}>
+          <Field
+            label={multiDayValid ? 'End time (last day)' : 'End time'}
+            htmlFor="when-end"
+            icon={Clock}
+          >
             <TimeInput
               id="when-end"
               value={draft.end_time}
@@ -274,37 +325,29 @@ export default function WhenStep({ draft, patch }: Props) {
       </div>
 
       {showMultiDay ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Last day" htmlFor="when-end-date" icon={CalendarRange}>
-            <div className="relative">
-              <input
-                id="when-end-date"
-                type="date"
-                value={draft.end_date}
-                min={draft.date ? addDays(draft.date, 1) : today}
-                onChange={(e) => patch({ end_date: e.target.value })}
-                className="input pr-10"
-              />
-              <button
-                type="button"
-                aria-label="Remove last day"
-                onClick={() => {
-                  patch({ end_date: '' })
-                  setMultiDayOpen(false)
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </Field>
-          {multiDayValid && (
-            <p className="flex items-end pb-3 text-xs text-white/55 sm:pb-3.5">
-              Runs {dateRangeShort(draft.date, draft.end_date)} —{' '}
-              {multiDayDurationDays(draft.date, draft.end_date)} days straight.
-            </p>
-          )}
-        </div>
+        <Field label="Last day" htmlFor="when-end-date" icon={CalendarRange}>
+          <div className="relative sm:w-1/2 sm:pr-2">
+            <input
+              id="when-end-date"
+              type="date"
+              value={draft.end_date}
+              min={draft.date ? addDays(draft.date, 1) : today}
+              onChange={(e) => patch({ end_date: e.target.value })}
+              className="input pr-10"
+            />
+            <button
+              type="button"
+              aria-label="Remove last day"
+              onClick={() => {
+                patch({ end_date: '' })
+                setMultiDayOpen(false)
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white sm:right-4"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </Field>
       ) : (
         draft.recurrence === 'none' && (
           <button
@@ -313,20 +356,29 @@ export default function WhenStep({ draft, patch }: Props) {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition hover:text-white"
           >
             <CalendarRange className="h-3.5 w-3.5" />
-            Ends on a different day (festival, multi-day event)
+            Ends on a different day (festival, non-stop multi-day event)
           </button>
         )
       )}
 
-      {overnight && (
+      {/* Span summary. Multi-day continuous events describe the whole non-stop
+          run; single-day overnight events explain the roll into the morning. */}
+      {multiDayValid ? (
         <p className="flex items-center gap-1.5 text-xs text-flame-200/90">
           <MoonStar className="h-3.5 w-3.5 flex-shrink-0" />
-          {draft.recurrence !== 'none'
-            ? `Runs overnight — each date ends at ${draft.end_time} the next morning.`
-            : multiDayValid
-              ? `Ends at ${draft.end_time} the morning after the last day.`
-              : `Ends the next day${overnightDay ? ` — ${overnightDay}` : ''} at ${draft.end_time}.`}
+          {draft.time && draft.end_time
+            ? `Runs non-stop from ${formatDayTime(draft.date, draft.time)} to ${formatDayTime(draft.end_date, draft.end_time)} — ${nonStopDurationLabel(draft.date, draft.time, draft.end_date, draft.end_time)}.`
+            : `Runs ${dateRangeShort(draft.date, draft.end_date)} non-stop — ${multiDayDurationDays(draft.date, draft.end_date)} days straight.`}
         </p>
+      ) : (
+        overnight && (
+          <p className="flex items-center gap-1.5 text-xs text-flame-200/90">
+            <MoonStar className="h-3.5 w-3.5 flex-shrink-0" />
+            {draft.recurrence !== 'none'
+              ? `Runs overnight — each date ends at ${draft.end_time} the next morning.`
+              : `Ends the next day${overnightDay ? ` — ${overnightDay}` : ''} at ${draft.end_time}.`}
+          </p>
+        )
       )}
 
       <p className="text-xs text-white/40">

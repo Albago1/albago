@@ -219,15 +219,17 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
         icon={<CalendarDays className="h-3.5 w-3.5" />}
         onEdit={() => onJumpTo('when')}
       >
-        <Row
-          label="Date"
-          value={
-            draft.end_date
-              ? `${formatDate(draft.date)} → ${formatDate(draft.end_date)}`
-              : formatDate(draft.date)
-          }
-        />
-        <Row label="Time" value={formatTimeRange(draft.time, draft.end_time)} />
+        {draft.end_date ? (
+          <Row
+            label="Runs"
+            value={`${formatDate(draft.date)}${draft.time ? ` · ${draft.time}` : ''} → ${formatDate(draft.end_date)}${draft.end_time ? ` · ${draft.end_time}` : ''} · non-stop`}
+          />
+        ) : (
+          <>
+            <Row label="Date" value={formatDate(draft.date)} />
+            <Row label="Time" value={formatTimeRange(draft.time, draft.end_time)} />
+          </>
+        )}
         <Row label="Timezone" value={draft.timezone || '—'} />
       </Section>
 
