@@ -79,8 +79,8 @@ export default function EventWeatherPanel({ days }: { days: Day[] }) {
   if (days.length === 0) return null
 
   const multi = days.length > 1
-  const visible = days.slice(0, 2)
-  const rest = days.slice(2)
+  const visible = days.slice(0, 3)
+  const rest = days.slice(3)
 
   return (
     <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:mt-7 lg:p-5">
