@@ -686,9 +686,11 @@ export default async function EventDetailPage(
         country={event.country}
       />
 
-      {/* Hero — image-led (event photo → AI poster art → brand gradient) */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
+      {/* Header + body share one grid so the title and the info card are real
+          columns that can never overlap, whatever the title length. The cover
+          image is a band behind the header that fades into the page. */}
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[22rem] overflow-hidden sm:h-[26rem]">
           {heroImage ? (
             <>
               <Image
@@ -699,8 +701,8 @@ export default async function EventDetailPage(
                 sizes="100vw"
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/50 to-ink-950/75" />
-              <div className="absolute inset-0 bg-gradient-to-r from-ink-950/55 via-transparent to-ink-950/35" />
+              <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/45 to-ink-950/70" />
+              <div className="absolute inset-0 bg-gradient-to-r from-ink-950/60 via-transparent to-ink-950/35" />
             </>
           ) : (
             <>
@@ -712,7 +714,7 @@ export default async function EventDetailPage(
           )}
         </div>
 
-        <div className="relative z-10 mx-auto flex min-h-[26rem] w-full max-w-6xl flex-col px-4 pb-10 pt-28 sm:min-h-[30rem] sm:pb-14">
+        <section className="relative z-10 mx-auto max-w-6xl px-4 pb-16 pt-24 sm:pt-28">
           <div>
             <Link
               href={isCivic ? '/protests' : '/events'}
@@ -723,66 +725,63 @@ export default async function EventDetailPage(
             </Link>
           </div>
 
-          {/* On desktop, reserve the right column (card width + gap) so the
-              title never runs under the info card that floats up beside it. */}
-          <div className={`mt-auto pt-12 lg:pr-[440px]${heroImage ? ' on-media' : ''}`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getCategoryTone(
-                  event.category
-                )}`}
-              >
-                {event.category}
-              </span>
-
-              {hasEnded && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-ink-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur-md">
-                  <CalendarX2 className="h-3 w-3" />
-                  Ended
+          <div className="mt-10 grid gap-x-10 gap-y-10 sm:mt-14 lg:grid-cols-[minmax(0,1fr)_400px]">
+            {/* Title — left column, top row, over the cover band */}
+            <div
+              className={`min-w-0 lg:col-start-1 lg:row-start-1${heroImage ? ' on-media' : ''}`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getCategoryTone(
+                    event.category
+                  )}`}
+                >
+                  {event.category}
                 </span>
-              )}
 
-              {event.highlight && !hasEnded && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
-                  <Flame className="h-3 w-3" />
-                  Hot
-                </span>
-              )}
+                {hasEnded && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-ink-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur-md">
+                    <CalendarX2 className="h-3 w-3" />
+                    Ended
+                  </span>
+                )}
 
-              {isRecurring(event) && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/10 px-3 py-1 text-xs font-semibold text-flame-200">
-                  <Repeat className="h-3 w-3" />
-                  {recurrenceLabel(event)}
-                </span>
-              )}
+                {event.highlight && !hasEnded && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                    <Flame className="h-3 w-3" />
+                    Hot
+                  </span>
+                )}
 
-              {event.is_online && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
-                  <Globe2 className="h-3 w-3" />
-                  Online
-                </span>
-              )}
+                {isRecurring(event) && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/10 px-3 py-1 text-xs font-semibold text-flame-200">
+                    <Repeat className="h-3 w-3" />
+                    {recurrenceLabel(event)}
+                  </span>
+                )}
+
+                {event.is_online && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                    <Globe2 className="h-3 w-3" />
+                    Online
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-5 text-[13px] font-bold uppercase tracking-[0.22em] text-flame-300">
+                {isRecurring(event) ? `From ${formatKicker(event)}` : formatKicker(event)}
+              </p>
+
+              <h1 className="display-text mt-3 text-5xl leading-[0.95] tracking-tight sm:text-6xl">
+                <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
+              </h1>
             </div>
 
-            <p className="mt-5 text-[13px] font-bold uppercase tracking-[0.22em] text-flame-300">
-              {isRecurring(event) ? `From ${formatKicker(event)}` : formatKicker(event)}
-            </p>
-
-            <h1 className="display-text mt-3 max-w-4xl text-5xl leading-[0.95] tracking-tight sm:text-7xl">
-              <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
-            </h1>
-
-          </div>
-        </div>
-      </section>
-
-      {/* Body — editorial column + sticky action panel */}
-      <section className="relative z-20 px-4 pb-16 pt-8 sm:pt-10">
-        <div className="mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-10">
-          {/* Action panel — first on mobile; on desktop it lifts up beside the
-              hero title (instead of starting below the whole hero) so the
-              key info sits high, the way the best event platforms present it. */}
-          <aside className="lg:order-2 lg:-mt-44">
+            {/* Action panel — right column spanning both rows so the sticky card
+                travels the whole page. On mobile it sits right after the title,
+                before the editorial content. Real grid column ⇒ never overlaps
+                the title. */}
+            <aside className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl lg:sticky lg:top-24">
               {event.listing_status && event.listing_status !== 'confirmed' && (
                 <div
@@ -1102,8 +1101,8 @@ export default async function EventDetailPage(
             </div>
           </aside>
 
-          {/* Content column */}
-          <div className="min-w-0 lg:order-1">
+          {/* Content column — left column, below the title */}
+          <div className="min-w-0 lg:col-start-1 lg:row-start-2">
             {event.description && (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
@@ -1429,6 +1428,7 @@ export default async function EventDetailPage(
           </div>
         </div>
       </section>
+      </div>
     </main>
   )
 }
