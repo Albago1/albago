@@ -11,8 +11,6 @@ export type TrackType =
   | 'event_view'
   | 'protest_view'
   | 'place_view'
-  | 'placard_view'
-  | 'placard_download'
   | 'share_click'
   | 'city_search'
   | 'search_query'
@@ -30,7 +28,7 @@ export type TrackType =
   | 'ticket_claim_blocked'
 
 export type TrackOptions = {
-  entityType?: 'event' | 'place' | 'placard' | 'submission'
+  entityType?: 'event' | 'place' | 'submission'
   entityId?: string | null
   city?: string | null
   country?: string | null

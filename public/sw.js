@@ -129,7 +129,7 @@ async function staleWhileRevalidate(request, cacheName, maxEntries) {
 
 function isMediaRequest(url) {
   if (url.pathname.startsWith('/_next/image')) return true;
-  // Supabase public storage: event photos, AI posters, placards.
+  // Supabase public storage: event photos, AI posters.
   if (
     url.hostname.endsWith('.supabase.co') &&
     url.pathname.includes('/storage/v1/object/public/')

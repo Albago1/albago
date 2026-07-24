@@ -1,16 +1,13 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Image from 'next/image'
 import {
   ArrowRight,
   BadgeCheck,
   Calendar,
   CalendarCheck,
   Clock,
-  Flag,
   Globe,
   HandHeart,
-  Image as ImageIcon,
   Inbox,
   MapPin,
   Megaphone,
@@ -94,14 +91,11 @@ export default async function AdminHomePage() {
     publishedEvents,
     upcomingEvents,
     pendingSubmissions,
-    pendingPlacards,
-    reportedPlacards,
     pendingOrganizers,
     newVolunteers,
     totalUsers,
     eventsTimeline,
     profilesTimeline,
-    recentPlacards,
     recentSubmissions,
     recentOrganizerApps,
     publishedEventsList,
@@ -120,15 +114,6 @@ export default async function AdminHomePage() {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
     supabase
-      .from('placards')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending'),
-    supabase
-      .from('placards')
-      .select('id', { count: 'exact', head: true })
-      .gt('report_count', 0)
-      .neq('status', 'rejected'),
-    supabase
       .from('organizers')
       .select('id', { count: 'exact', head: true })
       .eq('id_review_status', 'pending'),
@@ -145,12 +130,6 @@ export default async function AdminHomePage() {
       .from('profiles')
       .select('created_at')
       .gte('created_at', fourteenDaysAgo),
-    supabase
-      .from('placards')
-      .select('id, image_url, caption, created_at, status, submitter_name')
-      .not('image_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(8),
     supabase
       .from('event_submissions')
       .select('id, title, created_at, status')
@@ -172,8 +151,6 @@ export default async function AdminHomePage() {
     publishedEvents: safeCount(publishedEvents),
     upcomingEvents: safeCount(upcomingEvents),
     pendingSubmissions: safeCount(pendingSubmissions),
-    pendingPlacards: safeCount(pendingPlacards),
-    reportedPlacards: safeCount(reportedPlacards),
     pendingOrganizers: safeCount(pendingOrganizers),
     newVolunteers: safeCount(newVolunteers),
     totalUsers: safeCount(totalUsers),
@@ -181,10 +158,8 @@ export default async function AdminHomePage() {
 
   const totalPending =
     counts.pendingSubmissions +
-    counts.pendingPlacards +
     counts.pendingOrganizers +
-    counts.newVolunteers +
-    counts.reportedPlacards
+    counts.newVolunteers
 
   const eventsSpark = bucketDatesByDay(
     ((eventsTimeline.data as Array<{ created_at: string }> | null) ?? []).map(
@@ -241,36 +216,11 @@ export default async function AdminHomePage() {
     .sort((a, b) => b.count - a.count || b.expected - a.expected)
     .slice(0, 5)
 
-  // Recent activity: merge placards, submissions, organizer applications
+  // Recent activity: merge submissions, organizer applications
   type Activity =
-    | {
-        kind: 'placard'
-        id: string
-        title: string
-        imageUrl: string | null
-        at: string
-        status: string
-      }
     | { kind: 'submission'; id: string; title: string; at: string; status: string }
     | { kind: 'organizer'; id: string; title: string; at: string }
   const acts: Activity[] = []
-  for (const p of (recentPlacards.data ?? []) as Array<{
-    id: string
-    image_url: string | null
-    caption: string | null
-    submitter_name: string | null
-    created_at: string
-    status: string
-  }>) {
-    acts.push({
-      kind: 'placard',
-      id: `p-${p.id}`,
-      title: p.caption || p.submitter_name || 'Placard upload',
-      imageUrl: p.image_url,
-      at: p.created_at,
-      status: p.status,
-    })
-  }
   for (const s of (recentSubmissions.data ?? []) as Array<{
     id: string
     title: string
@@ -310,7 +260,6 @@ export default async function AdminHomePage() {
 
   const tiles: Tile[] = [
     { href: '/admin/queue', title: 'Moderation queue', icon: Inbox, pending: counts.pendingSubmissions, pendingLabel: 'pending' },
-    { href: '/admin/placards', title: 'Placards', icon: ImageIcon, pending: counts.pendingPlacards + counts.reportedPlacards, pendingLabel: counts.reportedPlacards > 0 ? `${counts.pendingPlacards} new · ${counts.reportedPlacards} reported` : 'pending' },
     { href: '/admin/organizers', title: 'Organizers', icon: BadgeCheck, pending: counts.pendingOrganizers, pendingLabel: 'awaiting review' },
     { href: '/admin/volunteers', title: 'Volunteers', icon: HandHeart, pending: counts.newVolunteers, pendingLabel: 'new' },
     { href: '/admin/events', title: 'Events', icon: Megaphone },
@@ -463,16 +412,6 @@ export default async function AdminHomePage() {
                     {counts.pendingSubmissions} sub
                   </span>
                 )}
-                {counts.pendingPlacards > 0 && (
-                  <span className="text-white/55">
-                    {counts.pendingPlacards} pl
-                  </span>
-                )}
-                {counts.reportedPlacards > 0 && (
-                  <span className="text-flame-300">
-                    {counts.reportedPlacards} rep
-                  </span>
-                )}
                 {counts.pendingOrganizers > 0 && (
                   <span className="text-white/55">
                     {counts.pendingOrganizers} org
@@ -557,51 +496,35 @@ export default async function AdminHomePage() {
                       key={a.id}
                       className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
                     >
-                      {a.kind === 'placard' && a.imageUrl ? (
-                        <span className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-lg bg-black/40">
-                          <Image
-                            src={a.imageUrl}
-                            alt="Placard"
-                            fill
-                            sizes="28px"
-                            className="object-cover"
-                          />
-                        </span>
-                      ) : (
-                        <span
-                          className={[
-                            'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
-                            a.kind === 'organizer'
-                              ? 'bg-flame-500/10 text-flame-300'
-                              : 'bg-white/[0.06] text-white/70',
-                          ].join(' ')}
-                        >
-                          {a.kind === 'organizer' ? (
-                            <BadgeCheck className="h-3.5 w-3.5" />
-                          ) : (
-                            <Send className="h-3.5 w-3.5" />
-                          )}
-                        </span>
-                      )}
+                      <span
+                        className={[
+                          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
+                          a.kind === 'organizer'
+                            ? 'bg-flame-500/10 text-flame-300'
+                            : 'bg-white/[0.06] text-white/70',
+                        ].join(' ')}
+                      >
+                        {a.kind === 'organizer' ? (
+                          <BadgeCheck className="h-3.5 w-3.5" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5" />
+                        )}
+                      </span>
                       <div className="min-w-0 flex-1">
                         <Link
                           href={
-                            a.kind === 'placard'
-                              ? '/admin/placards'
-                              : a.kind === 'organizer'
-                                ? '/admin/organizers'
-                                : '/admin/queue'
+                            a.kind === 'organizer'
+                              ? '/admin/organizers'
+                              : '/admin/queue'
                           }
                           className="block truncate text-xs font-semibold text-white hover:text-flame-200"
                         >
                           {a.title}
                         </Link>
                         <p className="text-[11px] text-white/45 capitalize">
-                          {a.kind === 'placard'
-                            ? `Placard · ${a.status}`
-                            : a.kind === 'organizer'
-                              ? 'Organizer application'
-                              : `Submission · ${a.status}`}
+                          {a.kind === 'organizer'
+                            ? 'Organizer application'
+                            : `Submission · ${a.status}`}
                         </p>
                       </div>
                       <span className="flex-shrink-0 text-[11px] text-white/45">
@@ -643,11 +566,7 @@ export default async function AdminHomePage() {
                       </span>
                       {hasPending && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
-                          {tile.title === 'Placards' && counts.reportedPlacards > 0 ? (
-                            <Flag className="h-2.5 w-2.5" />
-                          ) : (
-                            <Clock className="h-2.5 w-2.5" />
-                          )}
+                          <Clock className="h-2.5 w-2.5" />
                           {tile.pending} {tile.pendingLabel}
                         </span>
                       )}

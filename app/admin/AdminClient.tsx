@@ -885,13 +885,6 @@ export default function AdminClient() {
             <ShieldCheck className="h-4 w-4" />
             Organizers
           </Link>
-          <Link
-            href="/admin/placards"
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-          >
-            <Flame className="h-4 w-4" />
-            Pankartat
-          </Link>
         </div>
       </div>
 

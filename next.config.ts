@@ -2,8 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Allow next/image to optimize photos served from Supabase Storage
-  // (event-covers + placard-photos buckets). Other origins are blocked
-  // so a stray <Image src="https://attacker.example/..."> can't be used
+  // (event-covers bucket). Other origins are blocked so a stray
+  // <Image src="https://attacker.example/..."> can't be used
   // as an open image proxy.
   images: {
     remotePatterns: [

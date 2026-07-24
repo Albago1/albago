@@ -20,8 +20,6 @@ const ALLOWED_TYPES = new Set([
   'event_view',
   'protest_view',
   'place_view',
-  'placard_view',
-  'placard_download',
   'share_click',
   'city_search',
   'search_query',
@@ -39,7 +37,7 @@ const ALLOWED_TYPES = new Set([
   'ticket_claim_blocked',
 ])
 
-const ALLOWED_ENTITY_TYPES = new Set(['event', 'place', 'placard', 'submission'])
+const ALLOWED_ENTITY_TYPES = new Set(['event', 'place', 'submission'])
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

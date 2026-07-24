@@ -544,11 +544,6 @@ export default function ProtestsClient({ events, migrationApplied }: Props) {
               </>
             )}
           </motion.div>
-
-          {/* "Pankartat e Revolucionit" CTA temporarily hidden — feature is
-              built, awaiting unveiling. Re-enable by uncommenting this block.
-              Component, route, and DB tables remain live; only the discovery
-              entry-point on /protests is suppressed. */}
         </div>
       </section>
 

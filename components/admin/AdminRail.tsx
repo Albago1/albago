@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   BadgeCheck,
   HandHeart,
-  Image as ImageIcon,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -20,8 +19,6 @@ import { createClient } from '@/lib/supabase/browser'
 
 type RailCounts = {
   pendingSubmissions: number
-  pendingPlacards: number
-  reportedPlacards: number
   pendingOrganizers: number
   newVolunteers: number
 }
@@ -44,12 +41,6 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
       label: 'Queue',
       icon: Inbox,
       badge: counts.pendingSubmissions,
-    },
-    {
-      href: '/admin/placards',
-      label: 'Placards',
-      icon: ImageIcon,
-      badge: counts.pendingPlacards + counts.reportedPlacards,
     },
     {
       href: '/admin/organizers',

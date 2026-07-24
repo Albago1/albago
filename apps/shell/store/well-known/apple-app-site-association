@@ -8,7 +8,6 @@
           { "/": "/places/*" },
           { "/": "/map" },
           { "/": "/protests*" },
-          { "/": "/pankartat*" },
           { "/": "/dashboard/tickets*" }
         ]
       }

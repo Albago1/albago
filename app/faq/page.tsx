@@ -152,8 +152,7 @@ const FAQS: Faq[] = [
     q: 'Where can I report a bug or content I think does not belong?',
     a: (
       <>
-        For uploaded placards there&apos;s a flag icon on every card — one tap
-        sends it to admin review. For everything else email{' '}
+        Email{' '}
         <a
           href={`mailto:${CONTACT_EMAIL}`}
           className="text-flame-300 hover:underline"

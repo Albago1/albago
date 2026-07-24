@@ -13,7 +13,6 @@ import {
   BadgeCheck,
   Calendar,
   HandHeart,
-  Image as ImageIcon,
   Inbox,
   LayoutDashboard,
   Megaphone,
@@ -81,15 +80,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/queue',
     icon: Inbox,
     keywords: 'queue moderation review submissions pending',
-  },
-  {
-    kind: 'nav',
-    id: 'nav-placards',
-    label: 'Placards',
-    sublabel: 'Pankartat photo wall moderation',
-    href: '/admin/placards',
-    icon: ImageIcon,
-    keywords: 'placards pankartat photos reports flagged',
   },
   {
     kind: 'nav',

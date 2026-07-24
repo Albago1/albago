@@ -7,7 +7,6 @@ import { Plus, Search } from 'lucide-react'
 const SECTION_TITLES: Record<string, string> = {
   '/admin': 'Overview',
   '/admin/queue': 'Moderation queue',
-  '/admin/placards': 'Placards',
   '/admin/organizers': 'Organizers',
   '/admin/volunteers': 'Volunteers',
   '/admin/events/new': 'New event',

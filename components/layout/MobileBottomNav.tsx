@@ -45,8 +45,7 @@ const items: NavItem[] = [
     match: (p) =>
       p === '/protests' ||
       p.startsWith('/protests/') ||
-      p.startsWith('/movements/') ||
-      p.startsWith('/pankartat'),
+      p.startsWith('/movements/'),
   },
   {
     href: '/map',

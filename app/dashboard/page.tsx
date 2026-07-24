@@ -1,5 +1,4 @@
 ﻿import type { Metadata } from 'next'
-import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -8,12 +7,9 @@ import {
   Building2,
   Calendar,
   CalendarClock,
-  Camera,
   Compass,
   FileText,
-  Flame,
   Heart,
-  Image as ImageIcon,
   LayoutDashboard,
   Send,
   Settings,
@@ -22,9 +18,6 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import SavedEventsList, { type SavedEventCard } from '@/components/SavedEventsList'
-import MyPlacardsList, {
-  type MyPlacardCard,
-} from '@/components/dashboard/MyPlacardsList'
 import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
 import Sparkline from '@/components/dashboard/Sparkline'
 import TrendBadge from '@/components/dashboard/TrendBadge'
@@ -161,7 +154,7 @@ export default async function DashboardPage() {
   if (profile?.role === 'admin') redirect('/admin')
 
   // — Regular user view —
-  const [submissionsRes, savedEvents, organizer, placardsRes, prefsRes, ticketsRes] =
+  const [submissionsRes, savedEvents, organizer, prefsRes, ticketsRes] =
     await Promise.all([
       supabase
         .from('event_submissions')
@@ -170,14 +163,6 @@ export default async function DashboardPage() {
         .order('created_at', { ascending: false }),
       fetchSavedEventCards(supabase, user.id),
       fetchOrganizer(supabase),
-      supabase
-        .from('placards')
-        .select(
-          'id, image_url, caption, city, status, vote_count, report_count, admin_note, created_at',
-        )
-        .eq('submitted_by', user.id)
-        .not('image_url', 'is', null)
-        .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
         .select('notification_preferences')
@@ -202,43 +187,10 @@ export default async function DashboardPage() {
     (e) => !isEventActive({ date: e.date, time: e.time }),
   )
 
-  type PlacardRowMinimal = {
-    id: string
-    image_url: string | null
-    caption: string | null
-    city: string | null
-    status: string
-    vote_count: number | null
-    report_count: number | null
-    admin_note: string | null
-    created_at: string
-  }
-  const myPlacards: MyPlacardCard[] = (
-    (placardsRes.data as PlacardRowMinimal[] | null) ?? []
-  )
-    .filter((row): row is PlacardRowMinimal & { image_url: string } => !!row.image_url)
-    .map((row) => ({
-      id: row.id,
-      imageUrl: row.image_url,
-      caption: row.caption,
-      city: row.city,
-      status:
-        row.status === 'approved' || row.status === 'rejected'
-          ? row.status
-          : 'pending',
-      voteCount: row.vote_count ?? 0,
-      reportCount: row.report_count ?? 0,
-      createdAt: row.created_at,
-      adminNote: row.admin_note,
-    }))
-
   const prefs = (prefsRes.data?.notification_preferences ?? {}) as {
     saved_event_updates?: boolean
   }
   const savedEventUpdates = prefs.saved_event_updates !== false
-
-  const totalLikes = myPlacards.reduce((sum, p) => sum + p.voteCount, 0)
-  const approvedPlacards = myPlacards.filter((p) => p.status === 'approved').length
 
   // 14-day buckets for sparklines on the KPI tiles.
   const savesSpark = bucketDatesByDay(
@@ -247,10 +199,6 @@ export default async function DashboardPage() {
   )
   const submissionsSpark = bucketDatesByDay(
     userSubmissions.map((s) => s.created_at),
-    14,
-  )
-  const placardsSpark = bucketDatesByDay(
-    myPlacards.map((p) => p.createdAt),
     14,
   )
 
@@ -265,14 +213,12 @@ export default async function DashboardPage() {
   }
   const savesTrend = splitTrend(savesSpark)
   const submissionsTrend = splitTrend(submissionsSpark)
-  const placardsTrend = splitTrend(placardsSpark)
 
-  // Recent activity feed: merge saves + submissions + placards by their
-  // respective timestamp. Last 6.
+  // Recent activity feed: merge saves + submissions by their respective
+  // timestamp. Last 6.
   type Activity =
     | { kind: 'save'; id: string; title: string; at: string; href: string }
     | { kind: 'submission'; id: string; title: string; at: string; href: string; status: string }
-    | { kind: 'placard'; id: string; caption: string | null; imageUrl: string; at: string; status: string }
   const activity: Activity[] = []
   for (const s of savedEvents) {
     if (s.saved_at) {
@@ -293,16 +239,6 @@ export default async function DashboardPage() {
       at: sub.created_at,
       href: '/dashboard#my-submissions',
       status: sub.status,
-    })
-  }
-  for (const p of myPlacards) {
-    activity.push({
-      kind: 'placard',
-      id: `p-${p.id}`,
-      caption: p.caption,
-      imageUrl: p.imageUrl,
-      at: p.createdAt,
-      status: p.status,
     })
   }
   activity.sort((a, b) => (a.at < b.at ? 1 : -1))
@@ -380,7 +316,7 @@ export default async function DashboardPage() {
           </section>
 
           {/* KPI row with sparklines */}
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <a
               href="#saved-upcoming"
               className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/15 hover:bg-white/[0.05]"
@@ -422,61 +358,16 @@ export default async function DashboardPage() {
                 <Sparkline values={submissionsSpark} width={120} height={22} />
               </div>
             </a>
-
-            <a
-              href="#my-placards"
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/15 hover:bg-white/[0.05]"
-            >
-              <div className="flex items-center justify-between">
-                <ImageIcon className="h-4 w-4 text-flame-300" />
-                <TrendBadge
-                  current={placardsTrend.recent}
-                  previous={placardsTrend.prior}
-                  asAbsolute
-                />
-              </div>
-              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
-                {myPlacards.length}
-              </p>
-              <p className="mt-0.5 text-[11px] text-white/55">Placards</p>
-              <div className="mt-2">
-                <Sparkline values={placardsSpark} width={120} height={22} />
-              </div>
-            </a>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex items-center justify-between">
-                <Flame className="h-4 w-4 text-flame-300" />
-                <span className="text-[11px] text-white/35">earned</span>
-              </div>
-              <p className="mt-3 text-2xl font-bold tabular-nums text-white">
-                {totalLikes}
-              </p>
-              <p className="mt-0.5 text-[11px] text-white/55">
-                Likes on your placards
-              </p>
-              <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
-                {approvedPlacards} approved
-              </div>
-            </div>
           </div>
 
           {/* Quick actions */}
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <Link
               href="/submit-event"
               className="group flex items-center gap-3 rounded-2xl border border-flame-500/30 bg-flame-500/[0.08] px-4 py-3 transition hover:border-flame-500/50 hover:bg-flame-500/[0.14]"
             >
               <Send className="h-4 w-4 text-flame-300" />
               <span className="text-sm font-semibold text-white">Submit event</span>
-              <ArrowRight className="ml-auto h-4 w-4 text-white/45 transition group-hover:translate-x-0.5 group-hover:text-white/85" />
-            </Link>
-            <Link
-              href="/pankartat"
-              className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.08]"
-            >
-              <Camera className="h-4 w-4 text-flame-300" />
-              <span className="text-sm font-semibold text-white">Upload placard</span>
               <ArrowRight className="ml-auto h-4 w-4 text-white/45 transition group-hover:translate-x-0.5 group-hover:text-white/85" />
             </Link>
             <Link
@@ -533,16 +424,15 @@ export default async function DashboardPage() {
             <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
           </Link>
 
-          {/* Recent activity + Your placards visual */}
-          <div className="mt-10 grid gap-6 lg:grid-cols-5">
-            <section className="lg:col-span-3">
+          {/* Recent activity */}
+          <div className="mt-10">
+            <section>
               <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
                 Recent activity
               </h2>
               {recentActivity.length === 0 ? (
                 <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
-                  Save an event, submit one, or upload a placard — your trail
-                  shows up here.
+                  Save an event or submit one — your trail shows up here.
                 </div>
               ) : (
                 <ul className="mt-4 space-y-1.5">
@@ -568,54 +458,22 @@ export default async function DashboardPage() {
                         </li>
                       )
                     }
-                    if (a.kind === 'submission') {
-                      return (
-                        <li
-                          key={a.id}
-                          className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-                        >
-                          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/70">
-                            <Send className="h-3.5 w-3.5" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <Link
-                              href={a.href}
-                              className="block truncate text-sm font-semibold text-white hover:text-flame-200"
-                            >
-                              Submitted {a.title}
-                            </Link>
-                            <p className="text-[11px] text-white/45 capitalize">
-                              {a.status}
-                            </p>
-                          </div>
-                          <span className="flex-shrink-0 text-[11px] text-white/45">
-                            {relativeDay(a.at)}
-                          </span>
-                        </li>
-                      )
-                    }
                     return (
                       <li
                         key={a.id}
                         className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
                       >
-                        <span className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-lg bg-black/40">
-                          <Image
-                            src={a.imageUrl}
-                            alt={a.caption ?? 'Placard'}
-                            fill
-                            sizes="28px"
-                            className="object-cover"
-                          />
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/70">
+                          <Send className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0 flex-1">
                           <Link
-                            href="#my-placards"
+                            href={a.href}
                             className="block truncate text-sm font-semibold text-white hover:text-flame-200"
                           >
-                            Uploaded {a.caption || 'a placard'}
+                            Submitted {a.title}
                           </Link>
-                          <p className="text-[11px] capitalize text-white/45">
+                          <p className="text-[11px] text-white/45 capitalize">
                             {a.status}
                           </p>
                         </div>
@@ -626,47 +484,6 @@ export default async function DashboardPage() {
                     )
                   })}
                 </ul>
-              )}
-            </section>
-
-            <section className="lg:col-span-2">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                Your placards
-              </h2>
-              {myPlacards.length === 0 ? (
-                <Link
-                  href="/pankartat"
-                  className="mt-4 flex flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center transition hover:border-flame-500/30 hover:bg-flame-500/[0.04]"
-                >
-                  <Camera className="h-6 w-6 text-white/35" />
-                  <p className="text-sm font-semibold text-white">
-                    Upload your first
-                  </p>
-                  <p className="text-[11px] text-white/45">Auto-moderated</p>
-                </Link>
-              ) : (
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {myPlacards.slice(0, 6).map((p) => (
-                    <a
-                      key={p.id}
-                      href="#my-placards"
-                      className="relative block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/40 transition hover:border-white/25"
-                    >
-                      <Image
-                        src={p.imageUrl}
-                        alt={p.caption ?? 'Placard'}
-                        fill
-                        sizes="120px"
-                        className="object-cover"
-                      />
-                      {p.status !== 'approved' && (
-                        <div className="absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-center text-[9px] font-bold uppercase tracking-wide text-white/85 backdrop-blur">
-                          {p.status}
-                        </div>
-                      )}
-                    </a>
-                  ))}
-                </div>
               )}
             </section>
           </div>
@@ -698,18 +515,6 @@ export default async function DashboardPage() {
               <SavedEventsList initialEvents={pastSaved} />
             </section>
           )}
-
-          {/* My placards */}
-          <section id="my-placards" className="mt-10 scroll-mt-24">
-            <div className="flex items-end justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                <ImageIcon className="h-3.5 w-3.5" />
-                My placards
-              </h2>
-              <span className="text-xs text-white/35">{myPlacards.length}</span>
-            </div>
-            <MyPlacardsList placards={myPlacards} />
-          </section>
 
           {/* My submissions */}
           <section id="my-submissions" className="mt-10 scroll-mt-24">

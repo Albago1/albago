@@ -1,22 +1,18 @@
 import LandingNavbar from '@/components/layout/LandingNavbar'
 
-type Variant = 'directory' | 'placards'
-
 const CARD_COUNT = 6
 
 /**
- * Shared loading skeleton used by /events, /protests, /pankartat loading.tsx
- * files. Mirrors each page's overall structure (hero + filter bar + card grid)
- * so the layout doesn't jump when the real content arrives.
+ * Shared loading skeleton used by /events and /protests loading.tsx files.
+ * Mirrors each page's overall structure (hero + filter bar + card grid) so the
+ * layout doesn't jump when the real content arrives.
  */
 export default function PageSkeleton({
   title,
   subtitle,
-  variant = 'directory',
 }: {
   title?: string
   subtitle?: string
-  variant?: Variant
 }) {
   return (
     <div className="relative min-h-screen bg-ink-950 text-white">
@@ -46,7 +42,7 @@ export default function PageSkeleton({
           )}
 
           <div className="mt-10 flex flex-wrap gap-2">
-            {Array.from({ length: variant === 'placards' ? 7 : 5 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
                 className="h-8 w-24 animate-pulse rounded-full bg-white/5"
@@ -61,7 +57,7 @@ export default function PageSkeleton({
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: CARD_COUNT }).map((_, i) => (
-              <SkeletonCard key={i} variant={variant} delayMs={i * 80} />
+              <SkeletonCard key={i} delayMs={i * 80} />
             ))}
           </div>
         </div>
@@ -70,7 +66,7 @@ export default function PageSkeleton({
   )
 }
 
-function SkeletonCard({ variant, delayMs }: { variant: Variant; delayMs: number }) {
+function SkeletonCard({ delayMs }: { delayMs: number }) {
   return (
     <div
       className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]"
@@ -90,7 +86,7 @@ function SkeletonCard({ variant, delayMs }: { variant: Variant; delayMs: number 
           style={{ animationDelay: `${delayMs + 120}ms` }}
         />
         <div className="mt-2 flex gap-2">
-          {Array.from({ length: variant === 'placards' ? 3 : 4 }).map((_, j) => (
+          {Array.from({ length: 4 }).map((_, j) => (
             <div
               key={j}
               className="h-6 w-16 animate-pulse rounded-full bg-white/5"
