@@ -36,14 +36,26 @@ export default async function EventWeatherCard(props: {
     isWetWeather(forecast.weatherCode) ||
     (forecast.precipitationProbability ?? 0) >= 50
 
+  // Name the day so it's unmistakably the outlook for the event itself, not
+  // today's weather.
+  const dayLabel = new Date(`${props.date}T12:00:00`).toLocaleDateString(
+    'en-GB',
+    { weekday: 'short', day: 'numeric', month: 'short' },
+  )
+
   return (
     <div className="mt-5 border-t border-white/[0.08] pt-5">
       <div className="flex items-center justify-between gap-4">
-        <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-          <Icon
-            className={`h-3.5 w-3.5 ${wet ? 'text-sky-300' : 'text-amber-300'}`}
-          />
-          Forecast
+        <span className="inline-flex flex-col gap-1">
+          <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+            <Icon
+              className={`h-3.5 w-3.5 ${wet ? 'text-sky-300' : 'text-amber-300'}`}
+            />
+            Weather on the day
+          </span>
+          <span className="text-[11px] font-medium text-white/45">
+            {dayLabel}
+          </span>
         </span>
         <div className="text-right">
           <p className="text-lg font-semibold tabular-nums text-white">

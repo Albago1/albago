@@ -770,39 +770,6 @@ export default async function EventDetailPage(
               <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
             </h1>
 
-            {/* Location card — the event's most acted-on detail, so it gets a
-                deliberate frosted panel that reads cleanly over any cover
-                photo. The exact street address is the headline; the venue and
-                city sit under it as the area label. */}
-            <div className="mt-6 inline-flex max-w-full items-start gap-3.5 rounded-2xl border border-white/15 bg-ink-950/40 px-4 py-3.5 shadow-[0_10px_40px_-16px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-              <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_22px_-6px_rgba(238,28,37,0.65)]">
-                <MapPin className="h-5 w-5 text-flame-300" />
-              </span>
-              <div className="min-w-0">
-                {event.is_online ? (
-                  <p className="text-[17px] font-semibold text-white">Online event</p>
-                ) : (
-                  <>
-                    <p className="text-[17px] font-semibold leading-snug text-white">
-                      {event.address ||
-                        venue?.address ||
-                        venue?.name ||
-                        `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
-                    </p>
-                    <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                      {venue?.name ? `${venue.name} · ` : ''}
-                      {cityLabel}
-                      {countryLabel ? `, ${countryLabel}` : ''}
-                    </p>
-                    {event.address_hint && (
-                      <p className="mt-1.5 text-sm italic leading-6 text-white/50">
-                        {event.address_hint}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -908,31 +875,36 @@ export default async function EventDetailPage(
                 </div>
               </div>
 
-              {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
+              {/* Location — sits right below the date/time so the reader gets
+                  when + where before any action. The exact street address is
+                  the headline; venue + city are the area label underneath. */}
+              {!event.is_online && (
+                <div className="mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5">
+                  <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)]">
+                    <MapPin className="h-5 w-5 text-flame-300" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold leading-snug text-white">
+                      {event.address ||
+                        venue?.address ||
+                        venue?.name ||
+                        `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+                      {venue?.name ? `${venue.name} · ` : ''}
+                      {cityLabel}
+                      {countryLabel ? `, ${countryLabel}` : ''}
+                    </p>
+                    {event.address_hint && (
+                      <p className="mt-1 text-sm italic leading-6 text-white/45">
+                        {event.address_hint}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              {/* Forecast at the event's start hour. Only renders when the
-                  event is soon (~16-day forecast window), physical, and has
-                  coordinates — otherwise the section doesn't exist at all.
-                  nextOccurrence resolves recurring events to their next date
-                  and in-progress multi-day events to today, so the widget
-                  stays alive mid-festival. */}
-              {!hasEnded &&
-                !event.is_online &&
-                directionsLat != null &&
-                directionsLng != null && (
-                  <Suspense fallback={null}>
-                    <EventWeatherCard
-                      lat={directionsLat}
-                      lng={directionsLng}
-                      date={nextOccurrence(event) ?? event.date}
-                      time={event.time}
-                      timezone={getEventTimezone(
-                        event.location_slug,
-                        event.country,
-                      )}
-                    />
-                  </Suspense>
-                )}
+              {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
 
               {hasNativeTickets && (
                 <TierPicker
@@ -1091,6 +1063,30 @@ export default async function EventDetailPage(
                   </a>
                 )}
               </div>
+
+              {/* Forecast — sits after the actions. Weather at the event's
+                  start hour; the card names the day so it's unmistakably the
+                  outlook for the event itself, not today. Only renders when the
+                  event is soon (~16-day window), physical, and has coordinates.
+                  nextOccurrence resolves recurring events to their next date
+                  and in-progress multi-day events to today. */}
+              {!hasEnded &&
+                !event.is_online &&
+                directionsLat != null &&
+                directionsLng != null && (
+                  <Suspense fallback={null}>
+                    <EventWeatherCard
+                      lat={directionsLat}
+                      lng={directionsLng}
+                      date={nextOccurrence(event) ?? event.date}
+                      time={event.time}
+                      timezone={getEventTimezone(
+                        event.location_slug,
+                        event.country,
+                      )}
+                    />
+                  </Suspense>
+                )}
 
               {event.last_verified_at && (
                 <p className="mt-5 inline-flex items-center gap-1.5 border-t border-white/[0.08] pt-4 text-xs text-white/45">
