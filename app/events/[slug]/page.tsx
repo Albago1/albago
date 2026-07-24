@@ -781,17 +781,18 @@ export default async function EventDetailPage(
               </span>
             </p>
 
-            {event.tags && event.tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {event.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full border border-white/15 bg-ink-950/45 px-2.5 py-1 text-xs text-white/75 backdrop-blur-md"
-                  >
-                    {t}
+            {/* Detailed street address lives here in the hero, under the city
+                line — the reader gets the exact location up front, over the
+                cover image (text shadow keeps it legible on any photo). */}
+            {!event.is_online && (event.address || venue?.address) && (
+              <p className="mt-2 max-w-2xl pl-6 text-sm leading-6 text-white/60 [text-shadow:0_1px_12px_rgba(5,5,5,0.7)]">
+                {event.address || venue?.address}
+                {event.address_hint && (
+                  <span className="block italic text-white/45">
+                    {event.address_hint}
                   </span>
-                ))}
-              </div>
+                )}
+              </p>
             )}
           </div>
         </div>
@@ -1082,39 +1083,6 @@ export default async function EventDetailPage(
                 )}
               </div>
 
-              {!event.is_online && (
-                <div className="mt-5 border-t border-white/[0.08] pt-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                    Where
-                  </p>
-                  <div className="mt-3 flex items-start gap-3.5 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-4">
-                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/25 bg-flame-500/10 shadow-[0_0_20px_-6px_rgba(238,28,37,0.5)]">
-                      <MapPin className="h-5 w-5 text-flame-300" />
-                    </span>
-                    <div className="min-w-0">
-                      {/* City leads — the reader orients on the place first,
-                          then the exact street address underneath. */}
-                      <p className="text-base font-semibold leading-tight text-white">
-                        {cityLabel}
-                        {countryLabel ? (
-                          <span className="text-white/45">, {countryLabel}</span>
-                        ) : null}
-                      </p>
-                      {(event.address || venue?.address) && (
-                        <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-white/70">
-                          {event.address || venue?.address}
-                        </p>
-                      )}
-                      {event.address_hint && (
-                        <p className="mt-1 text-sm italic leading-6 text-white/45">
-                          {event.address_hint}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {event.last_verified_at && (
                 <p className="mt-5 inline-flex items-center gap-1.5 border-t border-white/[0.08] pt-4 text-xs text-white/45">
                   <BadgeCheck className="h-3.5 w-3.5 text-flame-300/80" />
@@ -1175,6 +1143,26 @@ export default async function EventDetailPage(
               }
               alt={event.title}
             />
+
+            {/* Tags — supplementary metadata, kept quiet and low on the page
+                rather than competing with the title in the hero. */}
+            {event.tags && event.tags.length > 0 && (
+              <div className="mt-10">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                  Tags
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {event.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-white/60"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {venue && (
               <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
