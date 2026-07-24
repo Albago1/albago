@@ -740,7 +740,7 @@ export default async function EventDetailPage(
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-x-10 gap-y-10 sm:mt-14 lg:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="mt-10 grid gap-x-10 gap-y-10 sm:mt-14 lg:grid-cols-[minmax(0,1fr)_440px]">
             {/* Title — left column, top row, over the cover band */}
             <div
               className={`min-w-0 lg:col-start-1 lg:row-start-1${heroImage ? ' on-media' : ''}`}
@@ -793,7 +793,7 @@ export default async function EventDetailPage(
                 before the editorial content. Real grid column ⇒ never overlaps
                 the title. */}
             <aside className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl lg:sticky lg:top-24">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl lg:p-7 lg:sticky lg:top-24">
               {event.listing_status && event.listing_status !== 'confirmed' && (
                 <div
                   className={`mb-5 rounded-2xl border px-4 py-3.5 ${
@@ -847,11 +847,11 @@ export default async function EventDetailPage(
                 <div className="min-w-0">
                   {isMultiDay(event) && event.end_date ? (
                     <>
-                      <p className="text-sm font-semibold tabular-nums text-white">
+                      <p className="text-sm font-semibold tabular-nums text-white lg:text-base">
                         {formatDateLong(event.date)}
                         {event.time ? ` · ${event.time.slice(0, 5)}` : ''}
                       </p>
-                      <p className="mt-1 text-sm font-semibold tabular-nums text-white/85">
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-white/85 lg:text-base">
                         → {formatDateLong(event.end_date)}
                         {event.end_time ? ` · ${event.end_time.slice(0, 5)}` : ''}
                       </p>
@@ -865,13 +865,13 @@ export default async function EventDetailPage(
                     </>
                   ) : (
                     <>
-                      <p className="text-sm font-semibold text-white">
+                      <p className="text-sm font-semibold text-white lg:text-base">
                         {isRecurring(event)
                           ? `Starts ${formatDateLong(event.date)}`
                           : formatDateLong(event.date)}
                       </p>
                       {formatTimeRange(event.time, event.end_time) && (
-                        <p className="mt-1.5 inline-flex items-center gap-2 text-base font-semibold tabular-nums text-white">
+                        <p className="mt-1.5 inline-flex items-center gap-2 text-base font-semibold tabular-nums text-white lg:text-lg">
                           <Clock3 className="h-4 w-4 text-flame-400" />
                           {formatTimeRange(event.time, event.end_time)}
                         </p>
@@ -896,12 +896,12 @@ export default async function EventDetailPage(
                   when + where before any action. The exact street address is
                   the headline; venue + city are the area label underneath. */}
               {!event.is_online && (
-                <div className="mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5">
+                <div className="mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
                   <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)]">
                     <MapPin className="h-5 w-5 text-flame-300" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-[15px] font-semibold leading-snug text-white">
+                    <p className="text-[15px] font-semibold leading-snug text-white lg:text-lg">
                       {event.address ||
                         venue?.address ||
                         venue?.name ||
@@ -935,13 +935,13 @@ export default async function EventDetailPage(
               )}
 
               {!hasNativeTickets && (priceFromLabel || event.price) && (
-                <div className="mt-5 border-t border-white/[0.08] pt-5">
+                <div className="mt-5 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
                       <Ticket className="h-3.5 w-3.5" />
                       {priceFromLabel ? 'Tickets' : 'Price'}
                     </span>
-                    <span className="text-lg font-semibold text-white">
+                    <span className="text-lg font-semibold text-white lg:text-xl">
                       {priceFromLabel ?? event.price}
                     </span>
                   </div>
@@ -954,18 +954,18 @@ export default async function EventDetailPage(
               )}
 
               {isCivic && event.expected_attendees != null && (
-                <div className="mt-5 flex items-center justify-between border-t border-white/[0.08] pt-5">
+                <div className="mt-5 flex items-center justify-between border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
                   <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
                     <Users className="h-3.5 w-3.5" />
                     Expected
                   </span>
-                  <span className="text-lg font-semibold text-white">
+                  <span className="text-lg font-semibold text-white lg:text-xl">
                     {formatAttendees(event.expected_attendees)}
                   </span>
                 </div>
               )}
 
-              <div className="mt-5 flex flex-wrap gap-2.5 border-t border-white/[0.08] pt-5">
+              <div className="mt-5 flex flex-wrap gap-2.5 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
                 {hasEnded && (
                   <Link
                     href={similarEventsHref}
