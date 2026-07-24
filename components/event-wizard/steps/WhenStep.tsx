@@ -213,6 +213,34 @@ function nonStopDurationLabel(
   return parts.length ? parts.join(' ') : 'under an hour'
 }
 
+type ScheduleType = 'single' | 'multi' | 'repeat'
+
+const SCHEDULE_OPTIONS: Array<{
+  id: ScheduleType
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  hint: string
+}> = [
+  {
+    id: 'single',
+    label: 'Single day',
+    icon: CalendarDays,
+    hint: 'One date — the usual case.',
+  },
+  {
+    id: 'multi',
+    label: 'Multiple days',
+    icon: CalendarRange,
+    hint: 'One continuous run across several days — a festival or conference.',
+  },
+  {
+    id: 'repeat',
+    label: 'Repeating',
+    icon: Repeat,
+    hint: 'A series on a repeating schedule — every day or on chosen weekdays.',
+  },
+]
+
 export default function WhenStep({ draft, patch }: Props) {
   const today = useMemo(() => todayIso(), [])
   const extraTimezone = useMemo(() => {
@@ -220,161 +248,243 @@ export default function WhenStep({ draft, patch }: Props) {
     return ALL_KNOWN_ZONES.has(draft.timezone) ? null : draft.timezone
   }, [draft.timezone])
 
-  // Multi-day (festival) range — opt-in. Only one-off events can be continuous
-  // ranges; repeats use "Repeat until" instead.
-  const [multiDayOpen, setMultiDayOpen] = useState(false)
-  const showMultiDay =
-    draft.recurrence === 'none' && (multiDayOpen || draft.end_date !== '')
+  // Schedule type — one explicit choice up front, so "runs for several days"
+  // (a festival) is never confused with "repeats every day" (a series). It
+  // maps onto the draft fields:
+  //   single → recurrence 'none', no end_date
+  //   multi  → recurrence 'none' + end_date (one continuous run)
+  //   repeat → recurrence 'daily' | 'weekly'
+  const [multiSelected, setMultiSelected] = useState(draft.end_date !== '')
+  const scheduleType: ScheduleType =
+    draft.recurrence !== 'none'
+      ? 'repeat'
+      : draft.end_date !== '' || multiSelected
+        ? 'multi'
+        : 'single'
+
+  const setScheduleType = (next: ScheduleType) => {
+    if (next === 'single') {
+      setMultiSelected(false)
+      patch({
+        recurrence: 'none',
+        end_date: '',
+        recurrence_until: '',
+        recurrence_days_of_week: [],
+      })
+    } else if (next === 'multi') {
+      setMultiSelected(true)
+      patch({ recurrence: 'none', recurrence_until: '', recurrence_days_of_week: [] })
+    } else {
+      setMultiSelected(false)
+      patch({
+        recurrence: draft.recurrence === 'none' ? 'daily' : draft.recurrence,
+        end_date: '',
+      })
+    }
+  }
+
   const multiDayValid = !!draft.end_date && draft.end_date > draft.date
 
-  // End time is opt-in too, but a multi-day range almost always wants one (it's
-  // the clock time the run finishes on the last day), so opening the range
-  // reveals the end-time field automatically.
+  // End time is opt-in for single/repeat; a multi-day run shows it inline.
   const [endOpen, setEndOpen] = useState(false)
-  const showEnd = endOpen || draft.end_time !== '' || showMultiDay
-  // Overnight inference only applies to SINGLE-day events: with no end date, an
-  // end time at or before the start rolls into the next morning. When an end
-  // date is set, end_time is simply the clock time on that day — no inference.
-  const overnight = !multiDayValid && isOvernight(draft.time, draft.end_time)
+  const showEnd = endOpen || draft.end_time !== '' || scheduleType === 'multi'
+
+  // Overnight inference only applies when there is no end date: an end time at
+  // or before the start time rolls into the next morning.
+  const overnight = scheduleType !== 'multi' && isOvernight(draft.time, draft.end_time)
   const overnightDay = draft.date ? nextDayLabel(draft.date) : null
+
+  const timezoneField = (
+    <Field label="Timezone" htmlFor="when-tz" icon={Globe}>
+      <select
+        id="when-tz"
+        value={draft.timezone}
+        onChange={(e) => patch({ timezone: e.target.value })}
+        className="input"
+      >
+        {extraTimezone && (
+          <optgroup label="Detected" className="bg-ink-900">
+            <option value={extraTimezone} className="bg-ink-900">
+              {extraTimezone}
+            </option>
+          </optgroup>
+        )}
+        {TIMEZONE_GROUPS.map((group) => (
+          <optgroup key={group.region} label={group.region} className="bg-ink-900">
+            {group.zones.map((tz) => (
+              <option key={tz} value={tz} className="bg-ink-900">
+                {tz.replace(/_/g, ' ').replace(/^[^/]+\//, '')}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </Field>
+  )
 
   return (
     <div className="space-y-5">
       <h2 className="text-xl font-semibold text-white">When is it happening?</h2>
       <p className="text-sm text-white/55">
-        Use the local time of the venue. We&apos;ll show it in each visitor&apos;s
+        Use the venue&apos;s local time — we show it in each visitor&apos;s
         timezone automatically.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Date" htmlFor="when-date" required icon={CalendarDays}>
-          <input
-            id="when-date"
-            type="date"
-            required
-            value={draft.date}
-            min={today}
-            onChange={(e) => patch({ date: e.target.value })}
-            className="input"
-          />
-        </Field>
-        <Field label="Start time (optional)" htmlFor="when-time" icon={Clock}>
-          <TimeInput
-            id="when-time"
-            value={draft.time}
-            onChange={(v) => patch({ time: v })}
-            onClear={() => patch({ time: '' })}
-          />
-        </Field>
+      {/* Schedule type — the single choice that keeps a multi-day festival and
+          a repeating series from being mistaken for each other. */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+          Schedule
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {SCHEDULE_OPTIONS.map((opt) => {
+            const Icon = opt.icon
+            const active = scheduleType === opt.id
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setScheduleType(opt.id)}
+                aria-pressed={active}
+                className={[
+                  'flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-[13px] font-semibold transition',
+                  active
+                    ? 'border-flame-500/50 bg-flame-500/15 text-white'
+                    : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20 hover:text-white',
+                ].join(' ')}
+              >
+                <Icon className={`h-5 w-5 ${active ? 'text-flame-300' : 'text-white/45'}`} />
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="mt-2 text-xs text-white/50">
+          {SCHEDULE_OPTIONS.find((o) => o.id === scheduleType)?.hint}
+        </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {showEnd ? (
-          <Field
-            label={multiDayValid ? 'End time (last day)' : 'End time'}
-            htmlFor="when-end"
-            icon={Clock}
-          >
-            <TimeInput
-              id="when-end"
-              value={draft.end_time}
-              onChange={(v) => patch({ end_time: v })}
-              onClear={() => {
-                patch({ end_time: '' })
-                setEndOpen(false)
-              }}
-            />
-          </Field>
-        ) : (
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={() => setEndOpen(true)}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-4 py-[0.7rem] text-sm font-medium text-white/55 transition hover:border-white/30 hover:bg-white/[0.04] hover:text-white"
-            >
-              <Plus className="h-4 w-4" />
-              Add end time
-            </button>
+      {scheduleType === 'multi' ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="First day" htmlFor="when-date" required icon={CalendarDays}>
+              <input
+                id="when-date"
+                type="date"
+                required
+                value={draft.date}
+                min={today}
+                onChange={(e) => patch({ date: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Last day" htmlFor="when-end-date" required icon={CalendarRange}>
+              <input
+                id="when-end-date"
+                type="date"
+                value={draft.end_date}
+                min={draft.date ? addDays(draft.date, 1) : today}
+                onChange={(e) => patch({ end_date: e.target.value })}
+                className="input"
+              />
+            </Field>
           </div>
-        )}
-        <Field label="Timezone" htmlFor="when-tz" icon={Globe}>
-          <select
-            id="when-tz"
-            value={draft.timezone}
-            onChange={(e) => patch({ timezone: e.target.value })}
-            className="input"
-          >
-            {extraTimezone && (
-              <optgroup label="Detected" className="bg-ink-900">
-                <option value={extraTimezone} className="bg-ink-900">
-                  {extraTimezone}
-                </option>
-              </optgroup>
-            )}
-            {TIMEZONE_GROUPS.map((group) => (
-              <optgroup key={group.region} label={group.region} className="bg-ink-900">
-                {group.zones.map((tz) => (
-                  <option key={tz} value={tz} className="bg-ink-900">
-                    {tz.replace(/_/g, ' ').replace(/^[^/]+\//, '')}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </Field>
-      </div>
-
-      {showMultiDay ? (
-        <Field label="Last day" htmlFor="when-end-date" icon={CalendarRange}>
-          <div className="relative sm:w-1/2 sm:pr-2">
-            <input
-              id="when-end-date"
-              type="date"
-              value={draft.end_date}
-              min={draft.date ? addDays(draft.date, 1) : today}
-              onChange={(e) => patch({ end_date: e.target.value })}
-              className="input pr-10"
-            />
-            <button
-              type="button"
-              aria-label="Remove last day"
-              onClick={() => {
-                patch({ end_date: '' })
-                setMultiDayOpen(false)
-              }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white sm:right-4"
-            >
-              <X className="h-4 w-4" />
-            </button>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Start time" htmlFor="when-time" icon={Clock}>
+              <TimeInput
+                id="when-time"
+                value={draft.time}
+                onChange={(v) => patch({ time: v })}
+                onClear={() => patch({ time: '' })}
+              />
+            </Field>
+            <Field label="End time" htmlFor="when-end" icon={Clock}>
+              <TimeInput
+                id="when-end"
+                value={draft.end_time}
+                onChange={(v) => patch({ end_time: v })}
+                onClear={() => patch({ end_time: '' })}
+              />
+            </Field>
           </div>
-        </Field>
+          <div className="grid gap-4 sm:grid-cols-2">{timezoneField}</div>
+        </>
       ) : (
-        draft.recurrence === 'none' && (
-          <button
-            type="button"
-            onClick={() => setMultiDayOpen(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition hover:text-white"
-          >
-            <CalendarRange className="h-3.5 w-3.5" />
-            Ends on a different day (festival, non-stop multi-day event)
-          </button>
-        )
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={scheduleType === 'repeat' ? 'Starts' : 'Date'}
+              htmlFor="when-date"
+              required
+              icon={CalendarDays}
+            >
+              <input
+                id="when-date"
+                type="date"
+                required
+                value={draft.date}
+                min={today}
+                onChange={(e) => patch({ date: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Start time" htmlFor="when-time" icon={Clock}>
+              <TimeInput
+                id="when-time"
+                value={draft.time}
+                onChange={(v) => patch({ time: v })}
+                onClear={() => patch({ time: '' })}
+              />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {showEnd ? (
+              <Field label="End time" htmlFor="when-end" icon={Clock}>
+                <TimeInput
+                  id="when-end"
+                  value={draft.end_time}
+                  onChange={(v) => patch({ end_time: v })}
+                  onClear={() => {
+                    patch({ end_time: '' })
+                    setEndOpen(false)
+                  }}
+                />
+              </Field>
+            ) : (
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => setEndOpen(true)}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-4 py-[0.7rem] text-sm font-medium text-white/55 transition hover:border-white/30 hover:bg-white/[0.04] hover:text-white"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add end time
+                </button>
+              </div>
+            )}
+            {timezoneField}
+          </div>
+        </>
       )}
 
-      {/* Span summary. Multi-day continuous events describe the whole non-stop
-          run; single-day overnight events explain the roll into the morning. */}
+      {/* Summary line — describes the exact span the reader will see. */}
       {multiDayValid ? (
         <p className="flex items-center gap-1.5 text-xs text-flame-200/90">
           <MoonStar className="h-3.5 w-3.5 flex-shrink-0" />
           {draft.time && draft.end_time
             ? `Runs non-stop from ${formatDayTime(draft.date, draft.time)} to ${formatDayTime(draft.end_date, draft.end_time)} — ${nonStopDurationLabel(draft.date, draft.time, draft.end_date, draft.end_time)}.`
-            : `Runs ${dateRangeShort(draft.date, draft.end_date)} non-stop — ${multiDayDurationDays(draft.date, draft.end_date)} days straight.`}
+            : `Runs ${dateRangeShort(draft.date, draft.end_date)} — ${multiDayDurationDays(draft.date, draft.end_date)} days straight.`}
+        </p>
+      ) : scheduleType === 'multi' ? (
+        <p className="flex items-center gap-1.5 text-xs text-amber-200/80">
+          <CalendarRange className="h-3.5 w-3.5 flex-shrink-0" />
+          Choose the last day — it has to be after the first day.
         </p>
       ) : (
         overnight && (
           <p className="flex items-center gap-1.5 text-xs text-flame-200/90">
             <MoonStar className="h-3.5 w-3.5 flex-shrink-0" />
-            {draft.recurrence !== 'none'
+            {scheduleType === 'repeat'
               ? `Runs overnight — each date ends at ${draft.end_time} the next morning.`
               : `Ends the next day${overnightDay ? ` — ${overnightDay}` : ''} at ${draft.end_time}.`}
           </p>
@@ -382,90 +492,79 @@ export default function WhenStep({ draft, patch }: Props) {
       )}
 
       <p className="text-xs text-white/40">
-        Detected timezone: <span className="font-mono text-white/60">{draft.timezone}</span>.
-        Change it if the event is in a different region.
+        Detected timezone:{' '}
+        <span className="font-mono text-white/60">{draft.timezone}</span>. Change
+        it if the event is in a different region.
       </p>
 
-      {/* Recurrence (Phase 15) */}
-      <div className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.02] p-4">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
-          <Repeat className="h-3.5 w-3.5 text-white/40" />
-          Repeats?
-        </div>
-
-        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1">
-          {(['none', 'daily', 'weekly'] as const).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => {
-                const next: Partial<EventDraft> = { recurrence: opt }
-                if (opt === 'none') {
-                  next.recurrence_until = ''
-                  next.recurrence_days_of_week = []
-                } else {
-                  // A repeating cadence and a continuous multi-day range are
-                  // different schedule types — a series has no single last day.
-                  next.end_date = ''
-                  if (opt === 'daily') next.recurrence_days_of_week = []
-                }
-                patch(next)
-              }}
-              className={[
-                'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition',
-                draft.recurrence === opt
-                  ? 'bg-white text-black'
-                  : 'text-white/65 hover:text-white',
-              ].join(' ')}
-            >
-              {opt === 'none' ? 'One-off' : opt === 'daily' ? 'Daily' : 'Weekly'}
-            </button>
-          ))}
-        </div>
-
-        {draft.recurrence === 'weekly' && (
-          <div>
-            <p className="mb-2 text-xs text-white/55">
-              Pick the weekdays the event runs.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {WEEKDAYS.map((d) => {
-                const active = draft.recurrence_days_of_week.includes(d.iso)
-                return (
-                  <button
-                    key={d.iso}
-                    type="button"
-                    onClick={() => {
-                      const set = new Set(draft.recurrence_days_of_week)
-                      if (active) set.delete(d.iso)
-                      else set.add(d.iso)
-                      patch({
-                        recurrence_days_of_week: Array.from(set).sort(
-                          (a, b) => a - b,
-                        ),
-                      })
-                    }}
-                    className={[
-                      'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
-                      active
-                        ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
-                        : 'border-white/10 bg-white/[0.04] text-white/65 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {d.short}
-                  </button>
-                )
-              })}
-            </div>
-            {draft.recurrence_days_of_week.length === 0 && (
-              <p className="mt-2 text-xs text-amber-200/80">
-                Pick at least one weekday or the series won&apos;t run.
-              </p>
-            )}
+      {/* Repeating cadence — only for the "Repeating" schedule type. */}
+      {scheduleType === 'repeat' && (
+        <div className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+            <Repeat className="h-3.5 w-3.5 text-white/40" />
+            How often?
           </div>
-        )}
 
-        {draft.recurrence !== 'none' && (
+          <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1">
+            {(['daily', 'weekly'] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  const next: Partial<EventDraft> = { recurrence: opt }
+                  if (opt === 'daily') next.recurrence_days_of_week = []
+                  patch(next)
+                }}
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition',
+                  draft.recurrence === opt
+                    ? 'bg-white text-black'
+                    : 'text-white/65 hover:text-white',
+                ].join(' ')}
+              >
+                {opt === 'daily' ? 'Every day' : 'Weekly'}
+              </button>
+            ))}
+          </div>
+
+          {draft.recurrence === 'weekly' && (
+            <div>
+              <p className="mb-2 text-xs text-white/55">Pick the weekdays it runs.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {WEEKDAYS.map((d) => {
+                  const active = draft.recurrence_days_of_week.includes(d.iso)
+                  return (
+                    <button
+                      key={d.iso}
+                      type="button"
+                      onClick={() => {
+                        const set = new Set(draft.recurrence_days_of_week)
+                        if (active) set.delete(d.iso)
+                        else set.add(d.iso)
+                        patch({
+                          recurrence_days_of_week: Array.from(set).sort((a, b) => a - b),
+                        })
+                      }}
+                      className={[
+                        'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                        active
+                          ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
+                          : 'border-white/10 bg-white/[0.04] text-white/65 hover:text-white',
+                      ].join(' ')}
+                    >
+                      {d.short}
+                    </button>
+                  )
+                })}
+              </div>
+              {draft.recurrence_days_of_week.length === 0 && (
+                <p className="mt-2 text-xs text-amber-200/80">
+                  Pick at least one weekday or the series won&apos;t run.
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
             <label
               htmlFor="when-until"
@@ -485,8 +584,8 @@ export default function WhenStep({ draft, patch }: Props) {
               Leave empty for open-ended (until you archive the event).
             </p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <style jsx>{`
         :global(.input) {
