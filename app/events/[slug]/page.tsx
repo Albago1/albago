@@ -358,18 +358,6 @@ function formatDateLong(dateString: string) {
   })
 }
 
-// DICE-style kicker: "FRI 11 JUL · 21:00 — 04:00"
-function formatKicker(event: EventRecord): string {
-  const d = new Date(`${event.date}T12:00:00`)
-  const day = d.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
-  const time = formatTimeRange(event.time, event.end_time)
-  return [day, time].filter(Boolean).join(' · ')
-}
-
 function DateTile({ iso }: { iso: string }) {
   const d = new Date(`${iso}T12:00:00`)
   return (
@@ -768,11 +756,7 @@ export default async function EventDetailPage(
                 )}
               </div>
 
-              <p className="mt-5 text-[13px] font-bold uppercase tracking-[0.22em] text-flame-300">
-                {isRecurring(event) ? `From ${formatKicker(event)}` : formatKicker(event)}
-              </p>
-
-              <h1 className="display-text mt-3 text-5xl leading-[0.95] tracking-tight sm:text-6xl">
+              <h1 className="display-text mt-5 text-5xl leading-[0.95] tracking-tight sm:text-6xl">
                 <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
               </h1>
             </div>
