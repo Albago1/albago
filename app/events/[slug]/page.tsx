@@ -14,7 +14,6 @@ import {
   Mail,
   MapPin,
   MessageCircle,
-  Navigation,
   Phone,
   Repeat,
   Send,
@@ -38,7 +37,6 @@ import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { formatPriceFrom, safeExternalUrl } from '@/lib/ticketDisplay'
 import {
-  buildDirectionsHref,
   buildLocationViewHref,
   buildMapHref,
 } from '@/lib/eventLinks'
@@ -523,10 +521,11 @@ export default async function EventDetailPage(
   })
   const directionsLat = venue?.lat ?? event.lat ?? null
   const directionsLng = venue?.lng ?? event.lng ?? null
-  const directionsHref =
-    directionsLat != null && directionsLng != null
-      ? buildDirectionsHref(directionsLat, directionsLng)
-      : null
+  // Premium filled CTA — a soft vertical flame gradient with an inset highlight
+  // ring and a layered glow that lifts on hover. One per event; every other
+  // action stays on the lighter glass pill.
+  const PRIMARY_CTA =
+    'inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-flame-400 to-flame-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(238,28,37,0.6)] ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 hover:from-flame-300 hover:to-flame-500 hover:shadow-[0_16px_44px_-10px_rgba(238,28,37,0.78)]'
   const hasCoordination =
     isCivic &&
     (event.telegram_link || event.whatsapp_link || event.organizer_contact)
@@ -971,7 +970,7 @@ export default async function EventDetailPage(
                 {hasEnded && (
                   <Link
                     href={similarEventsHref}
-                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                    className={PRIMARY_CTA}
                   >
                     <Sparkles className="h-4 w-4" />
                     Find similar upcoming events
@@ -987,7 +986,7 @@ export default async function EventDetailPage(
                     href={ticketUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                    className={PRIMARY_CTA}
                   >
                     <Ticket className="h-4 w-4" />
                     Get tickets
@@ -999,7 +998,7 @@ export default async function EventDetailPage(
                     href={officialUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                    className={PRIMARY_CTA}
                   >
                     <ExternalLink className="h-4 w-4" />
                     View official information
@@ -1011,22 +1010,10 @@ export default async function EventDetailPage(
                     href={event.online_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
+                    className={PRIMARY_CTA}
                   >
                     <Globe2 className="h-4 w-4" />
                     Join online
-                  </a>
-                )}
-
-                {directionsHref && !hasEnded && !hasNativeTickets && !ticketUrl && !officialUrl && !(event.is_online && event.online_url) && (
-                  <a
-                    href={directionsHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
-                  >
-                    <Navigation className="h-4 w-4" />
-                    Get Directions
                   </a>
                 )}
 
@@ -1047,6 +1034,14 @@ export default async function EventDetailPage(
                     lat={directionsLat}
                     lng={directionsLng}
                     address={event.address ?? venue?.address ?? null}
+                    variant={
+                      !hasNativeTickets &&
+                      !ticketUrl &&
+                      !officialUrl &&
+                      !(event.is_online && event.online_url)
+                        ? 'primary'
+                        : 'secondary'
+                    }
                   />
                 )}
 
@@ -1059,18 +1054,6 @@ export default async function EventDetailPage(
                   >
                     <Globe2 className="h-4 w-4" />
                     Join online
-                  </a>
-                )}
-
-                {directionsHref && !hasEnded && (ticketUrl || hasNativeTickets || officialUrl || (event.is_online && event.online_url)) && (
-                  <a
-                    href={directionsHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-                  >
-                    <Navigation className="h-4 w-4" />
-                    Get Directions
                   </a>
                 )}
 
@@ -1104,18 +1087,31 @@ export default async function EventDetailPage(
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
                     Where
                   </p>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-white/80">
-                    {event.address ||
-                      venue?.address ||
-                      `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
-                    {event.address_hint && (
-                      <span className="block text-white/50">{event.address_hint}</span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-white/50">
-                    {cityLabel}
-                    {countryLabel ? ` · ${countryLabel}` : ''}
-                  </p>
+                  <div className="mt-3 flex items-start gap-3.5 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-4">
+                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/25 bg-flame-500/10 shadow-[0_0_20px_-6px_rgba(238,28,37,0.5)]">
+                      <MapPin className="h-5 w-5 text-flame-300" />
+                    </span>
+                    <div className="min-w-0">
+                      {/* City leads — the reader orients on the place first,
+                          then the exact street address underneath. */}
+                      <p className="text-base font-semibold leading-tight text-white">
+                        {cityLabel}
+                        {countryLabel ? (
+                          <span className="text-white/45">, {countryLabel}</span>
+                        ) : null}
+                      </p>
+                      {(event.address || venue?.address) && (
+                        <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-white/70">
+                          {event.address || venue?.address}
+                        </p>
+                      )}
+                      {event.address_hint && (
+                        <p className="mt-1 text-sm italic leading-6 text-white/45">
+                          {event.address_hint}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 

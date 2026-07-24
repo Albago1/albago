@@ -70,10 +70,10 @@ export default function MapPickerButton({
 
   const buttonClass =
     variant === 'primary'
-      ? 'inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5'
-      : 'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/[0.09] hover:text-white'
+      ? 'inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-flame-400 to-flame-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(238,28,37,0.6)] ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 hover:from-flame-300 hover:to-flame-500 hover:shadow-[0_16px_44px_-10px_rgba(238,28,37,0.78)]'
+      : 'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white'
 
-  const iconSize = variant === 'primary' ? 'h-4 w-4' : 'h-3.5 w-3.5'
+  const iconSize = 'h-4 w-4'
 
   return (
     <div ref={rootRef} className="relative inline-block">
