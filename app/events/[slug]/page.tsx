@@ -935,9 +935,9 @@ export default async function EventDetailPage(
               )}
 
               {!hasNativeTickets && (priceFromLabel || event.price) && (
-                <div className="mt-5 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
+                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:mt-7 lg:p-5">
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                    <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45 lg:text-xs">
                       <Ticket className="h-3.5 w-3.5" />
                       {priceFromLabel ? 'Tickets' : 'Price'}
                     </span>
@@ -1096,6 +1096,11 @@ export default async function EventDetailPage(
                       lat={directionsLat}
                       lng={directionsLng}
                       date={nextOccurrence(event) ?? event.date}
+                      endDate={
+                        isMultiDay(event) && event.end_date
+                          ? event.end_date
+                          : null
+                      }
                       time={event.time}
                       timezone={getEventTimezone(
                         event.location_slug,

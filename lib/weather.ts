@@ -106,6 +106,80 @@ export async function getEventForecast(params: {
   }
 }
 
+export type DayForecast = EventForecast & {
+  /** The day this forecast is for, YYYY-MM-DD. */
+  date: string
+}
+
+/**
+ * Forecast at the event's start hour for every day of a continuous multi-day
+ * event (festival). One Open-Meteo call covers the whole range. Past days and
+ * days beyond the ~16-day window are dropped, so the result may be shorter than
+ * the range (or empty). Never throws — weather is a nice-to-have.
+ */
+export async function getEventForecastRange(params: {
+  lat: number
+  lng: number
+  startDate: string
+  endDate: string
+  time: string | null
+  timezone: string
+}): Promise<DayForecast[]> {
+  const { lat, lng, startDate, endDate, time, timezone } = params
+
+  const todayMs = Date.parse(`${todayIsoIn(timezone)}T00:00:00Z`)
+  const startMs = Date.parse(`${startDate}T00:00:00Z`)
+  const endMs = Date.parse(`${endDate}T00:00:00Z`)
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return []
+
+  // Only fetch days that are today-or-later and inside the forecast window.
+  const effStartMs = Math.max(startMs, todayMs)
+  const effEndMs = Math.min(endMs, todayMs + MAX_FORECAST_DAYS * 86_400_000)
+  if (effEndMs < effStartMs) return []
+
+  const effStart = new Date(effStartMs).toISOString().slice(0, 10)
+  const effEnd = new Date(effEndMs).toISOString().slice(0, 10)
+
+  const url =
+    'https://api.open-meteo.com/v1/forecast' +
+    `?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}` +
+    '&hourly=temperature_2m,precipitation_probability,weather_code' +
+    `&start_date=${effStart}&end_date=${effEnd}` +
+    `&timezone=${encodeURIComponent(timezone)}`
+
+  try {
+    const res = await fetch(url, {
+      next: { revalidate: 7200 },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as OpenMeteoHourly
+    const times = data.hourly?.time ?? []
+    const hour = roundedHour(time)
+    const hh = String(hour).padStart(2, '0')
+
+    const out: DayForecast[] = []
+    for (let ms = effStartMs; ms <= effEndMs; ms += 86_400_000) {
+      const dateStr = new Date(ms).toISOString().slice(0, 10)
+      const idx = times.indexOf(`${dateStr}T${hh}:00`)
+      if (idx === -1) continue
+      const temperature = data.hourly?.temperature_2m?.[idx]
+      const code = data.hourly?.weather_code?.[idx]
+      if (temperature == null || code == null) continue
+      out.push({
+        date: dateStr,
+        temperatureC: temperature,
+        precipitationProbability:
+          data.hourly?.precipitation_probability?.[idx] ?? null,
+        weatherCode: code,
+      })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
 /** Human label for a WMO weather code (groups, not all 100 codes). */
 export function weatherLabel(code: number): string {
   if (code === 0) return 'Clear sky'

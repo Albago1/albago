@@ -1,74 +1,44 @@
-import { getEventForecast, isWetWeather, weatherLabel } from '@/lib/weather'
 import {
-  WEATHER_ICONS,
-  isSnowCode,
-  weatherIconKey,
-} from '@/components/events/weatherIcon'
-
-function rainLine(code: number, probability: number | null): string {
-  const word = isSnowCode(code) ? 'snow' : 'rain'
-  if (probability != null) {
-    if (probability <= 5 && !isWetWeather(code)) return 'No rain expected'
-    return `${probability}% chance of ${word}`
-  }
-  return isWetWeather(code) ? `${word[0].toUpperCase()}${word.slice(1)} expected` : 'No rain expected'
-}
+  getEventForecast,
+  getEventForecastRange,
+  type DayForecast,
+} from '@/lib/weather'
+import EventWeatherPanel from '@/components/events/EventWeatherPanel'
 
 /**
- * Forecast row for the event action panel: temperature + rain outlook at the
- * event's start hour. Async server component — renders nothing (no reserved
- * space, no error state) when the event is outside the ~16-day forecast
- * window or the weather API is unreachable. Wrap in <Suspense fallback={null}>
- * so the page streams without waiting on Open-Meteo.
+ * Forecast for the event's action panel. Single-day events show one day;
+ * continuous multi-day events (festivals) show a forecast per day. Async server
+ * component — renders nothing (no reserved space, no error state) when the
+ * event is outside the ~16-day forecast window or the weather API is
+ * unreachable. Wrap in <Suspense fallback={null}> so the page streams without
+ * waiting on Open-Meteo.
  */
 export default async function EventWeatherCard(props: {
   lat: number
   lng: number
   date: string
+  /** Last day of a continuous multi-day event; when set, a per-day forecast. */
+  endDate?: string | null
   time: string | null
   timezone: string
 }) {
-  const forecast = await getEventForecast(props)
-  if (!forecast) return null
+  let days: DayForecast[]
 
-  const Icon = WEATHER_ICONS[weatherIconKey(forecast.weatherCode)]
-  const wet =
-    isWetWeather(forecast.weatherCode) ||
-    (forecast.precipitationProbability ?? 0) >= 50
+  if (props.endDate && props.endDate > props.date) {
+    days = await getEventForecastRange({
+      lat: props.lat,
+      lng: props.lng,
+      startDate: props.date,
+      endDate: props.endDate,
+      time: props.time,
+      timezone: props.timezone,
+    })
+  } else {
+    const single = await getEventForecast(props)
+    days = single ? [{ date: props.date, ...single }] : []
+  }
 
-  // Name the day so it's unmistakably the outlook for the event itself, not
-  // today's weather.
-  const dayLabel = new Date(`${props.date}T12:00:00`).toLocaleDateString(
-    'en-GB',
-    { weekday: 'short', day: 'numeric', month: 'short' },
-  )
+  if (days.length === 0) return null
 
-  return (
-    <div className="mt-5 border-t border-white/[0.08] pt-5">
-      <div className="flex items-center justify-between gap-4">
-        <span className="inline-flex flex-col gap-1">
-          <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-            <Icon
-              className={`h-3.5 w-3.5 ${wet ? 'text-sky-300' : 'text-amber-300'}`}
-            />
-            Weather on the day
-          </span>
-          <span className="text-[11px] font-medium text-white/45">
-            {dayLabel}
-          </span>
-        </span>
-        <div className="text-right">
-          <p className="text-lg font-semibold tabular-nums text-white">
-            {Math.round(forecast.temperatureC)}°C
-            <span className="ml-2 text-sm font-medium text-white/65">
-              {weatherLabel(forecast.weatherCode)}
-            </span>
-          </p>
-          <p className={`mt-0.5 text-xs ${wet ? 'text-sky-300/90' : 'text-white/50'}`}>
-            {rainLine(forecast.weatherCode, forecast.precipitationProbability)}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
+  return <EventWeatherPanel days={days} />
 }
