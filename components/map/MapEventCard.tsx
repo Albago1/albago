@@ -16,7 +16,7 @@ import {
 } from '@/components/events/categoryMeta'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import {
-  dateRangeShort,
+  dateRangeLong,
   isMultiDay,
   isRecurring,
   nextOccurrence,
@@ -225,7 +225,7 @@ export default function MapEventCard({
       <div className="p-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-flame-300">
           {multiDay && event.endDate
-            ? dateRangeShort(event.date, event.endDate)
+            ? dateRangeLong(event.date, event.endDate)
             : `${weekday} ${day} ${month}`}
           {timeLabel && <> · {timeLabel}</>}
         </p>

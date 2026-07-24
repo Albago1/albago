@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Calendar, Clock3, Heart, MapPin } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
-import { dateRangeShort } from '@/lib/recurrence'
+import { dateRangeLong } from '@/lib/recurrence'
 import { categoryLabel } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
@@ -119,7 +119,7 @@ export default function SavedEventsList({
             <span className="inline-flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               {event.endDate && event.endDate > event.date
-                ? dateRangeShort(event.date, event.endDate)
+                ? dateRangeLong(event.date, event.endDate)
                 : event.date}
             </span>
             <span className="inline-flex items-center gap-2">

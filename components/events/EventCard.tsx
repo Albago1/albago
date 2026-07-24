@@ -11,7 +11,7 @@ import { pickLocalized } from './LocalizedEventText'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, categoryLabel, getCategoryTone } from './categoryMeta'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import {
-  dateRangeShort,
+  dateRangeLong,
   durationDaysLabel,
   isMultiDay,
   isRecurring,
@@ -217,7 +217,7 @@ export default function EventCard({
         {/* Kicker — DICE-style date · time line anchoring the body */}
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-flame-300">
           {multiDay && event.end_date
-            ? dateRangeShort(event.date, event.end_date)
+            ? dateRangeLong(event.date, event.end_date)
             : `${weekday} ${day} ${month}`}
           {formatEventTimeLabel(event.time) && <> · {formatEventTimeLabel(event.time)}</>}
         </p>

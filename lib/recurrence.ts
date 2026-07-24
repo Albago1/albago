@@ -120,6 +120,20 @@ export function durationDaysLabel(days: number): string {
   return `${word}-day`
 }
 
+/** Readable range with weekdays: "Fri, Sep 4 – Sun, Sep 6". */
+export function dateRangeLong(date: string, endDate: string): string {
+  const a = parseIso(date)
+  const b = parseIso(endDate)
+  if (!a || !b) return `${date} – ${endDate}`
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+  return `${fmt(a)} – ${fmt(b)}`
+}
+
 /** Compact range: "9–12 Jul" or "31 Jul – 2 Aug". */
 export function dateRangeShort(date: string, endDate: string): string {
   const a = parseIso(date)

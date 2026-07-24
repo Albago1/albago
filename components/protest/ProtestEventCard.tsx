@@ -14,7 +14,7 @@ import {
   Users,
 } from 'lucide-react'
 import {
-  dateRangeShort,
+  dateRangeLong,
   isMultiDay,
   isRecurring,
   nextOccurrence,
@@ -174,7 +174,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
       <div className="relative mt-5 grid grid-cols-2 gap-2 text-xs">
         <Meta icon={<Clock3 className="h-3.5 w-3.5" />}>
           {multiDay && event.endDate
-            ? dateRangeShort(event.date, event.endDate)
+            ? dateRangeLong(event.date, event.endDate)
             : formatProtestDate(baseDate)}{' '}
           · {formatEventTimeLabel(event.time)}
         </Meta>

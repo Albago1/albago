@@ -19,7 +19,7 @@ import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref } from '@/lib/eventLinks'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
-import { dateRangeShort, isMultiDay } from '@/lib/recurrence'
+import { dateRangeLong, isMultiDay } from '@/lib/recurrence'
 
 type Params = { slug: string }
 
@@ -340,7 +340,7 @@ export default async function VenueDetailPage(
                       <span className="inline-flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
                         {isMultiDay(event) && event.end_date
-                          ? dateRangeShort(event.date, event.end_date)
+                          ? dateRangeLong(event.date, event.end_date)
                           : formatEventDate(event.date)}
                       </span>
                       <span className="inline-flex items-center gap-2">

@@ -17,7 +17,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import { createClient } from '@/lib/supabase/server'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import {
-  dateRangeShort,
+  dateRangeLong,
   isMultiDay,
   isRecurring,
   nextOccurrenceLabel,
@@ -320,7 +320,7 @@ export default async function OrganizerProfilePage(
                         ? nextOccurrenceLabel(event) ??
                           formatDateShort(event.date)
                         : isMultiDay(event) && event.end_date
-                          ? dateRangeShort(event.date, event.end_date)
+                          ? dateRangeLong(event.date, event.end_date)
                           : formatDateShort(event.date)}
                     </span>
                   </div>
@@ -333,7 +333,7 @@ export default async function OrganizerProfilePage(
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5" />
                       {isMultiDay(event) && event.end_date
-                        ? dateRangeShort(event.date, event.end_date)
+                        ? dateRangeLong(event.date, event.end_date)
                         : formatDateShort(event.date)}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
