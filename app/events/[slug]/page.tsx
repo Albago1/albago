@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
   ArrowLeft,
+  ArrowUpRight,
   BadgeCheck,
   CalendarX2,
   Clock3,
@@ -536,6 +537,14 @@ export default async function EventDetailPage(
   })
   const directionsLat = venue?.lat ?? event.lat ?? null
   const directionsLng = venue?.lng ?? event.lng ?? null
+  // Google Maps search — prefer the human address so it resolves to a named
+  // place, else fall back to coordinates. Powers the clickable location block.
+  const locationAddress = (event.address ?? venue?.address ?? '').trim()
+  const googleMapsHref = locationAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress)}`
+    : directionsLat != null && directionsLng != null
+      ? `https://www.google.com/maps/search/?api=1&query=${directionsLat},${directionsLng}`
+      : null
   // Premium filled CTA — a soft vertical flame gradient with an inset highlight
   // ring and a layered glow that lifts on hover. One per event; every other
   // action stays on the lighter glass pill.
@@ -895,31 +904,67 @@ export default async function EventDetailPage(
               {/* Location — sits right below the date/time so the reader gets
                   when + where before any action. The exact street address is
                   the headline; venue + city are the area label underneath. */}
-              {!event.is_online && (
-                <div className="mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
-                  <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)]">
-                    <MapPin className="h-5 w-5 text-flame-300" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[15px] font-semibold leading-snug text-white lg:text-lg">
-                      {event.address ||
-                        venue?.address ||
-                        venue?.name ||
-                        `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
-                      {venue?.name ? `${venue.name} · ` : ''}
-                      {cityLabel}
-                      {countryLabel ? `, ${countryLabel}` : ''}
-                    </p>
-                    {event.address_hint && (
-                      <p className="mt-1 text-sm italic leading-6 text-white/45">
-                        {event.address_hint}
+              {!event.is_online &&
+                (googleMapsHref ? (
+                  <a
+                    href={googleMapsHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open location in Google Maps"
+                    className="group mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7"
+                  >
+                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)] transition duration-300 group-hover:scale-105 group-hover:border-flame-500/55 group-hover:bg-flame-500/25 group-hover:shadow-[0_0_30px_-6px_rgba(238,28,37,0.9)]">
+                      <MapPin className="h-5 w-5 text-flame-300" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-semibold leading-snug text-white transition group-hover:text-flame-100 lg:text-lg">
+                        {event.address ||
+                          venue?.address ||
+                          venue?.name ||
+                          `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
                       </p>
-                    )}
+                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+                        {venue?.name ? `${venue.name} · ` : ''}
+                        {cityLabel}
+                        {countryLabel ? `, ${countryLabel}` : ''}
+                      </p>
+                      {event.address_hint && (
+                        <p className="mt-1 text-sm italic leading-6 text-white/45">
+                          {event.address_hint}
+                        </p>
+                      )}
+                      <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-flame-300/80 transition group-hover:text-flame-200">
+                        Open in Google Maps
+                        <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      </span>
+                    </div>
+                    <ExternalLink className="mt-1 h-4 w-4 flex-shrink-0 text-white/25 transition group-hover:text-flame-300" />
+                  </a>
+                ) : (
+                  <div className="mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
+                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)]">
+                      <MapPin className="h-5 w-5 text-flame-300" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-semibold leading-snug text-white lg:text-lg">
+                        {event.address ||
+                          venue?.address ||
+                          venue?.name ||
+                          `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+                      </p>
+                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+                        {venue?.name ? `${venue.name} · ` : ''}
+                        {cityLabel}
+                        {countryLabel ? `, ${countryLabel}` : ''}
+                      </p>
+                      {event.address_hint && (
+                        <p className="mt-1 text-sm italic leading-6 text-white/45">
+                          {event.address_hint}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                ))}
 
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
 
