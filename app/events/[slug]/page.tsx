@@ -5,7 +5,6 @@ import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
   ArrowLeft,
-  ArrowUpRight,
   BadgeCheck,
   CalendarX2,
   Clock3,
@@ -911,9 +910,9 @@ export default async function EventDetailPage(
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Open location in Google Maps"
-                    className="group mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7"
+                    className="group mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-flame-500/35 hover:bg-white/[0.05] lg:mt-7 lg:p-5"
                   >
-                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)] transition duration-300 group-hover:scale-105 group-hover:border-flame-500/55 group-hover:bg-flame-500/25 group-hover:shadow-[0_0_30px_-6px_rgba(238,28,37,0.9)]">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)] transition duration-300 group-hover:scale-105 group-hover:border-flame-500/55 group-hover:bg-flame-500/25 group-hover:shadow-[0_0_30px_-6px_rgba(238,28,37,0.9)]">
                       <MapPin className="h-5 w-5 text-flame-300" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -933,16 +932,12 @@ export default async function EventDetailPage(
                           {event.address_hint}
                         </p>
                       )}
-                      <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-flame-300/80 transition group-hover:text-flame-200">
-                        Open in Google Maps
-                        <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                      </span>
                     </div>
-                    <ExternalLink className="mt-1 h-4 w-4 flex-shrink-0 text-white/25 transition group-hover:text-flame-300" />
+                    <ExternalLink className="mt-0.5 h-4 w-4 flex-shrink-0 text-white/30 transition group-hover:text-flame-300" />
                   </a>
                 ) : (
-                  <div className="mt-5 flex items-start gap-3 border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
-                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)]">
+                  <div className="mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:mt-7 lg:p-5">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_20px_-6px_rgba(238,28,37,0.6)]">
                       <MapPin className="h-5 w-5 text-flame-300" />
                     </span>
                     <div className="min-w-0">
