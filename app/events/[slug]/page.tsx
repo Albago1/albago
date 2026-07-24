@@ -723,7 +723,9 @@ export default async function EventDetailPage(
             </Link>
           </div>
 
-          <div className={`mt-auto pt-12${heroImage ? ' on-media' : ''}`}>
+          {/* On desktop, reserve the right column (card width + gap) so the
+              title never runs under the info card that floats up beside it. */}
+          <div className={`mt-auto pt-12 lg:pr-[440px]${heroImage ? ' on-media' : ''}`}>
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getCategoryTone(
@@ -775,11 +777,13 @@ export default async function EventDetailPage(
       </section>
 
       {/* Body — editorial column + sticky action panel */}
-      <section className="relative px-4 pb-16 pt-8 sm:pt-10">
+      <section className="relative z-20 px-4 pb-16 pt-8 sm:pt-10">
         <div className="mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-10">
-          {/* Action panel — first on mobile, sticky right rail on desktop */}
-          <aside className="lg:order-2">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md lg:sticky lg:top-24">
+          {/* Action panel — first on mobile; on desktop it lifts up beside the
+              hero title (instead of starting below the whole hero) so the
+              key info sits high, the way the best event platforms present it. */}
+          <aside className="lg:order-2 lg:-mt-44">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl lg:sticky lg:top-24">
               {event.listing_status && event.listing_status !== 'confirmed' && (
                 <div
                   className={`mb-5 rounded-2xl border px-4 py-3.5 ${
