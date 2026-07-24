@@ -237,7 +237,17 @@ function resolutionHasHit(resolution: LensResolution | null): boolean {
   )
 }
 
-export default function ScanClient() {
+/**
+ * Where "Apply" sends the reader once a poster is turned into a draft. Admins
+ * continue into the admin publish flow (goes live immediately); everyone else
+ * lands on the community submit wizard (moderation queue). Both hydrate the
+ * same persisted draft key, so the scan carries over either way.
+ */
+type Props = {
+  continueHref?: string
+}
+
+export default function ScanClient({ continueHref = '/submit-event' }: Props) {
   const { t, language } = useLanguage()
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>({ name: 'idle' })
@@ -479,7 +489,7 @@ export default function ScanClient() {
       // Storage unavailable — the wizard simply starts empty.
     }
     trackInteraction('lens_apply')
-    router.push('/submit-event')
+    router.push(continueHref)
   }
 
   const reset = () => {

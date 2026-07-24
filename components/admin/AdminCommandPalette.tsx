@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Megaphone,
   Plus as PlusIcon,
+  ScanLine,
   Search,
   Send,
   Users as UsersIcon,
@@ -62,6 +63,15 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/events/new',
     icon: PlusIcon,
     keywords: 'new event create add publish post',
+  },
+  {
+    kind: 'nav',
+    id: 'nav-scan',
+    label: 'Scan a poster',
+    sublabel: 'Turn a poster photo into a ready-to-publish event',
+    href: '/scan',
+    icon: ScanLine,
+    keywords: 'scan poster lens camera photo ocr read import',
   },
   {
     kind: 'nav',

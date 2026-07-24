@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { CheckCircle2, ExternalLink, Plus } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ExternalLink, Plus, ScanLine } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
 import { submitAdminEvent } from '@/lib/wizardSubmit'
@@ -62,5 +62,30 @@ export default function AdminCreateEventClient() {
     )
   }
 
-  return <EventCreationWizard mode="admin" onSubmit={handleSubmit} />
+  return (
+    <div className="mx-auto max-w-3xl">
+      {/* Scan shortcut — start from a poster photo instead of typing every
+          field. The Lens reads it, then drops you back here with the draft
+          prefilled. Admin-only surface, so no extra gating needed. */}
+      <Link
+        href="/scan"
+        className="group mb-6 flex items-center gap-4 rounded-2xl border border-flame-500/25 bg-flame-500/[0.06] px-5 py-4 transition hover:border-flame-500/45 hover:bg-flame-500/[0.10]"
+      >
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-flame-500/15 text-flame-300">
+          <ScanLine className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-white">
+            Have a poster? Scan it
+          </span>
+          <span className="block text-[13px] text-white/55">
+            AlbaGo reads the poster and fills in the event for you — review and publish.
+          </span>
+        </span>
+        <ArrowRight className="h-4 w-4 flex-shrink-0 text-white/45 transition group-hover:translate-x-0.5 group-hover:text-white/85" />
+      </Link>
+
+      <EventCreationWizard mode="admin" onSubmit={handleSubmit} />
+    </div>
+  )
 }
