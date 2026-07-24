@@ -770,30 +770,39 @@ export default async function EventDetailPage(
               <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
             </h1>
 
-            <p className="mt-5 flex flex-wrap items-center gap-x-2 text-base text-white/85">
-              <MapPin className="h-4 w-4 shrink-0 text-white/60" />
-              {venue?.name && <span className="font-semibold">{venue.name}</span>}
-              {venue?.name && <span className="text-white/40">·</span>}
-              <span className="text-white/65">
-                {event.is_online
-                  ? 'Online event'
-                  : `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+            {/* Location card — the event's most acted-on detail, so it gets a
+                deliberate frosted panel that reads cleanly over any cover
+                photo. The exact street address is the headline; the venue and
+                city sit under it as the area label. */}
+            <div className="mt-6 inline-flex max-w-full items-start gap-3.5 rounded-2xl border border-white/15 bg-ink-950/40 px-4 py-3.5 shadow-[0_10px_40px_-16px_rgba(0,0,0,0.85)] backdrop-blur-xl">
+              <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-flame-500/30 bg-flame-500/15 shadow-[0_0_22px_-6px_rgba(238,28,37,0.65)]">
+                <MapPin className="h-5 w-5 text-flame-300" />
               </span>
-            </p>
-
-            {/* Detailed street address lives here in the hero, under the city
-                line — the reader gets the exact location up front, over the
-                cover image (text shadow keeps it legible on any photo). */}
-            {!event.is_online && (event.address || venue?.address) && (
-              <p className="mt-2 max-w-2xl pl-6 text-sm leading-6 text-white/60 [text-shadow:0_1px_12px_rgba(5,5,5,0.7)]">
-                {event.address || venue?.address}
-                {event.address_hint && (
-                  <span className="block italic text-white/45">
-                    {event.address_hint}
-                  </span>
+              <div className="min-w-0">
+                {event.is_online ? (
+                  <p className="text-[17px] font-semibold text-white">Online event</p>
+                ) : (
+                  <>
+                    <p className="text-[17px] font-semibold leading-snug text-white">
+                      {event.address ||
+                        venue?.address ||
+                        venue?.name ||
+                        `${cityLabel}${countryLabel ? `, ${countryLabel}` : ''}`}
+                    </p>
+                    <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                      {venue?.name ? `${venue.name} · ` : ''}
+                      {cityLabel}
+                      {countryLabel ? `, ${countryLabel}` : ''}
+                    </p>
+                    {event.address_hint && (
+                      <p className="mt-1.5 text-sm italic leading-6 text-white/50">
+                        {event.address_hint}
+                      </p>
+                    )}
+                  </>
                 )}
-              </p>
-            )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
