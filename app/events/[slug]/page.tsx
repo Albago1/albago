@@ -595,6 +595,7 @@ export default async function EventDetailPage(
     country: countryLabel ?? null,
     address: event.address ?? venue?.address ?? null,
     date: event.date,
+    endDate: event.end_date,
     time: event.time,
     endTime: event.end_time,
     organizerName: event.organizer_name,

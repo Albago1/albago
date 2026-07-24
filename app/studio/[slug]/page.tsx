@@ -39,6 +39,7 @@ type StudioEventRow = {
   title: string
   category: string | null
   date: string
+  end_date: string | null
   time: string | null
   end_time: string | null
   address: string | null
@@ -55,7 +56,7 @@ async function fetchStudioEvent(slug: string): Promise<StudioEventRow | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'slug, title, category, date, time, end_time, address, location_slug, country, is_civic, organizer_name, banner_url, gallery_urls',
+      'slug, title, category, date, end_date, time, end_time, address, location_slug, country, is_civic, organizer_name, banner_url, gallery_urls',
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -135,6 +136,7 @@ export default async function StudioPage({ params }: { params: Promise<Params> }
     country: event.country,
     address: event.address,
     date: event.date,
+    endDate: event.end_date,
     time: event.time,
     endTime: event.end_time,
     organizerName: event.organizer_name,

@@ -601,16 +601,34 @@ export default function StudioClient({ data, images }: Props) {
   }, [applyLook, canBrowsePhotos, handleDownload, handleKit, handleShare, images.length, look, photoIdx])
 
   // ---- preview scaling -------------------------------------------------
+  // Fit the poster to the *smaller* of the column width and the viewport
+  // height. Width-only scaling let the tall Story (9:16) canvas render ~1240px
+  // high on desktop, so the user had to zoom the whole page out — and the
+  // action buttons scrolled off screen with it. Capping by height keeps the
+  // whole poster on screen with the controls always reachable.
   const previewWrapRef = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState(0.28)
   useEffect(() => {
     const el = previewWrapRef.current
     if (!el) return
-    const measure = () => setScale(el.clientWidth / FORMAT_DIMS[format].w)
+    const measure = () => {
+      const widthScale = el.clientWidth / FORMAT_DIMS[format].w
+      // Budget leaves room for the sticky top bar, format tabs and margins.
+      const maxH =
+        typeof window !== 'undefined'
+          ? Math.max(360, window.innerHeight - 220)
+          : FORMAT_DIMS[format].h
+      const heightScale = maxH / FORMAT_DIMS[format].h
+      setScale(Math.min(widthScale, heightScale))
+    }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
-    return () => ro.disconnect()
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [format])
 
   const dims = FORMAT_DIMS[format]
@@ -722,8 +740,8 @@ export default function StudioClient({ data, images }: Props) {
             className="relative mx-auto mt-4 w-full max-w-[420px] lg:max-w-none"
           >
             <div
-              className="relative overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]"
-              style={{ height: dims.h * scale }}
+              className="relative mx-auto overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]"
+              style={{ width: dims.w * scale, height: dims.h * scale }}
             >
               <div
                 style={{

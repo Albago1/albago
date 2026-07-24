@@ -6,6 +6,9 @@ export type ShareEventData = {
   country: string | null
   address: string | null
   date: string
+  /** Last day of a continuous multi-day event (YYYY-MM-DD). When set and later
+   *  than `date`, posters render the full date range instead of a single day. */
+  endDate?: string | null
   time: string | null
   endTime: string | null
   organizerName: string | null

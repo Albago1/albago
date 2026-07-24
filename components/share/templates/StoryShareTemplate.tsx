@@ -7,11 +7,11 @@ import {
   GridBackdrop,
   InkBackdrop,
   bilingualLabel,
+  cardDateValue,
   categoryLabel,
   ctaLine,
   fitSize,
   inkGlyph,
-  formatDateForCard,
   formatTimeRangeForCard,
   shortAddress,
 } from './shared'
@@ -25,7 +25,6 @@ type Props = {
 }
 
 export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
-  const date = formatDateForCard(data.date)
   const time = formatTimeRangeForCard(data.time, data.endTime)
   const isCivic = data.isCivic
   const where = shortAddress(data.address)
@@ -103,7 +102,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
         </div>
 
         <div className="mt-24 flex flex-col gap-8">
-          <DateHero iso={data.date} isCivic={isCivic} scale="lg" />
+          <DateHero iso={data.date} endIso={data.endDate} isCivic={isCivic} scale="lg" />
 
           <h1
             className="leading-[0.95]"
@@ -155,7 +154,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
                 {bilingualLabel('Data', 'Date', isCivic)}
               </div>
               <div className="text-[34px] font-semibold text-white">
-                {date.weekday}, {date.day} {date.month}
+                {cardDateValue(data)}
               </div>
             </div>
 

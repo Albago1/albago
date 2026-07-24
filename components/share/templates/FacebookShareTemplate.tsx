@@ -86,7 +86,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
 
       <div className="relative z-10 grid h-full grid-cols-[auto_1fr_auto] items-stretch gap-10 px-16 py-12">
         <div className="flex flex-col justify-center">
-          <DateHero iso={data.date} isCivic={isCivic} scale="sm" />
+          <DateHero iso={data.date} endIso={data.endDate} isCivic={isCivic} scale="sm" />
         </div>
 
         <div className="flex flex-col">

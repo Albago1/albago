@@ -101,7 +101,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
         </div>
 
         <div className="mt-10 flex flex-1 flex-col justify-center">
-          <DateHero iso={data.date} isCivic={isCivic} scale="md" />
+          <DateHero iso={data.date} endIso={data.endDate} isCivic={isCivic} scale="md" />
 
           <h1
             className="mt-8 leading-[0.92]"

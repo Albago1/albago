@@ -36,15 +36,24 @@ export function fitSize(
   return Math.max(min, Math.round((base * comfortable) / len))
 }
 
+/** True when the event runs continuously across more than one calendar day. */
+export function isMultiDayRange(iso: string, endIso: string | null | undefined): endIso is string {
+  return !!endIso && endIso > iso
+}
+
 /* Date hero block — big day number + month / weekday underneath. When civic,
    month + weekday are bilingual (Albanian · English) to match caption tone.
-   Three scales tuned to the three templates' canvas sizes. */
+   For a multi-day event a "→ <end day> <end month>" line is appended so the
+   whole span reads at a glance instead of a single misleading day. Three
+   scales tuned to the three templates' canvas sizes. */
 export function DateHero({
   iso,
+  endIso,
   isCivic,
   scale,
 }: {
   iso: string
+  endIso?: string | null
   isCivic: boolean
   scale: 'sm' | 'md' | 'lg'
 }) {
@@ -55,9 +64,15 @@ export function DateHero({
   const monthSq = MONTHS_SQ[d.getMonth()]
   const weekdaySq = WEEKDAYS_SQ[d.getDay()]
 
+  const multiDay = isMultiDayRange(iso, endIso)
+  const e = multiDay ? new Date(`${endIso}T12:00:00`) : null
+  const endDay = e ? e.toLocaleDateString('en-GB', { day: 'numeric' }) : ''
+  const endMonthEn = e ? e.toLocaleDateString('en-GB', { month: 'long' }).toUpperCase() : ''
+
   const numberSize = scale === 'lg' ? 180 : scale === 'md' ? 130 : 90
   const monthSize = scale === 'lg' ? 28 : scale === 'md' ? 22 : 16
   const weekdaySize = scale === 'lg' ? 22 : scale === 'md' ? 18 : 13
+  const endSize = scale === 'lg' ? 34 : scale === 'md' ? 26 : 18
   const gap = scale === 'sm' ? 6 : 12
 
   return (
@@ -103,8 +118,36 @@ export function DateHero({
       >
         {isCivic ? `${weekdaySq} · ${weekdayEn}` : weekdayEn}
       </div>
+      {multiDay && (
+        <div
+          style={{
+            marginTop: gap + 4,
+            fontSize: endSize,
+            fontWeight: 800,
+            letterSpacing: '0.06em',
+            color: '#ff5757',
+          }}
+        >
+          → {endDay} {endMonthEn}
+        </div>
+      )}
     </div>
   )
+}
+
+/* Full date value for the info-card "Date" row. Single day keeps the existing
+   "THU, 9 JULY" form; a multi-day event shows the whole span:
+   "9 – 12 JULY" (same month) or "31 JULY – 2 AUGUST" (crossing months). */
+export function cardDateValue(data: ShareEventData): string {
+  const start = formatDateForCard(data.date)
+  if (!isMultiDayRange(data.date, data.endDate)) {
+    return `${start.weekday}, ${start.day} ${start.month}`
+  }
+  const end = formatDateForCard(data.endDate)
+  const sameMonth = data.date.slice(0, 7) === data.endDate.slice(0, 7)
+  return sameMonth
+    ? `${start.day} – ${end.day} ${start.month}`
+    : `${start.day} ${start.month} – ${end.day} ${end.month}`
 }
 
 export function formatTimeRangeForCard(time: string | null, endTime: string | null): string {
