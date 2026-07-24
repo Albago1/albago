@@ -45,6 +45,7 @@ type SavedEventRow = {
     slug: string
     title: string
     date: string
+    end_date: string | null
     time: string
     category: string
     highlight: boolean | null
@@ -61,7 +62,7 @@ async function fetchSavedEventCards(
   const { data } = await supabase
     .from('saved_events')
     .select(
-      'saved_at, events ( id, slug, title, date, time, category, highlight, price, location_slug, places ( name ) )'
+      'saved_at, events ( id, slug, title, date, end_date, time, category, highlight, price, location_slug, places ( name ) )'
     )
     .eq('user_id', userId)
     .order('saved_at', { ascending: false })
@@ -74,6 +75,7 @@ async function fetchSavedEventCards(
       slug: row.events.slug,
       title: row.events.title,
       date: row.events.date,
+      endDate: row.events.end_date,
       time: row.events.time,
       category: row.events.category,
       highlight: row.events.highlight,

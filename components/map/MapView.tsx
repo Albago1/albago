@@ -228,7 +228,7 @@ export default function MapView() {
       const civicQuery = supabase
         .from('events')
         .select(
-          'id, slug, title, category, is_civic, date, time, end_time, country, location_slug, lat, lng, expected_attendees, banner_url, price, highlight, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          'id, slug, title, category, is_civic, date, end_date, time, end_time, country, location_slug, lat, lng, expected_attendees, banner_url, price, highlight, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
         )
         .eq('status', 'published')
         .or(activeFilter)
@@ -306,6 +306,7 @@ export default function MapView() {
             category: string | null
             is_civic: boolean | null
             date: string
+            end_date: string | null
             time: string | null
             end_time: string | null
             country: string | null
@@ -329,6 +330,7 @@ export default function MapView() {
               category: row.category,
               isCivic: !!row.is_civic,
               date: row.date,
+              endDate: row.end_date ?? null,
               time: row.time,
               country: row.country,
               locationSlug: row.location_slug,

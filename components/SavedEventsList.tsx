@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Calendar, Clock3, Heart, MapPin } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
+import { dateRangeShort } from '@/lib/recurrence'
 import { categoryLabel } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
@@ -13,6 +14,8 @@ export type SavedEventCard = {
   slug: string
   title: string
   date: string
+  /** Last day of a multi-day event; renders a date range when after `date`. */
+  endDate?: string | null
   time: string
   category: string
   highlight: boolean | null
@@ -115,7 +118,9 @@ export default function SavedEventsList({
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/60">
             <span className="inline-flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              {event.date}
+              {event.endDate && event.endDate > event.date
+                ? dateRangeShort(event.date, event.endDate)
+                : event.date}
             </span>
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />

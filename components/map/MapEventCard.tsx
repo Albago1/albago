@@ -15,7 +15,13 @@ import {
   getCategoryTone,
 } from '@/components/events/categoryMeta'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
-import { isRecurring, nextOccurrence, recurrenceLabel } from '@/lib/recurrence'
+import {
+  dateRangeShort,
+  isMultiDay,
+  isRecurring,
+  nextOccurrence,
+  recurrenceLabel,
+} from '@/lib/recurrence'
 
 export type MapCardEvent = {
   id: string
@@ -24,6 +30,8 @@ export type MapCardEvent = {
   category: string | null
   isCivic: boolean
   date: string
+  /** Last day of a continuous multi-day event; renders a date range. */
+  endDate?: string | null
   time: string | null
   country: string | null
   expectedAttendees: number | null
@@ -82,6 +90,7 @@ export default function MapEventCard({
 
   const recurringShape = {
     date: event.date,
+    end_date: event.endDate ?? null,
     time: event.time,
     recurrence: event.recurrence,
     recurrence_until: event.recurrenceUntil,
@@ -89,6 +98,7 @@ export default function MapEventCard({
     recurrence_exceptions: event.recurrenceExceptions,
   }
   const recurring = isRecurring(recurringShape)
+  const multiDay = isMultiDay(recurringShape)
   const displayDateIso = (recurring ? nextOccurrence(recurringShape) : null) ?? event.date
   const dateObj = new Date(`${displayDateIso}T12:00:00`)
   const day = dateObj.getDate()
@@ -214,7 +224,9 @@ export default function MapEventCard({
       {/* Body */}
       <div className="p-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-flame-300">
-          {weekday} {day} {month}
+          {multiDay && event.endDate
+            ? dateRangeShort(event.date, event.endDate)
+            : `${weekday} ${day} ${month}`}
           {timeLabel && <> · {timeLabel}</>}
         </p>
 

@@ -31,6 +31,7 @@ type EventRow = {
   title: string
   description: string
   date: string
+  end_date: string | null
   time: string
   end_time: string | null
   category: string
@@ -76,7 +77,7 @@ export default async function AlbanianRevolutionPage() {
   const wide = await supabase
     .from('events')
     .select(
-      'id, slug, title, description, date, time, end_time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+      'id, slug, title, description, date, end_date, time, end_time, category, price, highlight, place_id, location_slug, country, region, lat, lng, event_type, is_civic, featured_movement_slug, organizer_contact, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
     )
     .eq('status', 'published')
     .eq('featured_movement_slug', FEATURED_SLUG)
@@ -114,6 +115,7 @@ export default async function AlbanianRevolutionPage() {
       title: row.title,
       description: row.description,
       date: row.date,
+      endDate: row.end_date ?? null,
       time: row.time,
       category: row.category,
       price: row.price ?? null,

@@ -14,6 +14,8 @@ import {
   Users,
 } from 'lucide-react'
 import {
+  dateRangeShort,
+  isMultiDay,
   isRecurring,
   nextOccurrence,
   recurrenceLabel,
@@ -28,6 +30,8 @@ export type ProtestEvent = {
   title: string
   description: string
   date: string
+  /** Last day of a continuous multi-day protest/event; renders a date range. */
+  endDate?: string | null
   time: string
   category: string
   price: string | null
@@ -60,6 +64,7 @@ export type ProtestEvent = {
 function asRecurring(ev: ProtestEvent) {
   return {
     date: ev.date,
+    end_date: ev.endDate ?? null,
     time: ev.time,
     recurrence: ev.recurrence ?? null,
     recurrence_until: ev.recurrenceUntil ?? null,
@@ -113,6 +118,7 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
   // For recurring events the countdown chases the next occurrence, not the
   // series start (which may be in the past).
   const recurring = isRecurring(asRecurring(event))
+  const multiDay = isMultiDay(asRecurring(event))
   const baseDate = recurring
     ? nextOccurrence(asRecurring(event)) ?? event.date
     : event.date
@@ -167,7 +173,10 @@ export default function ProtestEventCard({ event }: { event: ProtestEvent }) {
 
       <div className="relative mt-5 grid grid-cols-2 gap-2 text-xs">
         <Meta icon={<Clock3 className="h-3.5 w-3.5" />}>
-          {formatProtestDate(baseDate)} · {formatEventTimeLabel(event.time)}
+          {multiDay && event.endDate
+            ? dateRangeShort(event.date, event.endDate)
+            : formatProtestDate(baseDate)}{' '}
+          · {formatEventTimeLabel(event.time)}
         </Meta>
         {recurring && (
           <Meta icon={<Repeat className="h-3.5 w-3.5" />}>

@@ -17,6 +17,8 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 import { createClient } from '@/lib/supabase/server'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import {
+  dateRangeShort,
+  isMultiDay,
   isRecurring,
   nextOccurrenceLabel,
   recurrenceLabel,
@@ -44,6 +46,7 @@ type OrganizerEventRow = {
   title: string
   category: string
   date: string
+  end_date: string | null
   time: string
   end_time: string | null
   location_slug: string
@@ -116,7 +119,7 @@ async function fetchOrganizerEvents(
     supabase
       .from('events')
       .select(
-        'id, slug, title, category, date, time, end_time, location_slug, country, highlight, is_civic, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+        'id, slug, title, category, date, end_date, time, end_time, location_slug, country, highlight, is_civic, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
       )
       .eq('status', 'published')
       .eq('organizer_id', organizerId)
@@ -316,7 +319,9 @@ export default async function OrganizerProfilePage(
                       {isRecurring(event)
                         ? nextOccurrenceLabel(event) ??
                           formatDateShort(event.date)
-                        : formatDateShort(event.date)}
+                        : isMultiDay(event) && event.end_date
+                          ? dateRangeShort(event.date, event.end_date)
+                          : formatDateShort(event.date)}
                     </span>
                   </div>
 
@@ -327,7 +332,9 @@ export default async function OrganizerProfilePage(
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/55">
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5" />
-                      {formatDateShort(event.date)}
+                      {isMultiDay(event) && event.end_date
+                        ? dateRangeShort(event.date, event.end_date)
+                        : formatDateShort(event.date)}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 className="h-3.5 w-3.5" />

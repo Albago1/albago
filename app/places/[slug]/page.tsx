@@ -19,6 +19,7 @@ import { getLocationBySlug } from '@/lib/locations'
 import { buildDirectionsHref } from '@/lib/eventLinks'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
+import { dateRangeShort, isMultiDay } from '@/lib/recurrence'
 
 type Params = { slug: string }
 
@@ -45,6 +46,7 @@ type UpcomingEvent = {
   slug: string
   title: string
   date: string
+  end_date: string | null
   time: string
   end_time: string | null
   category: string
@@ -77,7 +79,7 @@ async function fetchUpcomingEvents(venueId: string): Promise<UpcomingEvent[]> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, title, date, time, end_time, category, price, highlight, place_id, location_slug, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions'
+      'id, slug, title, date, end_date, time, end_time, category, price, highlight, place_id, location_slug, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions'
     )
     .eq('place_id', venueId)
     .eq('status', 'published')
@@ -337,7 +339,9 @@ export default async function VenueDetailPage(
                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/60">
                       <span className="inline-flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        {formatEventDate(event.date)}
+                        {isMultiDay(event) && event.end_date
+                          ? dateRangeShort(event.date, event.end_date)
+                          : formatEventDate(event.date)}
                       </span>
                       <span className="inline-flex items-center gap-2">
                         <Clock3 className="h-4 w-4" />
