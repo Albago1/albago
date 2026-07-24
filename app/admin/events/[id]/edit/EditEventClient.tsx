@@ -569,6 +569,42 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
     })
   }
 
+  // Schedule type — mirrors the create wizard: one explicit choice so a
+  // multi-day festival is never confused with a repeating series.
+  const [multiSelected, setMultiSelected] = useState(
+    () => (initial.end_date ?? '') !== '',
+  )
+  const scheduleType: 'single' | 'multi' | 'repeat' =
+    form.recurrence !== 'none'
+      ? 'repeat'
+      : form.end_date !== '' || multiSelected
+        ? 'multi'
+        : 'single'
+  const setScheduleType = (next: 'single' | 'multi' | 'repeat') => {
+    if (next === 'single') {
+      setMultiSelected(false)
+      setField('recurrence', 'none')
+      setField('end_date', '')
+      setField('recurrence_until', '')
+      setField('recurrence_dow', [])
+    } else if (next === 'multi') {
+      setMultiSelected(true)
+      setField('recurrence', 'none')
+      setField('recurrence_until', '')
+      setField('recurrence_dow', [])
+    } else {
+      setMultiSelected(false)
+      if (form.recurrence === 'none') setField('recurrence', 'daily')
+      setField('end_date', '')
+    }
+  }
+  const scheduleHint =
+    scheduleType === 'multi'
+      ? 'One continuous run across several days — a festival or conference.'
+      : scheduleType === 'repeat'
+        ? 'A series on a repeating schedule — every day or on chosen weekdays.'
+        : 'One date — the usual case.'
+
   // Once every flagged field is corrected, retire the validation banner too.
   useEffect(() => {
     if (error === VALIDATION_ERROR_MSG && Object.keys(fieldErrors).length === 0) {
@@ -878,8 +914,49 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
             />
           </Field>
 
+          {/* Schedule type — the single choice that keeps a multi-day festival
+              and a repeating series from being mistaken for each other. */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+              Schedule
+            </div>
+            <div className="inline-flex flex-wrap rounded-full border border-white/10 bg-white/[0.04] p-1">
+              {(['single', 'multi', 'repeat'] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setScheduleType(opt)}
+                  aria-pressed={scheduleType === opt}
+                  className={[
+                    'rounded-full px-4 py-1.5 text-sm font-semibold transition',
+                    scheduleType === opt
+                      ? 'bg-white text-black'
+                      : 'text-white/65 hover:text-white',
+                  ].join(' ')}
+                >
+                  {opt === 'single'
+                    ? 'Single day'
+                    : opt === 'multi'
+                      ? 'Multiple days'
+                      : 'Repeating'}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-white/45">{scheduleHint}</p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-4">
-            <Field label="Date" htmlFor="f-date" error={fieldErrors.date}>
+            <Field
+              label={
+                scheduleType === 'multi'
+                  ? 'First day'
+                  : scheduleType === 'repeat'
+                    ? 'Starts'
+                    : 'Date'
+              }
+              htmlFor="f-date"
+              error={fieldErrors.date}
+            >
               <input
                 id="f-date"
                 type="date"
@@ -890,20 +967,18 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
                 className="input"
               />
             </Field>
-            <Field
-              label="Last day (multi-day)"
-              htmlFor="f-end-date"
-              error={fieldErrors.end_date}
-            >
-              <input
-                id="f-end-date"
-                type="date"
-                value={form.end_date}
-                onChange={(e) => setField('end_date', e.target.value)}
-                aria-invalid={fieldErrors.end_date ? true : undefined}
-                className="input"
-              />
-            </Field>
+            {scheduleType === 'multi' && (
+              <Field label="Last day" htmlFor="f-end-date" error={fieldErrors.end_date}>
+                <input
+                  id="f-end-date"
+                  type="date"
+                  value={form.end_date}
+                  onChange={(e) => setField('end_date', e.target.value)}
+                  aria-invalid={fieldErrors.end_date ? true : undefined}
+                  className="input"
+                />
+              </Field>
+            )}
             <Field label="Start time" htmlFor="f-time" error={fieldErrors.time}>
               <input
                 id="f-time"
@@ -965,12 +1040,14 @@ export default function EditEventClient({ initial }: { initial: EditableEvent })
             </Field>
           </div>
 
-          <RecurrenceEditor
-            form={form}
-            setField={setField}
-            dowError={fieldErrors.recurrence_dow}
-            untilError={fieldErrors.recurrence_until}
-          />
+          {scheduleType === 'repeat' && (
+            <RecurrenceEditor
+              form={form}
+              setField={setField}
+              dowError={fieldErrors.recurrence_dow}
+              untilError={fieldErrors.recurrence_until}
+            />
+          )}
 
           <Field label="Tags (comma-separated)" htmlFor="f-tags">
             <input
@@ -1447,20 +1524,17 @@ function RecurrenceEditor({
   return (
     <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
-        Repeats?
+        How often?
       </div>
 
       <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1">
-        {(['none', 'daily', 'weekly'] as const).map((opt) => (
+        {(['daily', 'weekly'] as const).map((opt) => (
           <button
             key={opt}
             type="button"
             onClick={() => {
               setField('recurrence', opt)
-              if (opt === 'none') {
-                setField('recurrence_until', '')
-                setField('recurrence_dow', [])
-              } else if (opt === 'daily') {
+              if (opt === 'daily') {
                 setField('recurrence_dow', [])
               }
             }}
@@ -1471,7 +1545,7 @@ function RecurrenceEditor({
                 : 'text-white/65 hover:text-white',
             ].join(' ')}
           >
-            {opt === 'none' ? 'One-off' : opt === 'daily' ? 'Daily' : 'Weekly'}
+            {opt === 'daily' ? 'Every day' : 'Weekly'}
           </button>
         ))}
       </div>
