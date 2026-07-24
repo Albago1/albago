@@ -104,6 +104,12 @@ export default function EventCard({
   const month = dateObj.toLocaleDateString(locale, { month: 'short' })
   const weekday = dateObj.toLocaleDateString(locale, { weekday: 'short' })
 
+  // Multi-day events show a mini two-day tile (first → last) instead of one day.
+  const endObj =
+    multiDay && event.end_date ? new Date(`${event.end_date}T12:00:00`) : null
+  const endDay = endObj?.getDate() ?? null
+  const endMonth = endObj?.toLocaleDateString(locale, { month: 'short' }) ?? ''
+
   // Friendly chip next to the tile — the tile always keeps the real calendar
   // date, "Tonight"/"Tomorrow" never replaces it.
   const todayIso = getTodayDateString()
@@ -176,17 +182,41 @@ export default function EventCard({
 
         {/* Bottom overlay — calendar date tile + friendly/recurrence chips */}
         <div className="absolute inset-x-3 bottom-3 flex items-end gap-2">
-          <div className="flex min-w-[3.4rem] flex-col items-center rounded-2xl border border-white/10 bg-ink-950/80 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition duration-300 group-hover:border-flame-500/30">
-            <span className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-flame-300">
-              {month}
-            </span>
-            <span className="mt-1 font-display text-3xl leading-none text-white">
-              {day}
-            </span>
-            <span className="mt-1 text-[9px] font-medium uppercase leading-none tracking-wider text-white/55">
-              {weekday}
-            </span>
-          </div>
+          {endDay != null ? (
+            <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-ink-950/80 px-2.5 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition duration-300 group-hover:border-flame-500/30">
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] font-bold uppercase leading-none tracking-[0.14em] text-flame-300">
+                  {month}
+                </span>
+                <span className="mt-0.5 font-display text-2xl leading-none text-white">
+                  {day}
+                </span>
+              </div>
+              <span className="font-display text-lg leading-none text-flame-300/80">
+                –
+              </span>
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] font-bold uppercase leading-none tracking-[0.14em] text-flame-300">
+                  {endMonth}
+                </span>
+                <span className="mt-0.5 font-display text-2xl leading-none text-white">
+                  {endDay}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-w-[3.4rem] flex-col items-center rounded-2xl border border-white/10 bg-ink-950/80 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition duration-300 group-hover:border-flame-500/30">
+              <span className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-flame-300">
+                {month}
+              </span>
+              <span className="mt-1 font-display text-3xl leading-none text-white">
+                {day}
+              </span>
+              <span className="mt-1 text-[9px] font-medium uppercase leading-none tracking-wider text-white/55">
+                {weekday}
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
             {friendlyLabel && (

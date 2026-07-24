@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { ShareEventData } from '@/lib/share/types'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
 
@@ -64,18 +65,22 @@ export function DateHero({
   const monthSq = MONTHS_SQ[d.getMonth()]
   const weekdaySq = WEEKDAYS_SQ[d.getDay()]
 
-  const multiDay = isMultiDayRange(iso, endIso)
-  const e = multiDay ? new Date(`${endIso}T12:00:00`) : null
-  const endDay = e ? e.toLocaleDateString('en-GB', { day: 'numeric' }) : ''
-  const endMonthEn = e ? e.toLocaleDateString('en-GB', { month: 'long' }).toUpperCase() : ''
-
   const numberSize = scale === 'lg' ? 180 : scale === 'md' ? 130 : 90
   const monthSize = scale === 'lg' ? 28 : scale === 'md' ? 22 : 16
   const weekdaySize = scale === 'lg' ? 22 : scale === 'md' ? 18 : 13
-  const endSize = scale === 'lg' ? 34 : scale === 'md' ? 26 : 18
   const gap = scale === 'sm' ? 6 : 12
 
-  return (
+  const numberStyle: CSSProperties = {
+    fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
+    fontSize: numberSize,
+    lineHeight: 0.82,
+    letterSpacing: '-0.04em',
+    color: '#ff5757',
+    textShadow: '0 6px 32px rgba(238,28,37,0.55)',
+  }
+
+  // One day block: the big serif day number, month + weekday underneath.
+  const dayBlock = (dd: string, mm: string, ww: string) => (
     <div
       style={{
         display: 'inline-flex',
@@ -84,53 +89,53 @@ export function DateHero({
         lineHeight: 1,
       }}
     >
-      <div
-        style={{
-          fontFamily: "var(--font-display), 'Instrument Serif', Georgia, serif",
-          fontSize: numberSize,
-          lineHeight: 0.82,
-          letterSpacing: '-0.04em',
-          color: '#ff5757',
-          textShadow: '0 6px 32px rgba(238,28,37,0.55)',
-        }}
-      >
-        {day}
-      </div>
+      <div style={numberStyle}>{dd}</div>
       <div
         style={{
           marginTop: gap + 4,
           fontSize: monthSize,
           fontWeight: 800,
-          letterSpacing: '0.20em',
+          letterSpacing: '0.16em',
           color: '#ffffff',
         }}
       >
-        {isCivic ? `${monthSq} · ${monthEn}` : monthEn}
+        {mm}
       </div>
       <div
         style={{
           marginTop: 4,
           fontSize: weekdaySize,
           fontWeight: 600,
-          letterSpacing: '0.24em',
+          letterSpacing: '0.22em',
           color: 'rgba(255,255,255,0.6)',
         }}
       >
-        {isCivic ? `${weekdaySq} · ${weekdayEn}` : weekdayEn}
+        {ww}
       </div>
-      {multiDay && (
-        <div
-          style={{
-            marginTop: gap + 4,
-            fontSize: endSize,
-            fontWeight: 800,
-            letterSpacing: '0.06em',
-            color: '#ff5757',
-          }}
-        >
-          → {endDay} {endMonthEn}
-        </div>
-      )}
+    </div>
+  )
+
+  if (!isMultiDayRange(iso, endIso)) {
+    return dayBlock(
+      day,
+      isCivic ? `${monthSq} · ${monthEn}` : monthEn,
+      isCivic ? `${weekdaySq} · ${weekdayEn}` : weekdayEn,
+    )
+  }
+
+  // Multi-day: the last day gets a day block just as large as the first, sitting
+  // right beside it with a dash between — the whole span reads at a glance.
+  // English-only labels keep the pair from getting too wide.
+  const e = new Date(`${endIso}T12:00:00`)
+  const endDay = e.toLocaleDateString('en-GB', { day: 'numeric' })
+  const endMonthEn = e.toLocaleDateString('en-GB', { month: 'long' }).toUpperCase()
+  const endWeekdayEn = e.toLocaleDateString('en-GB', { weekday: 'long' }).toUpperCase()
+
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'flex-start', gap: gap * 1.4 }}>
+      {dayBlock(day, monthEn, weekdayEn)}
+      <div style={{ ...numberStyle, color: 'rgba(255,87,87,0.75)' }}>–</div>
+      {dayBlock(endDay, endMonthEn, endWeekdayEn)}
     </div>
   )
 }

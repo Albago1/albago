@@ -358,8 +358,35 @@ function formatDateLong(dateString: string) {
   })
 }
 
-function DateTile({ iso }: { iso: string }) {
+function DateTile({ iso, endIso }: { iso: string; endIso?: string | null }) {
   const d = new Date(`${iso}T12:00:00`)
+  const end = endIso ? new Date(`${endIso}T12:00:00`) : null
+
+  // Multi-day: first and last day side by side, each as prominent as the other.
+  if (end) {
+    return (
+      <div className="flex shrink-0 items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5">
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-flame-300">
+            {d.toLocaleDateString('en-GB', { month: 'short' })}
+          </span>
+          <span className="font-display text-3xl leading-none text-white">
+            {d.getDate()}
+          </span>
+        </div>
+        <span className="font-display text-xl leading-none text-flame-300/80">–</span>
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-flame-300">
+            {end.toLocaleDateString('en-GB', { month: 'short' })}
+          </span>
+          <span className="font-display text-3xl leading-none text-white">
+            {end.getDate()}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex w-[76px] shrink-0 flex-col items-center rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-flame-300">
@@ -813,7 +840,10 @@ export default async function EventDetailPage(
               )}
 
               <div className="flex items-center gap-4">
-                <DateTile iso={event.date} />
+                <DateTile
+                  iso={event.date}
+                  endIso={isMultiDay(event) && event.end_date ? event.end_date : null}
+                />
                 <div className="min-w-0">
                   {isMultiDay(event) && event.end_date ? (
                     <>
