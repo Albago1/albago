@@ -138,6 +138,17 @@ async function fetchOrganizerEvents(
   return { upcoming, totalPublished: countRes.count ?? 0 }
 }
 
+// The owner's account avatar, fetched through a SECURITY DEFINER function so
+// only the avatar (never the rest of the private profiles row) is exposed to
+// anonymous visitors. organizers.id === the owner's profiles.id.
+async function fetchOrganizerAvatar(organizerId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('organizer_avatar_url', {
+    p_organizer_id: organizerId,
+  })
+  return (typeof data === 'string' && data.length > 0 ? data : null)
+}
+
 export async function generateMetadata(
   { params }: { params: Promise<Params> },
 ): Promise<Metadata> {
@@ -165,7 +176,10 @@ export default async function OrganizerProfilePage(
   const organizer = await fetchOrganizer(slug)
   if (!organizer) notFound()
 
-  const { upcoming, totalPublished } = await fetchOrganizerEvents(organizer.id)
+  const [{ upcoming, totalPublished }, avatarUrl] = await Promise.all([
+    fetchOrganizerEvents(organizer.id),
+    fetchOrganizerAvatar(organizer.id),
+  ])
   const isVerified = organizer.verification_tier === 'verified'
 
   const orgSchema = organizerOrgSchema({
@@ -203,9 +217,18 @@ export default async function OrganizerProfilePage(
           </Link>
 
           <div className="mt-8 flex items-start gap-5">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10 text-flame-300">
-              <User2 className="h-7 w-7" />
-            </div>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt=""
+                className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-flame-500/30"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10 text-flame-300">
+                <User2 className="h-7 w-7" />
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="display-text text-4xl leading-tight tracking-tight sm:text-5xl">
