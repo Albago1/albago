@@ -65,7 +65,7 @@ function ActiveBubble() {
   return (
     <motion.span
       layoutId="mobile-nav-bubble"
-      className="absolute inset-0 rounded-full bg-white/15"
+      className="absolute inset-0 rounded-full bg-white/[0.16] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.4),inset_0_-1px_2px_0_rgba(0,0,0,0.25)] ring-1 ring-inset ring-white/15"
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
     />
   )
@@ -155,10 +155,22 @@ export default function MobileBottomNav() {
     >
       <ul
         className={[
-          'pointer-events-auto mx-3 flex w-full max-w-md origin-bottom items-center justify-around rounded-full border border-white/10 bg-ink-800/80 px-2 py-2 shadow-[0_10px_36px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-transform duration-300 ease-out',
+          'pointer-events-auto relative isolate mx-3 flex w-full max-w-md origin-bottom items-center justify-around overflow-hidden rounded-full border border-white/15 bg-ink-900/55 px-2 py-2 backdrop-blur-2xl backdrop-saturate-[1.8] transition-transform duration-300 ease-out',
+          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.28),inset_0_-10px_24px_-16px_rgba(255,255,255,0.10),0_18px_48px_-12px_rgba(0,0,0,0.72)]',
           shrunk ? 'scale-[0.85]' : 'scale-100',
         ].join(' ')}
       >
+        {/* Liquid-glass shine — a bright specular edge across the top that
+            fades down, plus a faint diagonal sheen. Purely decorative; sits
+            behind the icons (they carry their own relative z-index). */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-gradient-to-b from-white/[0.14] via-white/[0.03] to-transparent"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 rounded-t-full bg-gradient-to-br from-white/[0.10] to-transparent"
+        />
         {items.map((item) => {
           const active = item.match(pathname)
           const Icon = item.icon
