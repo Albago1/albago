@@ -10,7 +10,6 @@ import {
   Compass,
   FileText,
   Heart,
-  LayoutDashboard,
   Send,
   Settings,
   Ticket as TicketIcon,
@@ -148,7 +147,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, display_name')
+    .select('role, display_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -251,6 +250,9 @@ export default async function DashboardPage() {
     user.email?.split('@')[0] ?? 'there',
   )
 
+  const avatarUrl = (profile?.avatar_url as string | null) ?? null
+  const avatarInitial = (friendlyName.trim()[0] || '?').toUpperCase()
+
   const heroSubtitle =
     upcomingSaved.length === 0
       ? savedEvents.length === 0
@@ -266,9 +268,18 @@ export default async function DashboardPage() {
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <LayoutDashboard className="h-5 w-5 text-flame-400" />
-              </div>
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="h-12 w-12 flex-shrink-0 rounded-full object-cover ring-2 ring-white/10"
+                />
+              ) : (
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-flame-500 text-lg font-bold text-white ring-2 ring-white/10">
+                  {avatarInitial}
+                </div>
+              )}
               <div>
                 <h1 className="text-3xl font-bold">
                   {greetingPrefix()}, {friendlyName}
