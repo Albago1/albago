@@ -28,6 +28,7 @@ import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
 import EventGallery from '@/components/EventGallery'
+import SimilarEvents from '@/components/events/SimilarEvents'
 import LocalizedEventText from '@/components/events/LocalizedEventText'
 import EventWeatherCard from '@/components/events/EventWeatherCard'
 import TierPicker, { type TierView } from '@/components/events/TierPicker'
@@ -56,6 +57,7 @@ import {
   isEventEnded,
 } from '@/lib/eventLifecycle'
 import { getEventTimezone } from '@/lib/timezone'
+import { fetchSimilarEvents } from '@/lib/similarEvents'
 import { eventSchema, jsonLdScript, type EventForSchema } from '@/lib/seo/jsonLd'
 
 type Params = { slug: string }
@@ -608,6 +610,16 @@ export default async function EventDetailPage(
           : Promise.resolve([] as OrganizerUpcomingEvent[]),
       ])
     : [null, [] as OrganizerUpcomingEvent[]]
+
+  const similarEvents = await fetchSimilarEvents({
+    id: event.id,
+    category: event.category,
+    location_slug: event.location_slug,
+    country: event.country,
+    tags: event.tags,
+    isCivic,
+    organizerId: event.organizers?.id ?? null,
+  })
 
   const shareData: ShareEventData = {
     title: event.title,
@@ -1488,6 +1500,12 @@ export default async function EventDetailPage(
         </div>
       </section>
       </div>
+
+      <SimilarEvents
+        events={similarEvents}
+        browseHref={similarEventsHref}
+        isCivic={isCivic}
+      />
     </main>
   )
 }
