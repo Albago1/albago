@@ -30,6 +30,7 @@ export default function LandingNavbar() {
   const { t } = useLanguage()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
@@ -42,12 +43,14 @@ export default function LandingNavbar() {
       if (userId) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, avatar_url')
           .eq('id', userId)
           .maybeSingle()
         setIsAdmin(profile?.role === 'admin')
+        setAvatarUrl((profile?.avatar_url as string | null) ?? null)
       } else {
         setIsAdmin(false)
+        setAvatarUrl(null)
       }
     }
 
@@ -186,11 +189,20 @@ export default function LandingNavbar() {
                 aria-expanded={isUserMenuOpen}
                 aria-label="Account menu"
                 className={[
-                  'flex h-9 w-9 items-center justify-center rounded-full bg-flame-500 text-sm font-bold text-white shadow-glow-flame ring-2 transition hover:scale-105',
+                  'flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-flame-500 text-sm font-bold text-white shadow-glow-flame ring-2 transition hover:scale-105',
                   isUserMenuOpen ? 'ring-white/30' : 'ring-transparent hover:ring-white/20',
                 ].join(' ')}
               >
-                {userEmail[0].toUpperCase()}
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  userEmail[0].toUpperCase()
+                )}
               </button>
 
               <AnimatePresence>
@@ -203,8 +215,17 @@ export default function LandingNavbar() {
                     className="absolute right-0 top-[calc(100%+0.65rem)] z-50 w-60 overflow-hidden rounded-2xl border border-white/10 bg-ink-900 shadow-2xl"
                   >
                     <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-flame-500 text-sm font-bold text-white">
-                        {userEmail[0].toUpperCase()}
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-flame-500 text-sm font-bold text-white">
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatarUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          userEmail[0].toUpperCase()
+                        )}
                       </span>
                       <span className="min-w-0">
                         <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">

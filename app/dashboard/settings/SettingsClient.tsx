@@ -7,6 +7,7 @@ import { GoogleLogo } from '@/components/auth/GoogleButton'
 import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
 import PushDeviceToggle from '@/components/pwa/PushDeviceToggle'
 import NotificationPreferencesForm from './NotificationPreferencesForm'
+import AvatarForm from './AvatarForm'
 import ProfileForm from './ProfileForm'
 import LanguageForm from './LanguageForm'
 import { ChangeEmailCard, ChangePasswordCard } from './AccountSecurity'
@@ -33,11 +34,13 @@ export default function SettingsClient({
   providers,
   initialSavedEventUpdates,
   initialDisplayName,
+  initialAvatarUrl,
 }: {
   email: string
   providers: string[]
   initialSavedEventUpdates: boolean
   initialDisplayName: string
+  initialAvatarUrl: string | null
 }) {
   const { t } = useLanguage()
   const hasPassword = providers.includes('email')
@@ -62,7 +65,11 @@ export default function SettingsClient({
         {/* Profile */}
         <section className="mt-10">
           <SectionHeader icon={User} title={t('settings_profile_title')} />
-          <div className="mt-5">
+          <div className="mt-5 space-y-4">
+            <AvatarForm
+              initialAvatarUrl={initialAvatarUrl}
+              fallbackSeed={initialDisplayName || email}
+            />
             <ProfileForm initialDisplayName={initialDisplayName} />
           </div>
         </section>
