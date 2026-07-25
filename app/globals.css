@@ -241,9 +241,89 @@ select:focus-visible,
 .poster-drift-up   { animation: poster-drift 80s linear infinite; }
 .poster-drift-down { animation: poster-drift 80s linear infinite reverse; }
 
+/* ────────────────────────────────────────────────────────────────────
+   Liquid Glass — the floating mobile-nav material.
+   Three things make it read as wet glass rather than frost: a refractive
+   gradient RIM (bright at the crown, glowing soft — with a faint flame
+   catch at the base), a slow living SPECULAR SWEEP, and layered inner
+   depth. Backdrop blur + saturate + brightness let it drink the colour
+   of whatever scrolls beneath it.
+   ──────────────────────────────────────────────────────────────────── */
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.10),
+      rgba(255, 255, 255, 0.02) 42%,
+      rgba(255, 255, 255, 0) 72%
+    ),
+    rgba(11, 13, 19, 0.42);
+  -webkit-backdrop-filter: blur(28px) saturate(1.9) brightness(1.12);
+          backdrop-filter: blur(28px) saturate(1.9) brightness(1.12);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.38),
+    inset 0 -14px 28px -20px rgba(255, 255, 255, 0.16),
+    0 22px 52px -14px rgba(0, 0, 0, 0.78);
+}
+
+/* Refractive rim — a 1px gradient border drawn with the padding-box mask
+   trick so it works on a translucent surface. Bright crown → soft body →
+   a faint flame glow catching the base edge. */
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.7),
+    rgba(255, 255, 255, 0.08) 44%,
+    rgba(255, 255, 255, 0.03) 62%,
+    rgba(238, 28, 37, 0.25)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Living specular sweep — a soft diagonal glare that travels across the
+   glass and rests, giving the sense of light catching a liquid surface. */
+.liquid-glass__sheen {
+  position: absolute;
+  inset: -50% -25%;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 34%,
+    rgba(255, 255, 255, 0.12) 46%,
+    rgba(255, 255, 255, 0.30) 50%,
+    rgba(255, 255, 255, 0.12) 54%,
+    transparent 66%
+  );
+  background-size: 260% 100%;
+  animation: liquid-sheen 7s ease-in-out infinite;
+}
+
+@keyframes liquid-sheen {
+  0%   { background-position: 135% 0; }
+  55%  { background-position: -35% 0; }
+  100% { background-position: -35% 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shine-text, .animate-ping-soft, .animate-marquee,
-  .poster-drift-up, .poster-drift-down {
+  .poster-drift-up, .poster-drift-down, .liquid-glass__sheen {
     animation: none !important;
   }
 }

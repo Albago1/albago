@@ -155,22 +155,12 @@ export default function MobileBottomNav() {
     >
       <ul
         className={[
-          'pointer-events-auto relative isolate mx-3 flex w-full max-w-md origin-bottom items-center justify-around overflow-hidden rounded-full border border-white/15 bg-ink-900/55 px-2 py-2 backdrop-blur-2xl backdrop-saturate-[1.8] transition-transform duration-300 ease-out',
-          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.28),inset_0_-10px_24px_-16px_rgba(255,255,255,0.10),0_18px_48px_-12px_rgba(0,0,0,0.72)]',
+          'liquid-glass pointer-events-auto mx-3 flex w-full max-w-md origin-bottom items-center justify-around overflow-hidden rounded-full px-2 py-2 transition-transform duration-300 ease-out',
           shrunk ? 'scale-[0.85]' : 'scale-100',
         ].join(' ')}
       >
-        {/* Liquid-glass shine — a bright specular edge across the top that
-            fades down, plus a faint diagonal sheen. Purely decorative; sits
-            behind the icons (they carry their own relative z-index). */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-gradient-to-b from-white/[0.14] via-white/[0.03] to-transparent"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 rounded-t-full bg-gradient-to-br from-white/[0.10] to-transparent"
-        />
+        {/* Living specular sweep — see .liquid-glass__sheen in globals.css. */}
+        <span aria-hidden className="liquid-glass__sheen" />
         {items.map((item) => {
           const active = item.match(pathname)
           const Icon = item.icon
@@ -182,7 +172,7 @@ export default function MobileBottomNav() {
                 aria-current={active ? 'page' : undefined}
                 className={[
                   'relative flex h-12 w-14 items-center justify-center rounded-full transition active:bg-white/10',
-                  active ? 'text-white' : 'text-white/50',
+                  active ? 'text-white' : 'text-white/60',
                 ].join(' ')}
               >
                 {active && <ActiveBubble />}
@@ -201,7 +191,7 @@ export default function MobileBottomNav() {
             aria-current={profileActive ? 'page' : undefined}
             className={[
               'relative flex h-12 w-14 items-center justify-center rounded-full transition active:bg-white/10',
-              profileActive ? 'text-white' : 'text-white/50',
+              profileActive ? 'text-white' : 'text-white/60',
             ].join(' ')}
           >
             {profileActive && <ActiveBubble />}
