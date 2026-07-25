@@ -1,12 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, Bell, Check, Mail, Shield, Trash2 } from 'lucide-react'
+import { ArrowLeft, Bell, Check, Globe, Mail, Shield, Trash2, User } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { GoogleLogo } from '@/components/auth/GoogleButton'
 import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
 import PushDeviceToggle from '@/components/pwa/PushDeviceToggle'
 import NotificationPreferencesForm from './NotificationPreferencesForm'
+import ProfileForm from './ProfileForm'
+import LanguageForm from './LanguageForm'
 import { ChangeEmailCard, ChangePasswordCard } from './AccountSecurity'
 
 function SectionHeader({
@@ -30,10 +32,12 @@ export default function SettingsClient({
   email,
   providers,
   initialSavedEventUpdates,
+  initialDisplayName,
 }: {
   email: string
   providers: string[]
   initialSavedEventUpdates: boolean
+  initialDisplayName: string
 }) {
   const { t } = useLanguage()
   const hasPassword = providers.includes('email')
@@ -55,8 +59,16 @@ export default function SettingsClient({
           <p className="mt-0.5 text-sm text-white/45">{email}</p>
         </div>
 
-        {/* Account & security */}
+        {/* Profile */}
         <section className="mt-10">
+          <SectionHeader icon={User} title={t('settings_profile_title')} />
+          <div className="mt-5">
+            <ProfileForm initialDisplayName={initialDisplayName} />
+          </div>
+        </section>
+
+        {/* Account & security */}
+        <section className="mt-12">
           <SectionHeader icon={Shield} title={t('settings_account_title')} />
           <div className="mt-5 space-y-4">
             {/* Connected sign-in methods */}
@@ -111,6 +123,14 @@ export default function SettingsClient({
               initialSavedEventUpdates={initialSavedEventUpdates}
             />
             <PushDeviceToggle />
+          </div>
+        </section>
+
+        {/* Language & region */}
+        <section className="mt-12">
+          <SectionHeader icon={Globe} title={t('settings_language_title')} />
+          <div className="mt-5">
+            <LanguageForm />
           </div>
         </section>
       </div>

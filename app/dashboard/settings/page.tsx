@@ -23,12 +23,13 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('notification_preferences')
+    .select('notification_preferences, display_name')
     .eq('id', user.id)
     .maybeSingle()
 
   const prefs = (profile?.notification_preferences ?? {}) as Prefs
   const savedEventUpdates = prefs.saved_event_updates !== false
+  const displayName = (profile?.display_name as string | null) ?? ''
 
   // Which sign-in methods this account has. 'email' present = a password
   // exists; Google-only accounts get "set a password" instead of "change".
@@ -43,6 +44,7 @@ export default async function SettingsPage() {
         email={user.email ?? ''}
         providers={providers}
         initialSavedEventUpdates={savedEventUpdates}
+        initialDisplayName={displayName}
       />
     </>
   )
