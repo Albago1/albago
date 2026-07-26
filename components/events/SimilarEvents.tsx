@@ -57,7 +57,7 @@ export default function SimilarEvents({
   browseHref: string
   isCivic: boolean
 }) {
-  if (events.length < 2) return null
+  if (events.length < 1) return null
 
   return (
     <section className="mx-auto max-w-6xl px-4 pb-24">
