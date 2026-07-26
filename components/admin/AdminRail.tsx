@@ -12,6 +12,7 @@ import {
   Megaphone,
   Radar,
   Radio,
+  ScanSearch,
   Send,
   Users as UsersIcon,
 } from 'lucide-react'
@@ -58,6 +59,7 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/share-batch', label: 'Share batch', icon: Send },
     { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
+    { href: '/admin/event-radar', label: 'Event Radar', icon: ScanSearch },
     { href: '/admin/crawl', label: 'Crawl', icon: Radar },
   ]
 
