@@ -21,6 +21,8 @@ export type RadarWarningCode =
   | 'no_date'
   | 'past_date'
   | 'not_single_event'
+  | 'time_required'
+  | 'broad_source'
   | 'city_unmatched'
   | 'city_remote_only'
   | 'venue_unmatched'
@@ -87,6 +89,7 @@ export function assessReading(
   reading: PosterReading,
   resolution: LensResolution | null,
   todayIso: string,
+  opts?: { broadSource?: boolean },
 ): RadarAssessment {
   const missingFields = IMPORTANT_FIELDS.filter(({ key }) =>
     isEmpty(reading[key]),
@@ -103,6 +106,22 @@ export function assessReading(
     add(
       'past_date',
       'The extracted date is in the past — this may be an old edition of the event.',
+    )
+  }
+
+  // --- Start time: required before approval (§5) ----------------------------
+  if (isEmpty(reading.time)) {
+    add(
+      'time_required',
+      'Start time was not found in the imported source. It must be entered manually before this candidate can be approved.',
+    )
+  }
+
+  // --- Broad / homepage source ----------------------------------------------
+  if (opts?.broadSource) {
+    add(
+      'broad_source',
+      'The imported URL is a general homepage rather than a dedicated event page — verify the current edition before approval.',
     )
   }
 
@@ -173,6 +192,8 @@ const CRITICAL_CODES = new Set<RadarWarningCode>([
 
 // Warning codes that soften confidence but don't disqualify → at most medium.
 const SOFTENING_CODES = new Set<RadarWarningCode>([
+  'time_required',
+  'broad_source',
   'city_unmatched',
   'city_remote_only',
   'venue_unmatched',

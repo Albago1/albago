@@ -8,6 +8,10 @@
 
 const { assessReading, scoreConfidence } = await import('../lib/radar/assess.ts')
 const { normalizeImportUrl, sourceNameFromUrl } = await import('../lib/radar/normalizeUrl.ts')
+const { missingApprovalFields, canApprove, translateSubmissionError } = await import(
+  '../lib/radar/approvalValidation.ts'
+)
+const { crawlReadingToSubmission } = await import('../lib/crawl/toSubmission.ts')
 
 const TODAY = '2026-07-27'
 
@@ -115,6 +119,75 @@ check('unmatched city (no critical) → medium', noCity.confidence === 'medium')
 check('scoreConfidence: clean → high', scoreConfidence([], []) === 'high')
 check('scoreConfidence: core missing → medium', scoreConfidence([], ['title']) === 'medium')
 check('scoreConfidence: critical warning → low', scoreConfidence([{ code: 'no_date', message: '' }], []) === 'low')
+
+// --- assessment: required-time + broad-source warnings (§5) ----------------
+
+const noTime = assessReading(reading({ time: '' }), resolution(), TODAY)
+check('missing time → time_required warning', noTime.warnings.some((w) => w.code === 'time_required'))
+
+const broad = assessReading(reading(), resolution(), TODAY, { broadSource: true })
+check('broad source → broad_source warning', broad.warnings.some((w) => w.code === 'broad_source'))
+check('clean event, not broad → no broad_source warning', !clean.warnings.some((w) => w.code === 'broad_source'))
+
+// --- approval pre-validation (the production bug) --------------------------
+
+check('missing time blocks approval', missingApprovalFields(reading({ time: '' })).some((b) => b.field === 'time'))
+check('missing time → not approvable', canApprove(reading({ time: '' })) === false)
+check('complete reading → approvable', canApprove(reading()) === true)
+check('midnight 00:00 is a valid time (not blank)', canApprove(reading({ time: '00:00' })) === true)
+check('whitespace time is treated as blank', canApprove(reading({ time: '   ' })) === false)
+check('blank title blocks approval', missingApprovalFields(reading({ title: '' })).some((b) => b.field === 'title'))
+check('blank date blocks approval', missingApprovalFields(reading({ date: '' })).some((b) => b.field === 'date'))
+check(
+  'missing time+date+title → all three reported',
+  missingApprovalFields(reading({ title: '', date: '', time: '' })).length === 3,
+)
+check('price is never a required approval field', !missingApprovalFields(reading({ price: '' })).some((b) => b.field === 'price'))
+
+// --- DB error translation (safe, useful; §7) -------------------------------
+
+check(
+  'not-null time error → friendly',
+  translateSubmissionError({ code: '23502', message: 'null value in column "time"' }) ===
+    'Start time is required by the event submission workflow.',
+)
+check(
+  'unique violation → duplicate message',
+  /already been sent/.test(translateSubmissionError({ code: '23505', message: 'dup' })),
+)
+check(
+  'invalid datetime → date/time message',
+  /not a valid value/.test(translateSubmissionError({ code: '22007', message: 'bad ts' })),
+)
+check(
+  'unknown error → generic (no raw sql leaked)',
+  translateSubmissionError({ code: 'XX999', message: 'secret internal detail' }) ===
+    'Could not create the submission. The issue was logged for the team.',
+)
+
+// --- crawlReadingToSubmission mapping (root cause + crawler-not-broken) -----
+
+const mapped = (over) => crawlReadingToSubmission(reading(over), resolution())
+
+check('empty time maps to NULL (this is the root cause)', mapped({ time: '' }).time === null)
+check('valid start time is preserved', mapped({ time: '20:30' }).time === '20:30')
+check('midnight 00:00 is preserved, not nulled', mapped({ time: '00:00' }).time === '00:00')
+check('overnight end_time is preserved', mapped({ time: '20:30', end_time: '01:00' }).end_time === '01:00')
+
+const festival = mapped({
+  date: '2026-08-12',
+  time: '20:30',
+  end_time: '01:00',
+  recurrence: 'daily',
+  recurrence_until: '2026-08-16',
+})
+check('multi-day festival keeps first day as date', festival.date === '2026-08-12')
+check('multi-day festival keeps recurrence daily', festival.recurrence === 'daily')
+check('multi-day festival keeps last day as recurrence_until', festival.recurrence_until === '2026-08-16')
+
+check('free admission text is preserved (not zeroed)', mapped({ price: 'Free entry' }).price === 'Free entry')
+check('blank price maps to NULL (price is nullable)', mapped({ price: '' }).price === null)
+check('venue always has a non-null fallback', typeof mapped({ venue_name: '' }).venue_name === 'string')
 
 // --- URL normalization / dedup ---------------------------------------------
 

@@ -6,6 +6,11 @@ import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
 import { crawlReadingToSubmission } from '@/lib/crawl/toSubmission'
 import type { PosterReading } from '@/lib/ai/posterReader'
 import { assessReading } from './assess'
+import {
+  missingApprovalFields,
+  translateSubmissionError,
+  type ApprovalField,
+} from './approvalValidation'
 import { normalizeImportUrl, sourceNameFromUrl } from './normalizeUrl'
 import {
   buildCandidateWrite,
@@ -36,6 +41,16 @@ const NONE_RESOLUTION: LensResolution = {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+/** A bare-domain / homepage URL (path "/") describes a site, not one event —
+ *  worth flagging so the admin verifies the current edition (spec §5). */
+function isBroadSource(url: string): boolean {
+  try {
+    return new URL(url).pathname === '/'
+  } catch {
+    return false
+  }
 }
 
 function admin(): SupabaseClient {
@@ -115,7 +130,9 @@ export async function importFromUrl(
   }
 
   const resolution = await resolveSafely(read.reading)
-  const assessment = assessReading(read.reading, resolution, todayIso())
+  const assessment = assessReading(read.reading, resolution, todayIso(), {
+    broadSource: isBroadSource(normalized),
+  })
   const write = buildCandidateWrite({
     reading: read.reading,
     resolution,
@@ -183,7 +200,9 @@ export async function saveCandidateReading(
   }
   const reading: PosterReading = { ...candidate.reading, ...patch }
   const resolution = candidate.resolution ?? NONE_RESOLUTION
-  const assessment = assessReading(reading, resolution, todayIso())
+  const assessment = assessReading(reading, resolution, todayIso(), {
+    broadSource: isBroadSource(candidate.source_url),
+  })
   const write = buildCandidateWrite({
     reading,
     resolution,
@@ -204,15 +223,23 @@ export async function saveCandidateReading(
 }
 
 export type ApproveResult =
-  | { ok: true; submissionId: string }
-  | { ok: false; message: string }
+  | { ok: true; submissionId: string; alreadyApproved: boolean }
+  | { ok: false; reason: 'validation'; blockers: ApprovalField[]; message: string }
+  | { ok: false; reason: 'error'; message: string }
 
 /**
  * Approve a candidate: mint a normal `pending` event_submissions row via the
  * crawler's own mapping, then mark the candidate approved and link the two.
  * Approval does NOT publish — the submission still goes through the existing
- * Queue → approve → publish flow (spec §9). Idempotent: an already-approved
- * candidate returns its existing submission.
+ * Queue → approve → publish flow (spec §9).
+ *
+ * Two guarantees the observed production bug demanded:
+ *  1. PRE-VALIDATION — the required-for-queue fields (title/date/time) are
+ *     checked before any insert, so a known-invalid row never reaches Postgres.
+ *     A miss keeps the candidate in needs_review and returns which fields to fill.
+ *  2. IDEMPOTENCY — a candidate already linked to a submission returns that
+ *     submission instead of inserting again (covers double-clicks and a retry
+ *     after a lost response). The submission_id is the idempotency token.
  */
 export async function approveCandidate(
   id: string,
@@ -220,12 +247,30 @@ export async function approveCandidate(
 ): Promise<ApproveResult> {
   const db = admin()
   const candidate = await getCandidate(id)
-  if (!candidate) return { ok: false, message: 'Candidate not found.' }
-  if (candidate.status === 'approved' && candidate.submission_id) {
-    return { ok: true, submissionId: candidate.submission_id }
+  if (!candidate) return { ok: false, reason: 'error', message: 'Candidate not found.' }
+
+  // Idempotency: already sent to the queue → return the existing submission.
+  if (candidate.submission_id) {
+    return { ok: true, submissionId: candidate.submission_id, alreadyApproved: true }
   }
   if (!candidate.reading) {
-    return { ok: false, message: 'This candidate has no extracted event to approve.' }
+    return { ok: false, reason: 'error', message: 'This candidate has no extracted event to approve.' }
+  }
+
+  // Pre-validate against the queue's required fields — never send a known-bad insert.
+  const blockers = missingApprovalFields(candidate.reading)
+  if (blockers.length > 0) {
+    const names = blockers.map((b) => b.label).join(', ')
+    return {
+      ok: false,
+      reason: 'validation',
+      blockers,
+      message: `Cannot approve this candidate yet. ${names} ${
+        blockers.length === 1 ? 'is' : 'are'
+      } required by the current event submission workflow — add ${
+        blockers.length === 1 ? 'it' : 'them'
+      } and save the draft first.`,
+    }
   }
 
   const submission = crawlReadingToSubmission(
@@ -238,8 +283,9 @@ export async function approveCandidate(
     .select('id')
     .single()
   if (subError || !subRow) {
-    console.error('[radar] submission insert failed:', subError?.message)
-    return { ok: false, message: `Could not create the submission: ${subError?.message ?? 'unknown error'}.` }
+    // Full technical error stays server-side; the client gets a safe sentence.
+    console.error('[radar] submission insert failed:', subError?.code ?? '', subError?.message ?? '')
+    return { ok: false, reason: 'error', message: translateSubmissionError(subError) }
   }
   const submissionId = (subRow as { id: string }).id
 
@@ -253,11 +299,13 @@ export async function approveCandidate(
     })
     .eq('id', id)
   if (updError) {
-    // The submission exists; surface the linkage failure but don't orphan it.
-    console.error('[radar] candidate approve-update failed:', updError.message)
-    return { ok: false, message: 'Submission created, but the candidate could not be marked approved.' }
+    // The submission exists but the candidate couldn't be linked. Return success
+    // with its id so the admin sees the approved state and won't retry — that's
+    // what prevents a duplicate in this narrow window. (A transaction spanning
+    // both tables isn't available via supabase-js; see the known-limitations note.)
+    console.error('[radar] candidate approve-link failed (submission created):', updError.message)
   }
-  return { ok: true, submissionId }
+  return { ok: true, submissionId, alreadyApproved: false }
 }
 
 export async function rejectCandidate(

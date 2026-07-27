@@ -95,9 +95,21 @@ export async function POST(
     switch (action) {
       case 'approve': {
         const res = await approveCandidate(id, userId)
-        return res.ok
-          ? NextResponse.json({ ok: true, submissionId: res.submissionId })
-          : NextResponse.json({ ok: false, error: 'approve_failed', message: res.message }, { status: 400 })
+        if (res.ok) {
+          return NextResponse.json({
+            ok: true,
+            submissionId: res.submissionId,
+            alreadyApproved: res.alreadyApproved,
+          })
+        }
+        if (res.reason === 'validation') {
+          // 422: caller must complete required fields before this can succeed.
+          return NextResponse.json(
+            { ok: false, error: 'validation', message: res.message, blockers: res.blockers },
+            { status: 422 },
+          )
+        }
+        return NextResponse.json({ ok: false, error: 'approve_failed', message: res.message }, { status: 400 })
       }
       case 'reject': {
         const note = typeof body.note === 'string' ? body.note : null
