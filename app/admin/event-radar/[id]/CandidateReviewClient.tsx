@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import type { EventImportCandidate } from '@/lib/radar/candidate'
 import { LENS_CATEGORIES } from '@/lib/ai/posterReader'
+import { missingApprovalFields } from '@/lib/radar/approvalValidation'
 import { StatusBadge, ConfidenceBadge } from '../badges'
 
 /**
@@ -56,6 +57,9 @@ const TEXT_FIELDS: Array<{ key: EditableString; label: string; textarea?: boolea
   { key: 'description', label: 'Description', textarea: true },
 ]
 
+// Fields the event_submissions queue requires (NOT NULL, no mapping fallback).
+const REQUIRED_KEYS = new Set<EditableString>(['title', 'date', 'time'])
+
 function fmtTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
@@ -87,6 +91,22 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
   const isApproved = candidate.status === 'approved'
   const isFailed = candidate.status === 'failed'
   const dupSlug = candidate.duplicate_event_slug
+
+  // Required-for-queue fields still blank, computed from the LIVE form so the
+  // "Required before approval" list and the disabled Approve button update the
+  // instant the admin types — no re-import needed. Same validator the server
+  // uses, so the two can never disagree.
+  const blockers = useMemo(
+    () => missingApprovalFields({ title: form.title, date: form.date, time: form.time }),
+    [form.title, form.date, form.time],
+  )
+  const blockedKeys = new Set<string>(blockers.map((b) => b.field))
+  const canSubmit = blockers.length === 0
+
+  const focusFirstBlocker = () => {
+    const first = blockers[0]
+    if (first) document.getElementById(`radar-field-${first.field}`)?.focus()
+  }
 
   const patch = useMemo(
     () => ({
@@ -132,11 +152,25 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
     }
   }
   const approve = async () => {
+    // Guard before touching the server: never fire a known-invalid approval.
+    if (!canSubmit) {
+      setError(
+        `Cannot approve yet — ${blockers.map((b) => b.label).join(', ')} ${
+          blockers.length === 1 ? 'is' : 'are'
+        } required by the submission queue.`,
+      )
+      focusFirstBlocker()
+      return
+    }
     // Save any pending edits first so the submission reflects what's on screen.
     await act('save', { action: 'save', patch })
     const res = await act('approve', { action: 'approve' })
     if (res) {
-      setMessage('Approved — a pending submission is now in the Queue.')
+      setMessage(
+        res.alreadyApproved
+          ? 'Already sent to the Queue — no duplicate created.'
+          : 'Approved — a pending submission is now in the Queue.',
+      )
       router.refresh()
     }
   }
@@ -247,13 +281,36 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
         </div>
       )}
 
+      {/* Required-before-approval — the hard gate. Distinct from soft warnings
+          so the admin sees exactly what blocks the queue (spec UI + §2). */}
+      {isOpen && blockers.length > 0 && (
+        <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/[0.06] p-4">
+          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-red-300">
+            <CircleAlert className="h-3.5 w-3.5" />
+            Required before approval
+          </h3>
+          <ul className="space-y-1 text-[13px] text-white/80">
+            {blockers.map((b) => (
+              <li key={b.field} className="flex items-center gap-1.5">
+                <span className="h-1 w-1 shrink-0 rounded-full bg-red-400" />
+                {b.label}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[12px] text-white/45">
+            Enter {blockers.length === 1 ? 'this value' : 'these values'} and Save edits — the source
+            didn&apos;t provide {blockers.length === 1 ? 'it' : 'them'}, and nothing is guessed.
+          </p>
+        </div>
+      )}
+
       {(candidate.warnings?.length > 0 || candidate.missing_fields?.length > 0) && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {candidate.warnings?.length > 0 && (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
               <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-300/80">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Warnings ({candidate.warnings.length})
+                Additional warnings ({candidate.warnings.length})
               </h3>
               <ul className="space-y-1.5 text-[13px] leading-snug text-white/70">
                 {candidate.warnings.map((w) => (
@@ -306,32 +363,47 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
             Extracted draft {isOpen ? '(editable)' : '(read-only)'}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {TEXT_FIELDS.map((field) => (
-              <label
-                key={field.key}
-                className={field.textarea ? 'sm:col-span-2 block' : 'block'}
-              >
-                <span className="mb-1 block text-[11px] font-medium text-white/45">{field.label}</span>
-                {field.textarea ? (
-                  <textarea
-                    rows={4}
-                    disabled={!isOpen}
-                    value={form[field.key]}
-                    onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
-                    className="w-full resize-y rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-white/25 focus:border-flame-500/40 focus:outline-none disabled:opacity-60"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    disabled={!isOpen}
-                    value={form[field.key]}
-                    placeholder={field.placeholder}
-                    onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
-                    className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-white/25 focus:border-flame-500/40 focus:outline-none disabled:opacity-60"
-                  />
-                )}
-              </label>
-            ))}
+            {TEXT_FIELDS.map((field) => {
+              const required = REQUIRED_KEYS.has(field.key)
+              const blocked = blockedKeys.has(field.key)
+              const inputClass = [
+                'w-full rounded-lg border bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-white/25 focus:outline-none disabled:opacity-60',
+                blocked
+                  ? 'border-red-500/60 focus:border-red-500'
+                  : 'border-white/10 focus:border-flame-500/40',
+              ].join(' ')
+              return (
+                <label
+                  key={field.key}
+                  className={field.textarea ? 'sm:col-span-2 block' : 'block'}
+                >
+                  <span className="mb-1 block text-[11px] font-medium text-white/45">
+                    {field.label}
+                    {required && <span className="ml-0.5 text-red-400">*</span>}
+                  </span>
+                  {field.textarea ? (
+                    <textarea
+                      id={`radar-field-${field.key}`}
+                      rows={4}
+                      disabled={!isOpen}
+                      value={form[field.key]}
+                      onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                      className={`resize-y ${inputClass}`}
+                    />
+                  ) : (
+                    <input
+                      id={`radar-field-${field.key}`}
+                      type="text"
+                      disabled={!isOpen}
+                      value={form[field.key]}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                      className={inputClass}
+                    />
+                  )}
+                </label>
+              )
+            })}
 
             <label className="block">
               <span className="mb-1 block text-[11px] font-medium text-white/45">Category</span>
@@ -399,12 +471,22 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
             <button
               type="button"
               onClick={() => void approve()}
-              disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+              disabled={busy !== null || !canSubmit}
+              title={
+                canSubmit
+                  ? 'Create a pending submission in the Queue'
+                  : `Add ${blockers.map((b) => b.label).join(', ')} first`
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Approve → Queue
             </button>
+            {!canSubmit && (
+              <span className="text-[12px] text-white/45">
+                Approval needs {blockers.map((b) => b.label).join(', ')}.
+              </span>
+            )}
             <button
               type="button"
               onClick={() => setRejecting((v) => !v)}

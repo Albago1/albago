@@ -80,5 +80,48 @@ Runtime import needs `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
 used by Lens/Crawl). No new env vars.
 
 ## Gates
-`node --import ./scripts/radar-register.mjs scripts/radar-test.mjs` → 28/28 pass ·
+`node --import ./scripts/radar-register.mjs scripts/radar-test.mjs` → 49/49 pass ·
 `tsc --noEmit` → clean · `eslint` → clean · `next build` → success (4 new routes).
+
+---
+
+## RADAR-1a — approval-bridge fix (production bug)
+
+**Symptom:** approving a candidate with no start time failed with
+`null value in column "time" of relation "event_submissions" violates not-null`.
+
+**Root cause:** `event_submissions.time` is `text NOT NULL`, but
+`crawlReadingToSubmission` maps `time: orNull(reading.time)` → `null` when the
+reading has no time. Other NOT NULL columns (venue_name/category/country/
+location_slug) have non-null fallbacks, so only **time** (null) and empty
+**title**/**date** are real approval blockers. **price is nullable** → never
+blocks. (The schema doc lists `contact_email NOT NULL`, but the shipped crawler
+inserts null for it, so the live column is nullable — doc drift.)
+
+**Fix:**
+- `lib/radar/approvalValidation.ts` (new) — `missingApprovalFields` (title/date/
+  time, blank/whitespace = missing, `00:00` valid) shared by server + client;
+  `translateSubmissionError` maps PG codes to safe sentences.
+- `approveCandidate` now pre-validates before any insert (invalid → stays
+  needs_review, returns structured blockers), is idempotent via `submission_id`
+  (double-click / lost-response retry returns the existing submission, no
+  duplicate), and translates DB errors.
+- `assess.ts` — explicit `time_required` and `broad_source` warnings.
+- Review UI — "Required before approval" section, disabled/greyed Approve with
+  the reason, red-ring + focus on the blocking field, live re-validation after
+  Save (no re-import). Multi-day mapping unchanged (recurrence=daily +
+  recurrence_until + overnight end_time preserved).
+
+**Not changed:** the NOT NULL constraint (it's correct for the event model) and
+the multi-day representation.
+
+**Residual limitation:** if the submission insert succeeds but the candidate
+link-update then fails *and* the serverless function is killed before returning,
+a later manual re-approve could insert a second submission — supabase-js has no
+cross-table transaction. Double-clicks and lost-response retries are covered.
+
+**Tests added (scripts/radar-test.mjs, now 49):** missing-time blocks; no insert
+on invalid; midnight valid; whitespace blank; title/date blockers; price never
+blocks; error translations; mapping (empty→null root cause, 00:00 preserved,
+overnight end_time, multi-day recurrence, free-text price preserved). Non-admin
+approval (403) verified at runtime against the dev server.
