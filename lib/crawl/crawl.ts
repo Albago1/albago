@@ -152,6 +152,7 @@ async function classifyReading(
   reading: PosterReading,
   base: CrawlBase,
   dryRun: boolean,
+  imageUrl: string | null = null,
 ): Promise<CrawlItemResult> {
   if (!reading.is_event || !reading.title || reading.confidence < CRAWL_MIN_CONFIDENCE) {
     return { ...base, outcome: 'not_an_event', title: reading.title || undefined, confidence: reading.confidence }
@@ -178,7 +179,7 @@ async function classifyReading(
   if (resolution.duplicate.status === 'live') return { ...shared, outcome: 'duplicate_live' }
   if (resolution.duplicate.status === 'in_review') return { ...shared, outcome: 'duplicate_in_review' }
 
-  const submission = crawlReadingToSubmission(reading, resolution)
+  const submission = crawlReadingToSubmission(reading, resolution, imageUrl)
 
   if (dryRun) {
     return { ...shared, outcome: 'would_submit', submission }
@@ -211,7 +212,7 @@ export async function crawlUrl(
   // Fetch blocked / login-walled / JS-only / no event signal on the page.
   if (!read) return { ...base, outcome: 'unreadable' }
 
-  return classifyReading(read.reading, base, opts.dryRun)
+  return classifyReading(read.reading, base, opts.dryRun, read.imageUrl)
 }
 
 /**

@@ -18,6 +18,12 @@ import type { LensResolution } from '@/lib/lens/resolve'
  * `place_id` stays null — venue linking is an approval-time act, the same
  * decision Lens made. Translation packs are null here; CRAWL-3 fills them at
  * write-time via the shared `resolveAndTranslate`.
+ *
+ * The source's poster/og:image (when the reader captured one) rides through as
+ * `banner_url` + the first `gallery_urls` entry, so an approved import lands on
+ * the public event page with the same picture the source page showed — the
+ * queue publishes straight from `banner_url`. The URL is referenced as-is (not
+ * re-hosted): a deliberate, reversible choice — see the image handling note.
  */
 
 export type CrawlSubmission = ReturnType<typeof crawlReadingToSubmission>
@@ -26,6 +32,20 @@ function orNull(s: string | null | undefined): string | null {
   if (s == null) return null
   const t = s.trim()
   return t.length ? t : null
+}
+
+/** Accept a source image only if it is a plain http(s) URL a browser can load.
+ *  Guards against data:/javascript:/blob: and other junk ending up as a banner;
+ *  the value is rendered directly in an <img>, never fetched server-side. */
+function httpImageUrl(raw: string | null | undefined): string | null {
+  const s = orNull(raw)
+  if (!s) return null
+  try {
+    const u = new URL(s)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null
+  } catch {
+    return null
+  }
 }
 
 /** Best coordinates the resolution found: a matched venue first, then a
@@ -46,8 +66,10 @@ function resolvedCoords(
 export function crawlReadingToSubmission(
   reading: PosterReading,
   resolution: LensResolution | null,
+  imageUrl: string | null = null,
 ) {
   const isCivic = reading.is_civic
+  const banner = httpImageUrl(imageUrl)
   const category = reading.category || (isCivic ? 'civic' : 'culture')
 
   const city = resolution?.city
@@ -93,7 +115,11 @@ export function crawlReadingToSubmission(
     online_url: null as string | null,
     tags: reading.tags,
     language: reading.language || 'en',
-    gallery_urls: [] as string[],
+    // Source poster/og:image → the public event's cover. The queue publishes
+    // the event straight from banner_url; gallery mirrors it for the wizard-shaped
+    // surfaces. Empty when the page exposed no usable image.
+    banner_url: banner,
+    gallery_urls: banner ? [banner] : [],
     status: 'pending' as const,
     // No human owns a crawler find. Admin-only readable by RLS.
     submitted_by_user_id: null as string | null,

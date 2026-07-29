@@ -189,6 +189,19 @@ check('free admission text is preserved (not zeroed)', mapped({ price: 'Free ent
 check('blank price maps to NULL (price is nullable)', mapped({ price: '' }).price === null)
 check('venue always has a non-null fallback', typeof mapped({ venue_name: '' }).venue_name === 'string')
 
+// --- source image → published cover (banner_url + gallery) -----------------
+
+const withImg = (img) => crawlReadingToSubmission(reading(), resolution(), img)
+check('no image → banner_url null', withImg(null).banner_url === null)
+check('no image → gallery empty', withImg(null).gallery_urls.length === 0)
+const img = withImg('https://cdn.example.al/poster.jpg?v=9')
+check('https image → banner_url set', img.banner_url === 'https://cdn.example.al/poster.jpg?v=9')
+check('https image → gallery mirrors the banner', img.gallery_urls.length === 1 && img.gallery_urls[0] === img.banner_url)
+check('http image accepted', withImg('http://x.al/p.png').banner_url === 'http://x.al/p.png')
+check('data: URL rejected (never a banner)', withImg('data:image/png;base64,AAAA').banner_url === null)
+check('javascript: URL rejected', withImg('javascript:alert(1)').banner_url === null)
+check('blank image string → null', withImg('   ').banner_url === null)
+
 // --- URL normalization / dedup ---------------------------------------------
 
 check('rejects loopback (SSRF)', normalizeImportUrl('http://localhost/event') === null)

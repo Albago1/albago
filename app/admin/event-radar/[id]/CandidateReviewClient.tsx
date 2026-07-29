@@ -344,8 +344,14 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
 
       {candidate.image_url && (
         <div className="mt-4">
-          <p className="mb-1.5 text-[11px] uppercase tracking-wider text-white/40">
-            Source image (reference only)
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-white/40">
+            <BadgeCheck className="h-3.5 w-3.5 text-emerald-400/70" />
+            Cover image
+            {isOpen && (
+              <span className="font-normal normal-case tracking-normal text-white/45">
+                — published as the event&apos;s cover on approval
+              </span>
+            )}
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

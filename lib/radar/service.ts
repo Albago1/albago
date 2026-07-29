@@ -276,6 +276,7 @@ export async function approveCandidate(
   const submission = crawlReadingToSubmission(
     candidate.reading,
     candidate.resolution ?? NONE_RESOLUTION,
+    candidate.image_url,
   )
   const { data: subRow, error: subError } = await db
     .from('event_submissions')
