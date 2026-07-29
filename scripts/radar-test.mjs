@@ -202,6 +202,23 @@ check('data: URL rejected (never a banner)', withImg('data:image/png;base64,AAAA
 check('javascript: URL rejected', withImg('javascript:alert(1)').banner_url === null)
 check('blank image string → null', withImg('   ').banner_url === null)
 
+// --- submitted_by_user_id (queue NOT NULL on the direct insert) -------------
+
+check('crawler find (no submitter) → null', crawlReadingToSubmission(reading(), resolution()).submitted_by_user_id === null)
+check(
+  'Radar approval attributes the row to the admin',
+  crawlReadingToSubmission(reading(), resolution(), null, 'admin-uuid-123').submitted_by_user_id === 'admin-uuid-123',
+)
+
+// --- error translation names the offending column ---------------------------
+check(
+  'unknown NOT NULL column is named, not hidden',
+  translateSubmissionError({
+    code: '23502',
+    message: 'null value in column "submitted_by_user_id" of relation "event_submissions" violates not-null constraint',
+  }) === 'The submission queue requires a value for "submitted_by_user_id", which this import left empty.',
+)
+
 // --- URL normalization / dedup ---------------------------------------------
 
 check('rejects loopback (SSRF)', normalizeImportUrl('http://localhost/event') === null)

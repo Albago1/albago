@@ -67,6 +67,7 @@ export function crawlReadingToSubmission(
   reading: PosterReading,
   resolution: LensResolution | null,
   imageUrl: string | null = null,
+  submittedBy: string | null = null,
 ) {
   const isCivic = reading.is_civic
   const banner = httpImageUrl(imageUrl)
@@ -121,8 +122,11 @@ export function crawlReadingToSubmission(
     banner_url: banner,
     gallery_urls: banner ? [banner] : [],
     status: 'pending' as const,
-    // No human owns a crawler find. Admin-only readable by RLS.
-    submitted_by_user_id: null as string | null,
+    // Who owns this queued row. A crawler cron find has no human → null (the
+    // "admin-only readable" marker). A Radar import is admin-initiated: the
+    // approving admin is passed here, which also satisfies the queue's
+    // submitted_by_user_id NOT NULL constraint on the direct insert.
+    submitted_by_user_id: submittedBy,
     // event_submissions' CHECK only accepts civic subtypes or NULL; the crawler
     // never asserts a protest subtype, so non-null civic reads stay is_civic.
     event_type: null as string | null,

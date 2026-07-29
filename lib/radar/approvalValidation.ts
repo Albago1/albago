@@ -69,6 +69,10 @@ export function translateSubmissionError(
     if (/"title"/.test(msg)) return 'The event title is required.'
     if (/"venue_name"/.test(msg)) return 'A venue name is required.'
     if (/"category"/.test(msg)) return 'A category is required.'
+    // Any other NOT NULL column: surface its name so the gap is never a mystery.
+    // PG phrases it: null value in column "X" of relation "..." violates ...
+    const col = msg.match(/column "([^"]+)"/)?.[1]
+    if (col) return `The submission queue requires a value for "${col}", which this import left empty.`
     return 'A required field is missing for the submission queue.'
   }
   if (code === '23505') return 'This candidate has already been sent to the queue.'

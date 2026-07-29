@@ -277,6 +277,9 @@ export async function approveCandidate(
     candidate.reading,
     candidate.resolution ?? NONE_RESOLUTION,
     candidate.image_url,
+    // Attribute the queued row to the approving admin — they are the human
+    // vouching for this import, and it satisfies submitted_by_user_id NOT NULL.
+    decidedBy,
   )
   const { data: subRow, error: subError } = await db
     .from('event_submissions')
