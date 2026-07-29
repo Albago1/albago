@@ -12,6 +12,7 @@ const { missingApprovalFields, canApprove, translateSubmissionError } = await im
   '../lib/radar/approvalValidation.ts'
 )
 const { crawlReadingToSubmission } = await import('../lib/crawl/toSubmission.ts')
+const { sanitizeCrawlSubmission } = await import('../lib/crawl/sanitizeSubmission.ts')
 
 const TODAY = '2026-07-27'
 
@@ -234,5 +235,35 @@ check('two shares of the same page dedup to one key', a === b)
 check('trailing slash trimmed', normalizeImportUrl('https://x.al/a/') === 'https://x.al/a')
 check('root slash kept', normalizeImportUrl('https://x.al/') === 'https://x.al/')
 check('source name strips www', sourceNameFromUrl('https://www.Tirana.al/events') === 'tirana.al')
+
+// --- queue-selected sanitizer (untrusted client round-trip) ----------------
+
+const goodPreview = () => ({
+  title: 'Techno Night',
+  date: '2026-09-19',
+  time: '22:00',
+  venue_name: 'Club X',
+  category: 'nightlife',
+  country: 'Albania',
+  location_slug: 'tirane',
+  description: 'A night out',
+  banner_url: 'https://cdn.example.al/p.jpg',
+  is_civic: false,
+})
+
+check('sanitizer keeps a valid preview', !!sanitizeCrawlSubmission(goodPreview(), 'admin-1'))
+check('sanitizer forces status=pending', sanitizeCrawlSubmission(goodPreview(), 'admin-1').status === 'pending')
+check('sanitizer stamps the submitter', sanitizeCrawlSubmission(goodPreview(), 'admin-1').submitted_by_user_id === 'admin-1')
+check('sanitizer null submitter allowed', sanitizeCrawlSubmission(goodPreview(), null).submitted_by_user_id === null)
+check('sanitizer drops any client place_id', sanitizeCrawlSubmission({ ...goodPreview(), place_id: 'evil-uuid' }, 'a').place_id === null)
+check('sanitizer keeps http banner', sanitizeCrawlSubmission(goodPreview(), 'a').banner_url === 'https://cdn.example.al/p.jpg')
+check('sanitizer strips a javascript: banner', sanitizeCrawlSubmission({ ...goodPreview(), banner_url: 'javascript:alert(1)' }, 'a').banner_url === null)
+check('sanitizer rejects a missing title', sanitizeCrawlSubmission({ ...goodPreview(), title: '' }, 'a') === null)
+check('sanitizer rejects a bad date', sanitizeCrawlSubmission({ ...goodPreview(), date: 'someday' }, 'a') === null)
+check('sanitizer coerces an unknown category to culture', sanitizeCrawlSubmission({ ...goodPreview(), category: 'wat' }, 'a').category === 'culture')
+check('sanitizer coerces unknown category on civic to civic', sanitizeCrawlSubmission({ ...goodPreview(), category: 'wat', is_civic: true }, 'a').category === 'civic')
+check('sanitizer clamps a bad recurrence to none', sanitizeCrawlSubmission({ ...goodPreview(), recurrence: 'hourly' }, 'a').recurrence === 'none')
+check('sanitizer ignores non-string title (injection)', sanitizeCrawlSubmission({ ...goodPreview(), title: { $ne: 1 } }, 'a') === null)
+check('sanitizer drops out-of-range weekdays', JSON.stringify(sanitizeCrawlSubmission({ ...goodPreview(), recurrence_days_of_week: [1, 9, 'x', 5] }, 'a').recurrence_days_of_week) === '[1,5]')
 
 process.exit(failed === 0 ? 0 : 1)

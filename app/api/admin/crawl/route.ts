@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isPublicHttpUrl } from '@/lib/ssrfGuard'
 import { crawlSources } from '@/lib/crawl/crawl'
+import { queueSelectedSubmissions } from '@/lib/crawl/queueSelected'
 
 /**
  * AlbaGo Crawl (master plan CRAWL-1): admin-triggered event crawl.
@@ -48,21 +49,23 @@ function hasValidToken(request: Request): boolean {
   return token.length > 0 && token === secret
 }
 
-async function isAdmin(): Promise<boolean> {
+/** The admin's user id if the session is an admin, else null. Doubles as the
+ *  role gate (null ⇒ not an admin session). */
+async function adminUserId(): Promise<string | null> {
   try {
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return false
+    if (!user) return null
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .maybeSingle()
-    return (profile as { role?: string | null } | null)?.role === 'admin'
+    return (profile as { role?: string | null } | null)?.role === 'admin' ? user.id : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -73,6 +76,8 @@ type Body = {
   siteUrls?: unknown
   pastedText?: unknown
   maxEventsPerListing?: unknown
+  // Per-item curation: the previewed finds the admin ticked to queue.
+  queue?: unknown
 }
 
 const MAX_PASTED_CHARS = 40_000
@@ -113,9 +118,13 @@ export async function GET() {
   })
 }
 
+const MAX_QUEUE_ITEMS = 200
+
 export async function POST(request: Request) {
   // 1. Caller must be an admin session OR present the CRAWL_SECRET bearer token.
-  if (!hasValidToken(request) && !(await isAdmin())) {
+  const tokenOk = hasValidToken(request)
+  const userId = tokenOk ? null : await adminUserId()
+  if (!tokenOk && !userId) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -126,6 +135,24 @@ export async function POST(request: Request) {
   } catch {
     // An empty body is valid — defaults to a dry run of the enabled registry.
     body = {}
+  }
+
+  // Per-item curation path: queue the exact previews the admin ticked. These are
+  // re-sanitized server-side; the admin who curated them is stamped as submitter.
+  if (Array.isArray(body.queue)) {
+    if (body.queue.length === 0) {
+      return NextResponse.json({ error: 'queue_empty' }, { status: 400 })
+    }
+    if (body.queue.length > MAX_QUEUE_ITEMS) {
+      return NextResponse.json({ error: 'queue_too_large' }, { status: 400 })
+    }
+    try {
+      const result = await queueSelectedSubmissions(body.queue, userId)
+      return NextResponse.json({ ok: true, result })
+    } catch (err) {
+      console.error('[admin/crawl] queue-selected failed:', err)
+      return NextResponse.json({ ok: false, error: 'queue_failed' }, { status: 500 })
+    }
   }
 
   // Default to a dry run: writing to the queue must be an explicit choice.

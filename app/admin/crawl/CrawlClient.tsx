@@ -36,6 +36,17 @@ type CrawlItem = {
   confidence?: number
   resolution?: { city: string; duplicate: string }
   note?: string
+  // The full previewed submission row (present on would_submit finds). Sent back
+  // verbatim when the admin ticks this find to queue it — what you saw is what
+  // gets queued, no re-scan.
+  submission?: Record<string, unknown>
+}
+
+type QueueResult = {
+  requested: number
+  queued: number
+  skipped: number
+  items: Array<{ title: string; ok: boolean; error?: string }>
 }
 
 type CrawlRemaining = { sourceUrls?: string[]; listingUrls?: string[]; siteUrls?: string[] }
@@ -93,17 +104,79 @@ const MAX_ROUNDS = 200
 export default function CrawlClient() {
   const [text, setText] = useState('')
   const [pasteText, setPasteText] = useState('')
-  const [live, setLive] = useState(false)
   const [running, setRunning] = useState(false)
+  const [queueing, setQueueing] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<CrawlItem[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [queueMsg, setQueueMsg] = useState<string | null>(null)
 
   const parsed = useMemo(() => classifyInputs(text), [text])
   const inputCount = parsed.siteUrls.length + parsed.listingUrls.length
   const hasPaste = pasteText.trim().length > 0
   const canRun = inputCount > 0 || hasPaste
+
+  // A find that can be queued: it passed every gate and carries a preview row.
+  const isQueueable = (it: CrawlItem) => it.outcome === 'would_submit' && !!it.submission
+  const queueableIndexes = useMemo(
+    () => items.map((it, i) => (isQueueable(it) ? i : -1)).filter((i) => i >= 0),
+    [items],
+  )
+
+  const toggle = (i: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  const allSelected = queueableIndexes.length > 0 && queueableIndexes.every((i) => selected.has(i))
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(queueableIndexes))
+
+  async function queueSelected() {
+    const chosen = queueableIndexes.filter((i) => selected.has(i))
+    if (chosen.length === 0 || queueing) return
+    setQueueing(true)
+    setError(null)
+    setQueueMsg(null)
+    try {
+      const res = await fetch('/api/admin/crawl', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ queue: chosen.map((i) => items[i].submission) }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.ok) {
+        throw new Error(
+          res.status === 403
+            ? 'Not authorized — make sure you are signed in as an admin.'
+            : `Could not queue (${json?.error ?? res.status}).`,
+        )
+      }
+      const result = json.result as QueueResult
+      // Flip each successfully-queued row to "Queued" so it can't be sent twice.
+      setItems((prev) => {
+        const next = [...prev]
+        chosen.forEach((idx, k) => {
+          if (result.items[k]?.ok) next[idx] = { ...next[idx], outcome: 'submitted' }
+        })
+        return next
+      })
+      setSelected(new Set())
+      setQueueMsg(
+        `Queued ${result.queued} event${result.queued === 1 ? '' : 's'}` +
+          (result.skipped ? `, skipped ${result.skipped}` : '') +
+          '. Review them in the Queue.',
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setQueueing(false)
+    }
+  }
 
   async function postOnce(body: Record<string, unknown>): Promise<CrawlReport> {
     const res = await fetch('/api/admin/crawl', {
@@ -129,6 +202,8 @@ export default function CrawlClient() {
     setError(null)
     setItems([])
     setTotals({})
+    setSelected(new Set())
+    setQueueMsg(null)
     setProgress('Starting…')
 
     const collected: CrawlItem[] = []
@@ -170,7 +245,11 @@ export default function CrawlClient() {
     }
   }
 
-  const queued = (totals.would_submit || 0) + (totals.submitted || 0)
+  // "would_submit" starts as ready-to-pick; a row flips to "submitted" the
+  // moment it is queued, so these move from ready → queued as the admin curates.
+  const readyCount = items.filter((it) => it.outcome === 'would_submit').length
+  const queuedCount = items.filter((it) => it.outcome === 'submitted').length
+  const selectedCount = queueableIndexes.filter((i) => selected.has(i)).length
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -206,17 +285,6 @@ export default function CrawlClient() {
           {parsed.listingUrls.length > 0 && ` · ${parsed.listingUrls.length} page`}
           {parsed.skipped.length > 0 && ` · ${parsed.skipped.length} unreadable line(s)`}
         </span>
-
-        <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-white/60">
-          <input
-            type="checkbox"
-            checked={live}
-            onChange={(e) => setLive(e.target.checked)}
-            disabled={running}
-            className="h-3.5 w-3.5 accent-flame-500"
-          />
-          Send finds to the queue (off = dry run, writes nothing)
-        </label>
       </div>
 
       <div className="mt-6">
@@ -246,13 +314,16 @@ export default function CrawlClient() {
       <div className="mt-4 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => run(!live)}
+          onClick={() => run(true)}
           disabled={!canRun || running}
           className="inline-flex h-9 items-center gap-2 rounded-lg bg-flame-500 px-4 text-sm font-semibold text-white transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-          {running ? 'Crawling…' : live ? 'Crawl & queue' : 'Dry run'}
+          {running ? 'Reading…' : 'Find events'}
         </button>
+        <span className="text-xs text-white/40">
+          Reads only — you choose which finds to queue below.
+        </span>
         {progress && <span className="text-xs text-white/50">{progress}</span>}
       </div>
 
@@ -266,10 +337,18 @@ export default function CrawlClient() {
       {(items.length > 0 || Object.keys(totals).length > 0) && (
         <section className="mt-7">
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/55">
-            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-300">
-              {live ? <CopyCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-              {queued} {live ? 'queued' : 'ready to queue'}
-            </span>
+            {readyCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 font-medium text-emerald-300">
+                <Check className="h-3.5 w-3.5" />
+                {readyCount} ready to pick
+              </span>
+            )}
+            {queuedCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 font-medium text-emerald-200">
+                <CopyCheck className="h-3.5 w-3.5" />
+                {queuedCount} queued
+              </span>
+            )}
             {(totals.duplicate_live || 0) + (totals.duplicate_in_review || 0) > 0 && (
               <span>{(totals.duplicate_live || 0) + (totals.duplicate_in_review || 0)} duplicate</span>
             )}
@@ -282,10 +361,47 @@ export default function CrawlClient() {
             {(totals.error || 0) > 0 && <span className="text-flame-300">{totals.error} error</span>}
           </div>
 
+          {/* Curation bar — pick exactly which finds enter the queue. */}
+          {queueableIndexes.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-2.5">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  className="h-3.5 w-3.5 accent-flame-500"
+                />
+                Select all ({queueableIndexes.length})
+              </label>
+              <button
+                type="button"
+                onClick={() => void queueSelected()}
+                disabled={selectedCount === 0 || queueing}
+                className="ml-auto inline-flex h-8 items-center gap-2 rounded-lg bg-emerald-600 px-3.5 text-[13px] font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {queueing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CopyCheck className="h-4 w-4" />}
+                Queue selected{selectedCount ? ` (${selectedCount})` : ''}
+              </button>
+            </div>
+          )}
+
+          {queueMsg && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] px-3.5 py-2.5 text-sm text-emerald-200">
+              <CopyCheck className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>
+                {queueMsg}{' '}
+                <a href="/admin/queue" className="underline underline-offset-2 hover:text-white">
+                  Open the Queue
+                </a>
+              </span>
+            </div>
+          )}
+
           <div className="overflow-hidden rounded-xl border border-white/[0.07]">
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.07] text-[11px] uppercase tracking-wider text-white/40">
+                  <th className="w-9 px-3.5 py-2 font-medium" />
                   <th className="px-3.5 py-2 font-medium">Event</th>
                   <th className="px-3.5 py-2 font-medium">City</th>
                   <th className="px-3.5 py-2 font-medium">Result</th>
@@ -294,8 +410,27 @@ export default function CrawlClient() {
               <tbody>
                 {items.map((it, i) => {
                   const meta = OUTCOME_META[it.outcome]
+                  const selectable = isQueueable(it)
                   return (
-                    <tr key={`${it.url}-${i}`} className="border-b border-white/[0.04] last:border-0">
+                    <tr
+                      key={`${it.url}-${i}`}
+                      className={`border-b border-white/[0.04] last:border-0 ${
+                        selected.has(i) ? 'bg-emerald-500/[0.04]' : ''
+                      }`}
+                    >
+                      <td className="px-3.5 py-2.5 align-top">
+                        {selectable ? (
+                          <input
+                            type="checkbox"
+                            checked={selected.has(i)}
+                            onChange={() => toggle(i)}
+                            aria-label={`Queue ${it.title ?? 'this event'}`}
+                            className="mt-0.5 h-4 w-4 accent-emerald-500"
+                          />
+                        ) : (
+                          <span className="block h-4 w-4" />
+                        )}
+                      </td>
                       <td className="max-w-0 px-3.5 py-2.5">
                         <div className="truncate font-medium text-white/90">
                           {it.title || <span className="text-white/40">{it.note || '—'}</span>}
@@ -332,10 +467,10 @@ export default function CrawlClient() {
             </table>
           </div>
 
-          {queued > 0 && !live && (
-            <p className="mt-3 text-xs text-white/50">
-              Happy with these? Tick “Send finds to the queue” and run again to add the{' '}
-              {queued} event{queued === 1 ? '' : 's'} as pending, then approve them in the Queue.
+          {queueableIndexes.length > 0 && (
+            <p className="mt-3 text-xs text-white/45">
+              Tick the events you want, then <span className="text-white/70">Queue selected</span> —
+              only those are added as pending. The rest are ignored.
             </p>
           )}
         </section>
