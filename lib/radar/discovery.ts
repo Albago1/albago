@@ -4,6 +4,7 @@ import { discoverFromSite } from '@/lib/crawl/site'
 import { enabledSources } from '@/lib/crawl/sources'
 import { importFromUrl, deleteCandidate } from './service'
 import { classifyImportOutcome, isKeepableEvent, type DiscoveryOutcome } from './discoveryClassify'
+import { listEnabledSourceUrls, recordRun } from '@/lib/crawl/sourceStore'
 
 export type { DiscoveryOutcome } from './discoveryClassify'
 
@@ -130,7 +131,11 @@ export async function runDiscovery(opts: {
     }
 
     const sourceUrl = sources[s]
-    const eventUrls = (await expandSource(sourceUrl)).slice(0, maxPerSource)
+    const expanded = await expandSource(sourceUrl)
+    // A source with no discoverable links is treated as a single event page
+    // itself — so the registry accepts BOTH listing pages and direct event links.
+    // (A dead page that is neither will read as not_event and be dropped.)
+    const eventUrls = (expanded.length > 0 ? expanded : [sourceUrl]).slice(0, maxPerSource)
     report.sourcesProcessed++
 
     for (let i = 0; i < eventUrls.length; i++) {
@@ -176,6 +181,41 @@ export async function runDiscovery(opts: {
 
     if (s < sources.length - 1) await wait(POLITE_DELAY_MS)
   }
+
+  return report
+}
+
+/**
+ * The registry entry point used by the nightly cron and the "Run all now"
+ * button: pull enabled sources from the DB registry, run discovery over them,
+ * and stamp each processed source's last-run telemetry (how many NEW candidates
+ * it yielded) so dead sources are visible in the admin panel. Returns the same
+ * DiscoveryReport as a manual run.
+ */
+export async function runRegistryDiscovery(opts: {
+  maxPerSource?: number
+  deadlineMs?: number
+}): Promise<DiscoveryReport> {
+  const urls = await listEnabledSourceUrls()
+  const report = await runDiscovery({ sourceUrls: urls, ...opts })
+
+  // Tally NEW imports per source, then record telemetry for every source we
+  // actually processed (an item exists for each — the single-event fallback
+  // guarantees at least one item per processed source).
+  const importsBySource = new Map<string, number>()
+  const processed = new Set<string>()
+  for (const item of report.items) {
+    processed.add(item.sourceUrl)
+    if (item.outcome === 'imported') {
+      importsBySource.set(item.sourceUrl, (importsBySource.get(item.sourceUrl) ?? 0) + 1)
+    }
+  }
+  await Promise.allSettled(
+    [...processed].map((url) => {
+      const found = importsBySource.get(url) ?? 0
+      return recordRun(url, found, found > 0 ? 'ok' : 'empty')
+    }),
+  )
 
   return report
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron/auth'
-import { runDiscovery } from '@/lib/radar/discovery'
+import { runRegistryDiscovery } from '@/lib/radar/discovery'
 
 /**
  * Nightly discovery cron. Runs the enabled source registry (runDiscovery with no
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   }
   try {
     // Leave headroom under maxDuration for the response + any in-flight source.
-    const report = await runDiscovery({ deadlineMs: 270_000 })
+    const report = await runRegistryDiscovery({ deadlineMs: 270_000 })
     console.log(
       `[cron/discover] sources ${report.sourcesProcessed}/${report.sourcesRequested} · found ${report.eventUrlsFound} · imported ${report.imported} · dup ${report.skippedDuplicate} · notEvent ${report.notEvent} · unreadable ${report.unreadable} · err ${report.errors}`,
     )
