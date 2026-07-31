@@ -266,4 +266,46 @@ check('sanitizer clamps a bad recurrence to none', sanitizeCrawlSubmission({ ...
 check('sanitizer ignores non-string title (injection)', sanitizeCrawlSubmission({ ...goodPreview(), title: { $ne: 1 } }, 'a') === null)
 check('sanitizer drops out-of-range weekdays', JSON.stringify(sanitizeCrawlSubmission({ ...goodPreview(), recurrence_days_of_week: [1, 9, 'x', 5] }, 'a').recurrence_days_of_week) === '[1,5]')
 
+// --- discovery agent: outcome classification -------------------------------
+
+const { classifyImportOutcome } = await import('../lib/radar/discoveryClassify.ts')
+
+const okCandidate = (over = {}) => ({
+  ok: true,
+  duplicate: false,
+  candidate: { id: 'cand-1', status: 'needs_review', error: null, ...over },
+})
+
+check(
+  'discovery: a fresh needs_review read is "imported"',
+  classifyImportOutcome(okCandidate()).outcome === 'imported',
+)
+check(
+  'discovery: imported carries the candidate id',
+  classifyImportOutcome(okCandidate()).candidateId === 'cand-1',
+)
+check(
+  'discovery: an idempotent hit is "duplicate", not a new import',
+  classifyImportOutcome({ ...okCandidate(), duplicate: true }).outcome === 'duplicate',
+)
+check(
+  'discovery: a persisted failed candidate is "unreadable"',
+  classifyImportOutcome(okCandidate({ status: 'failed', error: 'login-walled' })).outcome === 'unreadable',
+)
+check(
+  'discovery: unreadable surfaces the stored error message',
+  classifyImportOutcome(okCandidate({ status: 'failed', error: 'login-walled' })).message === 'login-walled',
+)
+check(
+  'discovery: a hard import failure is "error" with no candidate',
+  (() => {
+    const r = classifyImportOutcome({ ok: false, code: 'db_error', message: 'nope' })
+    return r.outcome === 'error' && r.candidateId === undefined && r.message === 'nope'
+  })(),
+)
+check(
+  'discovery: duplicate takes precedence over status inspection',
+  classifyImportOutcome({ ok: true, duplicate: true, candidate: { id: 'c', status: 'failed', error: 'x' } }).outcome === 'duplicate',
+)
+
 process.exit(failed === 0 ? 0 : 1)
