@@ -10,8 +10,24 @@ import type { CandidateStatus } from './candidate'
 export type DiscoveryOutcome =
   | 'imported' // a new scored candidate landed in the review queue
   | 'duplicate' // already imported (same normalized_url) — skipped
+  | 'not_event' // read fine, but the page isn't an event — dropped, not queued
   | 'unreadable' // page couldn't be read; persisted as a retryable `failed` candidate
   | 'error' // the import itself errored (db/invalid) — nothing stored
+
+// A discovered page is only kept if the reader is confident it's a real event.
+// Junk links (nav/section pages that merely contain an event-ish word) come back
+// is_event:false or with a thin confidence and are dropped before they can clog
+// the queue. Mirrors the crawler's own autonomous-find bar (CRAWL_MIN_CONFIDENCE).
+export const DISCOVERY_MIN_CONFIDENCE = 0.35
+
+/** Does an extracted reading clear the bar to become a real candidate? */
+export function isKeepableEvent(reading: {
+  is_event: boolean
+  confidence: number
+} | null): boolean {
+  if (!reading) return false
+  return reading.is_event === true && reading.confidence >= DISCOVERY_MIN_CONFIDENCE
+}
 
 /** The minimal structural shape of `importFromUrl`'s result this needs. */
 export type ImportOutcomeInput =

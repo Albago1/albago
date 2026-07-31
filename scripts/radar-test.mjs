@@ -308,4 +308,62 @@ check(
   classifyImportOutcome({ ok: true, duplicate: true, candidate: { id: 'c', status: 'failed', error: 'x' } }).outcome === 'duplicate',
 )
 
+// --- discovery: non-event keep-bar -----------------------------------------
+
+const { isKeepableEvent, DISCOVERY_MIN_CONFIDENCE } = await import('../lib/radar/discoveryClassify.ts')
+
+check('keep-bar: a confident event is kept', isKeepableEvent({ is_event: true, confidence: 0.9 }) === true)
+check('keep-bar: is_event false is dropped', isKeepableEvent({ is_event: false, confidence: 0.9 }) === false)
+check('keep-bar: thin confidence is dropped', isKeepableEvent({ is_event: true, confidence: 0.2 }) === false)
+check('keep-bar: null reading is dropped', isKeepableEvent(null) === false)
+check('keep-bar: exactly at threshold is kept', isKeepableEvent({ is_event: true, confidence: DISCOVERY_MIN_CONFIDENCE }) === true)
+
+// --- verification loop: decision logic -------------------------------------
+
+const { decideVerify } = await import('../lib/radar/verifyDecide.ts')
+
+function vreading(over = {}) {
+  return {
+    is_event: true,
+    confidence: 0.9,
+    title: 'Summer Jazz Festival',
+    date: '2026-12-01',
+    time: '20:00',
+    ...over,
+  }
+}
+const stored = { title: 'Summer Jazz Festival', date: '2026-12-01' }
+
+check('verify: same event same date → verified + stamped', (() => {
+  const v = decideVerify(stored, vreading())
+  return v.action === 'verified' && v.stampVerified === true && v.newListingStatus === null
+})())
+check('verify: unreadable (null) → no write, not stamped', (() => {
+  const v = decideVerify(stored, null)
+  return v.action === 'unreadable' && v.stampVerified === false && v.newListingStatus === null
+})())
+check('verify: page no longer an event → flag_missing, NEVER auto-cancel', (() => {
+  const v = decideVerify(stored, vreading({ is_event: false }))
+  return v.action === 'flag_missing' && v.newListingStatus === null && v.stampVerified === false
+})())
+check('verify: a different event on the page → flag_changed, no write', (() => {
+  const v = decideVerify(stored, vreading({ title: 'Techno Rave Warehouse' }))
+  return v.action === 'flag_changed' && v.newListingStatus === null
+})())
+check('verify: same event, date moved → date_changed + neutral updated flag + stamp', (() => {
+  const v = decideVerify(stored, vreading({ date: '2026-12-08' }))
+  return v.action === 'date_changed' && v.newListingStatus === 'updated' && v.stampVerified === true && v.observedDate === '2026-12-08'
+})())
+check('verify: NEVER writes a status other than updated', (() => {
+  const cases = [null, vreading({ is_event: false }), vreading({ title: 'Other' }), vreading(), vreading({ date: '2026-12-08' })]
+  return cases.every((r) => {
+    const s = decideVerify(stored, r).newListingStatus
+    return s === null || s === 'updated'
+  })
+})())
+check('verify: reworded-but-same title still verifies (title match)', (() => {
+  const v = decideVerify(stored, vreading({ title: 'Summer Jazz Festival 2026' }))
+  return v.action === 'verified'
+})())
+
 process.exit(failed === 0 ? 0 : 1)

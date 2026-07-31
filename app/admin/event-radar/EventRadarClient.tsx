@@ -220,6 +220,7 @@ export default function EventRadarClient({
                 event {discovery.eventUrlsFound === 1 ? 'page' : 'pages'} ·{' '}
                 <span className="font-semibold text-emerald-300">{discovery.imported}</span> new
                 {discovery.skippedDuplicate > 0 && <> · {discovery.skippedDuplicate} already imported</>}
+                {discovery.notEvent > 0 && <> · {discovery.notEvent} not events</>}
                 {discovery.unreadable > 0 && <> · {discovery.unreadable} unreadable</>}
                 {discovery.errors > 0 && <> · {discovery.errors} errored</>}
                 . New candidates appear below.

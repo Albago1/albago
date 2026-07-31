@@ -2,8 +2,8 @@ import 'server-only'
 import { discoverEventLinks } from '@/lib/crawl/discover'
 import { discoverFromSite } from '@/lib/crawl/site'
 import { enabledSources } from '@/lib/crawl/sources'
-import { importFromUrl } from './service'
-import { classifyImportOutcome, type DiscoveryOutcome } from './discoveryClassify'
+import { importFromUrl, deleteCandidate } from './service'
+import { classifyImportOutcome, isKeepableEvent, type DiscoveryOutcome } from './discoveryClassify'
 
 export type { DiscoveryOutcome } from './discoveryClassify'
 
@@ -63,6 +63,8 @@ export type DiscoveryReport = {
   eventUrlsFound: number
   imported: number
   skippedDuplicate: number
+  /** Read fine but not a real event (junk nav/section link) — dropped. */
+  notEvent: number
   unreadable: number
   errors: number
   items: DiscoveryItem[]
@@ -111,6 +113,7 @@ export async function runDiscovery(opts: {
     eventUrlsFound: 0,
     imported: 0,
     skippedDuplicate: 0,
+    notEvent: 0,
     unreadable: 0,
     errors: 0,
     items: [],
@@ -140,11 +143,31 @@ export async function runDiscovery(opts: {
       // found by the agent, not pasted by a human; the approving admin becomes
       // the accountable id at approval time.
       const result = await importFromUrl(eventUrl, null)
-      const { outcome, candidateId, message } = classifyImportOutcome(result)
-      report.items.push({ sourceUrl, eventUrl, outcome, candidateId, message })
+      const classified = classifyImportOutcome(result)
+      let outcome = classified.outcome
+      const { candidateId, message } = classified
+
+      // Non-event guard: a freshly imported candidate that the reader didn't
+      // judge a real event (a nav/section link that slipped through discovery)
+      // is dropped so it never clogs the review queue. Only genuine finds stay.
+      if (outcome === 'imported' && result.ok && !result.duplicate) {
+        if (!isKeepableEvent(result.candidate.reading)) {
+          await deleteCandidate(result.candidate.id)
+          outcome = 'not_event'
+        }
+      }
+
+      report.items.push({
+        sourceUrl,
+        eventUrl,
+        outcome,
+        candidateId: outcome === 'not_event' ? undefined : candidateId,
+        message,
+      })
 
       if (outcome === 'imported') report.imported++
       else if (outcome === 'duplicate') report.skippedDuplicate++
+      else if (outcome === 'not_event') report.notEvent++
       else if (outcome === 'unreadable') report.unreadable++
       else report.errors++
 
