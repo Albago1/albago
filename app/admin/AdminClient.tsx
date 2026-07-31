@@ -411,6 +411,17 @@ export default function AdminClient() {
     const slug = `${createSlug(s.title)}-${s.id.slice(0, 8)}`
     const isCivic = s.is_civic === true || s.category === 'civic'
 
+    // Close the discovery loop: if this submission came from an imported/
+    // discovered candidate, carry its source page onto the event so the daily
+    // verification robot can keep it correct forever. Manually-typed
+    // submissions have no linked candidate, so this is null for them.
+    const { data: candidate } = await supabase
+      .from('event_import_candidates')
+      .select('source_url')
+      .eq('submission_id', s.id)
+      .maybeSingle()
+    const officialSourceUrl = (candidate as { source_url?: string } | null)?.source_url ?? null
+
     // Auto-seed cities row if this city isn't registered yet. Best-effort:
     // errors here are non-fatal — we still publish the event. Only runs when
     // we have coordinates (civic flow always has them; non-civic may not).
@@ -458,6 +469,8 @@ export default function AdminClient() {
         tags: s.tags ?? [],
         language: s.language ?? 'en',
         banner_url: s.banner_url ?? null,
+        // Source page for the daily verification loop (imported events only).
+        official_source_url: officialSourceUrl,
         organizer_name: s.organizer_name ?? null,
         organizer_phone: s.organizer_phone ?? null,
         organizer_website: s.organizer_website ?? null,
