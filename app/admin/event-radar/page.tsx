@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function EventRadarPage() {
-  const candidates = await listCandidates(60)
+  const candidates = await listCandidates(200)
   return (
     <div className="px-4 py-6 sm:px-6">
       <EventRadarClient initialCandidates={candidates} />

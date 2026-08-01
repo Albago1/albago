@@ -333,3 +333,18 @@ export async function deleteCandidate(id: string): Promise<{ ok: boolean; messag
   const { error } = await admin().from(TABLE).delete().eq('id', id)
   return error ? { ok: false, message: error.message } : { ok: true }
 }
+
+/** Bulk-remove every unreadable (`failed`) candidate — the dead imports a
+ *  discovery run leaves behind (JS-only / blocked pages). Returns how many went. */
+export async function clearFailedCandidates(): Promise<{ ok: boolean; deleted: number }> {
+  const { data, error } = await admin()
+    .from(TABLE)
+    .delete()
+    .eq('status', 'failed')
+    .select('id')
+  if (error) {
+    console.error('[radar] clearFailed failed:', error.code ?? '', error.message)
+    return { ok: false, deleted: 0 }
+  }
+  return { ok: true, deleted: (data as { id: string }[] | null)?.length ?? 0 }
+}

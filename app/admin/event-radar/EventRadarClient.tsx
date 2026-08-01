@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -10,11 +10,37 @@ import {
   Loader2,
   Radar,
   ScanSearch,
+  Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import type { EventImportCandidate } from '@/lib/radar/candidate'
+import type { EventImportCandidate, CandidateStatus } from '@/lib/radar/candidate'
 import type { DiscoveryReport } from '@/lib/radar/discovery'
 import { StatusBadge, ConfidenceBadge } from './badges'
+
+type FilterKey = 'review' | 'decided' | 'failed' | 'all'
+
+// Real, actionable events first: needs_review before anything else, then by
+// confidence (high → low), then newest. So the "Festa e Birrës" rows float up
+// and the bureaucratic/low ones sink — no digging after a discovery run.
+const STATUS_RANK: Record<CandidateStatus, number> = {
+  needs_review: 0,
+  processing: 1,
+  approved: 2,
+  rejected: 3,
+  failed: 4,
+}
+const CONFIDENCE_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
+function confRank(c: EventImportCandidate): number {
+  return c.confidence ? (CONFIDENCE_RANK[c.confidence] ?? 3) : 3
+}
+
+function matchesFilter(c: EventImportCandidate, filter: FilterKey): boolean {
+  if (filter === 'all') return true
+  if (filter === 'review') return c.status === 'needs_review' || c.status === 'processing'
+  if (filter === 'failed') return c.status === 'failed'
+  return c.status === 'approved' || c.status === 'rejected' // decided
+}
 
 /**
  * Event Radar (RADAR-1) admin surface. Paste ONE public event URL → a
@@ -45,8 +71,33 @@ export default function EventRadarClient({
   const [discoveryError, setDiscoveryError] = useState<string | null>(null)
   const [discovery, setDiscovery] = useState<DiscoveryReport | null>(null)
 
+  const [filter, setFilter] = useState<FilterKey>('review')
+  const [clearing, setClearing] = useState(false)
+
   const canRun = url.trim().length > 0 && !running
   const canDiscover = sourceUrl.trim().length > 0 && !discovering
+
+  const counts = useMemo(() => {
+    const c = { review: 0, decided: 0, failed: 0, all: initialCandidates.length }
+    for (const cand of initialCandidates) {
+      if (matchesFilter(cand, 'review')) c.review++
+      else if (matchesFilter(cand, 'failed')) c.failed++
+      else if (matchesFilter(cand, 'decided')) c.decided++
+    }
+    return c
+  }, [initialCandidates])
+
+  const visible = useMemo(() => {
+    return initialCandidates
+      .filter((c) => matchesFilter(c, filter))
+      .sort((a, b) => {
+        const s = STATUS_RANK[a.status] - STATUS_RANK[b.status]
+        if (s !== 0) return s
+        const cf = confRank(a) - confRank(b)
+        if (cf !== 0) return cf
+        return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+      })
+  }, [initialCandidates, filter])
 
   async function runImport() {
     if (!canRun) return
@@ -108,6 +159,23 @@ export default function EventRadarClient({
       setDiscoveryError('Something went wrong reaching the discovery agent.')
     } finally {
       setDiscovering(false)
+    }
+  }
+
+  async function clearFailed() {
+    if (clearing || counts.failed === 0) return
+    if (!confirm(`Remove all ${counts.failed} unreadable imports? They can't be reviewed.`)) return
+    setClearing(true)
+    try {
+      const res = await fetch('/api/admin/event-radar/clear-failed', { method: 'POST' })
+      if (res.ok) {
+        if (filter === 'failed') setFilter('review')
+        router.refresh()
+      }
+    } catch {
+      /* leave them in place on failure */
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -231,17 +299,54 @@ export default function EventRadarClient({
       </div>
 
       <section className="mt-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/40">
-          Recent imports
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {([
+              ['review', 'To review', counts.review],
+              ['decided', 'Decided', counts.decided],
+              ['failed', 'Unreadable', counts.failed],
+              ['all', 'All', counts.all],
+            ] as [FilterKey, string, number][]).map(([key, label, n]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium transition',
+                  filter === key
+                    ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/40'
+                    : 'bg-white/[0.03] text-white/55 ring-1 ring-white/10 hover:text-white/80',
+                ].join(' ')}
+              >
+                {label}
+                <span className={filter === key ? 'text-flame-200/90' : 'text-white/40'}>{n}</span>
+              </button>
+            ))}
+          </div>
+          {counts.failed > 0 && (
+            <button
+              type="button"
+              onClick={() => void clearFailed()}
+              disabled={clearing}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-[12px] text-white/50 transition hover:border-flame-500/40 hover:text-flame-200 disabled:opacity-50"
+            >
+              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Clear {counts.failed} unreadable
+            </button>
+          )}
+        </div>
 
         {initialCandidates.length === 0 ? (
           <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-6 text-center text-sm text-white/45">
-            No imports yet. Paste a URL above to create your first candidate.
+            No imports yet. Paste a URL above, discover a source, or run your sources to create candidates.
+          </p>
+        ) : visible.length === 0 ? (
+          <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-6 text-center text-sm text-white/45">
+            Nothing in this view.
           </p>
         ) : (
           <ul className="space-y-2">
-            {initialCandidates.map((c) => (
+            {visible.map((c) => (
               <li key={c.id}>
                 <Link
                   href={`/admin/event-radar/${c.id}`}
