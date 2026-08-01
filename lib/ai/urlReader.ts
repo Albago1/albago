@@ -41,7 +41,7 @@ const BROWSER_HEADERS = {
 type UrlContent = {
   /** Assembled text signal handed to the model. */
   text: string
-  /** og:image (absolute), offered as a possible event photo. */
+  /** Best event image found (absolute) — OG/Twitter card, else a content <img>. */
   imageUrl: string | null
 }
 
@@ -100,6 +100,78 @@ function visibleText(html: string): string {
   )
 }
 
+/** Resolve an image src against the page URL; collapse the accidental `//` in a
+ *  path (some CMSs emit `host//storage/…`) and reject non-http(s) schemes. */
+function resolveImageUrl(src: string | null, baseUrl: string): string | null {
+  if (!src) return null
+  try {
+    const u = new URL(decodeEntities(src.trim()), baseUrl)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    u.pathname = u.pathname.replace(/\/{2,}/g, '/')
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+function linkImageSrc(html: string): string | null {
+  const m =
+    html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i) ||
+    html.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']image_src["']/i)
+  return m ? decodeEntities(m[1].trim()) : null
+}
+
+function imgAttr(tag: string, name: string): string | null {
+  const m = tag.match(new RegExp(`\\b${name}=["']([^"']+)["']`, 'i'))
+  return m ? m[1].trim() : null
+}
+
+// Chrome/logo/tracking assets that are never the event's photo.
+const NON_CONTENT_IMG =
+  /(logo|icon|sprite|favicon|avatar|placeholder|spacer|blank|pixel|1x1|badge|loader|loading|facebook\.com\/tr|\/tr\?)/i
+// Paths that mark a real uploaded/content image (vs. theme chrome).
+const CONTENT_IMG_PATH = /\/(uploads|storage|media|posters?|events?|photos?|files)\//i
+
+/** The event's own image URL from a candidate <img> tag, or null to skip it.
+ *  Handles lazy-load attrs and drops data:/svg/tiny/chrome images. */
+function imageFromTag(tag: string, baseUrl: string): string | null {
+  let src = imgAttr(tag, 'src')
+  if (!src || /^data:/i.test(src) || NON_CONTENT_IMG.test(src)) {
+    src =
+      imgAttr(tag, 'data-src') ||
+      imgAttr(tag, 'data-original') ||
+      imgAttr(tag, 'data-lazy-src') ||
+      imgAttr(tag, 'data-lazy') ||
+      src
+  }
+  if (!src) {
+    const ss = imgAttr(tag, 'srcset') || imgAttr(tag, 'data-srcset')
+    if (ss) src = ss.split(',')[0].trim().split(/\s+/)[0]
+  }
+  if (!src || /^data:/i.test(src) || /\.svg(\?|$)/i.test(src) || NON_CONTENT_IMG.test(src)) return null
+  // Skip images the page itself declares small (nav thumbs, sponsor logos).
+  const w = parseInt(imgAttr(tag, 'width') ?? '', 10)
+  const h = parseInt(imgAttr(tag, 'height') ?? '', 10)
+  if ((w && w < 150) || (h && h < 150)) return null
+  return resolveImageUrl(src, baseUrl)
+}
+
+/** When no OG/Twitter image exists, scan the body for the poster. Two passes:
+ *  first prefer an image on a real upload/content path (skips theme logos even
+ *  when their filename hides the word "logo"), then fall back to the first
+ *  substantial image anywhere. */
+function firstContentImage(html: string, baseUrl: string): string | null {
+  const tags = html.match(/<img\b[^>]*>/gi) ?? []
+  let firstAny: string | null = null
+  for (const tag of tags) {
+    const url = imageFromTag(tag, baseUrl)
+    if (!url) continue
+    if (CONTENT_IMG_PATH.test(new URL(url).pathname)) return url
+    if (!firstAny) firstAny = url
+  }
+  return firstAny
+}
+
 /**
  * Fetch a URL and distill it to the signal worth handing the model. Returns
  * null on network failure, non-HTML, or an empty page.
@@ -124,21 +196,24 @@ export async function fetchUrlContent(
 
   const ogTitle = metaContent(html, 'og:title')
   const ogDesc = metaContent(html, 'og:description')
-  const ogImageRaw = metaContent(html, 'og:image')
   const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim()
   const jsonLd = extractJsonLd(html)
   const body = visibleText(html)
 
-  // og:image is often relative or protocol-relative — resolve against the
-  // final URL so the client gets a loadable absolute src.
-  let imageUrl: string | null = null
-  if (ogImageRaw) {
-    try {
-      imageUrl = new URL(ogImageRaw, res.url || url).toString()
-    } catch {
-      imageUrl = null
-    }
-  }
+  const base = res.url || url
+  // Prefer the page's declared social-card image; many event/ticket pages (e.g.
+  // gowild.al) publish no OG tags at all, so fall back to the poster <img> in
+  // the body. Resolved absolute so the client gets a loadable src.
+  const imageUrl =
+    resolveImageUrl(
+      metaContent(html, 'og:image') ||
+        metaContent(html, 'og:image:url') ||
+        metaContent(html, 'og:image:secure_url') ||
+        metaContent(html, 'twitter:image') ||
+        metaContent(html, 'twitter:image:src') ||
+        linkImageSrc(html),
+      base,
+    ) || firstContentImage(html, base)
 
   const parts = [
     `Source URL: ${url}`,
