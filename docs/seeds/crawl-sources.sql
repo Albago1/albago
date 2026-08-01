@@ -44,20 +44,15 @@ CREATE INDEX IF NOT EXISTS crawl_sources_enabled_idx
 -- (bypasses RLS); this ensures an anon/authed client can never read or mutate.
 ALTER TABLE crawl_sources ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE tablename = 'crawl_sources' AND policyname = 'crawl_sources_admin_all'
-  ) THEN
-    CREATE POLICY crawl_sources_admin_all
-      ON crawl_sources
-      FOR ALL
-      TO authenticated
-      USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'))
-      WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
-  END IF;
-END $$;
+-- Idempotent without a DO/$$ block (the $$ quoting is fragile when pasted into
+-- the Supabase SQL editor): drop-then-create is safe to re-run.
+DROP POLICY IF EXISTS crawl_sources_admin_all ON crawl_sources;
+CREATE POLICY crawl_sources_admin_all
+  ON crawl_sources
+  FOR ALL
+  TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
 
 -- Verify
 SELECT column_name, data_type, is_nullable
