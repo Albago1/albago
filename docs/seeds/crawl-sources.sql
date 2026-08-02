@@ -54,8 +54,29 @@ CREATE POLICY crawl_sources_admin_all
   USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'))
   WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
 
+-- ── Curated starter sources ────────────────────────────────────────────────
+-- Vetted 2026-08-01 against the actual crawler (lib/crawl/discover.ts): each is
+-- SERVER-RENDERED (not a JS-only app), yields clean event-detail links, AND its
+-- detail pages are fetch-readable so the Lens URL reader can extract them. Most
+-- Albanian venue sites are JS/Wix/Facebook and yield nothing to a fetch crawler,
+-- so this list is deliberately small and high-signal — grow it via /admin/sources
+-- using "Run all now" to vet each new source's real-run yield before trusting it.
+--   • gowild.al        — ticketing aggregator, Tirana + Kosovo (~15 events/crawl)
+--   • enterevents.al   — festival ticketing (Sunny Hill, Panorama, …)
+--   • event.bna.al     — Albanian business-network conferences (diaspora: Berlin/London/Tirana)
+-- normalized_url mirrors lib/radar/normalizeUrl.ts so the panel/cron dedup on it.
+-- Idempotent: ON CONFLICT keeps re-runs safe. Pause any row from the panel.
+INSERT INTO crawl_sources (url, normalized_url, label, kind, enabled) VALUES
+  ('https://gowild.al/',              'https://gowild.al/',              'gowild.al',      'ticketing', true),
+  ('https://enterevents.al/events',   'https://enterevents.al/events',   'enterevents.al', 'ticketing', true),
+  ('https://event.bna.al/en/eventet', 'https://event.bna.al/en/eventet', 'event.bna.al',   'promoter',  true)
+ON CONFLICT (normalized_url) DO NOTHING;
+
 -- Verify
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_name = 'crawl_sources'
 ORDER BY ordinal_position;
+
+-- Confirm the seeded sources
+SELECT label, kind, enabled, url FROM crawl_sources ORDER BY created_at;

@@ -420,7 +420,12 @@ export default function AdminClient() {
       .select('source_url')
       .eq('submission_id', s.id)
       .maybeSingle()
-    const officialSourceUrl = (candidate as { source_url?: string } | null)?.source_url ?? null
+    const candidateSource = (candidate as { source_url?: string } | null)?.source_url ?? null
+    // Only a real http(s) page can be re-read by the verification robot. Pasted
+    // imports carry a synthetic `paste:` key, not a URL — leave their source
+    // unset so the loop never tries (and fails) to fetch a non-page.
+    const officialSourceUrl =
+      candidateSource && /^https?:\/\//i.test(candidateSource) ? candidateSource : null
 
     // Auto-seed cities row if this city isn't registered yet. Best-effort:
     // errors here are non-fatal — we still publish the event. Only runs when

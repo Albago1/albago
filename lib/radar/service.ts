@@ -1,11 +1,12 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { readEventFromUrl } from '@/lib/ai/urlReader'
+import { readEventFromUrl, readEventListFromText } from '@/lib/ai/urlReader'
 import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
 import { crawlReadingToSubmission } from '@/lib/crawl/toSubmission'
 import type { PosterReading } from '@/lib/ai/posterReader'
 import { assessReading } from './assess'
+import { isKeepableEvent } from './discoveryClassify'
 import {
   missingApprovalFields,
   translateSubmissionError,
@@ -142,6 +143,129 @@ export async function importFromUrl(
   })
 
   return upsert({ ...baseKeys, ...write })
+}
+
+/**
+ * Stable dedup key for a PASTED event, which has no source URL of its own. The
+ * same title + date + venue re-pasted collapses to one candidate, mirroring the
+ * URL-dedup guarantee. The `paste:` scheme is deliberately NOT http(s), so the
+ * approval loop-closer skips stamping it as an official_source_url — a pasted
+ * event has no live page for the verification robot to monitor.
+ */
+function pasteKey(reading: PosterReading): string {
+  const slug = (s: string | null | undefined) =>
+    (s ?? '')
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60)
+  return `paste:${slug(reading.title)}|${(reading.date ?? '').slice(0, 10)}|${slug(reading.venue_name)}`
+}
+
+// Bulk paste is a human-curated blob, not an unbounded crawl — cap the events
+// read from one paste so a giant dump can't run away with the LLM budget.
+const TEXT_MAX_EVENTS = 25
+
+export type TextImportOutcome = 'imported' | 'duplicate' | 'not_event' | 'error'
+
+export type TextImportItem = {
+  title: string
+  outcome: TextImportOutcome
+  candidateId?: string
+  message?: string
+}
+
+export type TextImportResult = {
+  /** How many events the reader pulled out of the pasted text. */
+  found: number
+  imported: number
+  duplicate: number
+  notEvent: number
+  errors: number
+  items: TextImportItem[]
+}
+
+/**
+ * Import a block of PASTED text (e.g. an events list copied out of ChatGPT, an
+ * email, or a PDF) into the ONE candidate queue. Each extracted event becomes a
+ * transparently-scored candidate exactly like a URL import — the only
+ * difference is there is nothing to fetch, so this sidesteps JS-walled sites
+ * entirely. Idempotent by a synthetic `paste:` key so re-pasting the same list
+ * never duplicates. Nothing is published; an admin approves in one click.
+ */
+export async function importFromText(
+  pastedText: string,
+  importedBy: string | null,
+): Promise<TextImportResult> {
+  const result: TextImportResult = {
+    found: 0,
+    imported: 0,
+    duplicate: 0,
+    notEvent: 0,
+    errors: 0,
+    items: [],
+  }
+
+  let readings: PosterReading[]
+  try {
+    readings = await readEventListFromText(pastedText, todayIso(), TEXT_MAX_EVENTS)
+  } catch {
+    return result
+  }
+  result.found = readings.length
+
+  const db = admin()
+  for (const reading of readings) {
+    const title = reading.title || 'Untitled'
+
+    // Same gate the discovery agent uses: drop non-events / thin reads so a
+    // stray paragraph in the paste never clogs the review queue.
+    if (!isKeepableEvent(reading)) {
+      result.notEvent++
+      result.items.push({ title, outcome: 'not_event' })
+      continue
+    }
+
+    const key = pasteKey(reading)
+    const { data: existingRow } = await db
+      .from(TABLE)
+      .select(SELECT)
+      .eq('normalized_url', key)
+      .maybeSingle()
+    const existing = existingRow as EventImportCandidate | null
+    if (existing && existing.status !== 'failed') {
+      result.duplicate++
+      result.items.push({ title, outcome: 'duplicate', candidateId: existing.id })
+      continue
+    }
+
+    const resolution = await resolveSafely(reading)
+    const assessment = assessReading(reading, resolution, todayIso(), { broadSource: false })
+    const write = buildCandidateWrite({
+      reading,
+      resolution,
+      assessment,
+      imageUrl: null,
+      sourceName: 'Pasted list',
+    })
+    const saved = await upsert({
+      source_url: key,
+      normalized_url: key,
+      imported_by: importedBy,
+      // `...write` already carries source_name ('Pasted list', from buildCandidateWrite).
+      ...write,
+    })
+    if (!saved.ok) {
+      result.errors++
+      result.items.push({ title, outcome: 'error', message: saved.message })
+      continue
+    }
+    result.imported++
+    result.items.push({ title, outcome: 'imported', candidateId: saved.candidate.id })
+  }
+
+  return result
 }
 
 /** Upsert by normalized_url and return the stored candidate (or a db_error). */

@@ -11,7 +11,6 @@ import {
   ListChecks,
   LogOut,
   Megaphone,
-  Radar,
   Radio,
   ScanSearch,
   Send,
@@ -62,7 +61,6 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
     { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
     { href: '/admin/event-radar', label: 'Event Radar', icon: ScanSearch },
     { href: '/admin/sources', label: 'Sources', icon: ListChecks },
-    { href: '/admin/crawl', label: 'Crawl', icon: Radar },
   ]
 
   const handleSignOut = async () => {

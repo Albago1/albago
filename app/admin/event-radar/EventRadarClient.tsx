@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   AlertTriangle,
   ArrowRight,
-  ExternalLink,
+  ClipboardList,
   Loader2,
   Radar,
   ScanSearch,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import type { EventImportCandidate, CandidateStatus } from '@/lib/radar/candidate'
 import type { DiscoveryReport } from '@/lib/radar/discovery'
+import type { TextImportResult } from '@/lib/radar/service'
 import { StatusBadge, ConfidenceBadge } from './badges'
 
 type FilterKey = 'review' | 'decided' | 'failed' | 'all'
@@ -71,11 +72,17 @@ export default function EventRadarClient({
   const [discoveryError, setDiscoveryError] = useState<string | null>(null)
   const [discovery, setDiscovery] = useState<DiscoveryReport | null>(null)
 
+  const [pasteText, setPasteText] = useState('')
+  const [pasting, setPasting] = useState(false)
+  const [pasteError, setPasteError] = useState<string | null>(null)
+  const [pasteResult, setPasteResult] = useState<TextImportResult | null>(null)
+
   const [filter, setFilter] = useState<FilterKey>('review')
   const [clearing, setClearing] = useState(false)
 
   const canRun = url.trim().length > 0 && !running
   const canDiscover = sourceUrl.trim().length > 0 && !discovering
+  const canPaste = pasteText.trim().length >= 10 && !pasting
 
   const counts = useMemo(() => {
     const c = { review: 0, decided: 0, failed: 0, all: initialCandidates.length }
@@ -159,6 +166,39 @@ export default function EventRadarClient({
       setDiscoveryError('Something went wrong reaching the discovery agent.')
     } finally {
       setDiscovering(false)
+    }
+  }
+
+  async function runPasteImport() {
+    if (!canPaste) return
+    setPasting(true)
+    setPasteError(null)
+    setPasteResult(null)
+    try {
+      const res = await fetch('/api/admin/event-radar/import-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: pasteText.trim() }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.ok) {
+        setPasteError(
+          res.status === 403
+            ? 'Not authorized — sign in as an admin.'
+            : json?.error === 'text_required'
+              ? 'Paste at least a few lines of event text first.'
+              : json?.message || `Import failed (${json?.error ?? res.status}).`,
+        )
+        return
+      }
+      setPasteResult(json.result as TextImportResult)
+      setPasteText('')
+      // New candidates were written — pull the fresh list into the history.
+      router.refresh()
+    } catch {
+      setPasteError('Something went wrong reaching the importer.')
+    } finally {
+      setPasting(false)
     }
   }
 
@@ -298,6 +338,75 @@ export default function EventRadarClient({
         )}
       </div>
 
+      <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-flame-300" />
+          <h2 className="text-sm font-semibold text-white/90">Paste a list of events</h2>
+        </div>
+        <p className="mt-1.5 text-xs text-white/50">
+          Copy an events list out of ChatGPT, an email, or a PDF and paste it here. No crawling —
+          every event in the text is read into a scored candidate below. Best for sources the
+          crawler can&apos;t reach (Facebook, Instagram, login-walled pages).
+        </p>
+
+        <textarea
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          rows={5}
+          placeholder={
+            'Festa e Birrës — 22 August, 20:00, Sheshi Skënderbej, Tirana. Free.\nKoncert Elita 5 — 5 September, 21:00, Amfiteatri, Durrës. 1500 lekë.\n…'
+          }
+          spellCheck={false}
+          className="mt-3 w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-[13px] leading-relaxed text-white placeholder:text-white/25 focus:border-flame-500/40 focus:outline-none focus:ring-1 focus:ring-flame-500/30"
+        />
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <span className="text-[11px] text-white/35">
+            {pasteText.trim().length > 0 ? `${pasteText.trim().length} characters` : 'Up to 25 events per paste'}
+          </span>
+          <button
+            type="button"
+            onClick={() => void runPasteImport()}
+            disabled={!canPaste}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-flame-500/40 bg-flame-500/10 px-5 text-sm font-semibold text-flame-200 transition hover:bg-flame-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {pasting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+            {pasting ? 'Reading…' : 'Import events'}
+          </button>
+        </div>
+
+        {pasting && (
+          <p className="mt-2.5 text-[11px] text-white/40">
+            Reading every event out of the text — this can take a moment.
+          </p>
+        )}
+        {pasteError && (
+          <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-flame-500/30 bg-flame-500/10 px-3 py-2 text-xs text-flame-200">
+            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span>{pasteError}</span>
+          </div>
+        )}
+        {pasteResult && (
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 text-xs text-white/70">
+            {pasteResult.found === 0 ? (
+              <span className="text-white/50">
+                No events found in that text. Make sure each event names at least a title and a date.
+              </span>
+            ) : (
+              <span>
+                Read <span className="font-semibold text-white">{pasteResult.found}</span>{' '}
+                {pasteResult.found === 1 ? 'event' : 'events'} ·{' '}
+                <span className="font-semibold text-emerald-300">{pasteResult.imported}</span> new
+                {pasteResult.duplicate > 0 && <> · {pasteResult.duplicate} already imported</>}
+                {pasteResult.notEvent > 0 && <> · {pasteResult.notEvent} skipped (not events)</>}
+                {pasteResult.errors > 0 && <> · {pasteResult.errors} errored</>}
+                . New candidates appear below.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       <section className="mt-8">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -388,10 +497,10 @@ export default function EventRadarClient({
       </section>
 
       <p className="mt-8 flex items-center gap-1.5 text-[11px] text-white/35">
-        <ExternalLink className="h-3 w-3" />
-        Looking to import many sources at once? Use{' '}
-        <Link href="/admin/crawl" className="text-white/55 underline-offset-2 hover:underline">
-          Crawl
+        <Radar className="h-3 w-3" />
+        Managing sources that run automatically every night? Use{' '}
+        <Link href="/admin/sources" className="text-white/55 underline-offset-2 hover:underline">
+          Sources
         </Link>
         .
       </p>
