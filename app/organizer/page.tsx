@@ -35,11 +35,28 @@ export default async function OrganizerPage() {
   } | null
   const studioAccess = profile?.role === 'admin' || profile?.studio_access === true
 
+  // Which of this organizer's events have live ticket tiers — so the dashboard
+  // can show a "Tickets" action only where there's something to manage. RLS
+  // scopes ticket_tiers reads to the owner; we still constrain to our event ids.
+  const eventIds = events.map((e) => e.id)
+  let eventIdsWithTickets: string[] = []
+  if (eventIds.length > 0) {
+    const { data: tierRows } = await supabase
+      .from('ticket_tiers')
+      .select('event_id')
+      .in('event_id', eventIds)
+      .neq('status', 'archived')
+    eventIdsWithTickets = [
+      ...new Set(((tierRows as { event_id: string }[] | null) ?? []).map((r) => r.event_id)),
+    ]
+  }
+
   return (
     <OrganizerDashboardClient
       organizer={organizer}
       events={events}
       studioAccess={studioAccess}
+      eventIdsWithTickets={eventIdsWithTickets}
     />
   )
 }

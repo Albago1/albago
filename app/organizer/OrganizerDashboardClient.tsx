@@ -22,6 +22,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Ticket,
   TrendingUp,
   Users,
   X,
@@ -209,9 +210,10 @@ type EventRowProps = {
   organizer: Organizer
   canRepost: boolean
   studioAccess?: boolean
+  hasTickets?: boolean
 }
 
-function EventRow({ event, organizer, canRepost, studioAccess }: EventRowProps) {
+function EventRow({ event, organizer, canRepost, studioAccess, hasTickets }: EventRowProps) {
   const [shareOpen, setShareOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const repostable = canRepost && isRepostable(event)
@@ -294,6 +296,15 @@ function EventRow({ event, organizer, canRepost, studioAccess }: EventRowProps) 
               Edit
             </Link>
           )}
+          {hasTickets && (
+            <Link
+              href={`/organizer/events/${event.id}/tickets`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-3 py-1.5 text-xs font-semibold text-flame-300 transition hover:border-flame-500/50 hover:bg-flame-500/[0.15] hover:text-flame-200"
+            >
+              <Ticket className="h-3.5 w-3.5" />
+              Tickets
+            </Link>
+          )}
           {event.status === 'published' && (
             <button
               type="button"
@@ -340,12 +351,18 @@ export default function OrganizerDashboardClient({
   organizer,
   events,
   studioAccess = false,
+  eventIdsWithTickets = [],
 }: {
   organizer: Organizer
   events: OrganizerEvent[]
   studioAccess?: boolean
+  eventIdsWithTickets?: string[]
 }) {
   const canRepost = organizer.verification_tier === 'verified'
+  const ticketedEventIds = useMemo(
+    () => new Set(eventIdsWithTickets),
+    [eventIdsWithTickets],
+  )
 
   const upcoming = useMemo(
     () =>
@@ -892,6 +909,7 @@ export default function OrganizerDashboardClient({
                     organizer={organizer}
                     canRepost={canRepost}
                     studioAccess={studioAccess}
+                    hasTickets={ticketedEventIds.has(event.id)}
                   />
                 ))}
               </div>
@@ -914,6 +932,7 @@ export default function OrganizerDashboardClient({
                     organizer={organizer}
                     canRepost={canRepost}
                     studioAccess={studioAccess}
+                    hasTickets={ticketedEventIds.has(event.id)}
                   />
                 ))}
               </div>
@@ -936,6 +955,7 @@ export default function OrganizerDashboardClient({
                     organizer={organizer}
                     canRepost={canRepost}
                     studioAccess={studioAccess}
+                    hasTickets={ticketedEventIds.has(event.id)}
                   />
                 ))}
               </div>
