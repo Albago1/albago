@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  ShieldQuestion,
   Square,
   Trash2,
   Users,
@@ -40,6 +41,7 @@ type SubmissionRow = {
   timezone: string | null
   price: string | null
   contact_email: string
+  submitted_by_user_id: string | null
   status: string
   admin_note: string | null
   created_at: string
@@ -90,6 +92,8 @@ type EventRow = {
   region: string | null
   origin: string | null
   organizer_id: string | null
+  organizer_name: string | null
+  submitted_by_user_id: string | null
   admin_note: string | null
   is_civic: boolean | null
   event_type: string | null
@@ -132,6 +136,10 @@ type UnifiedRow = {
   lat?: number | null
   lng?: number | null
   organizerId?: string | null
+  // Internal provenance: the real auth account that posted this, regardless of
+  // the free-text organizer name shown publicly. Resolved to an email in the UI.
+  submittedByUserId?: string | null
+  organizerName?: string | null
 }
 
 type SourceFilter = 'all' | 'submissions' | 'events' | 'organizer'
@@ -185,6 +193,8 @@ function mapSubmission(s: SubmissionRow): UnifiedRow {
     createdAt: s.created_at,
     venueName: s.venue_name,
     contactEmail: s.contact_email,
+    submittedByUserId: s.submitted_by_user_id,
+    organizerName: s.organizer_name,
     lat: s.lat,
     lng: s.lng,
   }
@@ -230,6 +240,8 @@ function mapEvent(e: EventRow): UnifiedRow {
     createdAt: e.created_at,
     slug: e.slug,
     organizerId: e.organizer_id,
+    submittedByUserId: e.submitted_by_user_id,
+    organizerName: e.organizer_name,
   }
 }
 
@@ -298,6 +310,9 @@ export default function AdminClient() {
 
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([])
   const [events, setEvents] = useState<EventRow[]>([])
+  // Real auth-account emails, resolved from poster IDs (auth.users isn't
+  // browser-readable — admin_user_emails RPC does it server-side).
+  const [posterEmails, setPosterEmails] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [actionId, setActionId] = useState<string | null>(null)
@@ -331,7 +346,7 @@ export default function AdminClient() {
       supabase
         .from('events')
         .select(
-          'id, slug, title, description, category, date, time, price, highlight, status, location_slug, country, region, origin, organizer_id, admin_note, is_civic, event_type, featured_movement_slug, expected_attendees, telegram_link, whatsapp_link, safety_notes, created_at',
+          'id, slug, title, description, category, date, time, price, highlight, status, location_slug, country, region, origin, organizer_id, organizer_name, submitted_by_user_id, admin_note, is_civic, event_type, featured_movement_slug, expected_attendees, telegram_link, whatsapp_link, safety_notes, created_at',
         )
         .order('created_at', { ascending: false })
         .limit(500),
@@ -348,6 +363,35 @@ export default function AdminClient() {
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
+
+  // Resolve poster IDs (community submitters + organizer accounts) to real
+  // emails. Only fetches IDs we haven't resolved yet, so it settles quickly.
+  useEffect(() => {
+    const ids = new Set<string>()
+    for (const s of submissions) if (s.submitted_by_user_id) ids.add(s.submitted_by_user_id)
+    for (const e of events) {
+      if (e.submitted_by_user_id) ids.add(e.submitted_by_user_id)
+      if (e.organizer_id) ids.add(e.organizer_id)
+    }
+    const missing = [...ids].filter((id) => !posterEmails.has(id))
+    if (missing.length === 0) return
+
+    let cancelled = false
+    void (async () => {
+      const { data, error } = await supabase.rpc('admin_user_emails', { p_ids: missing })
+      if (cancelled || error || !data) return
+      const found = new Map((data as { id: string; email: string }[]).map((r) => [r.id, r.email]))
+      setPosterEmails((prev) => {
+        const next = new Map(prev)
+        // Record every attempted id (unresolved → '') so we never re-query it.
+        for (const id of missing) next.set(id, found.get(id) ?? '')
+        return next
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [submissions, events, posterEmails, supabase])
 
   const unifiedRows: UnifiedRow[] = useMemo(() => {
     const sub = submissions.map(mapSubmission)
@@ -476,6 +520,8 @@ export default function AdminClient() {
         banner_url: s.banner_url ?? null,
         // Source page for the daily verification loop (imported events only).
         official_source_url: officialSourceUrl,
+        // Retain the real posting account so provenance survives approval.
+        submitted_by_user_id: s.submitted_by_user_id ?? null,
         organizer_name: s.organizer_name ?? null,
         organizer_phone: s.organizer_phone ?? null,
         organizer_website: s.organizer_website ?? null,
@@ -1088,6 +1134,7 @@ export default function AdminClient() {
                     row.source === 'submission' ? deleteSubmission(row) : deleteEvent(row)
                   }
                   onRepost={() => setRepostSource({ id: row.rowId, title: row.title })}
+                  posterEmail={posterEmails.get(row.submittedByUserId ?? row.organizerId ?? '')}
                 />
               ))}
             </tbody>
@@ -1313,6 +1360,7 @@ function QueueRow(props: {
   onPatchEventStatus: (row: UnifiedRow, nextStatus: string, label: string) => void
   onDelete: () => void
   onRepost: () => void
+  posterEmail?: string
 }) {
   const {
     row,
@@ -1329,6 +1377,7 @@ function QueueRow(props: {
     onPatchEventStatus,
     onDelete,
     onRepost,
+    posterEmail,
   } = props
 
   const selectable = canApprove(row) || canReject(row)
@@ -1492,6 +1541,7 @@ function QueueRow(props: {
             <QueueRowDetail
               row={row}
               isWorking={isWorking}
+              posterEmail={posterEmail}
               onPatchEventStatus={onPatchEventStatus}
               onDelete={onDelete}
               onRepost={onRepost}
@@ -1506,19 +1556,57 @@ function QueueRow(props: {
 function QueueRowDetail({
   row,
   isWorking,
+  posterEmail,
   onPatchEventStatus,
   onDelete,
   onRepost,
 }: {
   row: UnifiedRow
   isWorking: boolean
+  posterEmail?: string
   onPatchEventStatus: (row: UnifiedRow, nextStatus: string, label: string) => void
   onDelete: () => void
   onRepost: () => void
 }) {
+  // The public "organizer" line is free-text and can name anyone. Show who
+  // actually posted this: the real auth account, with the public name beside it.
+  const posterId = row.submittedByUserId ?? row.organizerId ?? null
+  const publicName = row.organizerName?.trim() || null
 
   return (
     <div className="space-y-3">
+      {(posterId || publicName) && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+          <div className="mb-0.5 flex items-center gap-1.5 font-semibold uppercase tracking-wide text-white/40">
+            <ShieldQuestion className="h-3.5 w-3.5" />
+            Posted by (internal)
+          </div>
+          {posterId ? (
+            <p className="text-white/80">
+              {posterEmail ? (
+                <a href={`mailto:${posterEmail}`} className="text-flame-300 hover:underline">
+                  {posterEmail}
+                </a>
+              ) : (
+                <span className="text-white/50">
+                  account <code className="rounded bg-white/10 px-1 text-[10px]">{posterId.slice(0, 8)}</code>
+                </span>
+              )}
+              {row.organizerId && (
+                <span className="ml-1 text-white/40">· organizer account</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-white/45">Real account not recorded (legacy or imported).</p>
+          )}
+          {publicName && (
+            <p className="mt-0.5 text-white/45">
+              Shown publicly as “<span className="text-white/70">{publicName}</span>”
+            </p>
+          )}
+        </div>
+      )}
+
       {row.description && (
         <p className="max-w-3xl whitespace-pre-line text-sm leading-6 text-white/70">
           {row.description}
