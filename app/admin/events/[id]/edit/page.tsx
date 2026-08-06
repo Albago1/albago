@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import EditEventClient, { type EditableEvent } from './EditEventClient'
+import AdminEditEventClient from './AdminEditEventClient'
 
 export const metadata: Metadata = {
   title: 'Admin · Edit event',
@@ -29,11 +29,11 @@ export default async function AdminEditEventPage({
 
   if (profile?.role !== 'admin') redirect('/dashboard')
 
+  // select('*') so the wizard seeds from the complete row (address_hint,
+  // gallery_urls, cover_in_gallery, content_sections, venue_name, city, …).
   const { data: event, error } = await supabase
     .from('events')
-    .select(
-      'id, slug, title, description, category, date, end_date, time, end_time, timezone, price, highlight, status, location_slug, country, region, lat, lng, address, is_online, online_url, tags, language, banner_url, admin_note, event_type, is_civic, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, origin, organizer_id, created_at, updated_at',
-    )
+    .select('*')
     .eq('id', id)
     .maybeSingle()
 
@@ -41,7 +41,7 @@ export default async function AdminEditEventPage({
 
   return (
     <div className="px-4 py-6 sm:px-6">
-      <EditEventClient initial={event as EditableEvent} />
+      <AdminEditEventClient event={event as Record<string, unknown>} />
     </div>
   )
 }

@@ -514,3 +514,88 @@ export async function submitAdminEvent(
 
   return { id: eventId, slug, error: null }
 }
+
+/**
+ * Update an existing event straight from the wizard, in admin mode. Admins get
+ * a direct events UPDATE (guarded by the admins-update-events RLS policy), so
+ * the whole wizard draft — including the Phase-35 media fields — is written in
+ * one round trip; no whitelist RPC to drift out of sync. Status is deliberately
+ * left untouched: a published event stays published ("save & live instantly").
+ * Manual edits null the LENS-3 translation packs so stale translations can't
+ * shadow the new text, mirroring the organizer/admin RPC editors.
+ */
+export async function updateAdminEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+  draft: EventDraft,
+): Promise<SubmitResult> {
+  const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
+  const category = draft.category || (isCivic ? 'civic' : 'culture')
+
+  const { error } = await supabase
+    .from('events')
+    .update({
+      title: draft.title.trim(),
+      title_i18n: null,
+      category,
+      description: draft.description.trim(),
+      description_i18n: null,
+      date: draft.date,
+      end_date: trim(draft.end_date),
+      time: trim(draft.time),
+      end_time: trim(draft.end_time),
+      timezone: trim(draft.timezone),
+      price: trim(draft.price),
+      country: trim(draft.country) ?? 'Unknown',
+      region: trim(draft.region),
+      location_slug: trim(draft.location_slug) ?? 'unknown',
+      lat: draft.lat,
+      lng: draft.lng,
+      address: trim(draft.address),
+      address_hint: trim(draft.address_hint),
+      is_online: draft.is_online,
+      online_url: trim(draft.online_url),
+      tags: draft.tags,
+      language: trim(draft.language) ?? 'en',
+      banner_url: draft.gallery_urls[0] ?? null,
+      gallery_urls: draft.gallery_urls,
+      cover_in_gallery: draft.cover_in_gallery,
+      content_sections: normalizeSections(draft.content_sections),
+      organizer_name: trim(draft.organizer_name),
+      organizer_phone: trim(draft.organizer_phone),
+      organizer_website: trim(draft.organizer_website),
+      organizer_socials: hasAnySocial(draft.organizer_socials)
+        ? cleanSocials(draft.organizer_socials)
+        : null,
+      organizer_contact: trim(draft.organizer_contact),
+      recurrence: draft.recurrence,
+      recurrence_until: trim(draft.recurrence_until),
+      recurrence_days_of_week: draft.recurrence_days_of_week,
+      recurrence_exceptions: draft.recurrence_exceptions,
+      // Civic fields written unconditionally so toggling civic off clears them.
+      event_type: isCivic ? 'protest' : null,
+      is_civic: isCivic,
+      featured_movement_slug: isCivic ? trim(draft.featured_movement_slug) : null,
+      telegram_link: isCivic ? trim(draft.telegram_link) : null,
+      whatsapp_link: isCivic ? trim(draft.whatsapp_link) : null,
+      safety_notes: isCivic ? trim(draft.safety_notes) : null,
+      expected_attendees:
+        isCivic && draft.expected_attendees
+          ? parseAttendees(draft.expected_attendees)
+          : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', eventId)
+
+  if (error) {
+    logSubmitError('updateAdminEvent', error)
+    return { id: null, error: GENERIC_UPDATE_ERROR }
+  }
+
+  // Full tier sync (incl. archiving removed tiers / turning tickets off).
+  if (!isCivic) {
+    await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
+  }
+
+  return { id: eventId, error: null }
+}

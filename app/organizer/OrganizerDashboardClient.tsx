@@ -217,7 +217,13 @@ function EventRow({ event, organizer, canRepost, studioAccess, hasTickets }: Eve
   const [shareOpen, setShareOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const repostable = canRepost && isRepostable(event)
-  const isEditable = event.status === 'draft' || event.status === 'rejected'
+  // Published events are editable too now — Edit opens the same create wizard,
+  // pre-filled, and saving republishes instantly (unverified organizers go back
+  // through review). In-review events stay locked until a decision lands.
+  const isEditable =
+    event.status === 'draft' ||
+    event.status === 'rejected' ||
+    event.status === 'published'
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-start">
