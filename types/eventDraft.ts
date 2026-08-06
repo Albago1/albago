@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from 'react'
 
-export const MAX_EVENT_PHOTOS = 5
 export const MAX_TICKET_TIERS = 5
 
 /**
@@ -85,7 +84,7 @@ export type EventDraft = {
 
   // Step 6 — Media
   /** Photo URLs (Supabase Storage). First one is treated as the cover.
-   *  Capped at MAX_EVENT_PHOTOS in the UI; column is unbounded server-side. */
+   *  Unlimited — the UI no longer caps the count. */
   gallery_urls: string[]
 
   // Step 7 — Organizer

@@ -22,7 +22,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { EventDraft } from '@/types/eventDraft'
-import { MAX_EVENT_PHOTOS } from '@/types/eventDraft'
 import { useImageUpload } from '@/hooks/useImageUpload'
 
 type Props = {
@@ -158,17 +157,12 @@ export default function MediaStep({ draft, patch }: Props) {
     }
   }, [localPreviews])
 
-  const remainingSlots = MAX_EVENT_PHOTOS - draft.gallery_urls.length
-
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     setStepError(null)
 
-    const asArray = Array.from(files).slice(0, remainingSlots)
-    if (asArray.length === 0) {
-      setStepError(`You can attach at most ${MAX_EVENT_PHOTOS} photos.`)
-      return
-    }
+    const asArray = Array.from(files)
+    if (asArray.length === 0) return
 
     const previewUrls = asArray.map((f) => URL.createObjectURL(f))
     setLocalPreviews((prev) => [...prev, ...previewUrls])
@@ -211,14 +205,13 @@ export default function MediaStep({ draft, patch }: Props) {
   }
 
   const hasPhotos = draft.gallery_urls.length > 0
-  const canAddMore = remainingSlots > 0
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold text-white">Photos</h2>
         <p className="mt-1 text-sm text-white/55">
-          Add up to {MAX_EVENT_PHOTOS}. Drag to reorder — the first photo is your
+          Add as many as you like. Drag to reorder — the first photo is your
           cover. JPG, PNG, WebP, or AVIF, up to 8&nbsp;MB each.
         </p>
       </div>
@@ -266,41 +259,32 @@ export default function MediaStep({ draft, patch }: Props) {
         </DndContext>
       )}
 
-      {canAddMore ? (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-white/15 bg-white/[0.02] p-10 text-center transition hover:border-flame-500/40 hover:bg-flame-500/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {uploading ? (
-            <>
-              <UploadCloud className="h-10 w-10 animate-pulse text-flame-300" />
-              <span className="text-sm font-semibold text-white">Uploading…</span>
-              <span className="text-xs text-white/45">
-                Don&apos;t close this tab
-              </span>
-            </>
-          ) : (
-            <>
-              <ImageIcon className="h-10 w-10 text-white/45" />
-              <span className="text-sm font-semibold text-white">
-                {hasPhotos
-                  ? `Add more (${remainingSlots} left)`
-                  : 'Click to upload photos'}
-              </span>
-              <span className="text-xs text-white/45">
-                Recommended 1600 × 900 px for the cover. Up to 8&nbsp;MB each.
-              </span>
-            </>
-          )}
-        </button>
-      ) : (
-        <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center text-xs text-white/55">
-          You&apos;ve hit the {MAX_EVENT_PHOTOS}-photo limit. Remove one to add a
-          different shot.
-        </p>
-      )}
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="flex w-full flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-white/15 bg-white/[0.02] p-10 text-center transition hover:border-flame-500/40 hover:bg-flame-500/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {uploading ? (
+          <>
+            <UploadCloud className="h-10 w-10 animate-pulse text-flame-300" />
+            <span className="text-sm font-semibold text-white">Uploading…</span>
+            <span className="text-xs text-white/45">
+              Don&apos;t close this tab
+            </span>
+          </>
+        ) : (
+          <>
+            <ImageIcon className="h-10 w-10 text-white/45" />
+            <span className="text-sm font-semibold text-white">
+              {hasPhotos ? 'Add more photos' : 'Click to upload photos'}
+            </span>
+            <span className="text-xs text-white/45">
+              Recommended 1600 × 900 px for the cover. Up to 8&nbsp;MB each.
+            </span>
+          </>
+        )}
+      </button>
 
       <input
         ref={inputRef}
