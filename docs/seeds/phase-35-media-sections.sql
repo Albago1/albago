@@ -46,7 +46,7 @@ create or replace function public._normalize_media_sections(p_sections jsonb)
 returns jsonb
 language sql
 immutable
-as $$
+as $norm$
   select coalesce(
     jsonb_agg(section order by ord)
       filter (
@@ -75,7 +75,7 @@ as $$
       case when jsonb_typeof(p_sections) = 'array' then p_sections else '[]'::jsonb end
     ) with ordinality as t(elem, ord)
   ) normalized;
-$$;
+$norm$;
 
 -- -----------------------------------------------------------------------------
 -- 3. set_event_media — owner-or-admin writes the two media fields on an event.
@@ -92,7 +92,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $sem$
 declare
   uid uuid := auth.uid();
 begin
@@ -111,7 +111,7 @@ begin
     raise exception 'not_found_or_not_owner';
   end if;
 end;
-$$;
+$sem$;
 
 grant execute on function public.set_event_media(uuid, jsonb, boolean) to authenticated;
 
@@ -130,7 +130,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $ssm$
 declare
   uid uuid := auth.uid();
 begin
@@ -148,6 +148,6 @@ begin
     raise exception 'not_found_or_not_owner';
   end if;
 end;
-$$;
+$ssm$;
 
 grant execute on function public.set_submission_media(uuid, jsonb, boolean) to authenticated;
