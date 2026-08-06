@@ -28,6 +28,7 @@ import SaveEventButton from '@/components/SaveEventButton'
 import ReportEventButton from '@/components/ReportEventButton'
 import MapPickerButton from '@/components/MapPickerButton'
 import EventGallery from '@/components/EventGallery'
+import EventSections from '@/components/events/EventSections'
 import SimilarEvents from '@/components/events/SimilarEvents'
 import LocalizedEventText from '@/components/events/LocalizedEventText'
 import EventWeatherCard from '@/components/events/EventWeatherCard'
@@ -116,6 +117,8 @@ type EventRecord = {
   language: string | null
   banner_url: string | null
   gallery_urls: string[] | null
+  cover_in_gallery: boolean | null
+  content_sections: Array<{ title: string; body: string; urls: string[] }> | null
   is_civic: boolean | null
   event_type: string | null
   featured_movement_slug: string | null
@@ -225,7 +228,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, status, title, title_i18n, description, description_i18n, category, date, end_date, time, end_time, timezone, price, ticket_url, ticket_provider, price_from_cents, price_currency, ticket_sales_status, door_tickets, age_restriction, official_source_url, last_verified_at, listing_status, doors_time, practical_info, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at, bio )'
+      'id, slug, status, title, title_i18n, description, description_i18n, category, date, end_date, time, end_time, timezone, price, ticket_url, ticket_provider, price_from_cents, price_currency, ticket_sales_status, door_tickets, age_restriction, official_source_url, last_verified_at, listing_status, doors_time, practical_info, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, cover_in_gallery, content_sections, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at, bio )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -1214,14 +1217,27 @@ export default async function EventDetailPage(
 
             <EventGallery
               urls={
-                (event.gallery_urls && event.gallery_urls.length > 0
-                  ? event.gallery_urls
-                  : event.banner_url
-                    ? [event.banner_url]
-                    : []) as string[]
+                (() => {
+                  const base =
+                    event.gallery_urls && event.gallery_urls.length > 0
+                      ? event.gallery_urls
+                      : event.banner_url
+                        ? [event.banner_url]
+                        : []
+                  // Cover independence: when the organizer opted the cover out
+                  // of the deck, drop the first photo (the hero shows it up top
+                  // already). Default/true keeps the legacy repeat.
+                  return event.cover_in_gallery === false
+                    ? base.slice(1)
+                    : base
+                })() as string[]
               }
               alt={event.title}
             />
+
+            {event.content_sections && event.content_sections.length > 0 && (
+              <EventSections sections={event.content_sections} />
+            )}
 
             {/* Tags — supplementary metadata, kept quiet and low on the page
                 rather than competing with the title in the hero. */}

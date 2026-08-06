@@ -103,6 +103,11 @@ function eventRowToDraft(
       : row.banner_url
         ? [row.banner_url as string]
         : [],
+    cover_in_gallery:
+      typeof row.cover_in_gallery === 'boolean' ? row.cover_in_gallery : true,
+    content_sections: Array.isArray(row.content_sections)
+      ? (row.content_sections as EventDraft['content_sections'])
+      : [],
     organizer_name: (row.organizer_name as string) ?? '',
     organizer_contact: (row.organizer_contact as string) ?? '',
     organizer_phone: (row.organizer_phone as string) ?? '',

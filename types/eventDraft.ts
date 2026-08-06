@@ -2,6 +2,39 @@ import { useCallback, useEffect, useReducer, useState } from 'react'
 
 export const MAX_TICKET_TIERS = 5
 
+/** How long a section heading / blurb may be before the DB trims it. Mirrored
+ *  in the set_event_media / set_submission_media RPCs so client and server
+ *  agree on the caps. */
+export const MAX_SECTION_TITLE = 120
+export const MAX_SECTION_BODY = 2000
+
+/**
+ * One named photo section on an event page (e.g. "The Venue", "Lineup").
+ * Rendered as its own band below the main gallery. `urls` are Supabase Storage
+ * photo URLs, ordered; a section with no title, no body and no photos is
+ * dropped at submit time.
+ */
+export type MediaSection = {
+  title: string
+  body: string
+  urls: string[]
+}
+
+/**
+ * Trim sections for persistence: cap the text fields, keep only real photo
+ * URLs, and drop any section that carries neither text nor photos. Shared by
+ * every submit path so the DB never stores empty or oversized sections.
+ */
+export function normalizeSections(sections: MediaSection[]): MediaSection[] {
+  return sections
+    .map((s) => ({
+      title: (s.title ?? '').trim().slice(0, MAX_SECTION_TITLE),
+      body: (s.body ?? '').trim().slice(0, MAX_SECTION_BODY),
+      urls: (s.urls ?? []).filter((u) => typeof u === 'string' && u.length > 0),
+    }))
+    .filter((s) => s.title || s.body || s.urls.length > 0)
+}
+
 /**
  * One free ticket tier configured inside the wizard (Phase 33). Numbers stay
  * strings while in the form (same rule as expected_attendees); parsed at
@@ -86,6 +119,14 @@ export type EventDraft = {
   /** Photo URLs (Supabase Storage). First one is treated as the cover.
    *  Unlimited — the UI no longer caps the count. */
   gallery_urls: string[]
+  /** When false, the cover (gallery_urls[0]) is NOT repeated inside the public
+   *  photo gallery deck — it only appears in the hero. Default true keeps the
+   *  legacy behaviour where the cover shows in both places. */
+  cover_in_gallery: boolean
+  /** Optional named photo sections shown below the main gallery on the public
+   *  page — each with its own heading, blurb and photos (e.g. "The Venue",
+   *  "Lineup"). Separate from `gallery_urls`; empty array = no sections. */
+  content_sections: MediaSection[]
 
   // Step 7 — Organizer
   organizer_name: string
@@ -168,6 +209,8 @@ export const defaultEventDraft: EventDraft = {
   online_url: '',
 
   gallery_urls: [],
+  cover_in_gallery: true,
+  content_sections: [],
 
   organizer_name: '',
   organizer_contact: '',

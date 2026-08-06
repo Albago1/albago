@@ -31,6 +31,8 @@ export type EventPreviewData = {
   description?: string | null
   banner_url?: string | null
   gallery_urls?: string[] | null
+  cover_in_gallery?: boolean | null
+  content_sections?: Array<{ title: string; body: string; urls: string[] }> | null
   venue_name?: string | null
   address?: string | null
   address_hint?: string | null
@@ -87,7 +89,19 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
         event.end_time ? ` → ${formatEventTimeLabel(event.end_time)}` : ''
       }`
     : ''
-  const extraGallery = (event.gallery_urls ?? []).filter((u) => u && u !== heroImage)
+  // Mirror the live page: the deck repeats the cover unless the organizer
+  // opted it out, in which case only the non-cover shots show.
+  const extraGallery =
+    event.cover_in_gallery === false
+      ? (event.gallery_urls ?? []).filter((u) => u && u !== heroImage)
+      : (event.gallery_urls ?? []).filter(Boolean)
+  const sections = (event.content_sections ?? [])
+    .map((s) => ({
+      title: (s.title ?? '').trim(),
+      body: (s.body ?? '').trim(),
+      urls: (s.urls ?? []).filter(Boolean),
+    }))
+    .filter((s) => s.title || s.body || s.urls.length > 0)
 
   return (
     <div className="overflow-hidden rounded-3xl border border-white/10 bg-ink-950 text-white">
@@ -251,8 +265,8 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
 
         {extraGallery.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
-            {extraGallery.slice(0, 3).map((url) => (
-              <div key={url} className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10">
+            {extraGallery.slice(0, 3).map((url, i) => (
+              <div key={`${url}-${i}`} className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10">
                 <Image
                   src={url}
                   alt=""
@@ -265,6 +279,40 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
             ))}
           </div>
         )}
+
+        {sections.map((section, sIndex) => (
+          <div key={sIndex} className="border-t border-white/[0.06] pt-4">
+            {section.title && (
+              <p className="display-text text-lg leading-tight text-white">
+                {section.title}
+              </p>
+            )}
+            {section.body && (
+              <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-white/70">
+                {section.body}
+              </p>
+            )}
+            {section.urls.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {section.urls.slice(0, 6).map((url, i) => (
+                  <div
+                    key={`${url}-${i}`}
+                    className="relative aspect-square overflow-hidden rounded-xl border border-white/10"
+                  >
+                    <Image
+                      src={url}
+                      alt=""
+                      fill
+                      sizes="140px"
+                      unoptimized={!url.includes('.supabase.co')}
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
 
         {event.is_civic &&
           (event.telegram_link || event.whatsapp_link || event.safety_notes) && (

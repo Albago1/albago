@@ -23,6 +23,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { EventDraft } from '@/types/eventDraft'
 import { useImageUpload } from '@/hooks/useImageUpload'
+import MediaSectionsEditor from './MediaSectionsEditor'
 
 type Props = {
   draft: EventDraft
@@ -300,6 +301,36 @@ export default function MediaStep({ draft, patch }: Props) {
           {uploadError || stepError}
         </div>
       )}
+
+      {/* Cover independence — only meaningful once there's a cover to hide. */}
+      {hasPhotos && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+          <input
+            type="checkbox"
+            checked={draft.cover_in_gallery}
+            onChange={(e) => patch({ cover_in_gallery: e.target.checked })}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-flame-500"
+          />
+          <span className="text-sm">
+            <span className="font-semibold text-white">
+              Show the cover again in the gallery
+            </span>
+            <span className="mt-0.5 block text-xs text-white/50">
+              The first photo is always your hero at the top. Leave this on to
+              repeat it in the gallery below, or turn it off to keep the gallery
+              to your other shots only.
+            </span>
+          </span>
+        </label>
+      )}
+
+      {/* Named photo sections */}
+      <div className="border-t border-white/[0.06] pt-5">
+        <MediaSectionsEditor
+          sections={draft.content_sections}
+          onChange={(content_sections) => patch({ content_sections })}
+        />
+      </div>
 
       <p className="text-xs text-white/45">
         Optional — events without photos use a flame gradient fallback on the

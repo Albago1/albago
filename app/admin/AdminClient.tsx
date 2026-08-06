@@ -70,6 +70,8 @@ type SubmissionRow = {
   language: string | null
   banner_url: string | null
   gallery_urls: string[] | null
+  cover_in_gallery: boolean | null
+  content_sections: Array<{ title: string; body: string; urls: string[] }> | null
   recurrence: string | null
   recurrence_until: string | null
   recurrence_days_of_week: number[] | null
@@ -518,6 +520,8 @@ export default function AdminClient() {
         tags: s.tags ?? [],
         language: s.language ?? 'en',
         banner_url: s.banner_url ?? null,
+        cover_in_gallery: s.cover_in_gallery ?? true,
+        content_sections: s.content_sections ?? [],
         // Source page for the daily verification loop (imported events only).
         official_source_url: officialSourceUrl,
         // Retain the real posting account so provenance survives approval.
@@ -1253,6 +1257,8 @@ export default function AdminClient() {
           description: sub.description,
           banner_url: sub.banner_url,
           gallery_urls: sub.gallery_urls,
+          cover_in_gallery: sub.cover_in_gallery,
+          content_sections: sub.content_sections,
           venue_name: sub.venue_name,
           address: sub.address,
           address_hint: sub.address_hint,

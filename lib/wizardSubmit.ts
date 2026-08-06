@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DraftTicketTier, EventDraft } from '@/types/eventDraft'
+import { normalizeSections } from '@/types/eventDraft'
 
 export type SubmitResult =
   | { id: string; error: null }
@@ -138,7 +139,52 @@ export async function submitCommunityEvent(
     return { id: null, error: GENERIC_SUBMIT_ERROR }
   }
 
-  return { id: (data as string | null) ?? 'submitted', error: null }
+  const submissionId = data as string | null
+  // Attach media only when we got a real submission id back (a uuid); older
+  // deployments may not return one, in which case media is skipped rather than
+  // failing the submission.
+  if (submissionId && /^[0-9a-f-]{36}$/i.test(submissionId)) {
+    await saveSubmissionMedia(supabase, submissionId, draft)
+  }
+
+  return { id: submissionId ?? 'submitted', error: null }
+}
+
+/**
+ * Persist the two Phase-35 media fields (named photo sections + the
+ * cover-in-gallery flag) onto a freshly created/updated event via the
+ * self-contained set_event_media RPC. FAIL-SOFT: the event already exists at
+ * this point, so a hiccup here must never bubble up and trigger a retry that
+ * duplicates the event — the organizer can re-save media by editing.
+ */
+async function saveEventMedia(
+  supabase: SupabaseClient,
+  eventId: string,
+  draft: EventDraft,
+): Promise<void> {
+  const { error } = await supabase.rpc('set_event_media', {
+    p_event_id: eventId,
+    p_sections: normalizeSections(draft.content_sections),
+    p_cover_in_gallery: draft.cover_in_gallery,
+  })
+  if (error) logSubmitError('saveEventMedia', error)
+}
+
+/**
+ * Same as saveEventMedia, but for a pending community submission — the fields
+ * ride along to the events row when an admin approves it. Also fail-soft.
+ */
+async function saveSubmissionMedia(
+  supabase: SupabaseClient,
+  submissionId: string,
+  draft: EventDraft,
+): Promise<void> {
+  const { error } = await supabase.rpc('set_submission_media', {
+    p_submission_id: submissionId,
+    p_sections: normalizeSections(draft.content_sections),
+    p_cover_in_gallery: draft.cover_in_gallery,
+  })
+  if (error) logSubmitError('saveSubmissionMedia', error)
 }
 
 /**
@@ -294,6 +340,7 @@ export async function submitOrganizerDraft(
   }
 
   const eventId = data as string
+  await saveEventMedia(supabase, eventId, draft)
   if (draft.ticket_tiers && !draft.is_civic && draft.event_type !== 'protest') {
     await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
   }
@@ -349,6 +396,7 @@ export async function updateOrganizerDraft(
   }
 
   const updatedId = data as string
+  await saveEventMedia(supabase, updatedId, draft)
   if (!draft.is_civic && draft.event_type !== 'protest') {
     // Full sync incl. archiving removed tiers / turning tickets off.
     await saveDraftTiers(supabase, updatedId, draft.ticket_tiers)
@@ -426,6 +474,8 @@ export async function submitAdminEvent(
       language: trim(draft.language) ?? 'en',
       banner_url: draft.gallery_urls[0] ?? null,
       gallery_urls: draft.gallery_urls,
+      cover_in_gallery: draft.cover_in_gallery,
+      content_sections: normalizeSections(draft.content_sections),
       organizer_name: trim(draft.organizer_name),
       organizer_phone: trim(draft.organizer_phone),
       organizer_website: trim(draft.organizer_website),

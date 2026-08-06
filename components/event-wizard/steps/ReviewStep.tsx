@@ -79,6 +79,8 @@ function draftToPreview(draft: EventDraft): EventPreviewData {
     price: draft.price,
     description: draft.description,
     gallery_urls: draft.gallery_urls,
+    cover_in_gallery: draft.cover_in_gallery,
+    content_sections: draft.content_sections,
     venue_name: draft.venue_name,
     address: draft.address,
     address_hint: draft.address_hint,
