@@ -473,11 +473,16 @@ export default function HomeClient({
         protestsTotalsRes,
       ] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
+        // Non-civic only. Protests have their own dedicated section further
+        // down (fed by protestsRes); without this exclusion every civic event
+        // rendered twice — once mixed into "upcoming events", once as a
+        // protest. `not.is.true` keeps rows where is_civic is false OR NULL.
         supabase
           .from('events')
           .select('*')
           .eq('status', 'published')
           .eq('location_slug', activeLocationSlug)
+          .not('is_civic', 'is', true)
           .or(activeFilter)
           .order('highlight', { ascending: false })
           .order('date', { ascending: true })
@@ -550,6 +555,7 @@ export default function HomeClient({
             .from('events')
             .select('*')
             .eq('status', 'published')
+            .not('is_civic', 'is', true)
             .or(activeFilter)
             .order('highlight', { ascending: false })
             .order('date', { ascending: true })
