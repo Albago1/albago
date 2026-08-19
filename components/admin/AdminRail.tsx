@@ -14,6 +14,7 @@ import {
   Radio,
   ScanSearch,
   Send,
+  Sparkles,
   Users as UsersIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
@@ -55,6 +56,7 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
       icon: HandHeart,
       badge: counts.newVolunteers,
     },
+    { href: '/admin/compose', label: 'Compose', icon: Sparkles },
     { href: '/admin/events', label: 'Events', icon: Megaphone },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/share-batch', label: 'Share batch', icon: Send },
