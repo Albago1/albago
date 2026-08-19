@@ -63,7 +63,13 @@ const TOOL_LABELS: Record<string, string> = {
 const PLACEHOLDER =
   'Paste anything — a WhatsApp forward, a Facebook post, an email, a list of events…'
 
-export default function ComposeClient() {
+export default function ComposeClient({
+  monthTokens = null,
+}: {
+  /** Tokens this surface spent in the last 30 days, or null when the usage
+   *  ledger isn't available yet. */
+  monthTokens?: number | null
+}) {
   const router = useRouter()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState<EventDraft | null>(null)
@@ -135,7 +141,9 @@ export default function ComposeClient() {
         setError(
           json?.error === 'forbidden'
             ? 'Your admin session expired — reload the page.'
-            : 'The agent could not finish that turn. Try again, or rephrase.',
+            : json?.error === 'rate_limited'
+              ? 'The AI provider is rate-limiting us. Wait a minute and send again — nothing was lost.'
+              : 'The agent could not finish that turn. Your message is back in the box — try again, or rephrase it.',
         )
         // Drop the unanswered user turn so a retry doesn't double it up, and
         // re-stage the images — they're already uploaded, just not delivered.
@@ -200,6 +208,12 @@ export default function ComposeClient() {
               <h2 className="text-sm font-semibold text-white">Compose</h2>
               <p className="text-[12px] text-white/45">
                 Paste source material — the agent drafts, you publish in the wizard.
+                {monthTokens !== null && (
+                  <span className="text-white/30">
+                    {' '}
+                    · {monthTokens.toLocaleString()} tokens in 30 days
+                  </span>
+                )}
               </p>
             </div>
           </div>

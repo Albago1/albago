@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { ModelMessage } from 'ai'
-import { isRequestAdmin } from '@/lib/admin/apiAuth'
+import { isRequestAdmin, currentUserId } from '@/lib/admin/apiAuth'
 import { runAgentTurn } from '@/lib/agent/run'
+import { recordUsage } from '@/lib/agent/usage'
 import type { EventDraft } from '@/types/eventDraftBase'
 
 /**
@@ -88,9 +89,29 @@ export async function POST(request: Request) {
       draft,
       attachments: coerceAttachments(body.attachments),
     })
+
+    // Meter after the work, never in front of it: a failed metering write must
+    // not cost the admin their reply. recordUsage swallows its own errors.
+    void recordUsage({
+      surface: 'compose',
+      userId: await currentUserId(),
+      model: result.model,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+      totalTokens: result.usage.totalTokens,
+      tools: result.toolsCalled,
+    })
+
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     console.error('[api/admin/agent] turn failed:', err)
-    return NextResponse.json({ ok: false, error: 'agent_failed' }, { status: 500 })
+    // Distinguish the one failure the admin can actually act on — waiting —
+    // from the ones they can't. Provider errors surface as 429s or quota text.
+    const message = err instanceof Error ? err.message : ''
+    const rateLimited = /rate.?limit|quota|429|resource.?exhausted/i.test(message)
+    return NextResponse.json(
+      { ok: false, error: rateLimited ? 'rate_limited' : 'agent_failed' },
+      { status: rateLimited ? 429 : 500 },
+    )
   }
 }

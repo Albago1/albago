@@ -132,3 +132,16 @@ Organizer-facing or public chat (abuse, cost caps, and the `organizer_create_eve
 4. **Session 4:** Stage E — telemetry, translations, i18n, error states.
 
 **User P0:** none. `GOOGLE_GENERATIVE_AI_API_KEY` is already set (every existing AI feature depends on it). No new env, no new bucket, no SQL for stages A–D; Stage E's telemetry table is the phase's only migration.
+
+---
+
+## 10. As built — deviations from this plan
+
+All stages shipped 2026-08-19. Four things went differently, recorded here so the plan doesn't quietly disagree with the code:
+
+1. **`check_duplicate` was folded into `resolve_location`.** `resolvePoster` computes city, venue, geocode AND duplicate in one pass, so two tools would mean running it twice or hiding state between calls. Fewer, fatter tools also improve model tool-choice.
+2. **Stage D was already satisfied by Stage A.** Visible resolution was a property of the `resolve_location` return shape plus prompt rule #3, not extra work. Confirmed live: *"Matched city Tiranë (no duplicate found). Kino Millennium could not be matched to an existing venue."*
+3. **No streaming.** `useChat` needs `@ai-sdk/react` (not a dependency) and a UI-message-stream route, and turn latency is dominated by tool calls — a nested extraction plus Supabase round trips — not token generation. A turn is one JSON request; the UI reports the tools that actually ran instead of faking progress. Revisit if turns feel slow.
+4. **No i18n on this surface.** The plan cited bible standing rule #4 ("no exceptions"). On inspection the **entire admin suite is English-only** — not one admin component uses `useLanguage`. Translating Compose alone would make it the odd one out while Queue, Radar, Broadcast and Sources stay English, and the rule's actual target is public strings (its cited debt is "10/73 client components"). Admin i18n is a real piece of work; it should be one deliberate pass over all of `/admin`, not smuggled in here.
+
+**Unverified at hand-off:** every browser-side flow. The surface, the poster drop, and publishing from the wizard all need an admin login. Automated coverage stops at 22 deterministic tool tests, the live two-turn conversation, and the auth gates (307 / 403).

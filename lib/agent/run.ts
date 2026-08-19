@@ -39,6 +39,9 @@ export type AgentTurnResult = {
   /** Tool names called, in order. Surfaced for the UI's "what it did" line. */
   toolsCalled: string[]
   usage: { inputTokens: number; outputTokens: number; totalTokens: number }
+  /** Recorded in the usage ledger — the model alias is a rolling pointer, so
+   *  a cost review months later needs to know which one actually ran. */
+  model: string
 }
 
 function todayInTirane(): string {
@@ -69,8 +72,9 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     ]
   }
 
+  const model = textModel()
   const result = await generateText({
-    model: textModel(),
+    model,
     system: buildSystemPrompt(ctx.todayIso, attachments),
     messages: input.messages,
     tools: createAgentTools(ctx),
@@ -86,5 +90,6 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       outputTokens: result.usage.outputTokens ?? 0,
       totalTokens: result.usage.totalTokens ?? 0,
     },
+    model: model.modelId,
   }
 }
