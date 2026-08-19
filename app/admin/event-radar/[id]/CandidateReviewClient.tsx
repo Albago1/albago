@@ -14,10 +14,16 @@ import {
   RotateCcw,
   Save,
   Trash2,
+  Wand2,
   X,
 } from 'lucide-react'
 import type { EventImportCandidate } from '@/lib/radar/candidate'
-import { LENS_CATEGORIES } from '@/lib/ai/posterReader'
+import {
+  draftFromReading,
+  seedDraftOrigin,
+  seedWizardDraft,
+} from '@/lib/eventDraftFromReading'
+import { LENS_CATEGORIES, type PosterReading } from '@/lib/ai/posterReader'
 import { missingApprovalFields } from '@/lib/radar/approvalValidation'
 import { StatusBadge, ConfidenceBadge } from '../badges'
 
@@ -81,7 +87,9 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
   const [tags, setTags] = useState<string>((reading?.tags ?? []).join(', '))
   const [isCivic, setIsCivic] = useState<boolean>(reading?.is_civic ?? false)
 
-  const [busy, setBusy] = useState<null | 'save' | 'approve' | 'reject' | 'retry' | 'delete'>(null)
+  const [busy, setBusy] = useState<
+    null | 'save' | 'approve' | 'reject' | 'retry' | 'delete' | 'wizard'
+  >(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState(false)
@@ -174,6 +182,72 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
       router.refresh()
     }
   }
+  /**
+   * The standard path: hand this reading to the same creation wizard a poster
+   * scan fills, prefilled, and finish the event there step by step. No
+   * `event_submissions` hop and no second approval — publishing IS the review.
+   *
+   * Deliberately not gated on `canSubmit`: the old queue needed title/date/time
+   * up front because `event_submissions.time` is NOT NULL. The wizard asks for
+   * what's missing instead, which is the whole point of sending you there.
+   */
+  const openInWizard = async () => {
+    if (!reading) return
+    setBusy('wizard')
+    setError(null)
+    setMessage(null)
+    try {
+      // Persist on-screen edits first so the candidate and the draft agree —
+      // if the admin comes back here later, they see what they sent over.
+      await fetch(`/api/admin/event-radar/${candidate.id}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'save', patch }),
+      }).catch(() => null)
+
+      // Take a copy of the source poster. Best-effort: no cover is a fine
+      // outcome, a blocked handoff is not.
+      let coverUrl: string | null = null
+      if (candidate.image_url) {
+        try {
+          const res = await fetch(`/api/admin/event-radar/${candidate.id}/adopt-image`, {
+            method: 'POST',
+          })
+          const json = (await res.json().catch(() => null)) as { ok?: boolean; url?: string } | null
+          if (json?.ok && json.url) coverUrl = json.url
+        } catch {
+          // Leave coverUrl null — the wizard's media step can take an upload.
+        }
+      }
+
+      seedWizardDraft(
+        draftFromReading({
+          reading: {
+            ...reading,
+            ...patch,
+            // The category select is a plain string here; keep the reading's
+            // own value unless the pick is one the extractor recognises.
+            category: (LENS_CATEGORIES as readonly string[]).includes(category)
+              ? (category as PosterReading['category'])
+              : reading.category,
+          },
+          resolution: candidate.resolution,
+          coverUrl,
+        }),
+      )
+      // Only a real page can be re-read by the nightly verification robot —
+      // pasted-text imports carry a synthetic `paste:` key, not a URL.
+      seedDraftOrigin({
+        candidateId: candidate.id,
+        sourceUrl: /^https?:\/\//i.test(candidate.source_url) ? candidate.source_url : null,
+      })
+      router.push(`/admin/events/new?cid=${candidate.id}`)
+    } catch {
+      setError('Could not open the wizard.')
+      setBusy(null)
+    }
+  }
+
   const reject = async () => {
     if (await act('reject', { action: 'reject', note: rejectNote })) {
       setRejecting(false)
@@ -463,6 +537,26 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
 
       {/* Actions */}
       <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-5">
+        {/* The standard path, and the escape hatch: also offered for candidates
+            already sent to the Queue, so one stuck behind a queue-side problem
+            can still be finished and published properly. */}
+        {reading && (isOpen || isApproved) && (
+          <button
+            type="button"
+            onClick={() => void openInWizard()}
+            disabled={busy !== null}
+            title="Fill the event creation wizard with this reading and finish it there"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-flame-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(238,28,37,0.35)] transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy === 'wizard' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+            Open in wizard
+          </button>
+        )}
+
         {isOpen && reading && (
           <>
             <button
@@ -480,17 +574,18 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
               disabled={busy !== null || !canSubmit}
               title={
                 canSubmit
-                  ? 'Create a pending submission in the Queue'
+                  ? 'Legacy path: create a pending submission in the Queue instead'
                   : `Add ${blockers.map((b) => b.label).join(', ')} first`
               }
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Approve → Queue
             </button>
             {!canSubmit && (
               <span className="text-[12px] text-white/45">
-                Approval needs {blockers.map((b) => b.label).join(', ')}.
+                The Queue path needs {blockers.map((b) => b.label).join(', ')} — the wizard will ask
+                for them instead.
               </span>
             )}
             <button

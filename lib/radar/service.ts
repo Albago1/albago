@@ -453,6 +453,32 @@ export async function rejectCandidate(
   return error ? { ok: false, message: error.message } : { ok: true }
 }
 
+/**
+ * Retire a candidate that was published directly from the creation wizard.
+ *
+ * The wizard path skips `event_submissions` entirely — publishing IS the
+ * review — so there's no submission to link. We mark the candidate approved so
+ * it leaves the review queue, and record the published slug in the admin note,
+ * which keeps the trail without a schema change. (The durable link back to the
+ * source lives on the event itself, as `events.official_source_url`.)
+ */
+export async function markCandidatePublished(
+  id: string,
+  decidedBy: string | null,
+  eventSlug: string | null,
+): Promise<{ ok: boolean; message?: string }> {
+  const { error } = await admin()
+    .from(TABLE)
+    .update({
+      status: 'approved',
+      admin_note: eventSlug ? `Published via wizard → /events/${eventSlug}` : 'Published via wizard',
+      decided_by: decidedBy,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  return error ? { ok: false, message: error.message } : { ok: true }
+}
+
 export async function deleteCandidate(id: string): Promise<{ ok: boolean; message?: string }> {
   const { error } = await admin().from(TABLE).delete().eq('id', id)
   return error ? { ok: false, message: error.message } : { ok: true }

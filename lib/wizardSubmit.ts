@@ -414,6 +414,15 @@ function createSlug(value: string): string {
 }
 
 /**
+ * Where this draft came from, when it wasn't typed by hand. Set by the Radar →
+ * wizard handoff so a published import keeps its trail: `sourceUrl` is what the
+ * nightly verification robot re-reads to keep the event correct forever.
+ */
+export type ImportProvenance = {
+  sourceUrl: string | null
+}
+
+/**
  * Submit an admin-mode wizard draft. Inserts a published row straight into
  * events (RLS lets admins insert — same path the queue's Approve uses), so
  * the event is live on the public site immediately. Field mapping mirrors
@@ -422,6 +431,7 @@ function createSlug(value: string): string {
 export async function submitAdminEvent(
   supabase: SupabaseClient,
   draft: EventDraft,
+  provenance?: ImportProvenance,
 ): Promise<AdminSubmitResult> {
   const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
   const category = draft.category || (isCivic ? 'civic' : 'culture')
@@ -443,9 +453,7 @@ export async function submitAdminEvent(
     }
   }
 
-  const { data, error } = await supabase
-    .from('events')
-    .insert({
+  const payload: Record<string, unknown> = {
       title: draft.title.trim(),
       title_i18n: draft.title_i18n ?? null,
       slug,
@@ -498,9 +506,26 @@ export async function submitAdminEvent(
           ? parseAttendees(draft.expected_attendees)
           : null,
       }),
-    })
-    .select('id')
-    .single()
+  }
+
+  if (provenance) {
+    // The verification robot only re-reads real http(s) pages; a pasted-text
+    // import has no page, so it carries no source.
+    payload.official_source_url = provenance.sourceUrl
+    payload.origin = 'imported'
+  }
+
+  let { data, error } = await supabase.from('events').insert(payload).select('id').single()
+
+  // `origin` is a CHECK-constrained text column created outside version control,
+  // and docs/schema-reference.md has been wrong about this table before. If the
+  // live constraint predates 'imported', publish the event anyway and keep the
+  // source URL — losing a provenance label beats losing the event.
+  if (error && provenance && /origin/i.test(error.message ?? '')) {
+    console.warn('submitAdminEvent: origin=imported rejected, retrying without it:', error.message)
+    delete payload.origin
+    ;({ data, error } = await supabase.from('events').insert(payload).select('id').single())
+  }
 
   if (error) {
     logSubmitError('submitAdminEvent', error)

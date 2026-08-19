@@ -27,7 +27,11 @@ import {
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
-import { getEventTimezone } from '@/lib/timezone'
+import {
+  DRAFT_STORAGE_KEY,
+  resolvedDraftPatch,
+  seedWizardDraft,
+} from '@/lib/eventDraftFromReading'
 import { defaultEventDraft, type EventDraft } from '@/types/eventDraft'
 import type {
   LensRegionBox,
@@ -45,7 +49,6 @@ const PREVIEW_LANGS: { key: LangKey; label: string }[] = [
   { key: 'es', label: 'Español' },
 ]
 
-const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
 const MAX_DIMENSION = 1600
 
 type Phase =
@@ -103,95 +106,6 @@ async function toUploadBlob(file: File): Promise<Blob> {
     // whitelists types and rejects what it can't take.
     return file
   }
-}
-
-function readingToDraftPatch(reading: PosterReading): Partial<EventDraft> {
-  const isCivic = reading.is_civic || reading.category === 'civic'
-  const description =
-    reading.artists.length > 1
-      ? `${reading.description}\n\nLineup: ${reading.artists.join(', ')}`
-      : reading.description
-  return {
-    event_type: isCivic ? 'protest' : 'event',
-    is_civic: isCivic,
-    category: isCivic ? 'civic' : reading.category,
-    title: reading.title,
-    description: description.trim(),
-    tags: reading.tags,
-    language: reading.language,
-    date: reading.date,
-    time: reading.time,
-    end_time: reading.end_time,
-    city: reading.city,
-    country: reading.country,
-    address: reading.address,
-    venue_name: reading.venue_name,
-    price: reading.price,
-    organizer_name: reading.organizer_name,
-    organizer_website: reading.organizer_website,
-    recurrence: reading.recurrence,
-    recurrence_until: reading.recurrence_until,
-    recurrence_days_of_week: reading.recurrence_days_of_week,
-  }
-}
-
-/**
- * Overlay the LENS-2 resolution onto the raw reading patch: a resolved city
- * fills location_slug + canonical label, an auto-matched (or user-accepted)
- * venue fills the venue's canonical name + coordinates, and a geocoded
- * address supplies coordinates when no venue was linked. Place linking
- * itself stays an approval-time act — the draft carries no place_id.
- */
-function resolvedDraftPatch(
-  reading: PosterReading,
-  resolution: LensResolution | null,
-  acceptedPlace: LensResolvedPlace | null,
-  translation: EventTranslation | null,
-): Partial<EventDraft> {
-  const patch = readingToDraftPatch(reading)
-
-  // LENS-3: carry the 4-language packs into the draft so they persist through
-  // submission. The wizard's base title/description stay the source of truth
-  // and the fallback; these only enrich.
-  if (translation) {
-    patch.title_i18n = translation.title
-    patch.description_i18n = translation.description
-  }
-
-  if (resolution) {
-    if (resolution.city.status !== 'none') {
-      patch.location_slug = resolution.city.slug
-      patch.city = resolution.city.label
-      if (resolution.city.country) patch.country = resolution.city.country
-      if (resolution.city.region) patch.region = resolution.city.region
-    }
-
-    const place =
-      resolution.venue.status === 'matched'
-        ? resolution.venue.place
-        : (acceptedPlace ?? undefined)
-
-    if (place) {
-      patch.venue_name = place.name
-      patch.location_slug = place.location_slug
-      if (place.address) patch.address = place.address
-      if (place.city) patch.city = place.city
-      if (place.lat != null) patch.lat = place.lat
-      if (place.lng != null) patch.lng = place.lng
-    } else if (resolution.geocode.status === 'address') {
-      if (resolution.geocode.lat != null) patch.lat = resolution.geocode.lat
-      if (resolution.geocode.lng != null) patch.lng = resolution.geocode.lng
-      if (resolution.geocode.formatted) patch.address = resolution.geocode.formatted
-    }
-  }
-
-  // Derive the event's timezone from the resolved location so a Berlin poster
-  // doesn't keep the draft default (Europe/Tirane). Unmapped locations return
-  // 'UTC' — leave the default in place rather than prefill a worse guess.
-  const tz = getEventTimezone(patch.location_slug, patch.country)
-  if (tz !== 'UTC') patch.timezone = tz
-
-  return patch
 }
 
 /** Scan-theater choreography (seconds). Each step = one field lighting up. */
@@ -483,11 +397,7 @@ export default function ScanClient({ continueHref = '/submit-event' }: Props) {
         phase.translation,
       ),
     }
-    try {
-      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
-    } catch {
-      // Storage unavailable — the wizard simply starts empty.
-    }
+    seedWizardDraft(draft)
     trackInteraction('lens_apply')
     router.push(continueHref)
   }

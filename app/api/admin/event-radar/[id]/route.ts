@@ -5,6 +5,7 @@ import {
   rejectCandidate,
   retryCandidate,
   saveCandidateReading,
+  markCandidatePublished,
   deleteCandidate,
 } from '@/lib/radar/service'
 import { LENS_CATEGORIES, type PosterReading } from '@/lib/ai/posterReader'
@@ -12,11 +13,12 @@ import { LENS_CATEGORIES, type PosterReading } from '@/lib/ai/posterReader'
 /**
  * Event Radar (RADAR-1): act on one candidate.
  *
- * POST { action: 'approve' | 'reject' | 'retry' | 'save', note?, patch? }
- *   - approve → mint a pending event_submissions row (does NOT publish)
- *   - reject  → mark rejected (+ optional note)
- *   - retry   → re-read the source from scratch (fresh extraction)
- *   - save    → persist admin edits to the draft (whitelisted fields only)
+ * POST { action: 'approve' | 'reject' | 'retry' | 'save' | 'published', note?, patch?, slug? }
+ *   - approve   → mint a pending event_submissions row (does NOT publish)
+ *   - reject    → mark rejected (+ optional note)
+ *   - retry     → re-read the source from scratch (fresh extraction)
+ *   - save      → persist admin edits to the draft (whitelisted fields only)
+ *   - published → retire a candidate the creation wizard already published
  * DELETE → remove the candidate entirely.
  *
  * Admin session required on every method; retry re-fetches, so the budget
@@ -81,7 +83,7 @@ export async function POST(
   }
   const { id } = await params
 
-  let body: { action?: unknown; note?: unknown; patch?: unknown }
+  let body: { action?: unknown; note?: unknown; patch?: unknown; slug?: unknown }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -123,6 +125,17 @@ export async function POST(
         return res.ok
           ? NextResponse.json({ ok: true, candidateId: res.candidate.id, status: res.candidate.status })
           : NextResponse.json({ ok: false, error: 'retry_failed', message: res.message }, { status: 400 })
+      }
+      case 'published': {
+        // The wizard published this candidate directly — retire it from review.
+        const slug = typeof body.slug === 'string' ? body.slug.slice(0, 200) : null
+        const res = await markCandidatePublished(id, userId, slug)
+        return res.ok
+          ? NextResponse.json({ ok: true })
+          : NextResponse.json(
+              { ok: false, error: 'publish_mark_failed', message: res.message },
+              { status: 400 },
+            )
       }
       case 'save': {
         const res = await saveCandidateReading(id, coercePatch(body.patch))

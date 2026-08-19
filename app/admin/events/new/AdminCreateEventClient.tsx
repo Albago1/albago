@@ -6,17 +6,42 @@ import { useState } from 'react'
 import { ArrowRight, CheckCircle2, ExternalLink, Plus, ScanLine } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
+import { clearDraftOrigin, readDraftOrigin } from '@/lib/eventDraftFromReading'
 import { submitAdminEvent } from '@/lib/wizardSubmit'
 import type { EventDraft } from '@/types/eventDraft'
 
-export default function AdminCreateEventClient() {
+export default function AdminCreateEventClient({
+  candidateId = null,
+}: {
+  candidateId?: string | null
+}) {
   const router = useRouter()
   const [published, setPublished] = useState<{ id: string; slug: string } | null>(null)
 
   const handleSubmit = async (draft: EventDraft) => {
     const supabase = createClient()
-    const result = await submitAdminEvent(supabase, draft)
+    // Present only when Event Radar handed this draft over — a hand-typed
+    // event has no source page and stays origin 'admin_seeded'.
+    const origin = readDraftOrigin(candidateId)
+    const result = await submitAdminEvent(
+      supabase,
+      draft,
+      origin ? { sourceUrl: origin.sourceUrl } : undefined,
+    )
     if (result.id === null) return { id: null, error: result.error }
+
+    // Retire the candidate from the review queue. Fire-and-forget: the event is
+    // already live, and a stuck candidate is a tidiness problem, not a failure
+    // worth showing the admin as a publish error.
+    if (origin) {
+      clearDraftOrigin()
+      void fetch(`/api/admin/event-radar/${origin.candidateId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'published', slug: result.slug }),
+      }).catch(() => {})
+    }
+
     setPublished({ id: result.id, slug: result.slug })
     return { id: result.id, error: null }
   }
