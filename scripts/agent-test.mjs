@@ -41,12 +41,13 @@ function check(name, cond) {
   if (!cond) failed++
 }
 
-function newCtx(draft = {}) {
+function newCtx(draft = {}, attachments = []) {
   return {
     draft: { ...defaultEventDraft, ...draft },
     todayIso: TODAY,
     lastResolution: null,
     called: [],
+    attachments,
   }
 }
 
@@ -126,6 +127,32 @@ function newCtx(draft = {}) {
   check('summarize_draft reports missing fields', Array.isArray(summary.missing) && summary.missing.length > 0)
   check('summarize_draft echoes the draft', summary.draft.title === 'Only a title')
   check('summarize_draft flags no translations yet', summary.draft.has_translations === false)
+}
+
+// --- read_image: the allow-list is a security boundary ----------------------
+//
+// The model picks this URL, so it is untrusted input to a server-side fetch.
+// Anything not attached to THIS conversation must be refused before any
+// network call happens — otherwise a prompt-injected message could aim the
+// server at an internal address.
+
+{
+  const ctx = newCtx({}, ['https://example.supabase.co/storage/v1/object/public/event-covers/a.jpg'])
+  const tools = createAgentTools(ctx)
+  const result = await tools.read_image.execute({ url: 'http://169.254.169.254/latest/meta-data/' })
+  check('read_image refuses a URL that was never attached', result.ok === false)
+  check('read_image says why', typeof result.reason === 'string' && result.reason.length > 0)
+}
+
+{
+  const ctx = newCtx({}, ['https://example.supabase.co/storage/v1/object/public/event-covers/a.jpg'])
+  const tools = createAgentTools(ctx)
+  // Attached, so it gets past the guard and fails on the (unreachable) fetch —
+  // proving the guard is what rejected the case above, not the network.
+  const result = await tools.read_image.execute({
+    url: 'https://example.supabase.co/storage/v1/object/public/event-covers/a.jpg',
+  })
+  check('read_image accepts an attached URL past the guard', result.ok === false && /could not/i.test(result.reason))
 }
 
 // --- live: the actual conversation ------------------------------------------

@@ -1,5 +1,6 @@
 import { jsonSchema, tool, type ToolSet } from 'ai'
 import { readEventListFromText } from '@/lib/ai/urlReader'
+import { readPosterImage } from '@/lib/ai/posterReader'
 import { translateEventText } from '@/lib/ai/translateEvent'
 import { resolvePoster, type LensResolution } from '@/lib/lens/resolve'
 import { assessReading } from '@/lib/radar/assess'
@@ -32,6 +33,9 @@ export type AgentContext = {
   lastResolution: LensResolution | null
   /** Names of tools called this turn — the DoD script asserts on these. */
   called: string[]
+  /** Image URLs the admin attached, already uploaded to our own storage.
+   *  `read_image` will read NOTHING else — see the note on that tool. */
+  attachments: string[]
 }
 
 /** Fields the agent may write. Everything absent is deliberate: media and
@@ -190,6 +194,57 @@ export function createAgentTools(ctx: AgentContext): ToolSet {
         }
         const filled = fillEmpty(ctx.draft, readingToDraftPatch(reading))
         return { ok: true, filled, ...missingSummary(ctx) }
+      },
+    }),
+
+    read_image: tool({
+      description:
+        'Read an event poster the admin attached. Pass the exact image URL from their message. Fills only empty draft fields; if the poster contradicts something already in the draft, say so and ask — never silently overwrite.',
+      inputSchema: jsonSchema<{ url: string }>({
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The attached image URL, copied exactly.' },
+        },
+        required: ['url'],
+        additionalProperties: false,
+      }),
+      execute: async ({ url }: { url: string }) => {
+        note('read_image')
+        // The model chooses this argument, so it is untrusted input to a
+        // server-side fetch. Restricting it to images WE uploaded this turn
+        // closes that door completely — no SSRF surface, no way to be talked
+        // into fetching something else.
+        if (!ctx.attachments.includes(url)) {
+          return { ok: false, reason: 'That image is not attached to this conversation.' }
+        }
+        try {
+          const res = await fetch(url)
+          if (!res.ok) return { ok: false, reason: 'The image could not be loaded.' }
+          const mediaType = (res.headers.get('content-type') ?? 'image/jpeg').split(';')[0].trim()
+          const bytes = new Uint8Array(await res.arrayBuffer())
+          const scan = await readPosterImage(bytes, ctx.todayIso, mediaType)
+          if (!scan) return { ok: false, reason: 'The poster could not be read.' }
+          if (!scan.reading.is_event) {
+            return { ok: false, reason: "That image doesn't look like an event announcement." }
+          }
+
+          // Report what the poster says but the draft already contradicts, so
+          // the agent can ask instead of picking a winner silently.
+          const patch = readingToDraftPatch(scan.reading)
+          const conflicts: Array<{ field: string; draft: string; poster: string }> = []
+          for (const [key, value] of Object.entries(patch)) {
+            if (typeof value !== 'string' || !value.trim()) continue
+            const current = (ctx.draft as unknown as Record<string, unknown>)[key]
+            if (typeof current === 'string' && current.trim() && current.trim() !== value.trim()) {
+              conflicts.push({ field: key, draft: current, poster: value })
+            }
+          }
+
+          const filled = fillEmpty(ctx.draft, patch)
+          return { ok: true, filled, conflicts, ...missingSummary(ctx) }
+        } catch {
+          return { ok: false, reason: 'The image could not be read.' }
+        }
       },
     }),
 

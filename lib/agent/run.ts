@@ -25,6 +25,10 @@ export type AgentTurnInput = {
   messages: ModelMessage[]
   draft?: EventDraft | null
   todayIso?: string
+  /** Image URLs the admin attached, already in our own storage. They become
+   *  the event's gallery (first = cover) AND the only images read_image may
+   *  fetch. Accumulated across the conversation by the client. */
+  attachments?: string[]
 }
 
 export type AgentTurnResult = {
@@ -44,16 +48,30 @@ function todayInTirane(): string {
 }
 
 export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
+  const attachments = input.attachments ?? []
   const ctx: AgentContext = {
     draft: { ...defaultEventDraft, ...(input.draft ?? {}) },
     todayIso: input.todayIso ?? todayInTirane(),
     lastResolution: null,
     called: [],
+    attachments,
+  }
+
+  // Attachments ARE the event's images: the wizard treats gallery_urls[0] as
+  // the cover, and submitAdminEvent publishes it as banner_url. Set here
+  // rather than in a tool so the pictures survive even if the model never
+  // bothers to read them.
+  if (attachments.length > 0) {
+    const existing = new Set(ctx.draft.gallery_urls)
+    ctx.draft.gallery_urls = [
+      ...ctx.draft.gallery_urls,
+      ...attachments.filter((url) => !existing.has(url)),
+    ]
   }
 
   const result = await generateText({
     model: textModel(),
-    system: buildSystemPrompt(ctx.todayIso),
+    system: buildSystemPrompt(ctx.todayIso, attachments),
     messages: input.messages,
     tools: createAgentTools(ctx),
     stopWhen: stepCountIs(MAX_STEPS),

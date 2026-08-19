@@ -26,6 +26,23 @@ const MAX_CHARS_PER_MESSAGE = 20000
 type Body = {
   messages?: unknown
   draft?: unknown
+  attachments?: unknown
+}
+
+/** Attachments must be public URLs in OUR storage. The agent fetches them
+ *  server-side, so accepting an arbitrary URL here would hand the caller an
+ *  SSRF primitive; the origin check plus the per-turn allow-list in
+ *  `read_image` means it can only ever fetch what we just uploaded. */
+const MAX_ATTACHMENTS = 8
+
+function coerceAttachments(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!base) return []
+  const prefix = `${base.replace(/\/$/, '')}/storage/v1/object/public/`
+  return raw
+    .filter((u): u is string => typeof u === 'string' && u.startsWith(prefix))
+    .slice(0, MAX_ATTACHMENTS)
 }
 
 function coerceMessages(raw: unknown): ModelMessage[] | null {
@@ -66,7 +83,11 @@ export async function POST(request: Request) {
       : null
 
   try {
-    const result = await runAgentTurn({ messages, draft })
+    const result = await runAgentTurn({
+      messages,
+      draft,
+      attachments: coerceAttachments(body.attachments),
+    })
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     console.error('[api/admin/agent] turn failed:', err)
