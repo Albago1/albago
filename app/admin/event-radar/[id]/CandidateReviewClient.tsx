@@ -233,6 +233,7 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
           },
           resolution: candidate.resolution,
           coverUrl,
+          sourceUrl: candidate.source_url,
         }),
       )
       // Only a real page can be re-read by the nightly verification robot —

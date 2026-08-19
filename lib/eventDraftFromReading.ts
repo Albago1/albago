@@ -124,11 +124,30 @@ export function draftFromReading(args: {
   acceptedPlace?: LensResolvedPlace | null
   translation?: EventTranslation | null
   coverUrl?: string | null
+  sourceUrl?: string | null
 }): EventDraft {
-  const { reading, resolution, acceptedPlace = null, translation = null, coverUrl } = args
+  const {
+    reading,
+    resolution,
+    acceptedPlace = null,
+    translation = null,
+    coverUrl,
+    sourceUrl,
+  } = args
+
+  // A priced event read off a real page is almost always sold on that page, so
+  // open the wizard on "sold somewhere else" pointing there. It's a default,
+  // not a decision — the ticket step shows the link for the admin to confirm,
+  // change, or switch away from entirely.
+  const externalTickets =
+    sourceUrl && /^https?:\/\//i.test(sourceUrl) && reading.price.trim()
+      ? { ticket_mode: 'external' as const, ticket_url: sourceUrl }
+      : {}
+
   return {
     ...defaultEventDraft,
     ...resolvedDraftPatch(reading, resolution, acceptedPlace, translation),
+    ...externalTickets,
     ...(coverUrl ? { gallery_urls: [coverUrl] } : {}),
   }
 }

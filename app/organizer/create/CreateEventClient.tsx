@@ -9,7 +9,7 @@ import type { StepKey } from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
 import { submitOrganizerEvent } from '@/lib/events-organizer'
 import { submitOrganizerDraft, updateOrganizerDraft } from '@/lib/wizardSubmit'
-import { eventRowToDraft, fetchDraftTiers } from '@/lib/eventDraftFromRow'
+import { applyDraftTiers, eventRowToDraft, fetchDraftTiers } from '@/lib/eventDraftFromRow'
 import type { EventDraft } from '@/types/eventDraft'
 import type { VerificationTier } from '@/types/organizer'
 
@@ -165,9 +165,10 @@ export default function CreateEventClient({
         const seeded = eventRowToDraft(data as Record<string, unknown>, {
           keepSchedule: true,
         })
-        seeded.ticket_tiers = await fetchDraftTiers(supabase, editId, {
-          keepIds: true,
-        })
+        applyDraftTiers(
+          seeded,
+          await fetchDraftTiers(supabase, editId, { keepIds: true }),
+        )
         window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
         const target: EditTarget = {
           id: editId,
@@ -209,9 +210,10 @@ export default function CreateEventClient({
       const seeded = eventRowToDraft(data as Record<string, unknown>)
       // Carry the ticket setup onto the repost as brand-new tiers (no ids —
       // updating the OLD event's tiers from here would be a bug).
-      seeded.ticket_tiers = await fetchDraftTiers(supabase, repostId as string, {
-        keepIds: false,
-      })
+      applyDraftTiers(
+        seeded,
+        await fetchDraftTiers(supabase, repostId as string, { keepIds: false }),
+      )
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
       // A repost is a brand-new event — make sure no stale edit session can
       // reroute the submit into an update.
@@ -306,9 +308,10 @@ export default function CreateEventClient({
       const seeded = eventRowToDraft(data as Record<string, unknown>, {
         keepSchedule: true,
       })
-      seeded.ticket_tiers = await fetchDraftTiers(supabase, target.id, {
-        keepIds: true,
-      })
+      applyDraftTiers(
+        seeded,
+        await fetchDraftTiers(supabase, target.id, { keepIds: true }),
+      )
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
       setWizardKey((k) => k + 1)
       setPhase('ready')

@@ -365,6 +365,22 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
         </Section>
       )}
 
+      {/* Sold on someone else's site: the review must show WHERE people are
+          sent, since that link is the entire ticket experience for this event. */}
+      {!isCivic && draft.ticket_mode === 'external' && (
+        <Section
+          title="Tickets"
+          icon={<Ticket className="h-3.5 w-3.5" />}
+          onEdit={() => onJumpTo('tickets')}
+        >
+          <Row label="Sold on" value={draft.ticket_url || '—'} />
+          {draft.ticket_provider.trim() && (
+            <Row label="Seller" value={draft.ticket_provider} />
+          )}
+          <Row label="Price" value={draft.price || '—'} />
+        </Section>
+      )}
+
       {/* Section: Organizer */}
       <Section
         title="Organizer"

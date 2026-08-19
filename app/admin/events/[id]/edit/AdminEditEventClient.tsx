@@ -7,7 +7,7 @@ import { CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
 import EventCreationWizard from '@/components/event-wizard/EventCreationWizard'
 import { createClient } from '@/lib/supabase/browser'
 import { updateAdminEvent } from '@/lib/wizardSubmit'
-import { eventRowToDraft, fetchDraftTiers } from '@/lib/eventDraftFromRow'
+import { applyDraftTiers, eventRowToDraft, fetchDraftTiers } from '@/lib/eventDraftFromRow'
 import type { EventDraft } from '@/types/eventDraft'
 
 const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
@@ -42,7 +42,7 @@ export default function AdminEditEventClient({
     void (async () => {
       const supabase = createClient()
       const seeded = eventRowToDraft(event, { keepSchedule: true })
-      seeded.ticket_tiers = await fetchDraftTiers(supabase, eventId, { keepIds: true })
+      applyDraftTiers(seeded, await fetchDraftTiers(supabase, eventId, { keepIds: true }))
       try {
         window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(seeded))
       } catch {

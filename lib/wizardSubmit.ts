@@ -405,6 +405,27 @@ export async function updateOrganizerDraft(
   return { id: updatedId, error: null }
 }
 
+/**
+ * The external-ticket columns for an events insert/update.
+ *
+ * Only 'external' mode carries a link. The other two modes write NULL rather
+ * than leaving a stale value behind: an event that moved to AlbaGo tickets (or
+ * to no tickets at all) must not keep offering a "Get tickets" button pointing
+ * at somebody else's site.
+ */
+function externalTicketColumns(draft: EventDraft): {
+  ticket_url: string | null
+  ticket_provider: string | null
+} {
+  if (draft.ticket_mode !== 'external') {
+    return { ticket_url: null, ticket_provider: null }
+  }
+  return {
+    ticket_url: trim(draft.ticket_url),
+    ticket_provider: trim(draft.ticket_provider),
+  }
+}
+
 function createSlug(value: string): string {
   return value
     .toLowerCase()
@@ -469,6 +490,7 @@ export async function submitAdminEvent(
       price: trim(draft.price),
       highlight: false,
       status: 'published',
+      ...externalTicketColumns(draft),
       country: trim(draft.country) ?? 'Unknown',
       region: trim(draft.region),
       location_slug: locationSlug,
@@ -571,6 +593,7 @@ export async function updateAdminEvent(
       end_time: trim(draft.end_time),
       timezone: trim(draft.timezone),
       price: trim(draft.price),
+      ...externalTicketColumns(draft),
       country: trim(draft.country) ?? 'Unknown',
       region: trim(draft.region),
       location_slug: trim(draft.location_slug) ?? 'unknown',

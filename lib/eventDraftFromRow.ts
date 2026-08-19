@@ -59,6 +59,11 @@ export function eventRowToDraft(
     organizer_website: (row.organizer_website as string) ?? '',
     organizer_socials: socials,
     price: (row.price as string) ?? '',
+    // Tiers are loaded separately (fetchDraftTiers), so 'albago' is settled by
+    // the caller once it knows whether any exist. A stored link means external.
+    ticket_mode: row.ticket_url ? 'external' : 'none',
+    ticket_url: (row.ticket_url as string) ?? '',
+    ticket_provider: (row.ticket_provider as string) ?? '',
     featured_movement_slug: (row.featured_movement_slug as string) ?? '',
     telegram_link: (row.telegram_link as string) ?? '',
     whatsapp_link: (row.whatsapp_link as string) ?? '',
@@ -72,6 +77,23 @@ export function eventRowToDraft(
     recurrence_exceptions: Array.isArray(row.recurrence_exceptions)
       ? (row.recurrence_exceptions as string[])
       : [],
+  }
+}
+
+/**
+ * Attach loaded tiers to a seeded draft and settle `ticket_mode` with them.
+ *
+ * `eventRowToDraft` can only see the events row, where a stored `ticket_url`
+ * means external — but tiers live in their own table and are fetched after.
+ * This is the one place the two halves meet, so every seeding path (edit,
+ * repost, organizer) agrees on which mode the wizard opens in.
+ */
+export function applyDraftTiers(draft: EventDraft, tiers: DraftTicketTier[] | null): void {
+  draft.ticket_tiers = tiers
+  if (tiers && tiers.length > 0) {
+    draft.ticket_mode = 'albago'
+    draft.ticket_url = ''
+    draft.ticket_provider = ''
   }
 }
 

@@ -155,6 +155,22 @@ export type EventDraft = {
   // event's organizer.
   ticket_tiers: DraftTicketTier[] | null
 
+  /**
+   * How this event is ticketed — the explicit answer to "where do people buy?"
+   *
+   *   'none'     → nothing to buy; the event page shows no ticket CTA.
+   *   'external' → sold on someone else's site; `ticket_url` is the CTA.
+   *   'albago'   → claimed here as AlbaGo tickets; `ticket_tiers` drives it.
+   *
+   * Held explicitly rather than inferred, so "external, URL not typed yet" is
+   * a real state the wizard can validate instead of silently reading as 'none'.
+   */
+  ticket_mode: 'none' | 'external' | 'albago'
+  /** Where to buy, when ticket_mode is 'external'. Must be http(s). */
+  ticket_url: string
+  /** Who sells them — shown as "via {provider}" on the event page. Optional. */
+  ticket_provider: string
+
   // Recurrence (Phase 15)
   /** 'none' | 'daily' | 'weekly'. Default 'none' for one-off events. */
   recurrence: 'none' | 'daily' | 'weekly'
@@ -226,6 +242,9 @@ export const defaultEventDraft: EventDraft = {
   expected_attendees: '',
 
   ticket_tiers: null,
+  ticket_mode: 'none',
+  ticket_url: '',
+  ticket_provider: '',
 
   recurrence: 'none',
   recurrence_until: '',

@@ -135,6 +135,19 @@ const STEPS: StepDef[] = [
     key: 'tickets',
     label: 'Tickets',
     validate: (d) => {
+      if (d.ticket_mode === 'external') {
+        const url = d.ticket_url.trim()
+        if (!url) return 'Add the link where people buy tickets.'
+        try {
+          const parsed = new URL(url)
+          if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+            return 'The ticket link must start with http:// or https://'
+          }
+        } catch {
+          return 'That ticket link is not a valid URL.'
+        }
+        return null
+      }
       if (!d.ticket_tiers) return null
       if (d.ticket_tiers.length === 0) {
         return 'Add at least one ticket type, or choose "No tickets".'
@@ -386,7 +399,9 @@ export default function EventCreationWizard({
         {activeStep.key === 'when' && <WhenStep draft={draft} patch={patch} />}
         {activeStep.key === 'where' && <WhereStep draft={draft} patch={patch} />}
         {activeStep.key === 'media' && <MediaStep draft={draft} patch={patch} />}
-        {activeStep.key === 'tickets' && <TicketsStep draft={draft} patch={patch} />}
+        {activeStep.key === 'tickets' && (
+          <TicketsStep draft={draft} patch={patch} mode={mode} />
+        )}
         {activeStep.key === 'organizer' && (
           <OrganizerStep draft={draft} patch={patch} mode={mode} />
         )}
