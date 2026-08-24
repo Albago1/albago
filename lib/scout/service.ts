@@ -1,6 +1,6 @@
 import 'server-only'
 import { ingestEvents, type IngestSummary, type IngestResultItem } from '@/lib/ingest/service'
-import { buildBriefs, type ScoutBrief } from './brief'
+import { buildBriefs, type ScoutBrief, type ScoutScope } from './brief'
 import { searchEventsForBrief } from './search'
 
 /**
@@ -13,16 +13,20 @@ import { searchEventsForBrief } from './search'
  * published without a human clicking approve. The only difference is who does
  * the asking: the server, on a schedule, instead of a person in a chat window.
  *
- * Sequential and budgeted, for the same reason discovery is: the grounded search
- * and the per-event verification both take real seconds, and a run that dies
- * mid-way is worse than one that stops cleanly and reports what it reached.
+ * The beat is bigger than one run: ~27 areas across Albania, Kosovo, and the
+ * diaspora. buildBriefs hands back this DAY'S slice (see rotateBriefs), so the
+ * whole beat is covered every few nights without any run outstaying its welcome.
+ *
+ * Sequential and budgeted. The budget is shared, not per-step: the run's deadline
+ * is passed down into each ingest batch, so a slow search can't leave a later
+ * batch believing it has four fresh minutes.
  */
 
 const SOFT_BUDGET_MS = 240_000
 
 export type ScoutBriefReport = {
   brief: ScoutBrief
-  /** How many events the search proposed before ingest filtering. */
+  /** How many events the search proposed, before ingest filtering. */
   found: number
   model: string
   summary: IngestSummary | null
@@ -41,13 +45,16 @@ export type ScoutReport = {
   invalid: number
   errors: number
   reports: ScoutBriefReport[]
-  /** Briefs not reached before the budget ran out. */
+  /** Briefs not reached before the budget ran out — they come round again. */
   remaining?: ScoutBrief[]
 }
 
 export type RunScoutOptions = {
-  cities?: Array<{ city: string; country: string }>
+  /** Explicit areas (the admin's "Search now"); otherwise this day's slice. */
+  areas?: string[]
+  scope?: ScoutScope
   days?: number
+  perRun?: number
   deadlineMs?: number
   /** Off only for a dry run; the whole point is that the page overrules the model. */
   verifySource?: boolean
@@ -58,13 +65,19 @@ function todayIso(): string {
 }
 
 export async function runScout(opts: RunScoutOptions = {}): Promise<ScoutReport> {
+  const today = todayIso()
   const briefs = buildBriefs({
-    cities: opts.cities,
+    areas: opts.areas,
+    scope: opts.scope,
     days: opts.days,
-    citiesEnv: process.env.SCOUT_CITIES,
+    perRun: opts.perRun,
+    todayIso: today,
+    env: {
+      areas: process.env.SCOUT_AREAS,
+      diaspora: process.env.SCOUT_DIASPORA_AREAS,
+    },
   })
   const deadline = Date.now() + (opts.deadlineMs ?? SOFT_BUDGET_MS)
-  const today = todayIso()
 
   const report: ScoutReport = {
     ranAt: new Date().toISOString(),
@@ -81,8 +94,7 @@ export async function runScout(opts: RunScoutOptions = {}): Promise<ScoutReport>
 
   for (let i = 0; i < briefs.length; i++) {
     // Always run the first brief; after that, stop starting new ones once the
-    // budget is spent. Unreached cities come back next run — or immediately,
-    // via the returned `remaining` list.
+    // budget is spent. Unreached areas come back on the next run.
     if (i > 0 && Date.now() > deadline) {
       report.remaining = briefs.slice(i)
       break
@@ -108,6 +120,8 @@ export async function runScout(opts: RunScoutOptions = {}): Promise<ScoutReport>
 
     const ingest = await ingestEvents(search.events, {
       verifySource: opts.verifySource !== false,
+      // Share the run's clock — see the note above.
+      deadlineAt: deadline,
     })
 
     report.imported += ingest.summary.imported

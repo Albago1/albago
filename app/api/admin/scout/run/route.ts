@@ -8,8 +8,13 @@ import { clampDays } from '@/lib/scout/brief'
  * has to wait until 03:00 to see whether the beat is producing anything.
  *
  * Same engine, same queue, same human approval. Optional body:
- *   { city?: string, country?: string, days?: number }
- * With no body it runs the configured city list.
+ *   {
+ *     area?: string,      // "Tirana, Albania" | "Albania" | "Germany"
+ *     scope?: 'local' | 'diaspora',
+ *     days?: number
+ *   }
+ * With no area it runs this day's slice of the standing beat, exactly as the
+ * cron would — so pressing the button is a true rehearsal of the nightly run.
  */
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,13 +35,16 @@ export async function POST(request: Request) {
     // No body is the normal case for "run the configured beat".
   }
 
-  const city = typeof body.city === 'string' ? body.city.trim() : ''
-  const country = typeof body.country === 'string' ? body.country.trim() : ''
+  // `city` is accepted as an alias so an older client keeps working.
+  const areaRaw =
+    typeof body.area === 'string' ? body.area : typeof body.city === 'string' ? body.city : ''
+  const area = areaRaw.trim()
+  const scope = body.scope === 'diaspora' ? ('diaspora' as const) : ('local' as const)
 
   try {
     const report = await runScout({
-      // A single typed city runs just that one — the fastest way to test a beat.
-      ...(city ? { cities: [{ city, country: country || 'Albania' }] } : {}),
+      // A typed area runs just that one — the fastest way to test a beat.
+      ...(area ? { areas: [area], scope } : {}),
       days: clampDays(body.days),
       deadlineMs: 240_000,
     })

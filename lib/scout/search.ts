@@ -67,12 +67,33 @@ export type ScoutSearchResult = {
 
 function buildPrompt(brief: ScoutBrief, todayIso: string): string {
   const end = windowEnd(todayIso, brief.days)
-  return [
-    `Today is ${todayIso}.`,
-    `Find public events happening in ${brief.city}, ${brief.country} between ${todayIso} and ${end} (inclusive).`,
-    `Search in both Albanian and English — many listings exist only in Albanian.`,
+  const common = [
+    `Search in Albanian as well as the local language — many listings exist only in Albanian.`,
     `Report at most ${MAX_EVENTS_PER_BRIEF} events, the most clearly-documented ones first.`,
     `Every event needs a source_url you actually opened. Leave any field the source does not state as an empty string, and say what was missing in notes_for_admin.`,
+  ]
+
+  if (brief.scope === 'diaspora') {
+    // "Events in Germany" would return German events. The question is the
+    // Albanian community's own calendar there — a different search entirely.
+    return [
+      `Today is ${todayIso}.`,
+      `Find events for or by the ALBANIAN COMMUNITY (diaspora) in ${brief.area}, happening between ${todayIso} and ${end} (inclusive).`,
+      ``,
+      `That means, for example: concerts by Albanian or Kosovar artists touring there; Albanian community, cultural or folklore festivals; Albanian film screenings; Independence Day (28 November) and Flag Day celebrations; Albanian church or mosque community gatherings; Albanian student and professional association events; Albanian-language theatre.`,
+      `It does NOT mean ordinary local events that happen to be in that country. If an event has no Albanian connection, do not report it.`,
+      `Good sources: Albanian community associations, Albanian embassies and consulates, diaspora media, Albanian churches/mosques, ticket sites listing Albanian artists.`,
+      `Set city to the actual city the event happens in (Munich, Zurich, Brooklyn…), not the country.`,
+      ...common,
+    ].join('\n')
+  }
+
+  return [
+    `Today is ${todayIso}.`,
+    `Find public events happening in ${brief.area} between ${todayIso} and ${end} (inclusive).`,
+    `If the area is a whole country, spread your search across different towns and cities rather than returning only the capital's events.`,
+    `Set city to the specific town or city the event happens in, never the country or a region.`,
+    ...common,
   ].join('\n')
 }
 
@@ -123,7 +144,7 @@ export async function searchEventsForBrief(
       return { events, model: modelId }
     } catch (err) {
       lastError = err instanceof Error ? err.message : 'The search model failed.'
-      console.warn(`[scout] ${modelId} failed for ${brief.city}:`, lastError)
+      console.warn(`[scout] ${modelId} failed for ${brief.area}:`, lastError)
     }
   }
 

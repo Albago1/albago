@@ -126,6 +126,13 @@ export type IngestResult = {
 export type IngestOptions = {
   /** Re-read each source_url and let the page win on conflicts. Default true. */
   verifySource?: boolean
+  /**
+   * Absolute timestamp this batch must stop by. Passed in when the caller owns a
+   * larger budget — the Scout runs several searches inside ONE function
+   * invocation, so each batch must respect the run's remaining time rather than
+   * restarting its own four-minute clock. Omitted: use SOFT_BUDGET_MS from now.
+   */
+  deadlineAt?: number
   /** Injected in tests. */
   now?: () => number
 }
@@ -192,7 +199,7 @@ export async function ingestEvents(
 ): Promise<IngestResult> {
   const verifySource = options.verifySource !== false
   const now = options.now ?? Date.now
-  const deadline = now() + SOFT_BUDGET_MS
+  const deadline = options.deadlineAt ?? now() + SOFT_BUDGET_MS
 
   const batch = rawEvents.slice(0, MAX_EVENTS_PER_REQUEST)
   const results: IngestResultItem[] = []

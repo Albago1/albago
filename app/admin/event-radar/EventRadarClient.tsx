@@ -75,6 +75,7 @@ export default function EventRadarClient({
   const [discovery, setDiscovery] = useState<DiscoveryReport | null>(null)
 
   const [scoutCity, setScoutCity] = useState('')
+  const [scoutDiaspora, setScoutDiaspora] = useState(false)
   const [scoutDays, setScoutDays] = useState('21')
   const [scouting, setScouting] = useState(false)
   const [scoutError, setScoutError] = useState<string | null>(null)
@@ -187,7 +188,8 @@ export default function EventRadarClient({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          city: scoutCity.trim() || undefined,
+          area: scoutCity.trim() || undefined,
+          scope: scoutDiaspora ? 'diaspora' : 'local',
           days: Number.parseInt(scoutDays, 10) || undefined,
         }),
       })
@@ -317,7 +319,8 @@ export default function EventRadarClient({
         <p className="mt-1.5 text-xs text-white/50">
           The scout searches the open web — no source list needed — and files every find as a
           candidate below. Each one is re-read from its own page before it lands, so the page
-          overrules the search. This runs by itself every night at 03:00; use this to run it now.
+          overrules the search. It runs by itself every night at 03:00, working through Albania,
+          Kosovo and the diaspora a few areas at a time; use this to run a slice now.
         </p>
 
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -328,7 +331,7 @@ export default function EventRadarClient({
             onKeyDown={(e) => {
               if (e.key === 'Enter') void runScoutSearch()
             }}
-            placeholder="City — leave empty for the nightly list"
+            placeholder="Tirana · Albania · Germany — empty runs tonight's slice"
             spellCheck={false}
             className="h-11 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 text-[14px] text-white placeholder:text-white/25 focus:border-flame-500/40 focus:outline-none focus:ring-1 focus:ring-flame-500/30"
           />
@@ -351,6 +354,17 @@ export default function EventRadarClient({
             {scouting ? 'Searching…' : 'Search now'}
           </button>
         </div>
+
+        <label className="mt-2.5 flex items-center gap-2 text-[11px] text-white/50">
+          <input
+            type="checkbox"
+            checked={scoutDiaspora}
+            onChange={(e) => setScoutDiaspora(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-white/20 bg-white/[0.03] accent-flame-500"
+          />
+          Diaspora search — look for the Albanian community&apos;s own events in that country
+          (concerts by Albanian artists, community festivals, Flag Day), not local events.
+        </label>
 
         {scouting && (
           <p className="mt-2.5 text-[11px] text-white/40">
