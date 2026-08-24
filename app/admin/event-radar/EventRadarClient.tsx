@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowRight,
   ClipboardList,
+  Globe,
   Loader2,
   Radar,
   ScanSearch,
@@ -16,6 +17,7 @@ import {
 import type { EventImportCandidate, CandidateStatus } from '@/lib/radar/candidate'
 import type { DiscoveryReport } from '@/lib/radar/discovery'
 import type { TextImportResult } from '@/lib/radar/service'
+import type { ScoutReport } from '@/lib/scout/service'
 import { StatusBadge, ConfidenceBadge } from './badges'
 
 type FilterKey = 'review' | 'decided' | 'failed' | 'all'
@@ -71,6 +73,12 @@ export default function EventRadarClient({
   const [discovering, setDiscovering] = useState(false)
   const [discoveryError, setDiscoveryError] = useState<string | null>(null)
   const [discovery, setDiscovery] = useState<DiscoveryReport | null>(null)
+
+  const [scoutCity, setScoutCity] = useState('')
+  const [scoutDays, setScoutDays] = useState('21')
+  const [scouting, setScouting] = useState(false)
+  const [scoutError, setScoutError] = useState<string | null>(null)
+  const [scout, setScout] = useState<ScoutReport | null>(null)
 
   const [pasteText, setPasteText] = useState('')
   const [pasting, setPasting] = useState(false)
@@ -166,6 +174,38 @@ export default function EventRadarClient({
       setDiscoveryError('Something went wrong reaching the discovery agent.')
     } finally {
       setDiscovering(false)
+    }
+  }
+
+  async function runScoutSearch() {
+    if (scouting) return
+    setScouting(true)
+    setScoutError(null)
+    setScout(null)
+    try {
+      const res = await fetch('/api/admin/scout/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          city: scoutCity.trim() || undefined,
+          days: Number.parseInt(scoutDays, 10) || undefined,
+        }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.ok) {
+        setScoutError(
+          res.status === 403
+            ? 'Not authorized — sign in as an admin.'
+            : json?.message || `Search failed (${json?.error ?? res.status}).`,
+        )
+        return
+      }
+      setScout(json.report as ScoutReport)
+      router.refresh()
+    } catch {
+      setScoutError('Something went wrong reaching the scout.')
+    } finally {
+      setScouting(false)
     }
   }
 
@@ -270,6 +310,85 @@ export default function EventRadarClient({
       )}
 
       <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <Globe className="h-4 w-4 text-flame-300" />
+          <h2 className="text-sm font-semibold text-white/90">Search the web for events</h2>
+        </div>
+        <p className="mt-1.5 text-xs text-white/50">
+          The scout searches the open web — no source list needed — and files every find as a
+          candidate below. Each one is re-read from its own page before it lands, so the page
+          overrules the search. This runs by itself every night at 03:00; use this to run it now.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+          <input
+            type="text"
+            value={scoutCity}
+            onChange={(e) => setScoutCity(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void runScoutSearch()
+            }}
+            placeholder="City — leave empty for the nightly list"
+            spellCheck={false}
+            className="h-11 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 text-[14px] text-white placeholder:text-white/25 focus:border-flame-500/40 focus:outline-none focus:ring-1 focus:ring-flame-500/30"
+          />
+          <input
+            type="number"
+            min={1}
+            max={90}
+            value={scoutDays}
+            onChange={(e) => setScoutDays(e.target.value)}
+            aria-label="Days ahead to search"
+            className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 text-[14px] text-white focus:border-flame-500/40 focus:outline-none focus:ring-1 focus:ring-flame-500/30 sm:w-28"
+          />
+          <button
+            type="button"
+            onClick={() => void runScoutSearch()}
+            disabled={scouting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-flame-500/40 bg-flame-500/10 px-5 text-sm font-semibold text-flame-200 transition hover:bg-flame-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {scouting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+            {scouting ? 'Searching…' : 'Search now'}
+          </button>
+        </div>
+
+        {scouting && (
+          <p className="mt-2.5 text-[11px] text-white/40">
+            Searching, then reading each event&apos;s own page — this can take a few minutes.
+          </p>
+        )}
+        {scoutError && (
+          <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-flame-500/30 bg-flame-500/10 px-3 py-2 text-xs text-flame-200">
+            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span>{scoutError}</span>
+          </div>
+        )}
+        {scout && (
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 text-xs text-white/70">
+            {scout.found === 0 ? (
+              <span className="text-white/50">
+                The search came back with nothing it could stand behind. That is an honest answer,
+                not a failure — try a wider window, or a different city.
+              </span>
+            ) : (
+              <span>
+                Searched{' '}
+                <span className="font-semibold text-white">{scout.briefsProcessed}</span>{' '}
+                {scout.briefsProcessed === 1 ? 'city' : 'cities'} · found{' '}
+                <span className="font-semibold text-white">{scout.found}</span> ·{' '}
+                <span className="font-semibold text-emerald-300">{scout.imported}</span> new
+                {scout.duplicate > 0 && <> · {scout.duplicate} already imported</>}
+                {scout.notEvent > 0 && <> · {scout.notEvent} not events</>}
+                {scout.invalid > 0 && <> · {scout.invalid} unusable</>}
+                {scout.errors > 0 && <> · {scout.errors} errored</>}
+                . New candidates appear below.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Radar className="h-4 w-4 text-flame-300" />
           <h2 className="text-sm font-semibold text-white/90">Discover a whole source</h2>

@@ -1,0 +1,131 @@
+import 'server-only'
+import { generateText } from 'ai'
+import { google } from '@ai-sdk/google'
+import { parseModelJson } from '@/lib/ai/parseModelJson'
+import { windowEnd, type ScoutBrief } from './brief'
+
+/**
+ * The Scout's search half (Phase 39): one grounded web search per brief,
+ * returning raw event objects in the ingest contract's shape.
+ *
+ * This is the piece that replaces "open ChatGPT and ask it to look". It uses
+ * Gemini with Google Search grounding — the same key and SDK the rest of the
+ * app's AI already runs on, so no second vendor account and no second bill.
+ *
+ * Two things it deliberately does NOT do:
+ *
+ *  1. It does not decide anything. Its output goes straight into ingestEvents,
+ *     which re-reads every source page, overrules the model wherever the page
+ *     disagrees, resolves the city itself, and files a draft for a human. The
+ *     model is a scout, not an editor — same contract as the ChatGPT path.
+ *  2. It does not use structured output. Gemini cannot combine search grounding
+ *     with a response schema, so the JSON shape is stated in the prompt and
+ *     parsed with the shared parseModelJson. Anything malformed is dropped.
+ */
+
+/**
+ * Grounded search needs a model that carries the google_search tool well.
+ * Flash-Lite (the app's default text model) is tuned for cheap extraction and
+ * is noticeably worse at multi-step search, so the Scout asks for full Flash and
+ * falls back to Lite if Flash is unavailable — the free tier does deprioritize
+ * the full models under load, which is exactly the 503 the text model's comment
+ * warns about. Pin explicitly with AI_SCOUT_MODEL.
+ */
+const PRIMARY_MODEL = process.env.AI_SCOUT_MODEL || 'gemini-flash-latest'
+const FALLBACK_MODEL = 'gemini-flash-lite-latest'
+
+/** Hard cap on events per brief, so one loose search can't flood the queue. */
+export const MAX_EVENTS_PER_BRIEF = 10
+
+const SYSTEM_PROMPT = `You are AlbaGo's event scout. You search the public web for real, upcoming, public events and report them as JSON. You are a reporter: you record what sources say, and nothing else.
+
+THE ONE RULE: NEVER INVENT A VALUE. If a source does not state the time, the year, the venue, or the price, leave that field as an empty string. A wrong date on a public event page sends real people to a closed door. An empty field is correct; a plausible guess is not. This rule outranks any instinct to produce complete-looking results.
+
+Rules:
+1. Only events that are genuinely upcoming within the stated date window. Never a past event, never last year's edition of a recurring festival. Check the year explicitly — event pages routinely leave old editions online.
+2. Every event MUST carry source_url: the specific public page you read it on. No source_url, no event. Never cite a search engine results page, and never cite a page you did not actually read.
+3. One entry per event. Do not list the same event twice under different names.
+4. city must be a real settlement (Tirana, Durrës, Vlorë, Sarandë, Prishtina…), spelled as OpenStreetMap spells it. Never a region, coastline, country or neighbourhood. A neighbourhood goes in address.
+5. Do not compute a location slug and do not send coordinates. AlbaGo resolves the location itself; anything you send for it is discarded.
+6. title and description keep the source's own wording in the source's own language. Do not translate, do not embellish, do not summarise into marketing copy.
+7. date is ISO YYYY-MM-DD. time and end_time are 24h HH:MM. If a source states only a doors time, use it as the start.
+8. category is exactly one of: nightlife, music, sports, culture, food, civic — or "" if genuinely unclear. Protests, marches, commemorations → civic.
+9. image_url only when it is a direct URL to the image FILE (.jpg/.png/.webp/.avif). A page URL, a search thumbnail, or a social CDN link that will expire is worse than nothing — leave it empty and AlbaGo will take the page's own preview image.
+10. Prefer venue sites, ticketing platforms, cultural institutions, municipality pages and festival sites. Social posts you cannot open are not sources.
+
+Return ONLY a JSON object of the form:
+{"events":[{"source_url":"","image_url":"","title":"","description":"","category":"","is_civic":false,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","notes_for_admin":""}]}
+No markdown fences, no commentary. An empty list is a valid and honest answer when you found nothing you can stand behind.`
+
+export type ScoutSearchResult = {
+  /** Raw event objects — validated downstream by the ingest contract. */
+  events: unknown[]
+  /** Which model actually answered, for the run report. */
+  model: string
+  error?: string
+}
+
+function buildPrompt(brief: ScoutBrief, todayIso: string): string {
+  const end = windowEnd(todayIso, brief.days)
+  return [
+    `Today is ${todayIso}.`,
+    `Find public events happening in ${brief.city}, ${brief.country} between ${todayIso} and ${end} (inclusive).`,
+    `Search in both Albanian and English — many listings exist only in Albanian.`,
+    `Report at most ${MAX_EVENTS_PER_BRIEF} events, the most clearly-documented ones first.`,
+    `Every event needs a source_url you actually opened. Leave any field the source does not state as an empty string, and say what was missing in notes_for_admin.`,
+  ].join('\n')
+}
+
+/** Pull the events array out of whatever shape the model returned. Accepts both
+ *  {"events":[…]} and a bare […] — models drift between the two. */
+function eventsArray(parsed: unknown): unknown[] {
+  if (Array.isArray(parsed)) return parsed
+  if (parsed && typeof parsed === 'object') {
+    const arr = (parsed as { events?: unknown }).events
+    if (Array.isArray(arr)) return arr
+  }
+  return []
+}
+
+async function searchWith(modelId: string, brief: ScoutBrief, todayIso: string) {
+  return generateText({
+    model: google(modelId),
+    system: SYSTEM_PROMPT,
+    prompt: buildPrompt(brief, todayIso),
+    // Provider-executed grounding: Google runs the search and feeds the results
+    // back to the model before it answers. Named google_search as the provider requires.
+    tools: { google_search: google.tools.googleSearch({}) },
+    maxOutputTokens: 8000,
+  })
+}
+
+/**
+ * Run one brief. Never throws: a failed search returns an empty list with the
+ * reason, so one dead city can't abort the nightly run.
+ */
+export async function searchEventsForBrief(
+  brief: ScoutBrief,
+  todayIso: string,
+): Promise<ScoutSearchResult> {
+  const models = PRIMARY_MODEL === FALLBACK_MODEL ? [PRIMARY_MODEL] : [PRIMARY_MODEL, FALLBACK_MODEL]
+  let lastError = 'The search model returned nothing.'
+
+  for (const modelId of models) {
+    try {
+      const { text } = await searchWith(modelId, brief, todayIso)
+      const events = eventsArray(parseModelJson(text)).slice(0, MAX_EVENTS_PER_BRIEF)
+      // A parse failure is a model problem, not a "no events" answer — try the
+      // fallback model before believing the city is empty.
+      if (events.length === 0 && !/\[\s*\]/.test(text) && !/"events"\s*:\s*\[\s*\]/.test(text)) {
+        lastError = 'The search model returned an unreadable answer.'
+        continue
+      }
+      return { events, model: modelId }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'The search model failed.'
+      console.warn(`[scout] ${modelId} failed for ${brief.city}:`, lastError)
+    }
+  }
+
+  return { events: [], model: models[models.length - 1], error: lastError }
+}
