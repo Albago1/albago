@@ -88,6 +88,7 @@ export default function EventRadarClient({
 
   const [filter, setFilter] = useState<FilterKey>('review')
   const [clearing, setClearing] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const canRun = url.trim().length > 0 && !running
   const canDiscover = sourceUrl.trim().length > 0 && !discovering
@@ -265,6 +266,21 @@ export default function EventRadarClient({
       return
     }
     await runClear('all')
+  }
+
+  /** Bin one suggestion straight from the list, without opening it. */
+  async function deleteOne(id: string, title: string | null) {
+    if (deletingId) return
+    if (!confirm(`Delete "${title || 'this import'}"?\n\nA later search may find it again.`)) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/admin/event-radar/${id}`, { method: 'DELETE' })
+      if (res.ok) router.refresh()
+    } catch {
+      /* leave the row in place on failure */
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   async function runClear(scope: 'failed' | 'all') {
@@ -629,10 +645,10 @@ export default function EventRadarClient({
         ) : (
           <ul className="space-y-2">
             {visible.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} className="flex items-stretch gap-2">
                 <Link
                   href={`/admin/event-radar/${c.id}`}
-                  className="group flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 transition hover:border-white/15 hover:bg-white/[0.04]"
+                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 transition hover:border-white/15 hover:bg-white/[0.04]"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -663,6 +679,23 @@ export default function EventRadarClient({
                   </div>
                   <ArrowRight className="h-4 w-4 shrink-0 text-white/25 transition group-hover:text-white/60" />
                 </Link>
+
+                {/* A sibling of the Link, not a child: a button inside an anchor
+                    is invalid markup and swallows the row's own click target. */}
+                <button
+                  type="button"
+                  onClick={() => void deleteOne(c.id, c.title)}
+                  disabled={deletingId !== null}
+                  aria-label={`Delete ${c.title || 'this import'}`}
+                  title="Delete this suggestion"
+                  className="inline-flex shrink-0 items-center rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 text-white/25 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-flame-300 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {deletingId === c.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </button>
               </li>
             ))}
           </ul>
