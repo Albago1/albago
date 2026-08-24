@@ -32,6 +32,10 @@ export type RadarWarningCode =
   | 'duplicate_in_review'
   | 'low_model_confidence'
   | 'no_description'
+  /** Phase 38: an outside agent asserted this event and we could not read the
+   *  source page to check it. Added by the ingest service, not by assessReading —
+   *  listed here so the code is part of the one shared vocabulary. */
+  | 'source_unverified'
 
 export type RadarWarning = { code: RadarWarningCode; message: string }
 
@@ -200,6 +204,9 @@ const SOFTENING_CODES = new Set<RadarWarningCode>([
   'venue_suggested',
   'coords_unverified',
   'no_description',
+  // An unverifiable agent claim is a reason to look harder, not a reason to
+  // discard: it caps the candidate at medium and says why.
+  'source_unverified',
 ])
 
 /**

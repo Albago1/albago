@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { isRequestAdmin } from '@/lib/admin/apiAuth'
 import { createClient } from '@/lib/supabase/server'
 import { getCandidate } from '@/lib/radar/service'
-import { safeFetch } from '@/lib/ssrfGuard'
+import { EVENT_COVERS_BUCKET, fetchRemoteImage } from '@/lib/media/remoteImage'
 
 /**
  * Adopt an imported candidate's poster into our own storage.
@@ -24,12 +24,15 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-const MAX_BYTES = 8 * 1024 * 1024
-const TYPE_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/avif': 'avif',
+/** Fetch/validate rules live in lib/media/remoteImage.ts — shared with the
+ *  Phase 38 ingest API so both adoption paths obey identical limits. This route
+ *  keeps the upload half, because an admin's copy belongs in their own folder. */
+const FETCH_ERROR_STATUS: Record<string, number> = {
+  blocked_url: 502,
+  fetch_failed: 502,
+  unsupported_type: 415,
+  empty_image: 502,
+  too_large: 413,
 }
 
 export async function POST(
@@ -50,28 +53,14 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'no_image' }, { status: 404 })
     }
 
-    const res = await safeFetch(candidate.image_url, { timeoutMs: 10000 })
-    if (!res.ok) {
-      return NextResponse.json({ ok: false, error: 'fetch_failed' }, { status: 502 })
+    const fetched = await fetchRemoteImage(candidate.image_url)
+    if (!fetched.ok) {
+      return NextResponse.json(
+        { ok: false, error: fetched.error },
+        { status: FETCH_ERROR_STATUS[fetched.error] ?? 502 },
+      )
     }
-
-    // Trust the served type over the URL's extension — CDNs routinely serve
-    // /poster.jpg as WebP. An unlisted type is a "no", not a guess.
-    const contentType = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
-    const ext = TYPE_EXT[contentType]
-    if (!ext) {
-      return NextResponse.json({ ok: false, error: 'unsupported_type' }, { status: 415 })
-    }
-
-    // Read fully, then check size: content-length is optional and lies. The
-    // 8 MB cap matches the browser upload path so both surfaces agree.
-    const bytes = new Uint8Array(await res.arrayBuffer())
-    if (bytes.byteLength === 0) {
-      return NextResponse.json({ ok: false, error: 'empty_image' }, { status: 502 })
-    }
-    if (bytes.byteLength > MAX_BYTES) {
-      return NextResponse.json({ ok: false, error: 'too_large' }, { status: 413 })
-    }
+    const { bytes, contentType, ext } = fetched
 
     const supabase = await createClient()
     const {
@@ -83,7 +72,7 @@ export async function POST(
 
     const path = `${user.id}/imported-${id}-${crypto.randomUUID().slice(0, 8)}.${ext}`
     const { error: uploadErr } = await supabase.storage
-      .from('event-covers')
+      .from(EVENT_COVERS_BUCKET)
       .upload(path, bytes, { contentType, upsert: false })
 
     if (uploadErr) {
@@ -94,7 +83,7 @@ export async function POST(
       )
     }
 
-    const { data } = supabase.storage.from('event-covers').getPublicUrl(path)
+    const { data } = supabase.storage.from(EVENT_COVERS_BUCKET).getPublicUrl(path)
     return NextResponse.json({ ok: true, url: data.publicUrl })
   } catch (err) {
     // blocked_url, timeout, too_many_redirects — all mean "no cover", not "stop".
