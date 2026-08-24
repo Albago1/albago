@@ -247,11 +247,37 @@ export default function EventRadarClient({
   async function clearFailed() {
     if (clearing || counts.failed === 0) return
     if (!confirm(`Remove all ${counts.failed} unreadable imports? They can't be reviewed.`)) return
+    await runClear('failed')
+  }
+
+  /** Full reset. Spelled out in the prompt because deleting rejected candidates
+   *  removes the very thing that stops the agent re-queueing them. */
+  async function clearAll() {
+    if (clearing || counts.all === 0) return
+    if (
+      !confirm(
+        `Delete all ${counts.all} imports and start the queue empty?\n\n` +
+          `This does NOT delete anything you already published, and it does not delete events ` +
+          `already sent to the submission queue.\n\n` +
+          `But it does forget which events you rejected — so the next search may find them again.`,
+      )
+    ) {
+      return
+    }
+    await runClear('all')
+  }
+
+  async function runClear(scope: 'failed' | 'all') {
+    if (clearing) return
     setClearing(true)
     try {
-      const res = await fetch('/api/admin/event-radar/clear-failed', { method: 'POST' })
+      const res = await fetch('/api/admin/event-radar/clear', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scope }),
+      })
       if (res.ok) {
-        if (filter === 'failed') setFilter('review')
+        setFilter('review')
         router.refresh()
       }
     } catch {
@@ -565,17 +591,31 @@ export default function EventRadarClient({
               </button>
             ))}
           </div>
-          {counts.failed > 0 && (
-            <button
-              type="button"
-              onClick={() => void clearFailed()}
-              disabled={clearing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-[12px] text-white/50 transition hover:border-flame-500/40 hover:text-flame-200 disabled:opacity-50"
-            >
-              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Clear {counts.failed} unreadable
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {counts.failed > 0 && (
+              <button
+                type="button"
+                onClick={() => void clearFailed()}
+                disabled={clearing}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-[12px] text-white/50 transition hover:border-flame-500/40 hover:text-flame-200 disabled:opacity-50"
+              >
+                {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Clear {counts.failed} unreadable
+              </button>
+            )}
+            {counts.all > 0 && (
+              <button
+                type="button"
+                onClick={() => void clearAll()}
+                disabled={clearing}
+                title="Empty the queue and start the search over"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-[12px] text-white/50 transition hover:border-flame-500/40 hover:text-flame-200 disabled:opacity-50"
+              >
+                {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Clear all {counts.all}
+              </button>
+            )}
+          </div>
         </div>
 
         {initialCandidates.length === 0 ? (

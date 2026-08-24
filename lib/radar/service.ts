@@ -484,17 +484,47 @@ export async function deleteCandidate(id: string): Promise<{ ok: boolean; messag
   return error ? { ok: false, message: error.message } : { ok: true }
 }
 
-/** Bulk-remove every unreadable (`failed`) candidate — the dead imports a
- *  discovery run leaves behind (JS-only / blocked pages). Returns how many went. */
-export async function clearFailedCandidates(): Promise<{ ok: boolean; deleted: number }> {
-  const { data, error } = await admin()
-    .from(TABLE)
-    .delete()
-    .eq('status', 'failed')
-    .select('id')
+/**
+ * How much of the review queue to wipe.
+ *
+ *   failed  — the dead imports a discovery run leaves behind (JS-only / blocked
+ *             pages). Always safe: they carry nothing reviewable.
+ *   decided — everything already approved or rejected. Tidies the queue without
+ *             touching anything still awaiting a decision.
+ *   all     — a full reset, including candidates still in needs_review.
+ *
+ * WHAT CLEARING COSTS YOU: this table is also the memory that stops the same
+ * event being queued twice. A REJECTED candidate is a tombstone — it is what
+ * makes tonight's run skip the thing you already said no to. Delete it and the
+ * agent is free to find it again and re-queue it. That is exactly what you want
+ * when restarting from scratch, and exactly what you don't want when tidying up.
+ *
+ * Deleting an APPROVED candidate never touches the event_submissions row it
+ * created, nor any published event — it only discards the import's audit trail.
+ */
+export type ClearScope = 'failed' | 'decided' | 'all'
+
+export async function clearCandidates(
+  scope: ClearScope,
+): Promise<{ ok: boolean; deleted: number }> {
+  const base = admin().from(TABLE).delete()
+  const query =
+    scope === 'failed'
+      ? base.eq('status', 'failed')
+      : scope === 'decided'
+        ? base.in('status', ['approved', 'rejected'])
+        : // PostgREST refuses an unfiltered delete; this matches every row.
+          base.not('id', 'is', null)
+
+  const { data, error } = await query.select('id')
   if (error) {
-    console.error('[radar] clearFailed failed:', error.code ?? '', error.message)
+    console.error('[radar] clear failed:', scope, error.code ?? '', error.message)
     return { ok: false, deleted: 0 }
   }
   return { ok: true, deleted: (data as { id: string }[] | null)?.length ?? 0 }
+}
+
+/** Back-compat wrapper for the existing clear-failed route/button. */
+export async function clearFailedCandidates(): Promise<{ ok: boolean; deleted: number }> {
+  return clearCandidates('failed')
 }
