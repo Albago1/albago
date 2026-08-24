@@ -1,6 +1,7 @@
 import 'server-only'
 import { generateText } from 'ai'
 import { google } from '@ai-sdk/google'
+import { openai } from '@ai-sdk/openai'
 import { parseModelJson } from '@/lib/ai/parseModelJson'
 import { windowEnd, type ScoutBrief } from './brief'
 
@@ -24,15 +25,42 @@ import { windowEnd, type ScoutBrief } from './brief'
  */
 
 /**
- * Grounded search needs a model that carries the google_search tool well.
- * Flash-Lite (the app's default text model) is tuned for cheap extraction and
- * is noticeably worse at multi-step search, so the Scout asks for full Flash and
- * falls back to Lite if Flash is unavailable — the free tier does deprioritize
- * the full models under load, which is exactly the 503 the text model's comment
- * warns about. Pin explicitly with AI_SCOUT_MODEL.
+ * Which provider does the searching.
+ *
+ * OpenAI by default, because the Scout's searches are the one AI job here that
+ * is entirely separate from the rest of the app: keeping it on its own key means
+ * a nightly run can never exhaust the quota that Lens, translations and the
+ * compose assistant depend on — which is exactly the failure that produced the
+ * first empty result (a Gemini free-tier quota error, reported as "found
+ * nothing"). Force either way with SCOUT_PROVIDER=openai|google.
  */
-const PRIMARY_MODEL = process.env.AI_SCOUT_MODEL || 'gemini-flash-latest'
-const FALLBACK_MODEL = 'gemini-flash-lite-latest'
+export type ScoutProvider = 'openai' | 'google'
+
+export function resolveProvider(): ScoutProvider {
+  const explicit = process.env.SCOUT_PROVIDER?.trim().toLowerCase()
+  if (explicit === 'openai' || explicit === 'google') return explicit
+  return process.env.OPENAI_API_KEY ? 'openai' : 'google'
+}
+
+/** Model ladder per provider: preferred first, fallback second. Pin the first
+ *  entry with AI_SCOUT_MODEL. */
+function modelLadder(provider: ScoutProvider): string[] {
+  const pinned = process.env.AI_SCOUT_MODEL?.trim()
+  const ladder =
+    provider === 'openai'
+      ? // mini is the right shape for this: the hard part is searching and
+        // reading, not reasoning, and the nightly run is cost-sensitive.
+        ['gpt-5.4-mini', 'gpt-5.4']
+      : ['gemini-flash-latest', 'gemini-flash-lite-latest']
+  if (!pinned) return ladder
+  return [pinned, ...ladder.filter((m) => m !== pinned)]
+}
+
+/** Reasoning models spend part of the output budget thinking, so the ceiling has
+ *  to clear both the reasoning and the JSON. */
+function outputBudget(provider: ScoutProvider): number {
+  return provider === 'openai' ? 12_000 : 8_000
+}
 
 /** Hard cap on events per brief, so one loose search can't flood the queue. */
 export const MAX_EVENTS_PER_BRIEF = 10
@@ -117,17 +145,33 @@ function eventsArray(parsed: unknown): unknown[] {
   return []
 }
 
-async function searchWith(modelId: string, brief: ScoutBrief, todayIso: string) {
-  return generateText({
-    model: google(modelId),
+async function searchWith(
+  provider: ScoutProvider,
+  modelId: string,
+  brief: ScoutBrief,
+  todayIso: string,
+) {
+  // Each branch passes its provider's own tool object literal. A shared
+  // `tools` variable can't be typed across both providers — the SDK infers a
+  // tool's input schema per provider, and the two don't unify.
+  const common = {
     system: SYSTEM_PROMPT,
     prompt: buildPrompt(brief, todayIso),
-    // Provider-executed grounding: Google runs the search and feeds the results
-    // back to the model before it answers. Named google_search as the provider requires.
-    tools: { google_search: google.tools.googleSearch({}) },
-    maxOutputTokens: 8000,
+    maxOutputTokens: outputBudget(provider),
     abortSignal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
-  })
+  }
+
+  return provider === 'openai'
+    ? generateText({
+        ...common,
+        model: openai(modelId),
+        tools: { web_search: openai.tools.webSearch({}) },
+      })
+    : generateText({
+        ...common,
+        model: google(modelId),
+        tools: { google_search: google.tools.googleSearch({}) },
+      })
 }
 
 /**
@@ -138,12 +182,21 @@ export async function searchEventsForBrief(
   brief: ScoutBrief,
   todayIso: string,
 ): Promise<ScoutSearchResult> {
-  const models = PRIMARY_MODEL === FALLBACK_MODEL ? [PRIMARY_MODEL] : [PRIMARY_MODEL, FALLBACK_MODEL]
+  const provider = resolveProvider()
+  const models = modelLadder(provider)
   let lastError = 'The search model returned nothing.'
+
+  if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
+    return {
+      events: [],
+      model: 'none',
+      error: 'OPENAI_API_KEY is not set, so the scout has no way to search.',
+    }
+  }
 
   for (const modelId of models) {
     try {
-      const { text, finishReason } = await searchWith(modelId, brief, todayIso)
+      const { text, finishReason } = await searchWith(provider, modelId, brief, todayIso)
       const events = eventsArray(parseModelJson(text)).slice(0, MAX_EVENTS_PER_BRIEF)
       // A parse failure is a model problem, not a "no events" answer — try the
       // fallback model before believing the area is empty. The reply's opening

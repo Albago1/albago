@@ -19,18 +19,35 @@ on anyone opening an app.
 
 ## 2. Provider
 
-Gemini with **Google Search grounding**, via `google.tools.googleSearch({})` in
-the already-installed `@ai-sdk/google`. This matters: no OpenAI account, no
-second API key, no second bill — it runs on the same key Lens already uses.
+**OpenAI by default**, via `openai.tools.webSearch({})`. Selectable with
+`SCOUT_PROVIDER=openai|google`; with neither set it picks OpenAI when
+`OPENAI_API_KEY` exists, else Google.
 
-Grounding cannot be combined with a response schema, so the JSON shape is stated
-in the prompt and parsed with the shared `parseModelJson`, exactly as every other
-reader in the codebase does.
+Model ladder: `AI_SCOUT_MODEL` first if pinned, else `gpt-5.4-mini` → `gpt-5.4`
+(Google: `gemini-flash-latest` → `gemini-flash-lite-latest`). Mini is the right
+shape here — the work is searching and reading, not reasoning, and a nightly job
+is cost-sensitive.
 
-Model: `AI_SCOUT_MODEL` → default `gemini-flash-latest`, falling back to
-`gemini-flash-lite-latest`. Flash-Lite is the app's default text model but is
-noticeably weaker at multi-step search; the fallback exists because the free tier
-deprioritizes full Flash under load (the 503 noted in `lib/ai/textModel.ts`).
+**Why not Gemini, which was the original choice.** It shipped on Gemini because
+the SDK was already installed and the key already existed. The first real run
+returned nothing; the cause was a free-tier quota error on Google Search
+**grounding specifically** — a plain Gemini call on the same key still worked.
+Two lessons are baked in here:
+
+1. Grounding carries its own quota, separate from generation. "The key works"
+   does not mean "search works".
+2. The Scout now has its own provider and its own key, so a nightly run can never
+   exhaust the quota Lens, translations and the compose assistant depend on.
+   Those stay on Gemini.
+
+Neither provider can combine web search with a response schema, so the JSON shape
+is stated in the prompt and parsed with the shared `parseModelJson`, exactly as
+every other reader in this codebase does.
+
+**Dependency note:** installing `@ai-sdk/openai` pulled a second copy of
+`@ai-sdk/provider-utils` (5.0.29 nested, 5.0.11 at root), which made the two
+providers' tool types refuse to unify. `overrides` in package.json pins one copy.
+If a future install resurrects the nested copy, that type error is the symptom.
 
 ## 3. Shape
 

@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { generateText } from 'ai'
 import { google } from '@ai-sdk/google'
+import { openai } from '@ai-sdk/openai'
 
 // Minimal .env.local loader — the app gets these from Vercel, this script doesn't.
 try {
@@ -20,11 +21,24 @@ try {
   console.log('(no .env.local found — relying on the ambient environment)')
 }
 
-const models = process.argv[2] ? [process.argv[2]] : ['gemini-flash-latest', 'gemini-flash-lite-latest']
+// node scripts/scout-probe.mjs [openai|google] [modelId]
+const provider = process.argv[2] === 'google' ? 'google' : 'openai'
+const models = process.argv[3]
+  ? [process.argv[3]]
+  : provider === 'openai'
+    ? ['gpt-5.4-mini', 'gpt-5.4']
+    : ['gemini-flash-latest', 'gemini-flash-lite-latest']
 const today = new Date().toISOString().slice(0, 10)
 
-console.log(`key present: ${Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY)}`)
-console.log(`key prefix : ${(process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? '').slice(0, 4)}…`)
+const model = (id) => (provider === 'openai' ? openai(id) : google(id))
+const tools = () =>
+  provider === 'openai'
+    ? { web_search: openai.tools.webSearch({}) }
+    : { google_search: google.tools.googleSearch({}) }
+
+console.log(`provider   : ${provider}`)
+console.log(`openai key : ${Boolean(process.env.OPENAI_API_KEY)}`)
+console.log(`google key : ${Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY)}`)
 console.log(`gateway key: ${Boolean(process.env.AI_GATEWAY_API_KEY)}`)
 console.log('')
 
@@ -34,7 +48,7 @@ for (const id of models) {
   // 1. Plain call, no tools — proves the key and model work at all.
   try {
     const plain = await generateText({
-      model: google(id),
+      model: model(id),
       prompt: 'Reply with the single word: ok',
       maxOutputTokens: 2000,
     })
@@ -47,12 +61,12 @@ for (const id of models) {
   // 2. Grounded call — the thing the Scout actually does.
   try {
     const res = await generateText({
-      model: google(id),
+      model: model(id),
       system:
         'You search the web and reply ONLY with JSON. No markdown fences, no commentary.',
       prompt: `Today is ${today}. Find up to 3 public events happening in Tirana, Albania in the next 30 days. Reply as {"events":[{"title":"","date":"","venue_name":"","source_url":""}]}`,
-      tools: { google_search: google.tools.googleSearch({}) },
-      maxOutputTokens: 8000,
+      tools: tools(),
+      maxOutputTokens: 12000,
     })
     console.log(`grounded call: OK`)
     console.log(`finishReason : ${res.finishReason}`)
