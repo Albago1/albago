@@ -10,6 +10,47 @@
 
 ---
 
+## OPEN — parked, waiting on a decision (2026-08-24)
+
+**The nightly Scout (Phase 39) is built, deployed and blocked on one thing: a paid
+AI provider for web search.** Everything else in the chain is verified working.
+
+Deliberately parked by the user on 2026-08-24 — "for now nothing, add it to the
+things that need and can be done later". Do not re-litigate it; just pick it up
+when they say so.
+
+To unblock, either:
+- **Google (fewest steps):** enable billing on the existing `GOOGLE_GENERATIVE_AI_API_KEY`
+  project at aistudio.google.com. No env change, no redeploy — the provider
+  resolver already falls back to Google when `OPENAI_API_KEY` is absent.
+- **OpenAI (the user's stated preference):** create a key at platform.openai.com
+  with credit, add `OPENAI_API_KEY` to Vercel (Production + Preview), redeploy.
+
+Then: `/admin/event-radar` → **Search the web for events** → empty box → **Search now**.
+After that it self-runs at 03:00 nightly across the 27-area beat.
+
+**Why it's blocked:** the first live run failed with a Google free-tier quota error
+on Search *grounding specifically* — a plain Gemini call on the same key still
+worked. Grounding carries its own quota. Lens, translations, captions and compose
+are unaffected and were never broken (an earlier diagnosis wrongly assumed they were).
+
+**Also outstanding, smaller:**
+- `CRON_SECRET` in Vercel — without it `/api/cron/scout` and `/api/cron/discover`
+  reject their own scheduler, so the nightly runs silently do nothing.
+- The user's Custom GPT ("AlbaGo Scout", private) may not have its Action wired.
+  Symptom: it describes events in chat and nothing reaches the queue. Fix is
+  Configure → Actions → Import from URL `https://www.albago.org/api/ingest/openapi`
+  → API Key / Bearer / `INGEST_API_KEY`. Unverified as of parking.
+- `docs/seeds/crawl-sources.sql` still unapplied — only needed for the older
+  site-crawler cron, not for the Scout.
+- A diagnostic row titled "ZZZ TEST — delete me" may still sit in the queue.
+
+**Verified working end-to-end (don't re-test blindly):** `POST /api/ingest/events`
+with the bearer key → candidate created, city resolved to `tirana` unaided,
+warnings attached, `event_import_candidates` table live. See Phases 38/39 below.
+
+---
+
 ## State as of 2026-07-19
 
 **Quality gates (all green):** `npx tsc --noEmit`, `npx eslint` (0 errors, 0 warnings),
