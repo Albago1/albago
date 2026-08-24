@@ -37,6 +37,15 @@ const FALLBACK_MODEL = 'gemini-flash-lite-latest'
 /** Hard cap on events per brief, so one loose search can't flood the queue. */
 export const MAX_EVENTS_PER_BRIEF = 10
 
+/**
+ * A grounded search runs several web fetches inside the provider before it
+ * answers, so it is legitimately slow — but it must not be allowed to hang. A
+ * call that stalls would otherwise consume the entire run budget and surface as
+ * a generic timeout with no cause attached, which is exactly the failure mode
+ * that made the first empty result so hard to diagnose.
+ */
+const SEARCH_TIMEOUT_MS = 90_000
+
 const SYSTEM_PROMPT = `You are AlbaGo's event scout. You search the public web for real, upcoming, public events and report them as JSON. You are a reporter: you record what sources say, and nothing else.
 
 THE ONE RULE: NEVER INVENT A VALUE. If a source does not state the time, the year, the venue, or the price, leave that field as an empty string. A wrong date on a public event page sends real people to a closed door. An empty field is correct; a plausible guess is not. This rule outranks any instinct to produce complete-looking results.
@@ -117,6 +126,7 @@ async function searchWith(modelId: string, brief: ScoutBrief, todayIso: string) 
     // back to the model before it answers. Named google_search as the provider requires.
     tools: { google_search: google.tools.googleSearch({}) },
     maxOutputTokens: 8000,
+    abortSignal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
   })
 }
 
@@ -133,12 +143,19 @@ export async function searchEventsForBrief(
 
   for (const modelId of models) {
     try {
-      const { text } = await searchWith(modelId, brief, todayIso)
+      const { text, finishReason } = await searchWith(modelId, brief, todayIso)
       const events = eventsArray(parseModelJson(text)).slice(0, MAX_EVENTS_PER_BRIEF)
       // A parse failure is a model problem, not a "no events" answer — try the
-      // fallback model before believing the city is empty.
+      // fallback model before believing the area is empty. The reply's opening
+      // characters ride along in the error: when this goes wrong in production
+      // that snippet is the only evidence of WHY, and it costs nothing to keep.
       if (events.length === 0 && !/\[\s*\]/.test(text) && !/"events"\s*:\s*\[\s*\]/.test(text)) {
-        lastError = 'The search model returned an unreadable answer.'
+        lastError =
+          finishReason === 'length'
+            ? 'The search model ran out of output budget before finishing its answer.'
+            : `The search model returned an unreadable answer (${finishReason}): ${
+                text.trim().slice(0, 160) || '<empty>'
+              }`
         continue
       }
       return { events, model: modelId }

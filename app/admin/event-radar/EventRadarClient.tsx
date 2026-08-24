@@ -421,10 +421,26 @@ export default function EventRadarClient({
         )}
         {scout && (
           <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 text-xs text-white/70">
-            {scout.found === 0 ? (
+            {/* A failed search and an empty one look identical in a count. Say
+                which it was, and show the provider's own words — "nothing found"
+                must never be the cover story for a broken call. */}
+            {scout.reports.some((r) => r.error) ? (
+              <div className="space-y-1.5">
+                <span className="text-flame-200">
+                  The search did not run. This is a failure, not an empty result:
+                </span>
+                {scout.reports
+                  .filter((r) => r.error)
+                  .map((r, i) => (
+                    <p key={i} className="text-white/60">
+                      <span className="text-white/80">{r.brief.area}</span> ({r.model}): {r.error}
+                    </p>
+                  ))}
+              </div>
+            ) : scout.found === 0 ? (
               <span className="text-white/50">
-                The search came back with nothing it could stand behind. That is an honest answer,
-                not a failure — try a wider window, or a different city.
+                The search ran and came back with nothing it could stand behind. Try a wider window,
+                or a different area.
               </span>
             ) : (
               <span>
