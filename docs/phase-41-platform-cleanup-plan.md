@@ -7,6 +7,12 @@ verification of every claim against the live site, the code and the live databas
 **Parked:** Phase 40 (event series) stays on its branch `phase-40-event-series`, unmerged, until
 this phase is done.
 
+> **Done before 41.1 (2026-10-03, by user decision):** the Flamingo banner was
+> removed (`67dfd2f`, live), then **all protest / civic / movement / volunteer
+> features were removed from the code** (branch `remove-protests`) and existing
+> protest rows are taken offline by `docs/seeds/phase-41-remove-protests.sql`.
+> This settles D2 and D3 below and P10 above. Civic content is out of scope.
+>
 > Rule for this phase: **no new features.** Every step makes something that already exists
 > correct, consistent or visible. Each step is one commit, ships alone, and is verified by you
 > before the next one starts.
