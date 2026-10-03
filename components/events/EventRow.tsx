@@ -5,15 +5,18 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 /**
  * One horizontal, swipeable line of cards (Netflix-style category row).
- * Phones swipe with snap; desktop gets arrow buttons that only appear when
- * there is more to scroll in that direction.
+ * The heading sits on the left with left/right arrows on the right, on every
+ * screen size; an arrow dims when there is nothing more to scroll that way.
+ * Touch devices can also swipe (with snap).
  */
 export default function EventRow({
-  children,
+  heading,
   labelledBy,
+  children,
 }: {
-  children: ReactNode
+  heading: ReactNode
   labelledBy?: string
+  children: ReactNode
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [canPrev, setCanPrev] = useState(false)
@@ -45,10 +48,34 @@ export default function EventRow({
   }
 
   const arrowClass =
-    'absolute top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-ink-950/85 text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)] backdrop-blur-md transition hover:border-white/30 hover:bg-ink-900 md:flex'
+    'flex h-10 w-10 items-center justify-center rounded-full border transition disabled:cursor-default disabled:border-white/[0.06] disabled:bg-transparent disabled:text-white/20 enabled:border-white/15 enabled:bg-white/[0.05] enabled:text-white enabled:hover:border-white/30 enabled:hover:bg-white/[0.12]'
 
   return (
-    <div className="group/row relative">
+    <div>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        {heading}
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-label="Scroll left"
+            disabled={!canPrev}
+            onClick={() => scrollByPage(-1)}
+            className={arrowClass}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll right"
+            disabled={!canNext}
+            onClick={() => scrollByPage(1)}
+            className={arrowClass}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
       <div
         ref={trackRef}
         role="list"
@@ -57,27 +84,6 @@ export default function EventRow({
       >
         {children}
       </div>
-
-      {canPrev && (
-        <button
-          type="button"
-          aria-label="Scroll left"
-          onClick={() => scrollByPage(-1)}
-          className={`${arrowClass} -left-5`}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-      )}
-      {canNext && (
-        <button
-          type="button"
-          aria-label="Scroll right"
-          onClick={() => scrollByPage(1)}
-          className={`${arrowClass} -right-5`}
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      )}
     </div>
   )
 }

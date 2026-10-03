@@ -634,18 +634,22 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
                 const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
                 return (
                   <section key={category} aria-labelledby={`events-group-${category}`}>
-                    <div className="mb-5 flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                        <Icon className="h-5 w-5 text-flame-300" />
-                      </span>
-                      <h2
-                        id={`events-group-${category}`}
-                        className="display-text text-2xl text-white sm:text-3xl"
-                      >
-                        {categoryLabel(category, t)}
-                      </h2>
-                    </div>
-                    <EventRow labelledBy={`events-group-${category}`}>
+                    <EventRow
+                      labelledBy={`events-group-${category}`}
+                      heading={
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                            <Icon className="h-5 w-5 text-flame-300" />
+                          </span>
+                          <h2
+                            id={`events-group-${category}`}
+                            className="display-text truncate text-2xl text-white sm:text-3xl"
+                          >
+                            {categoryLabel(category, t)}
+                          </h2>
+                        </div>
+                      }
+                    >
                       {groupEvents.map((event) => (
                         <div
                           key={event.id}
