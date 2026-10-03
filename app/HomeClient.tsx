@@ -22,7 +22,6 @@ import {
   Sparkles,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
-import LiveProtestsBanner from '@/components/cinematic/LiveProtestsBanner'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import { CATEGORY_GRADIENTS } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -229,11 +228,6 @@ export default function HomeClient({
   const [upcomingProtests, setUpcomingProtests] = useState<
     Array<PublicEvent & { expected_attendees: number | null }>
   >([])
-  const [protestTotals, setProtestTotals] = useState<{
-    count: number
-    countries: number
-    expected: number
-  }>({ count: 0, countries: 0, expected: 0 })
   // Decorative image pool for the hero poster wall, drawn from ALL published
   // events (past ones included — their artwork is still great background) so
   // the drifting wall stays populated even when nothing is currently live.
@@ -470,7 +464,6 @@ export default function HomeClient({
         eventsRes,
         globalEventsRes,
         protestsRes,
-        protestsTotalsRes,
       ] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
         // Non-civic only. Protests have their own dedicated section further
@@ -502,14 +495,6 @@ export default function HomeClient({
           .or(activeFilter)
           .order('date', { ascending: true })
           .limit(12),
-        supabase
-          .from('events')
-          .select(
-            'country, expected_attendees, date, end_time, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
-          )
-          .eq('status', 'published')
-          .eq('is_civic', true)
-          .or(activeFilter),
       ])
 
       if (stale) return
@@ -580,27 +565,6 @@ export default function HomeClient({
           }
         >).filter(isEventActive).slice(0, 6)
         setUpcomingProtests(activeProtests)
-      }
-
-      if (protestsTotalsRes.data) {
-        const rows = (protestsTotalsRes.data as Array<{
-          country: string | null
-          expected_attendees: number | null
-          date: string
-          end_time: string | null
-          recurrence: string | null
-          recurrence_until: string | null
-          recurrence_days_of_week: number[] | null
-          recurrence_exceptions: string[] | null
-        }>).filter(isEventActive)
-        const countries = new Set(
-          rows.map((r) => (r.country ?? '').trim().toLowerCase()).filter(Boolean),
-        ).size
-        const expected = rows.reduce(
-          (sum, r) => sum + (r.expected_attendees ?? 0),
-          0,
-        )
-        setProtestTotals({ count: rows.length, countries, expected })
       }
 
       if (globalEventsRes.data) {
@@ -948,8 +912,6 @@ export default function HomeClient({
   return (
     <main className="min-h-screen bg-ink-950 text-white">
       <LandingNavbar />
-
-      <LiveProtestsBanner protests={upcomingProtests} totals={protestTotals} />
 
       <section className="relative overflow-hidden px-4 pb-20 pt-32">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
