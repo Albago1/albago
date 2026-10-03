@@ -113,7 +113,7 @@ export const translations: Record<Language, Record<string, string>> = {
     footer_link_terms: "Terms",
 
     // Events filter bar + calendar
-    filter_search_placeholder: "Search events, music, food...",
+    filter_search_placeholder: "Search events",
     filter_search_events: "Search events",
     filter_clear_search: "Clear search",
     filter_city: "City",
@@ -629,7 +629,7 @@ export const translations: Record<Language, Record<string, string>> = {
     footer_link_terms: "AGB",
 
     // Events filter bar + calendar
-    filter_search_placeholder: "Events, Musik, Essen suchen…",
+    filter_search_placeholder: "Events suchen",
     filter_search_events: "Events suchen",
     filter_clear_search: "Suche löschen",
     filter_city: "Stadt",
@@ -1145,7 +1145,7 @@ export const translations: Record<Language, Record<string, string>> = {
     footer_link_terms: "Términos",
 
     // Events filter bar + calendar
-    filter_search_placeholder: "Busca eventos, música, comida…",
+    filter_search_placeholder: "Buscar eventos",
     filter_search_events: "Buscar eventos",
     filter_clear_search: "Borrar búsqueda",
     filter_city: "Ciudad",
@@ -1661,7 +1661,7 @@ export const translations: Record<Language, Record<string, string>> = {
     footer_link_terms: "Kushtet",
 
     // Events filter bar + calendar
-    filter_search_placeholder: "Kërko evente, muzikë, ushqim…",
+    filter_search_placeholder: "Kërko evente",
     filter_search_events: "Kërko evente",
     filter_clear_search: "Pastro kërkimin",
     filter_city: "Qyteti",
