@@ -42,7 +42,6 @@ const CATEGORY_PIN_COLORS: Record<string, { accent: string; active: string }> = 
   sports: { accent: '#34d399', active: '#059669' },
   culture: { accent: '#38bdf8', active: '#0284c7' },
   food: { accent: '#fbbf24', active: '#d97706' },
-  civic: { accent: FLAME, active: FLAME },
   other: { accent: FLAME, active: FLAME },
 }
 

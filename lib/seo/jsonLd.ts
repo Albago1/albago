@@ -37,7 +37,7 @@ export function websiteSchema() {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'AlbaGo',
-    alternateName: 'AlbaGo · Events, Movements & Nightlife',
+    alternateName: 'AlbaGo · Events & Nightlife',
     url: SITE_URL,
   }
 }
@@ -74,9 +74,7 @@ export type EventForSchema = {
   images: string[]
   organizerName: string | null
   organizerUrl: string | null
-  isCivic: boolean | null
   category: string | null
-  expectedAttendees: number | null
   /** Internal lifecycle status; omitted = EventScheduled. */
   lifecycleStatus?: EventLifecycleStatus
 }
@@ -162,14 +160,6 @@ export function eventSchema(event: EventForSchema) {
       : undefined,
     url,
     inLanguage: 'sq',
-    ...(event.isCivic
-      ? {
-          about: 'Civic gathering, public assembly, peaceful protest',
-        }
-      : {}),
-    ...(event.expectedAttendees && event.expectedAttendees > 0
-      ? { maximumAttendeeCapacity: event.expectedAttendees }
-      : {}),
   }
 }
 

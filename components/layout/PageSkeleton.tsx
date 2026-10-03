@@ -3,7 +3,7 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 const CARD_COUNT = 6
 
 /**
- * Shared loading skeleton used by /events and /protests loading.tsx files.
+ * Shared loading skeleton used by the /events loading.tsx file.
  * Mirrors each page's overall structure (hero + filter bar + card grid) so the
  * layout doesn't jump when the real content arrives.
  */

@@ -2,14 +2,10 @@ import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
   DateHero,
-  FlamingoHalo,
-  FlamingoMotif,
-  GridBackdrop,
   InkBackdrop,
-  bilingualLabel,
   cardDateValue,
   categoryLabel,
-  ctaLine,
+  CTA_LINE,
   fitSize,
   inkGlyph,
   formatTimeRangeForCard,
@@ -26,7 +22,6 @@ type Props = {
 
 export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
   const time = formatTimeRangeForCard(data.time, data.endTime)
-  const isCivic = data.isCivic
   const where = shortAddress(data.address)
 
   return (
@@ -58,28 +53,6 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
             }}
           />
         </div>
-      ) : isCivic ? (
-        <>
-          {/* Flamingo motif — the protest campaign's mark, civic events only. */}
-          <GridBackdrop />
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '38%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FlamingoHalo size={900} />
-            <div style={{ position: 'relative' }}>
-              <FlamingoMotif width={620} opacity={0.5} />
-            </div>
-          </div>
-        </>
       ) : (
         <InkBackdrop glyph={inkGlyph(data.title)} glyphSize={1350} glyphTop="36%" />
       )}
@@ -90,11 +63,9 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
           <div
             className="rounded-full px-5 py-2 text-sm font-bold tracking-[0.18em]"
             style={{
-              background: isCivic ? 'rgba(238,28,37,0.18)' : 'rgba(255,255,255,0.08)',
-              color: isCivic ? '#ff8a8a' : 'rgba(255,255,255,0.85)',
-              border: isCivic
-                ? '1px solid rgba(238,28,37,0.45)'
-                : '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.85)',
+              border: '1px solid rgba(255,255,255,0.15)',
             }}
           >
             {categoryLabel(data)}
@@ -102,7 +73,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
         </div>
 
         <div className="mt-24 flex flex-col gap-8">
-          <DateHero iso={data.date} endIso={data.endDate} isCivic={isCivic} scale="lg" />
+          <DateHero iso={data.date} endIso={data.endDate} scale="lg" />
 
           <h1
             className="leading-[0.95]"
@@ -151,7 +122,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
                 className="w-[260px] shrink-0 text-[16px] font-bold uppercase tracking-[0.24em]"
                 style={{ color: 'rgba(255,255,255,0.45)' }}
               >
-                {bilingualLabel('Data', 'Date', isCivic)}
+                {'Date'}
               </div>
               <div className="text-[34px] font-semibold text-white">
                 {cardDateValue(data)}
@@ -164,7 +135,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
                   className="w-[260px] shrink-0 text-[16px] font-bold uppercase tracking-[0.24em]"
                   style={{ color: 'rgba(255,255,255,0.45)' }}
                 >
-                  {bilingualLabel('Ora', 'Time', isCivic)}
+                  {'Time'}
                 </div>
                 <div className="text-[34px] font-semibold text-white tabular-nums">{time}</div>
               </div>
@@ -176,7 +147,7 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
                   className="w-[260px] shrink-0 text-[16px] font-bold uppercase tracking-[0.24em]"
                   style={{ color: 'rgba(255,255,255,0.45)' }}
                 >
-                  {bilingualLabel('Pika e takimit', 'Meeting point', isCivic)}
+                  {'Meeting point'}
                 </div>
                 <div className="flex flex-col gap-2">
                   <div className="text-[34px] font-semibold leading-[1.15] text-white">
@@ -197,16 +168,14 @@ export default function StoryShareTemplate({ data, qrDataUrl, innerRef, backdrop
                 className="text-[18px] font-bold uppercase tracking-[0.28em]"
                 style={{ color: '#ff8a8a' }}
               >
-                {ctaLine(data)}
+                {CTA_LINE}
               </div>
               <div className="text-[40px] font-semibold tracking-tight text-white">
                 albago.org
               </div>
               {data.organizerName && (
                 <div className="mt-2 text-[20px] text-white/55">
-                  {isCivic
-                    ? `Organizuar nga · Organized by · ${data.organizerName}`
-                    : `Hosted by · ${data.organizerName}`}
+                  {`Hosted by · ${data.organizerName}`}
                 </div>
               )}
             </div>

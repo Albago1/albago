@@ -12,7 +12,6 @@ function categoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-200'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-200'
   if (value === 'food') return 'bg-amber-500/20 text-amber-200'
-  if (value === 'civic') return 'bg-flame-500/20 text-flame-200'
   return 'bg-white/15 text-white/85'
 }
 
@@ -39,7 +38,6 @@ function dateLabel(e: SimilarEvent): string {
 }
 
 function priceLabel(e: SimilarEvent): string | null {
-  if (e.is_civic) return null
   if (e.price_from_cents != null) {
     return e.price_from_cents === 0
       ? 'Free'
@@ -51,11 +49,9 @@ function priceLabel(e: SimilarEvent): string | null {
 export default function SimilarEvents({
   events,
   browseHref,
-  isCivic,
 }: {
   events: SimilarEvent[]
   browseHref: string
-  isCivic: boolean
 }) {
   if (events.length < 1) return null
 
@@ -64,10 +60,10 @@ export default function SimilarEvents({
       <div className="flex items-end justify-between gap-4 border-t border-white/[0.06] pt-10">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
-            {isCivic ? 'Keep showing up' : 'You might also like'}
+            You might also like
           </p>
           <h2 className="display-text mt-1 text-3xl leading-tight tracking-tight sm:text-4xl">
-            {isCivic ? 'More gatherings' : 'More events like this'}
+            More events like this
           </h2>
         </div>
         <Link

@@ -23,21 +23,6 @@ export function buildCaption(data: ShareEventData): string {
   const time = formatTime(data.time, data.endTime)
   const where = data.address || `${data.city}${data.country ? `, ${data.country}` : ''}`
 
-  if (data.isCivic) {
-    return [
-      `🇦🇱 Protesta e radhës në ${data.city}${data.country ? `, ${data.country}` : ''}`,
-      '',
-      `📍 ${where}`,
-      `📅 ${when}`,
-      time ? `🕒 ${time}` : null,
-      '',
-      'Detajet i gjeni në AlbaGo:',
-      data.eventUrl,
-    ]
-      .filter((line) => line !== null)
-      .join('\n')
-  }
-
   return [
     `📍 ${data.title}`,
     '',

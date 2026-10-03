@@ -2,13 +2,9 @@ import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
   DateHero,
-  FlamingoHalo,
-  FlamingoMotif,
-  GridBackdrop,
   InkBackdrop,
-  bilingualLabel,
   categoryLabel,
-  ctaLine,
+  CTA_LINE,
   fitSize,
   inkGlyph,
   formatTimeRangeForCard,
@@ -25,7 +21,6 @@ type Props = {
 
 export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
   const time = formatTimeRangeForCard(data.time, data.endTime)
-  const isCivic = data.isCivic
   const where = shortAddress(data.address)
 
   return (
@@ -57,28 +52,6 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
             }}
           />
         </div>
-      ) : isCivic ? (
-        <>
-          {/* Flamingo motif — the protest campaign's mark, civic events only. */}
-          <GridBackdrop />
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FlamingoHalo size={620} />
-            <div style={{ position: 'relative' }}>
-              <FlamingoMotif width={420} opacity={0.45} />
-            </div>
-          </div>
-        </>
       ) : (
         <InkBackdrop glyph={inkGlyph(data.title)} glyphSize={880} glyphTop="46%" />
       )}
@@ -89,11 +62,9 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
           <div
             className="rounded-full px-4 py-1.5 text-xs font-bold tracking-[0.18em]"
             style={{
-              background: isCivic ? 'rgba(238,28,37,0.18)' : 'rgba(255,255,255,0.08)',
-              color: isCivic ? '#ff8a8a' : 'rgba(255,255,255,0.85)',
-              border: isCivic
-                ? '1px solid rgba(238,28,37,0.45)'
-                : '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.85)',
+              border: '1px solid rgba(255,255,255,0.15)',
             }}
           >
             {categoryLabel(data)}
@@ -101,7 +72,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
         </div>
 
         <div className="mt-10 flex flex-1 flex-col justify-center">
-          <DateHero iso={data.date} endIso={data.endDate} isCivic={isCivic} scale="md" />
+          <DateHero iso={data.date} endIso={data.endDate} scale="md" />
 
           <h1
             className="mt-8 leading-[0.92]"
@@ -139,7 +110,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
               {where && (
                 <div className="flex max-w-[860px] flex-col gap-1.5">
                   <div className="text-[12px] font-bold uppercase tracking-[0.24em] text-flame-300/80">
-                    {bilingualLabel('Pika e takimit', 'Meeting point', isCivic)}
+                    {'Meeting point'}
                   </div>
                   <div className="text-[28px] font-semibold leading-[1.25] text-white">
                     📍 {where}
@@ -166,7 +137,7 @@ export default function SquareShareTemplate({ data, qrDataUrl, innerRef, backdro
               className="text-[14px] font-bold uppercase tracking-[0.28em]"
               style={{ color: '#ff8a8a' }}
             >
-              {ctaLine(data)}
+              {CTA_LINE}
             </div>
             <div className="text-[30px] font-semibold tracking-tight text-white">
               albago.org

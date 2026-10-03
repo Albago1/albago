@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowUpRight, Flame, MapPin, Repeat, Users, X } from 'lucide-react'
+import { ArrowUpRight, MapPin, Repeat, X } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import ShareCardButton from '@/components/share/ShareCardButton'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
@@ -28,13 +28,11 @@ export type MapCardEvent = {
   slug: string
   title: string
   category: string | null
-  isCivic: boolean
   date: string
   /** Last day of a continuous multi-day event; renders a date range. */
   endDate?: string | null
   time: string | null
   country: string | null
-  expectedAttendees: number | null
   bannerUrl: string | null
   price: string | null
   highlight: boolean
@@ -50,12 +48,6 @@ type MapEventCardProps = {
   isAuthenticated: boolean
   initialSaved: boolean
   onClose: () => void
-}
-
-function formatAttendees(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
-  return String(n)
 }
 
 /**
@@ -76,7 +68,7 @@ export default function MapEventCard({
   const { language, t } = useLanguage()
   const locale = languageLocales[language]
 
-  const category = event.category?.toLowerCase() ?? (event.isCivic ? 'civic' : '')
+  const category = event.category?.toLowerCase() ?? ''
   const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
   const gradient = CATEGORY_GRADIENTS[category] ?? 'from-white/10 via-ink-900 to-ink-950'
 
@@ -149,22 +141,15 @@ export default function MapEventCard({
 
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-950/85 via-transparent to-ink-950/45" />
 
-        {/* Top overlay — category / civic chips left, actions right */}
+        {/* Top overlay — category chips left, actions right */}
         <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {event.isCivic ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-flame-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-flame-300 ring-1 ring-flame-500/30 backdrop-blur-md">
-                <Flame className="h-3 w-3" />
-                {categoryLabel('civic', t)}
+            {event.category && (
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize backdrop-blur-md ${getCategoryTone(event.category)}`}
+              >
+                {categoryLabel(event.category, t)}
               </span>
-            ) : (
-              event.category && (
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize backdrop-blur-md ${getCategoryTone(event.category)}`}
-                >
-                  {categoryLabel(event.category, t)}
-                </span>
-              )
             )}
             {event.highlight && (
               <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
@@ -264,20 +249,12 @@ export default function MapEventCard({
           {event.title}
         </h3>
 
-        {(locationLine || (event.expectedAttendees ?? 0) > 0) && (
+        {locationLine && (
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-            {locationLine && (
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-white/40" />
-                <span className="truncate text-white/70">{locationLine}</span>
-              </span>
-            )}
-            {event.expectedAttendees != null && event.expectedAttendees > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-white/70">
-                <Users className="h-3.5 w-3.5 shrink-0 text-white/40" />
-                {formatAttendees(event.expectedAttendees)} {t('map_expected')}
-              </span>
-            )}
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-white/40" />
+              <span className="truncate text-white/70">{locationLine}</span>
+            </span>
           </div>
         )}
 

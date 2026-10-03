@@ -92,7 +92,7 @@ export const translations: Record<Language, Record<string, string>> = {
     protests_live: "Live",
 
     protests_live_tooltip: "Auto-updating as new protests are published",
-    protests_search_placeholder: "Search any city — try Milano, Berlin, New York, Buenos Aires…",
+    city_search_placeholder: "Search any city — try Milano, Berlin, New York, Buenos Aires…",
     protests_clear_search: "Clear search",
     protests_filter_upcoming: "Upcoming",
     protests_filter_today: "Today",
@@ -887,7 +887,7 @@ export const translations: Record<Language, Record<string, string>> = {
     protests_live: "Live",
 
     protests_live_tooltip: "Aktualisiert sich automatisch, sobald neue Proteste veröffentlicht werden",
-    protests_search_placeholder: "Suche eine Stadt — z. B. Mailand, Berlin, New York, Buenos Aires…",
+    city_search_placeholder: "Suche eine Stadt — z. B. Mailand, Berlin, New York, Buenos Aires…",
     protests_clear_search: "Suche leeren",
     protests_filter_upcoming: "Kommend",
     protests_filter_today: "Heute",
@@ -1682,7 +1682,7 @@ export const translations: Record<Language, Record<string, string>> = {
     protests_live: "En vivo",
 
     protests_live_tooltip: "Se actualiza automáticamente cuando se publican nuevas protestas",
-    protests_search_placeholder: "Busca cualquier ciudad — Milán, Berlín, Nueva York, Buenos Aires…",
+    city_search_placeholder: "Busca cualquier ciudad — Milán, Berlín, Nueva York, Buenos Aires…",
     protests_clear_search: "Borrar búsqueda",
     protests_filter_upcoming: "Próximas",
     protests_filter_today: "Hoy",
@@ -2477,7 +2477,7 @@ export const translations: Record<Language, Record<string, string>> = {
     protests_live: "Drejtpërdrejt",
 
     protests_live_tooltip: "Përditësohet vetiu sapo publikohen protesta të reja",
-    protests_search_placeholder: "Kërko çdo qytet — Milano, Berlin, Nju Jork, Buenos Aires…",
+    city_search_placeholder: "Kërko çdo qytet — Milano, Berlin, Nju Jork, Buenos Aires…",
     protests_clear_search: "Pastro kërkimin",
     protests_filter_upcoming: "Të ardhshme",
     protests_filter_today: "Sot",

@@ -45,7 +45,6 @@ type StudioEventRow = {
   address: string | null
   location_slug: string | null
   country: string | null
-  is_civic: boolean | null
   organizer_name: string | null
   banner_url: string | null
   gallery_urls: string[] | null
@@ -56,7 +55,7 @@ async function fetchStudioEvent(slug: string): Promise<StudioEventRow | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'slug, title, category, date, end_date, time, end_time, address, location_slug, country, is_civic, organizer_name, banner_url, gallery_urls',
+      'slug, title, category, date, end_date, time, end_time, address, location_slug, country, organizer_name, banner_url, gallery_urls',
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -140,7 +139,6 @@ export default async function StudioPage({ params }: { params: Promise<Params> }
     time: event.time,
     endTime: event.end_time,
     organizerName: event.organizer_name,
-    isCivic: Boolean(event.is_civic),
     eventUrl: `https://albago.org/events/${event.slug}`,
     imageUrl: images[0] ?? null,
   }

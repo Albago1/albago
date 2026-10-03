@@ -9,8 +9,8 @@ import {
   Sun,
 } from 'lucide-react'
 
-/** Static icon set for WMO weather codes — shared by the event detail
- *  forecast card and the protest card weather chip. Kept as a module-level
+/** Static icon set for WMO weather codes — used by the event detail
+ *  forecast card. Kept as a module-level
  *  map (not a component-returning function) so render-time lookups are
  *  provably static for the react-hooks/static-components rule. */
 export const WEATHER_ICONS = {

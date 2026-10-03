@@ -100,10 +100,10 @@ export default function ShareModal({ open, onClose, data, studioAccess = false }
         platform,
         city: data.city,
         country: data.country,
-        meta: { slug: data.slug, civic: data.isCivic },
+        meta: { slug: data.slug },
       })
     },
-    [data.city, data.country, data.slug, data.isCivic],
+    [data.city, data.country, data.slug],
   )
 
   const handleCopyLink = useCallback(async () => {

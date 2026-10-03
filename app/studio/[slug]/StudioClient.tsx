@@ -141,10 +141,10 @@ export default function StudioClient({ data, images }: Props) {
         platform: action,
         city: data.city,
         country: data.country,
-        meta: { slug: data.slug, civic: data.isCivic, ...meta },
+        meta: { slug: data.slug, ...meta },
       })
     },
-    [data.city, data.country, data.slug, data.isCivic],
+    [data.city, data.country, data.slug],
   )
 
   // ---- backdrop resolution --------------------------------------------

@@ -21,7 +21,6 @@ export type SimilarEvent = {
   price_currency: string | null
   highlight: boolean | null
   tags: string[] | null
-  is_civic: boolean | null
   organizer_id: string | null
   recurrence: string | null
   recurrence_until: string | null
@@ -35,12 +34,11 @@ type Seed = {
   location_slug: string
   country: string | null
   tags: string[] | null
-  isCivic: boolean
   organizerId: string | null
 }
 
 const SELECT =
-  'id, slug, title, category, date, end_date, time, end_time, location_slug, country, banner_url, gallery_urls, price, price_from_cents, price_currency, highlight, tags, is_civic, organizer_id, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions'
+  'id, slug, title, category, date, end_date, time, end_time, location_slug, country, banner_url, gallery_urls, price, price_from_cents, price_currency, highlight, tags, organizer_id, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions'
 
 // How many cards the rail shows at most.
 const MAX_RESULTS = 8
@@ -80,7 +78,7 @@ function score(seed: Seed, cand: SimilarEvent): number {
 
 /**
  * Ranked "you might also like" events for a given event. Only published,
- * still-active events in the same civic/non-civic bucket, current event
+ * still-active events, current event
  * excluded. Strongest matches (same category + city) first; broadens to the
  * same country to keep the rail full.
  */
@@ -123,7 +121,6 @@ export async function fetchSimilarEvents(seed: Seed): Promise<SimilarEvent[]> {
   }
 
   return Array.from(pool.values())
-    .filter((e) => !!e.is_civic === seed.isCivic)
     .filter((e) => isEventActive(e))
     .map((e) => ({ e, s: score(seed, e) }))
     .sort((a, b) => (b.s !== a.s ? b.s - a.s : a.e.date < b.e.date ? -1 : 1))

@@ -61,7 +61,6 @@ type PickerEvent = {
   address: string | null
   country: string
   location_slug: string
-  is_civic: boolean | null
   organizer_name: string | null
 }
 
@@ -80,7 +79,6 @@ function eventToShareData(event: PickerEvent): ShareEventData {
     time: event.time,
     endTime: event.end_time,
     organizerName: event.organizer_name,
-    isCivic: !!event.is_civic,
     eventUrl: `https://albago.org/events/${event.slug}?utm_source=instagram&utm_medium=broadcast`,
   }
 }
@@ -174,7 +172,7 @@ export default function BroadcastClient({
       const { data } = await supabase
         .from('events')
         .select(
-          'id,title,slug,category,date,time,end_time,address,country,location_slug,is_civic,organizer_name',
+          'id,title,slug,category,date,time,end_time,address,country,location_slug,organizer_name',
         )
         .eq('status', 'published')
         .gte('date', today.toISOString().slice(0, 10))

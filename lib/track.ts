@@ -9,7 +9,6 @@
 
 export type TrackType =
   | 'event_view'
-  | 'protest_view'
   | 'place_view'
   | 'share_click'
   | 'city_search'

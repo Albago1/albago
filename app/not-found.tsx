@@ -47,10 +47,10 @@ export default function NotFound() {
               hint="Browse live, upcoming and recurring events"
             />
             <CardLink
-              href="/protests"
+              href="/cities"
               icon={MapPin}
-              title="Protests"
-              hint="Worldwide directory of civic gatherings"
+              title="Cities"
+              hint="Browse events city by city"
             />
             <CardLink
               href="/map"

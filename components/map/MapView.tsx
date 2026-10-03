@@ -27,22 +27,20 @@ import { categoryLabel } from '@/components/events/categoryMeta'
 type TimeFilter = 'all' | 'tonight' | 'weekend' | 'week'
 
 // Direct-pin event: a published event with its own lat/lng and no place_id
-// linking it to a venue. Covers civic protests AND any regular event whose
-// submitter geocoded an address through the wizard. Rendered on the map as
+// linking it to a venue — any event whose submitter or importer geocoded an
+// address. Rendered on the map as
 // its own marker (not via a place).
-type CivicMapEvent = {
+type PinMapEvent = {
   id: string
   slug: string
   title: string
   category: string | null
-  isCivic: boolean
   date: string
   time: string | null
   country: string | null
   locationSlug: string | null
   lat: number
   lng: number
-  expectedAttendees: number | null
   bannerUrl: string | null
   price: string | null
   highlight: boolean
@@ -137,7 +135,7 @@ export default function MapView() {
   const lastCountryFitRef = useRef<string | null | undefined>(undefined)
 
   // Default to the worldwide view so the map opens onto the actual current
-  // events (civic protests everywhere) instead of the city-scoped Tirana
+  // events everywhere instead of the city-scoped Tirana
   // venue map most visitors never asked for.
   //
   // We hold the picked slug in state, not derived from URL — `router.replace`
@@ -163,13 +161,12 @@ export default function MapView() {
 
   const [places, setPlaces] = useState<Place[]>([])
   const [events, setEvents] = useState<Event[]>([])
-  const [civicEvents, setCivicEvents] = useState<CivicMapEvent[]>([])
+  const [pinEvents, setPinEvents] = useState<PinMapEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(initialPlaceId)
-  // Event preview popup for civic / direct-pin events (matches /protests
-  // popup pattern — see ProtestMap.tsx). Mutually exclusive with the
+  // Event preview popup for direct-pin events. Mutually exclusive with the
   // PlacePanel: opening one closes the other.
-  const [selectedCivicEvent, setSelectedCivicEvent] = useState<CivicMapEvent | null>(null)
+  const [selectedPinEvent, setSelectedPinEvent] = useState<PinMapEvent | null>(null)
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(initialCategory)
   const [searchQuery, setSearchQuery] = useState('')
@@ -220,15 +217,14 @@ export default function MapView() {
     async function fetchData() {
       setIsLoading(true)
       const activeFilter = activeEventsOrFilter()
-      // "civicQuery" historically only fetched protests, but we use it as the
-      // direct-pin layer for ANY published event that has its own lat/lng and
+      // Direct-pin layer: ANY published event that has its own lat/lng and
       // no place_id — so a wizard-created regular event (which writes coords
       // but never creates a places row) ends up on the map too. Events that
       // are tied to a venue still render via the place pin instead.
-      const civicQuery = supabase
+      const pinQuery = supabase
         .from('events')
         .select(
-          'id, slug, title, category, is_civic, date, end_date, time, end_time, country, location_slug, lat, lng, expected_attendees, banner_url, price, highlight, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+          'id, slug, title, category, date, end_date, time, end_time, country, location_slug, lat, lng, banner_url, price, highlight, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
         )
         .eq('status', 'published')
         .or(activeFilter)
@@ -236,7 +232,7 @@ export default function MapView() {
         .not('lat', 'is', null)
         .not('lng', 'is', null)
 
-      // Worldwide view: pull civic pins only (skipping places + non-civic
+      // Worldwide view: pull direct pins only (skipping places + venue-linked
       // events keeps the wire payload manageable across every country). A
       // user that wants nightlife venues opens a specific city.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -256,13 +252,13 @@ export default function MapView() {
             .or(activeFilter)
             .eq('location_slug', locationSlug)
       if (!isWorldwide) {
-        civicQuery.eq('location_slug', locationSlug)
+        pinQuery.eq('location_slug', locationSlug)
       }
 
-      const [placesRes, eventsRes, civicRes] = await Promise.all([
+      const [placesRes, eventsRes, pinRes] = await Promise.all([
         placesPromise,
         eventsPromise,
-        civicQuery,
+        pinQuery,
       ])
 
       if (placesRes.data) {
@@ -297,14 +293,13 @@ export default function MapView() {
         })))
       }
 
-      if (civicRes.data) {
-        setCivicEvents(
-          (civicRes.data as Array<{
+      if (pinRes.data) {
+        setPinEvents(
+          (pinRes.data as Array<{
             id: string
             slug: string
             title: string
             category: string | null
-            is_civic: boolean | null
             date: string
             end_date: string | null
             time: string | null
@@ -313,7 +308,6 @@ export default function MapView() {
             location_slug: string | null
             lat: number
             lng: number
-            expected_attendees: number | null
             banner_url: string | null
             price: string | null
             highlight: boolean | null
@@ -328,7 +322,6 @@ export default function MapView() {
               slug: row.slug,
               title: row.title,
               category: row.category,
-              isCivic: !!row.is_civic,
               date: row.date,
               endDate: row.end_date ?? null,
               time: row.time,
@@ -336,7 +329,6 @@ export default function MapView() {
               locationSlug: row.location_slug,
               lat: row.lat,
               lng: row.lng,
-              expectedAttendees: row.expected_attendees,
               bannerUrl: row.banner_url,
               price: row.price,
               highlight: !!row.highlight,
@@ -347,7 +339,7 @@ export default function MapView() {
             }))
         )
       } else {
-        setCivicEvents([])
+        setPinEvents([])
       }
 
       setIsLoading(false)
@@ -382,7 +374,7 @@ export default function MapView() {
       // Regular events go through the legacy single-date filter — they may
       // also be recurring (events.* SELECT includes recurrence cols) but the
       // local Event type doesn't carry them through, so we keep the simple
-      // behavior here and let the visibleCivicEvents path handle the civic
+      // behavior here and let the visiblePinEvents path handle the
       // recurrence case the user actually noticed.
       if (activeTimeFilter === 'tonight') return isToday(event.date)
       if (activeTimeFilter === 'weekend') return isThisWeekend(event.date)
@@ -391,9 +383,9 @@ export default function MapView() {
     })
   }, [activeTimeFilter, events])
 
-  const civicCountryCounts = useMemo(() => {
+  const pinCountryCounts = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const ev of civicEvents) {
+    for (const ev of pinEvents) {
       const key = (ev.country ?? '').trim()
       if (!key) continue
       counts.set(key, (counts.get(key) ?? 0) + 1)
@@ -401,9 +393,9 @@ export default function MapView() {
     return Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([country, count]) => ({ country, count }))
-  }, [civicEvents])
+  }, [pinEvents])
 
-  const visibleCivicEvents = useMemo(() => {
+  const visiblePinEvents = useMemo(() => {
     const normalizedSearch = fold(searchQuery.trim())
     const today = todayIso()
     const weekend = getWeekendIsoRange()
@@ -415,18 +407,14 @@ export default function MapView() {
     for (const opt of locationOptions) {
       slugToCity.set(opt.slug, fold(opt.label))
     }
-    return civicEvents.filter((event) => {
-      // Category chip: 'all' = everything; 'civic' = is_civic events
-      // regardless of stored category; anything else matches event.category.
+    return pinEvents.filter((event) => {
+      // Category chip: 'all' = everything; anything else matches event.category.
       const categoryMatch =
-        activeCategory === 'all' ||
-        (activeCategory === 'civic'
-          ? event.isCivic || event.category === 'civic'
-          : event.category === activeCategory)
+        activeCategory === 'all' || event.category === activeCategory
       if (!categoryMatch) return false
 
       // For the time filter, ask the recurrence helpers when this event
-      // actually runs — so a weekly Saturday protest with a months-old
+      // actually runs — so a weekly Saturday event with a months-old
       // series start still matches the "This weekend" filter.
       const recurringShape = {
         date: event.date,
@@ -455,7 +443,7 @@ export default function MapView() {
         fold(event.locationSlug ?? '').includes(normalizedSearch)
       return timeMatch && countryMatch && searchMatch
     })
-  }, [civicEvents, activeCategory, activeTimeFilter, searchQuery, countryFilter, locationOptions])
+  }, [pinEvents, activeCategory, activeTimeFilter, searchQuery, countryFilter, locationOptions])
 
   const availableOptionChips = useMemo(() => {
     const allOptions = places.flatMap((place) => place.options ?? [])
@@ -503,22 +491,22 @@ export default function MapView() {
     const placeEventCount = filteredEvents.filter(
       (event) => event.placeId != null && visiblePlaceIds.has(event.placeId)
     ).length
-    return placeEventCount + visibleCivicEvents.length
-  }, [filteredEvents, visiblePlaceIds, visibleCivicEvents])
+    return placeEventCount + visiblePinEvents.length
+  }, [filteredEvents, visiblePlaceIds, visiblePinEvents])
 
   const selectedPlace = useMemo<Place | null>(() => {
     return places.find((place) => place.id === selectedPlaceId) ?? null
   }, [selectedPlaceId, places])
 
   const hasNoResults =
-    !isLoading && visiblePlaces.length === 0 && visibleCivicEvents.length === 0
+    !isLoading && visiblePlaces.length === 0 && visiblePinEvents.length === 0
 
   // Google Maps behavior: closing a card or tapping empty map just
   // deselects — the camera stays exactly where the user left it. (The old
   // re-fit-everything reset zoomed a worldwide view all the way out to the
   // whole planet every time a card closed.)
-  const closeCivicPopup = () => {
-    setSelectedCivicEvent(null)
+  const closePinPopup = () => {
+    setSelectedPinEvent(null)
   }
 
   useEffect(() => {
@@ -530,7 +518,7 @@ export default function MapView() {
       zoom: isWorldwide ? worldZoom : location.zoom,
       onMapClick: () => {
         setSelectedPlaceId(null)
-        setSelectedCivicEvent(null)
+        setSelectedPinEvent(null)
       },
       onGeolocate: (center) => setUserPos(center),
     })
@@ -601,7 +589,7 @@ export default function MapView() {
       return Math.sqrt(dx * dx + dy * dy) * 111
     }
     const nearby = [
-      ...civicEvents.map((e): [number, number] => [e.lng, e.lat]),
+      ...pinEvents.map((e): [number, number] => [e.lng, e.lat]),
       ...places.map((p): [number, number] => [p.lng, p.lat]),
     ]
       .map((coord) => ({ coord, km: kmFrom(coord) }))
@@ -613,7 +601,7 @@ export default function MapView() {
       padding: 90,
       maxZoom: 13,
     })
-  }, [userPos, isLoading, civicEvents, places])
+  }, [userPos, isLoading, pinEvents, places])
 
   // While the on-screen keyboard is up, the dvh container shrinks and every
   // floating bottom element (loading chip, results pill, no-results toast)
@@ -653,25 +641,24 @@ export default function MapView() {
         isSelected: place.id === selectedPlaceId,
         onClick: () => {
           setSelectedPlaceId(place.id)
-          setSelectedCivicEvent(null)
+          setSelectedPinEvent(null)
         },
       }
     })
 
-    const civicMarkers: MapMarkerInput[] = visibleCivicEvents.map((event) => ({
-      id: `civic-${event.id}`,
+    const pinMarkers: MapMarkerInput[] = visiblePinEvents.map((event) => ({
+      id: `pin-${event.id}`,
       name: event.title,
       lat: event.lat,
       lng: event.lng,
       kind: 'event' as const,
-      // Real category so the pin carries the category color; civic events
-      // stay flame regardless of what their stored category says.
-      category: event.isCivic ? 'civic' : (event.category ?? 'other'),
+      // Real category so the pin carries the category color.
+      category: event.category ?? 'other',
       eventCount: 1,
       hasHighlight: true,
-      isSelected: selectedCivicEvent?.id === event.id,
+      isSelected: selectedPinEvent?.id === event.id,
       onClick: () => {
-        setSelectedCivicEvent(event)
+        setSelectedPinEvent(event)
         setSelectedPlaceId(null)
         const adapter = mapAdapterRef.current
         if (adapter) {
@@ -690,8 +677,8 @@ export default function MapView() {
       },
     }))
 
-    adapter.setMarkers([...placeMarkers, ...civicMarkers])
-    }, [visiblePlaces, selectedPlaceId, selectedCivicEvent, filteredEvents, visibleCivicEvents, isWorldwide, isMobile])
+    adapter.setMarkers([...placeMarkers, ...pinMarkers])
+    }, [visiblePlaces, selectedPlaceId, selectedPinEvent, filteredEvents, visiblePinEvents, isWorldwide, isMobile])
 
   useEffect(() => {
     if (!selectedPlaceId) return
@@ -703,13 +690,13 @@ export default function MapView() {
     }
   }, [selectedPlaceId, visiblePlaces])
 
-  // Drop the civic popup if the filter strips its pin away (mirrors the
-  // protest map cleanup so the card never dangles over an empty viewport).
+  // Drop the event popup if the filter strips its pin away so the card
+  // never dangles over an empty viewport.
   useEffect(() => {
-    if (!selectedCivicEvent) return
-    const stillVisible = visibleCivicEvents.some((e) => e.id === selectedCivicEvent.id)
-    if (!stillVisible) setSelectedCivicEvent(null)
-  }, [selectedCivicEvent, visibleCivicEvents])
+    if (!selectedPinEvent) return
+    const stillVisible = visiblePinEvents.some((e) => e.id === selectedPinEvent.id)
+    if (!stillVisible) setSelectedPinEvent(null)
+  }, [selectedPinEvent, visiblePinEvents])
 
   useEffect(() => {
     const adapter = mapAdapterRef.current
@@ -728,9 +715,9 @@ export default function MapView() {
 
   // Resolve a human-readable city label for the card: dynamic list first,
   // then a titleized slug — never nothing when the event has a city at all.
-  const selectedCivicCity = selectedCivicEvent?.locationSlug
-    ? locationOptions.find((o) => o.slug === selectedCivicEvent.locationSlug)?.label ??
-      selectedCivicEvent.locationSlug
+  const selectedPinCity = selectedPinEvent?.locationSlug
+    ? locationOptions.find((o) => o.slug === selectedPinEvent.locationSlug)?.label ??
+      selectedPinEvent.locationSlug
         .split('-')
         .map((part) => (part[0]?.toUpperCase() ?? '') + part.slice(1))
         .join(' ')
@@ -757,7 +744,7 @@ export default function MapView() {
     return country ?? ''
   }
 
-  const eventRowSub = (event: CivicMapEvent) => {
+  const eventRowSub = (event: PinMapEvent) => {
     const dateLabel = new Date(`${event.date}T00:00:00`).toLocaleDateString(
       languageLocales[language],
       { weekday: 'short', day: 'numeric', month: 'short' },
@@ -767,16 +754,15 @@ export default function MapView() {
       .join(' · ')
   }
 
-  const eventRowCategory = (event: CivicMapEvent) =>
-    event.isCivic ? 'civic' : (event.category ?? 'other')
+  const eventRowCategory = (event: PinMapEvent) => event.category ?? 'other'
 
   // Select an event / venue by id — shared by pin taps (via markers),
   // search suggestions, and the results sheet, so every entry point gets
   // the identical select-and-fly behavior.
-  const selectCivicEventById = (id: string) => {
-    const event = civicEvents.find((e) => e.id === id)
+  const selectPinEventById = (id: string) => {
+    const event = pinEvents.find((e) => e.id === id)
     if (!event) return
-    setSelectedCivicEvent(event)
+    setSelectedPinEvent(event)
     setSelectedPlaceId(null)
     const adapter = mapAdapterRef.current
     if (adapter) {
@@ -791,7 +777,7 @@ export default function MapView() {
 
   const selectPlaceById = (id: string) => {
     setSelectedPlaceId(id)
-    setSelectedCivicEvent(null)
+    setSelectedPinEvent(null)
   }
 
   // The search index: everything the unified search box can rank — every
@@ -806,7 +792,7 @@ export default function MapView() {
         country: o.country,
         center: o.center,
       })),
-      events: civicEvents.map((e) => ({
+      events: pinEvents.map((e) => ({
         id: e.id,
         title: e.title,
         sub: eventRowSub(e),
@@ -821,7 +807,7 @@ export default function MapView() {
       })),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [civicEvents, places, locationOptions, language],
+    [pinEvents, places, locationOptions, language],
   )
 
   // Search picks: select the pin when it's in the loaded data; when it came
@@ -829,8 +815,8 @@ export default function MapView() {
   // (e.g. saved in Berlin, map now on Tirana), still honor the pick by
   // flying to its stored coordinates.
   const handleSearchPickEvent = (id: string, center: [number, number]) => {
-    if (civicEvents.some((e) => e.id === id)) {
-      selectCivicEventById(id)
+    if (pinEvents.some((e) => e.id === id)) {
+      selectPinEventById(id)
       return
     }
     mapAdapterRef.current?.flyToLocation(center, 12.5)
@@ -852,14 +838,14 @@ export default function MapView() {
   // bottom results sheet.
   const sheetEvents = useMemo(
     () =>
-      visibleCivicEvents.map((e) => ({
+      visiblePinEvents.map((e) => ({
         id: e.id,
         title: e.title,
         sub: eventRowSub(e),
         category: eventRowCategory(e),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleCivicEvents, locationOptions, language],
+    [visiblePinEvents, locationOptions, language],
   )
   const sheetPlaces = useMemo(
     () =>
@@ -933,7 +919,7 @@ export default function MapView() {
     if (initialFitDoneForSlugRef.current === locationSlug) return
     const coords: [number, number][] = []
     places.forEach((p) => coords.push([p.lng, p.lat]))
-    civicEvents.forEach((e) => coords.push([e.lng, e.lat]))
+    pinEvents.forEach((e) => coords.push([e.lng, e.lat]))
     if (coords.length > 0) {
       adapter.fitBounds(coords, {
         padding: 80,
@@ -941,10 +927,10 @@ export default function MapView() {
       })
     }
     initialFitDoneForSlugRef.current = locationSlug
-  }, [isLoading, locationSlug, places, civicEvents])
+  }, [isLoading, locationSlug, places, pinEvents])
 
   // Per-country zoom-on-click: when the user picks a country chip, frame
-  // the map around that country's civic pins. When they clear the filter
+  // the map around that country's event pins. When they clear the filter
   // and we're still in worldwide mode, snap back to the global view.
   // Gated by a ref so the initial data load doesn't trigger this — that
   // first paint is owned by the initial-fit effect above.
@@ -967,7 +953,7 @@ export default function MapView() {
       return
     }
 
-    const coords = civicEvents
+    const coords = pinEvents
       .filter((e) => (e.country ?? '').trim() === countryFilter)
       .map((e): [number, number] => [e.lng, e.lat])
 
@@ -977,7 +963,7 @@ export default function MapView() {
     } else {
       adapter.fitBounds(coords, { padding: 80, maxZoom: 6.5 })
     }
-  }, [countryFilter, civicEvents, isLoading, isWorldwide])
+  }, [countryFilter, pinEvents, isLoading, isWorldwide])
 
   // Google Maps behavior: the map page itself must never scroll — the map
   // owns the whole visible viewport (dvh, so it resizes with the browser
@@ -1038,7 +1024,7 @@ export default function MapView() {
         visiblePlacesCount={visiblePlaces.length}
         visibleEventsCount={visibleEventsCount}
         availableOptionChips={availableOptionChips}
-        countryOptions={civicCountryCounts}
+        countryOptions={pinCountryCounts}
         activeCountry={countryFilter}
         onCountryChange={setCountryFilter}
         isMobile={isMobile}
@@ -1058,8 +1044,8 @@ export default function MapView() {
       <MapResultsSheet
         events={sheetEvents}
         places={sheetPlaces}
-        hidden={isLoading || keyboardOpen || !!selectedCivicEvent || !!selectedPlace || hasNoResults}
-        onPickEvent={selectCivicEventById}
+        hidden={isLoading || keyboardOpen || !!selectedPinEvent || !!selectedPlace || hasNoResults}
+        onPickEvent={selectPinEventById}
         onPickPlace={selectPlaceById}
       />
 
@@ -1098,15 +1084,15 @@ export default function MapView() {
         </div>
       )}
 
-      {selectedCivicEvent && (
+      {selectedPinEvent && (
         <div className="pointer-events-none absolute inset-x-3 bottom-[4.75rem] z-30 md:inset-x-auto md:bottom-4 md:left-4 md:w-[400px]">
           <MapEventCard
-            key={selectedCivicEvent.id}
-            event={selectedCivicEvent}
-            cityLabel={selectedCivicCity}
+            key={selectedPinEvent.id}
+            event={selectedPinEvent}
+            cityLabel={selectedPinCity}
             isAuthenticated={isAuth}
-            initialSaved={savedIds.has(selectedCivicEvent.id)}
-            onClose={closeCivicPopup}
+            initialSaved={savedIds.has(selectedPinEvent.id)}
+            onClose={closePinPopup}
           />
         </div>
       )}

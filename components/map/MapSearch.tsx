@@ -42,7 +42,7 @@ import {
   type RemoteCity,
 } from '@/lib/mapSearch'
 
-const SEARCHABLE_CATEGORIES = ['nightlife', 'music', 'sports', 'culture', 'food', 'civic']
+const SEARCHABLE_CATEGORIES = ['nightlife', 'music', 'sports', 'culture', 'food']
 
 export type MapSearchActions = {
   onPickCity: (slug: string, center?: [number, number]) => void

@@ -2,13 +2,9 @@ import type { ShareEventData } from '@/lib/share/types'
 import {
   AlbaGoWordmark,
   DateHero,
-  FlamingoHalo,
-  FlamingoMotif,
-  GridBackdrop,
   InkBackdrop,
-  bilingualLabel,
   categoryLabel,
-  ctaLine,
+  CTA_LINE,
   fitSize,
   inkGlyph,
   formatTimeRangeForCard,
@@ -26,7 +22,6 @@ type Props = {
 
 export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backdropUrl }: Props) {
   const time = formatTimeRangeForCard(data.time, data.endTime)
-  const isCivic = data.isCivic
   const where = shortAddress(data.address)
 
   return (
@@ -58,35 +53,13 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
             }}
           />
         </div>
-      ) : isCivic ? (
-        <>
-          {/* Flamingo motif — the protest campaign's mark, civic events only. */}
-          <GridBackdrop />
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FlamingoHalo size={500} />
-            <div style={{ position: 'relative' }}>
-              <FlamingoMotif width={300} opacity={0.38} />
-            </div>
-          </div>
-        </>
       ) : (
         <InkBackdrop glyph={inkGlyph(data.title)} glyphSize={560} glyphRight="10%" glyphTop="48%" />
       )}
 
       <div className="relative z-10 grid h-full grid-cols-[auto_1fr_auto] items-stretch gap-10 px-16 py-12">
         <div className="flex flex-col justify-center">
-          <DateHero iso={data.date} endIso={data.endDate} isCivic={isCivic} scale="sm" />
+          <DateHero iso={data.date} endIso={data.endDate} scale="sm" />
         </div>
 
         <div className="flex flex-col">
@@ -96,11 +69,9 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
             <div
               className="inline-block rounded-full px-3 py-1 text-[11px] font-bold tracking-[0.18em]"
               style={{
-                background: isCivic ? 'rgba(238,28,37,0.18)' : 'rgba(255,255,255,0.08)',
-                color: isCivic ? '#ff8a8a' : 'rgba(255,255,255,0.85)',
-                border: isCivic
-                  ? '1px solid rgba(238,28,37,0.45)'
-                  : '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.08)',
+                color: 'rgba(255,255,255,0.85)',
+                border: '1px solid rgba(255,255,255,0.15)',
               }}
             >
               {categoryLabel(data)}
@@ -128,7 +99,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
             {where ? (
               <>
                 <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-flame-300/80">
-                  {bilingualLabel('Pika e takimit', 'Meeting point', isCivic)}
+                  {'Meeting point'}
                 </div>
                 <div className="text-[22px] font-semibold leading-[1.2] text-white">
                   📍 {where}
@@ -148,7 +119,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
               className="mt-1 text-[13px] font-bold uppercase tracking-[0.28em]"
               style={{ color: '#ff8a8a' }}
             >
-              {ctaLine(data)} · albago.org
+              {CTA_LINE} · albago.org
             </div>
           </div>
         </div>
@@ -180,7 +151,7 @@ export default function FacebookShareTemplate({ data, qrDataUrl, innerRef, backd
             }}
           >
             <div className="text-white/55">
-              {isCivic ? 'Skano · Scan to open' : 'Scan to open'}
+              {'Scan to open'}
             </div>
             <div className="text-white">{data.city}</div>
           </div>

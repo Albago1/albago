@@ -94,7 +94,6 @@ function eventToShareData(
     time: event.time,
     endTime: event.end_time,
     organizerName: organizer.display_name ?? null,
-    isCivic: !!event.is_civic,
     eventUrl: `https://albago.org/events/${event.slug}`,
   }
 }

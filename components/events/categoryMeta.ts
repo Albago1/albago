@@ -1,6 +1,5 @@
 import {
   Martini,
-  Megaphone,
   Music,
   Palette,
   Sparkles,
@@ -16,7 +15,6 @@ export const CATEGORIES = [
   'sports',
   'culture',
   'food',
-  'civic',
 ] as const
 
 // Translated display label for a category slug. Unknown slugs (legacy data)
@@ -35,7 +33,6 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   sports: Trophy,
   culture: Palette,
   food: UtensilsCrossed,
-  civic: Megaphone,
 }
 
 // Branded gradients per category — used for photo-less event cards, the
@@ -46,7 +43,6 @@ export const CATEGORY_GRADIENTS: Record<string, string> = {
   sports: 'from-emerald-600/40 via-ink-900 to-ink-950',
   culture: 'from-sky-600/40 via-ink-900 to-ink-950',
   food: 'from-amber-600/40 via-ink-900 to-ink-950',
-  civic: 'from-flame-600/40 via-ink-900 to-ink-950',
 }
 
 export function getCategoryTone(category?: string) {
@@ -59,7 +55,6 @@ export function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
 
   return 'bg-white/10 text-white/80'
 }

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   CircleUserRound,
-  Flame,
   Home,
   MapPin,
   Search,
@@ -69,7 +68,7 @@ type FilterBarProps = {
   onReset: () => void
 }
 
-const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food', 'civic']
+const categories = ['all', 'nightlife', 'music', 'sports', 'culture', 'food']
 const timeFilters: TimeFilter[] = ['tonight', 'weekend', 'week', 'all']
 
 function getTimeFilterLabel(filter: TimeFilter, t: (key: string) => string) {
@@ -325,7 +324,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                         onLocationChange(c.slug, [c.lng, c.lat])
                         setLocationOpen(false)
                       }}
-                      placeholder={t('protests_search_placeholder')}
+                      placeholder={t('city_search_placeholder')}
                     />
                   </div>
                 </>
@@ -369,7 +368,6 @@ function DesktopFilterBar(props: FilterBarProps) {
               .filter((category) => category !== 'all')
               .map((category) => {
                 const isActive = activeCategory === category
-                const isCivic = category === 'civic'
                 const Icon = CATEGORY_ICONS[category] ?? Tag
 
                 return (
@@ -381,9 +379,7 @@ function DesktopFilterBar(props: FilterBarProps) {
                       'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition',
                       isActive
                         ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
-                        : isCivic
-                          ? 'border-flame-500/30 bg-flame-500/[0.06] text-flame-200/85 hover:bg-flame-500/10 hover:text-flame-100'
-                          : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
+                        : 'border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
                     ].join(' ')}
                   >
                     <Icon className="h-3.5 w-3.5" />
@@ -695,7 +691,6 @@ function MobileFilterBar(props: FilterBarProps) {
             .filter((category) => category !== 'all')
             .map((category) => {
               const isActive = activeCategory === category
-              const isCivic = category === 'civic'
               const Icon = CATEGORY_ICONS[category] ?? Tag
 
               return (
@@ -707,9 +702,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium capitalize shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition',
                     isActive
                       ? 'border-flame-500 bg-flame-500 text-white'
-                      : isCivic
-                        ? 'border-flame-500/30 bg-ink-900 text-flame-200/85'
-                        : 'border-white/10 bg-ink-900 text-white/70',
+                      : 'border-white/10 bg-ink-900 text-white/70',
                   ].join(' ')}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -772,7 +765,7 @@ function MobileFilterBar(props: FilterBarProps) {
                     resolved={resolvedCity}
                     popular={popularCities}
                     onPopularClick={(c) => onLocationChange(c.slug, [c.lng, c.lat])}
-                    placeholder={t('protests_search_placeholder')}
+                    placeholder={t('city_search_placeholder')}
                   />
                 </div>
 
@@ -815,7 +808,6 @@ function MobileFilterBar(props: FilterBarProps) {
                   <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {categories.map((category) => {
                       const isActive = activeCategory === category
-                      const isCivic = category === 'civic'
 
                       return (
                         <button
@@ -826,12 +818,9 @@ function MobileFilterBar(props: FilterBarProps) {
                             'inline-flex shrink-0 items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition',
                             isActive
                               ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
-                              : isCivic
-                                ? 'border-flame-500/30 bg-flame-500/[0.06] text-flame-200/85'
-                                : 'border-white/10 bg-white/[0.04] text-white/70',
+                              : 'border-white/10 bg-white/[0.04] text-white/70',
                           ].join(' ')}
                         >
-                          {isCivic && <Flame className="h-3.5 w-3.5" />}
                           {categoryLabel(category, t)}
                         </button>
                       )

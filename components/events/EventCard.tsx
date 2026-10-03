@@ -96,7 +96,7 @@ export default function EventCard({
         : event.price
 
   // Calendar-tile date: recurring events show their next occurrence, one-offs
-  // their own date. Big day number matches the ProtestCard / share-poster
+  // their own date. Big day number matches the share-poster
   // brand pattern.
   const displayDateIso = (recurring ? nextOccurrence(event) : null) ?? event.date
   const dateObj = new Date(`${displayDateIso}T12:00:00`)

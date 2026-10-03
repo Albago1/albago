@@ -18,7 +18,6 @@ export const revalidate = 0
 
 const ALLOWED_TYPES = new Set([
   'event_view',
-  'protest_view',
   'place_view',
   'share_click',
   'city_search',

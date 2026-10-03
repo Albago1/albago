@@ -18,7 +18,6 @@ import {
   Palette,
   Calendar,
   Search,
-  Megaphone,
   Sparkles,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
@@ -42,7 +41,6 @@ const categories = [
   { labelKey: 'category_sports', value: 'sports', icon: Trophy },
   { labelKey: 'category_culture', value: 'culture', icon: Palette },
   { labelKey: 'category_food', value: 'food', icon: UtensilsCrossed },
-  { labelKey: 'category_civic', value: 'civic', icon: Megaphone },
 ]
 
 function getCategoryTone(category?: string) {
@@ -54,7 +52,6 @@ function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
 
   return 'bg-white/10 text-white/80'
 }
@@ -225,17 +222,13 @@ export default function HomeClient({
   // has no live events — the section subtitle says so instead of quietly
   // showing another city's events.
   const [featuredIsFallback, setFeaturedIsFallback] = useState(false)
-  const [upcomingProtests, setUpcomingProtests] = useState<
-    Array<PublicEvent & { expected_attendees: number | null }>
-  >([])
   // Decorative image pool for the hero poster wall, drawn from ALL published
   // events (past ones included — their artwork is still great background) so
   // the drifting wall stays populated even when nothing is currently live.
   const [posterPool, setPosterPool] = useState<string[]>([])
   const [allPlaces, setAllPlaces] = useState<Place[]>([])
   // Lightweight rows used only for the live "Across the platform" counts.
-  // Same shape /protests uses — we mirror its isEventActive + realtime flow
-  // so an event silently drops out of the tally the moment it expires or
+  // Mirrors the isEventActive + realtime flow so an event silently drops out of the tally the moment it expires or
   // the admin unpublishes it.
   const [globalEventRows, setGlobalEventRows] = useState<Array<{
     id: string
@@ -463,19 +456,13 @@ export default function HomeClient({
         placesRes,
         eventsRes,
         globalEventsRes,
-        protestsRes,
       ] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
-        // Non-civic only. Protests have their own dedicated section further
-        // down (fed by protestsRes); without this exclusion every civic event
-        // rendered twice — once mixed into "upcoming events", once as a
-        // protest. `not.is.true` keeps rows where is_civic is false OR NULL.
         supabase
           .from('events')
           .select('*')
           .eq('status', 'published')
           .eq('location_slug', activeLocationSlug)
-          .not('is_civic', 'is', true)
           .or(activeFilter)
           .order('highlight', { ascending: false })
           .order('date', { ascending: true })
@@ -487,14 +474,6 @@ export default function HomeClient({
           )
           .eq('status', 'published')
           .or(activeFilter),
-        supabase
-          .from('events')
-          .select('*')
-          .eq('status', 'published')
-          .eq('is_civic', true)
-          .or(activeFilter)
-          .order('date', { ascending: true })
-          .limit(12),
       ])
 
       if (stale) return
@@ -540,7 +519,6 @@ export default function HomeClient({
             .from('events')
             .select('*')
             .eq('status', 'published')
-            .not('is_civic', 'is', true)
             .or(activeFilter)
             .order('highlight', { ascending: false })
             .order('date', { ascending: true })
@@ -553,20 +531,6 @@ export default function HomeClient({
         }
       }
 
-      if (protestsRes.data) {
-        const activeProtests = (protestsRes.data as Array<
-          PublicEvent & {
-            expected_attendees: number | null
-            end_time: string | null
-            recurrence: string | null
-            recurrence_until: string | null
-            recurrence_days_of_week: number[] | null
-            recurrence_exceptions: string[] | null
-          }
-        >).filter(isEventActive).slice(0, 6)
-        setUpcomingProtests(activeProtests)
-      }
-
       if (globalEventsRes.data) {
         setGlobalEventRows(globalEventsRes.data)
         setGlobalLoaded(true)
@@ -577,7 +541,7 @@ export default function HomeClient({
     return () => { stale = true }
   }, [activeLocationSlug, supabase, locationReady])
 
-  // Live-tally subscription. Same shape as /protests but unfiltered, so any
+  // Live-tally subscription, unfiltered, so any
   // publish / unpublish / cancel / delete on the events table flows straight
   // into globalEventRows and the counts re-derive.
   useEffect(() => {
@@ -757,7 +721,7 @@ export default function HomeClient({
     [activeGlobalEvents],
   )
   const totalCitiesCount = globalLoaded ? liveCitiesCount : (initialStats?.cities ?? 0)
-  // Distinct venues with at least one live event. Civic/online events without a
+  // Distinct venues with at least one live event. Online events without a
   // place_id don't contribute — "venues" should mean actual venues.
   const livePlacesCount = useMemo(
     () =>
@@ -872,7 +836,7 @@ export default function HomeClient({
   // drifting behind the headline. Purely decorative.
   const posterWall = useMemo(() => {
     // Each slug maps to exactly one url, so a single seen-url set dedups both
-    // the live artwork and the all-time pool top-up. Live city/protest artwork
+    // the live artwork and the all-time pool top-up. Live city artwork
     // leads so the wall reflects what's on now; the pool fills the rest so it's
     // never bare, even with zero live events in the selected city.
     const seenUrl = new Set<string>()
@@ -882,7 +846,7 @@ export default function HomeClient({
       seenUrl.add(url)
       combined.push(url)
     }
-    for (const ev of [...featuredEvents, ...upcomingProtests]) {
+    for (const ev of featuredEvents) {
       const slug = (ev as { slug?: string }).slug
       if (!slug) continue
       const banner = (ev as { banner_url?: string | null }).banner_url
@@ -893,7 +857,7 @@ export default function HomeClient({
       pushUrl(url)
     }
     return combined.slice(0, 20)
-  }, [featuredEvents, upcomingProtests, posterPool])
+  }, [featuredEvents, posterPool])
 
   const posterColumns = useMemo(() => {
     if (posterWall.length < 4) return []
@@ -971,7 +935,7 @@ export default function HomeClient({
               <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-flame-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-flame-500" />
             </span>
-            <span className="text-white/80">Events · Nightlife · Civic Movements</span>
+            <span className="text-white/80">Events · Nightlife · Culture</span>
           </div>
 
           <h1 className="display-text mt-10 max-w-5xl text-5xl sm:text-7xl lg:text-[96px] xl:text-[112px] leading-[0.92] tracking-tight">
@@ -1559,115 +1523,6 @@ export default function HomeClient({
           </div>
         </section>
       )}
-
-      <section className="px-4 pb-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-8 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
-                <Flame className="h-5 w-5 text-flame-400" />
-              </div>
-
-              <div>
-                <h2 className="display-text text-3xl text-white sm:text-5xl">
-                  {t('home_upcoming_protests')}
-                </h2>
-                <p className="mt-2 text-sm text-white/55">
-                  {t('home_upcoming_protests_sub')}
-                </p>
-              </div>
-            </div>
-
-            <Link
-              href="/protests"
-              className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
-            >
-              {t('view_all')}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-
-          {upcomingProtests.length === 0 ? (
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center backdrop-blur-md">
-              <p className="text-base font-semibold text-white">
-                {t('home_no_protests')}
-              </p>
-              <p className="mt-2 text-sm text-white/55">
-                {t('home_no_protests_hint')}
-              </p>
-              <div className="mt-5 flex flex-wrap justify-center gap-3">
-                <Link
-                  href="/submit-event"
-                  className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400"
-                >
-                  <Flame className="h-4 w-4" />
-                  {t('home_post_one')}
-                </Link>
-                <Link
-                  href="/events"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.10] hover:text-white"
-                >
-                  {t('home_no_protests_explore')}
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {upcomingProtests.map((protest) => {
-                const place = allPlaces.find((item) => item.id === protest.place_id)
-
-                return (
-                  <motion.div
-                    key={protest.id}
-                    whileHover={{ y: -4 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="h-full"
-                  >
-                    <EventCard
-                      event={protest}
-                      venueName={place?.name ?? null}
-                      cityLabel={cityLabelFor(protest.location_slug)}
-                      isAuthenticated={isAuth}
-                      initialSaved={savedIds.has(protest.id)}
-                    />
-                  </motion.div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden px-4 py-16">
-        <div className="mx-auto max-w-6xl">
-          <Link
-            href="/events/albanian-revolution"
-            className="group relative block overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-br from-flame-500/15 via-flame-500/5 to-transparent p-8 sm:p-12 transition hover:border-flame-500/40"
-          >
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -top-24 left-1/3 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-flame-500/20 blur-3xl" />
-            </div>
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-              <div className="max-w-2xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/75">
-                  <span className="h-1.5 w-1.5 rounded-full bg-flame-500" />
-                  {t('protests_spotlight_label')}
-                </div>
-                <h2 className="mt-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                  {t('home_movement_title')}
-                </h2>
-                <p className="mt-3 text-base leading-7 text-white/65">
-                  {t('home_movement_body')}
-                </p>
-              </div>
-              <span className="inline-flex items-center gap-2 self-start rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition group-hover:bg-white/90">
-                {t('home_enter_campaign')}
-                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-              </span>
-            </div>
-          </Link>
-        </div>
-      </section>
 
       <section className="relative overflow-hidden px-4 py-24">
         <div className="pointer-events-none absolute inset-0">

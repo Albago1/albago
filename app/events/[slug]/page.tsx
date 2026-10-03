@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import {
   ArrowLeft,
@@ -11,16 +11,12 @@ import {
   ExternalLink,
   Flame,
   Globe2,
-  Mail,
   MapPin,
-  MessageCircle,
   Phone,
   Repeat,
-  Send,
   ShieldAlert,
   Sparkles,
   Ticket,
-  Users,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import TrackView from '@/components/TrackView'
@@ -62,12 +58,6 @@ import { fetchSimilarEvents } from '@/lib/similarEvents'
 import { eventSchema, jsonLdScript, type EventForSchema } from '@/lib/seo/jsonLd'
 
 type Params = { slug: string }
-
-// Slugs whose event row exists for catalog/list/map presence, but whose
-// canonical detail page is a curated route elsewhere on the site.
-const CURATED_REDIRECTS: Record<string, string> = {
-  'edi-rama-berlin-2026': '/protests/edi-rama-berlin-2026',
-}
 
 type OrganizerSocials = {
   instagram?: string
@@ -119,18 +109,12 @@ type EventRecord = {
   gallery_urls: string[] | null
   cover_in_gallery: boolean | null
   content_sections: Array<{ title: string; body: string; urls: string[] }> | null
-  is_civic: boolean | null
   event_type: string | null
-  featured_movement_slug: string | null
   organizer_contact: string | null
   organizer_name: string | null
   organizer_phone: string | null
   organizer_website: string | null
   organizer_socials: OrganizerSocials | null
-  telegram_link: string | null
-  whatsapp_link: string | null
-  safety_notes: string | null
-  expected_attendees: number | null
   recurrence: string | null
   recurrence_until: string | null
   recurrence_days_of_week: number[] | null
@@ -228,7 +212,7 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
   const { data } = await supabase
     .from('events')
     .select(
-      'id, slug, status, title, title_i18n, description, description_i18n, category, date, end_date, time, end_time, timezone, price, ticket_url, ticket_provider, price_from_cents, price_currency, ticket_sales_status, door_tickets, age_restriction, official_source_url, last_verified_at, listing_status, doors_time, practical_info, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, cover_in_gallery, content_sections, is_civic, event_type, featured_movement_slug, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, telegram_link, whatsapp_link, safety_notes, expected_attendees, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at, bio )'
+      'id, slug, status, title, title_i18n, description, description_i18n, category, date, end_date, time, end_time, timezone, price, ticket_url, ticket_provider, price_from_cents, price_currency, ticket_sales_status, door_tickets, age_restriction, official_source_url, last_verified_at, listing_status, doors_time, practical_info, highlight, place_id, location_slug, country, lat, lng, address, address_hint, is_online, online_url, tags, language, banner_url, gallery_urls, cover_in_gallery, content_sections, event_type, organizer_contact, organizer_name, organizer_phone, organizer_website, organizer_socials, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions, places ( id, name, address, lat, lng, website_url ), organizers ( id, slug, verification_tier, created_at, bio )'
     )
     .eq('status', 'published')
     .eq('slug', slug)
@@ -340,17 +324,7 @@ function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'civic') return 'bg-flame-500/15 text-flame-300 ring-1 ring-flame-500/40'
   return 'bg-white/10 text-white/80'
-}
-
-function formatAttendees(count: number) {
-  if (count >= 1000) {
-    const k = count / 1000
-    const formatted = k >= 10 ? Math.round(k).toString() : k.toFixed(1).replace(/\.0$/, '')
-    return `${formatted}k`
-  }
-  return count.toLocaleString('en-US')
 }
 
 function formatDateLong(dateString: string) {
@@ -462,9 +436,6 @@ export async function generateMetadata(
   { params }: { params: Promise<Params> }
 ): Promise<Metadata> {
   const { slug } = await params
-  if (CURATED_REDIRECTS[slug]) {
-    return { title: 'Redirecting — AlbaGo' }
-  }
   const event = await fetchEvent(slug)
 
   if (!event) {
@@ -500,11 +471,6 @@ export default async function EventDetailPage(
 ) {
   const { slug } = await params
 
-  const curated = CURATED_REDIRECTS[slug]
-  if (curated) {
-    redirect(curated)
-  }
-
   const event = await fetchEvent(slug)
 
   if (!event) {
@@ -525,14 +491,11 @@ export default async function EventDetailPage(
           .replace(/\b\w/g, (c) => c.toUpperCase())
   const countryLabel = event.country || fallbackLocation.country
   const venue = event.places
-  const isCivic = !!event.is_civic
 
   const lifecycleStatus = getEventLifecycleStatus(event)
   const hasEnded = isEventEnded(lifecycleStatus)
   // What "similar" means here: same category, same city, still upcoming.
-  const similarEventsHref = isCivic
-    ? '/protests'
-    : `/events?category=${encodeURIComponent(event.category)}&location=${encodeURIComponent(event.location_slug)}`
+  const similarEventsHref = `/events?category=${encodeURIComponent(event.category)}&location=${encodeURIComponent(event.location_slug)}`
 
   const mapHref = buildMapHref({
     location_slug: event.location_slug,
@@ -554,29 +517,23 @@ export default async function EventDetailPage(
   // action stays on the lighter glass pill.
   const PRIMARY_CTA =
     'inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-flame-400 to-flame-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(238,28,37,0.6)] ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 hover:from-flame-300 hover:to-flame-500 hover:shadow-[0_16px_44px_-10px_rgba(238,28,37,0.78)]'
-  const hasCoordination =
-    isCivic &&
-    (event.telegram_link || event.whatsapp_link || event.organizer_contact)
-
   // Native free-ticket tiers (TIX-1) supersede the external ticket link and
-  // the static price row whenever they exist — never both CTAs. Civic events
-  // never get tiers (schema guard) but we don't even fetch for them.
+  // the static price row whenever they exist — never both CTAs.
   const ticketTiers =
-    !isCivic && !hasEnded && event.listing_status !== 'cancelled'
+    !hasEnded && event.listing_status !== 'cancelled'
       ? await fetchTicketTiers(event.id)
       : []
   const hasNativeTickets = ticketTiers.length > 0
 
   // External ticketing (structured fields on events). Native tiers from the
-  // TIX track supersede these per-event. Civic events never show commerce
-  // vocabulary — bible pledge.
+  // TIX track supersede these per-event.
   const soldOut = event.ticket_sales_status === 'sold_out'
   const ticketUrl =
-    !isCivic && !hasEnded && !soldOut && !hasNativeTickets
+    !hasEnded && !soldOut && !hasNativeTickets
       ? safeExternalUrl(event.ticket_url)
       : null
   const priceFromLabel =
-    !isCivic && event.price_from_cents != null
+    event.price_from_cents != null
       ? event.price_from_cents === 0
         ? 'Free'
         : `From ${formatPriceFrom(event.price_from_cents, event.price_currency)}`
@@ -590,10 +547,12 @@ export default async function EventDetailPage(
     .filter(Boolean)
     .join(' · ')
 
-  // Civic events lead with the official source (audit §10/§14) — the one
-  // field that answers "is this real?".
+  // With no ticket CTA, the official source becomes the primary action
+  // (audit §10/§14) — the one field that answers "is this real?".
   const officialUrl =
-    isCivic && !hasEnded ? safeExternalUrl(event.official_source_url) : null
+    !hasEnded && !hasNativeTickets && !ticketUrl
+      ? safeExternalUrl(event.official_source_url)
+      : null
   const practicalEntries = PRACTICAL_LABELS.flatMap(([key, label]) => {
     const value = event.practical_info?.[key]
     return typeof value === 'string' && value.trim()
@@ -620,7 +579,6 @@ export default async function EventDetailPage(
     location_slug: event.location_slug,
     country: event.country,
     tags: event.tags,
-    isCivic,
     organizerId: event.organizers?.id ?? null,
   })
 
@@ -636,7 +594,6 @@ export default async function EventDetailPage(
     time: event.time,
     endTime: event.end_time,
     organizerName: event.organizer_name,
-    isCivic,
     eventUrl: `https://albago.org/events/${event.slug}`,
     imageUrl: event.banner_url ?? event.gallery_urls?.[0] ?? null,
   }
@@ -661,8 +618,7 @@ export default async function EventDetailPage(
     // Always derive timezone from location, not from event.timezone — many
     // legacy rows have a stale 'Europe/Tirane' default that misrepresents
     // non-Albanian events. getEventTimezone(slug, country) is the canonical
-    // source of truth across the rest of the codebase (protests page,
-    // movement pages).
+    // source of truth across the codebase.
     timezone: getEventTimezone(event.location_slug, event.country),
     locationName: venue?.name ?? event.address ?? null,
     address: event.address ?? venue?.address ?? null,
@@ -677,9 +633,7 @@ export default async function EventDetailPage(
     organizerUrl: event.organizers
       ? `https://albago.org/organizers/${event.organizers.slug}`
       : event.organizer_website,
-    isCivic,
     category: event.category,
-    expectedAttendees: event.expected_attendees,
     lifecycleStatus,
   }
 
@@ -717,7 +671,7 @@ export default async function EventDetailPage(
       />
       <LandingNavbar />
       <TrackView
-        type={isCivic ? 'protest_view' : 'event_view'}
+        type="event_view"
         entityType="event"
         entityId={event.id}
         city={event.location_slug}
@@ -755,11 +709,11 @@ export default async function EventDetailPage(
         <section className="relative z-10 mx-auto max-w-6xl px-4 pb-16 pt-24 sm:pt-28">
           <div>
             <Link
-              href={isCivic ? '/protests' : '/events'}
+              href="/events"
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-ink-950/55 px-4 py-2 text-sm font-medium text-white/75 backdrop-blur-md transition hover:bg-ink-950/80 hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
-              {isCivic ? 'Back to protests' : 'Back to events'}
+              Back to events
             </Link>
           </div>
 
@@ -1005,18 +959,6 @@ export default async function EventDetailPage(
                       {ticketMeta}
                     </p>
                   )}
-                </div>
-              )}
-
-              {isCivic && event.expected_attendees != null && (
-                <div className="mt-5 flex items-center justify-between border-t border-white/[0.08] pt-5 lg:mt-7 lg:pt-7">
-                  <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
-                    <Users className="h-3.5 w-3.5" />
-                    Expected
-                  </span>
-                  <span className="text-lg font-semibold text-white lg:text-xl">
-                    {formatAttendees(event.expected_attendees)}
-                  </span>
                 </div>
               )}
 
@@ -1273,70 +1215,6 @@ export default async function EventDetailPage(
               </div>
             )}
 
-          {hasCoordination && (
-            <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                Coordination
-              </p>
-              <p className="mt-2 text-sm text-white/60">
-                Live channels and organizer contact for this gathering.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                {event.telegram_link && (
-                  <a
-                    href={event.telegram_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-flame-500/30 bg-flame-500/10 px-4 py-2 text-sm font-semibold text-flame-100 transition hover:bg-flame-500/20"
-                  >
-                    <Send className="h-4 w-4" />
-                    Telegram
-                  </a>
-                )}
-                {event.whatsapp_link && (
-                  <a
-                    href={event.whatsapp_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    WhatsApp
-                  </a>
-                )}
-                {event.organizer_contact && (
-                  <a
-                    href={
-                      event.organizer_contact.includes('@')
-                        ? `mailto:${event.organizer_contact}`
-                        : event.organizer_contact
-                    }
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-                  >
-                    <Mail className="h-4 w-4" />
-                    {event.organizer_contact}
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {isCivic && event.safety_notes && (
-            <div className="mt-8 rounded-3xl border border-flame-500/30 bg-flame-500/[0.06] p-6 backdrop-blur-md">
-              <div className="flex items-start gap-3">
-                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-flame-400" />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
-                    Safety & legality
-                  </p>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-white/80">
-                    {event.safety_notes}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {(event.organizer_name ||
             event.organizer_phone ||
             event.organizer_website ||
@@ -1520,7 +1398,6 @@ export default async function EventDetailPage(
       <SimilarEvents
         events={similarEvents}
         browseHref={similarEventsHref}
-        isCivic={isCivic}
       />
     </main>
   )

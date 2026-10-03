@@ -10,17 +10,6 @@ export function formatDateForCard(iso: string): { weekday: string; day: string; 
   return { weekday, day, month }
 }
 
-const MONTHS_SQ = [
-  'JANAR', 'SHKURT', 'MARS', 'PRILL', 'MAJ', 'QERSHOR',
-  'KORRIK', 'GUSHT', 'SHTATOR', 'TETOR', 'NËNTOR', 'DHJETOR',
-]
-const WEEKDAYS_SQ = [
-  'E DIEL', 'E HËNË', 'E MARTË', 'E MËRKURË', 'E ENJTE', 'E PREMTE', 'E SHTUNË',
-]
-
-export function bilingualLabel(sq: string, en: string, isCivic: boolean): string {
-  return isCivic ? `${sq} · ${en}` : en
-}
 
 /* Length-aware type size. Text up to `comfortable` characters renders at
    `base`; longer text scales down proportionally, floored at `min`, so a
@@ -42,28 +31,22 @@ export function isMultiDayRange(iso: string, endIso: string | null | undefined):
   return !!endIso && endIso > iso
 }
 
-/* Date hero block — big day number + month / weekday underneath. When civic,
-   month + weekday are bilingual (Albanian · English) to match caption tone.
-   For a multi-day event a "→ <end day> <end month>" line is appended so the
+/* Date hero block — big day number + month / weekday underneath. For a multi-day event a "→ <end day> <end month>" line is appended so the
    whole span reads at a glance instead of a single misleading day. Three
    scales tuned to the three templates' canvas sizes. */
 export function DateHero({
   iso,
   endIso,
-  isCivic,
   scale,
 }: {
   iso: string
   endIso?: string | null
-  isCivic: boolean
   scale: 'sm' | 'md' | 'lg'
 }) {
   const d = new Date(`${iso}T12:00:00`)
   const day = d.toLocaleDateString('en-GB', { day: 'numeric' })
   const monthEn = d.toLocaleDateString('en-GB', { month: 'long' }).toUpperCase()
   const weekdayEn = d.toLocaleDateString('en-GB', { weekday: 'long' }).toUpperCase()
-  const monthSq = MONTHS_SQ[d.getMonth()]
-  const weekdaySq = WEEKDAYS_SQ[d.getDay()]
 
   const numberSize = scale === 'lg' ? 180 : scale === 'md' ? 130 : 90
   const monthSize = scale === 'lg' ? 28 : scale === 'md' ? 22 : 16
@@ -116,11 +99,7 @@ export function DateHero({
   )
 
   if (!isMultiDayRange(iso, endIso)) {
-    return dayBlock(
-      day,
-      isCivic ? `${monthSq} · ${monthEn}` : monthEn,
-      isCivic ? `${weekdaySq} · ${weekdayEn}` : weekdayEn,
-    )
+    return dayBlock(day, monthEn, weekdayEn)
   }
 
   // Multi-day: the last day gets a day block just as large as the first, sitting
@@ -163,7 +142,6 @@ export function formatTimeRangeForCard(time: string | null, endTime: string | nu
 }
 
 export function categoryLabel(data: ShareEventData): string {
-  if (data.isCivic) return 'PROTESTË E KONFIRMUAR · CONFIRMED PROTEST'
   const c = (data.category || 'EVENT').toUpperCase()
   return c
 }
@@ -189,9 +167,7 @@ export function shortAddress(address: string | null): string | null {
   return segments.slice(0, -1).join(', ')
 }
 
-export function ctaLine(data: ShareEventData): string {
-  return data.isCivic ? 'Detajet në AlbaGo · Details on AlbaGo' : 'Discover more on AlbaGo'
-}
+export const CTA_LINE = 'Discover more on AlbaGo'
 
 /* AlbaGo wordmark — matches LandingNavbar exactly: red rounded square with
    a white MapPin pin, then "Alba" bold sans + "Go" in Instrument Serif italic
@@ -259,8 +235,7 @@ export function AlbaGoWordmark({ size = 'lg' }: { size?: 'sm' | 'md' | 'lg' }) {
   )
 }
 
-/* Ink backdrop — the no-photo look for NORMAL events (civic events use the
-   flamingo instead). Editorial rather than techy: a deep black field with
+/* Ink backdrop — the no-photo look for events. Editorial rather than techy: a deep black field with
    ember blooms rising from the lower-left, faint concentric light rings from
    the same source, one diagonal sheen, and a giant ghosted Instrument Serif
    monogram — the event title's initial — so every Ink poster is unique.
@@ -341,138 +316,3 @@ export function inkGlyph(title: string): string {
   return /[A-ZÀ-ÿ0-9]/.test(ch) ? ch : 'A'
 }
 
-export function GridBackdrop() {
-  return (
-    <>
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(60% 50% at 50% 0%, rgba(238,28,37,0.30) 0%, rgba(0,0,0,0) 70%)',
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(40% 35% at 50% 100%, rgba(238,28,37,0.18) 0%, rgba(0,0,0,0) 70%)',
-        }}
-      />
-    </>
-  )
-}
-
-/* Flamingo motif — ported from the /protests hero SVG, gradients flattened
-   to solid fills (no <defs>) so html-to-image renders deterministically and
-   we never collide IDs when all three templates render in the same off-screen
-   container. Tinted to sit BEHIND the foreground text at lower opacity. */
-type FlamingoMotifProps = {
-  width: number
-  opacity?: number
-}
-
-export function FlamingoMotif({ width, opacity = 0.55 }: FlamingoMotifProps) {
-  const height = (width * 300) / 200
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox="0 0 200 300"
-      aria-hidden="true"
-      style={{ opacity, pointerEvents: 'none' }}
-    >
-      {/* Tail feathers */}
-      <path d="M 22,165 L 0,138 L 10,172 L -4,180 L 22,195 Z" fill="#fda4af" fillOpacity={0.45} />
-
-      {/* Body */}
-      <ellipse cx="80" cy="170" rx="58" ry="42" fill="#f9a8d4" fillOpacity={0.42} />
-
-      {/* Wing patch */}
-      <path d="M 48,162 Q 80,142 112,166 Q 82,184 48,162 Z" fill="#ec4899" fillOpacity={0.32} />
-
-      {/* Wing feather strokes */}
-      <path
-        d="M 56,156 Q 76,150 100,162 M 54,166 Q 78,162 104,172 M 54,176 Q 78,175 105,180"
-        stroke="#f472b6"
-        strokeWidth={1.6}
-        strokeOpacity={0.65}
-        fill="none"
-        strokeLinecap="round"
-      />
-
-      {/* Neck S-curve */}
-      <path
-        d="M 115,140 C 155,100 80,80 130,30"
-        fill="none"
-        stroke="#f9a8d4"
-        strokeWidth={18}
-        strokeLinecap="round"
-        strokeOpacity={0.55}
-      />
-
-      {/* Head */}
-      <circle cx="135" cy="28" r="16" fill="#f9a8d4" fillOpacity={0.6} />
-
-      {/* Beak upper */}
-      <path d="M 150,32 L 178,46 L 152,52 Z" fill="#fda4af" fillOpacity={0.7} />
-
-      {/* Beak tip */}
-      <path d="M 162,48 L 178,46 L 168,58 Z" fill="#0a0a0f" fillOpacity={0.75} />
-
-      {/* Eye */}
-      <circle cx="138" cy="22" r="2.6" fill="#0a0a0f" fillOpacity={0.85} />
-
-      {/* Standing leg */}
-      <rect x="76" y="208" width={5} height={80} rx={2.5} fill="#f9a8d4" fillOpacity={0.5} />
-      <ellipse cx="78" cy="290" rx={14} ry={3} fill="#ec4899" fillOpacity={0.32} />
-
-      {/* Folded leg */}
-      <line
-        x1="100"
-        y1="208"
-        x2="110"
-        y2="248"
-        stroke="#f9a8d4"
-        strokeWidth={5}
-        strokeLinecap="round"
-        strokeOpacity={0.5}
-      />
-      <line
-        x1="110"
-        y1="248"
-        x2="82"
-        y2="238"
-        stroke="#f9a8d4"
-        strokeWidth={5}
-        strokeLinecap="round"
-        strokeOpacity={0.5}
-      />
-    </svg>
-  )
-}
-
-/* Soft pink halo behind the flamingo — matches the protests page glow. */
-export function FlamingoHalo({ size }: { size: number }) {
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: 'absolute',
-        width: size,
-        height: size,
-        borderRadius: '9999px',
-        background:
-          'radial-gradient(circle, rgba(236,72,153,0.22) 0%, rgba(236,72,153,0) 65%)',
-        pointerEvents: 'none',
-      }}
-    />
-  )
-}
