@@ -85,7 +85,7 @@ export default function LandingNavbar() {
 
   // No "Home" item — the logo is the home link (audit §30).
   const navItems = [
-    { href: '/events', label: t('nav_events'), icon: Calendar, active: pathname === '/events' },
+    { href: '/events', label: t('nav_find_events'), icon: Calendar, active: pathname === '/events' },
     { href: '/map', label: t('nav_map'), icon: Map, active: pathname === '/map' },
     {
       href: '/organizers',
