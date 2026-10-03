@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Flame, MapPin } from 'lucide-react'
+import { ArrowLeft, MapPin } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import EventsFilterBar, {
   type SearchSuggestion,
@@ -142,21 +142,8 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
   const initialTimeFilter: TimeFilter =
     timeParam === 'tonight' || timeParam === 'weekend' ? timeParam : 'all'
 
-  const initialTags = useMemo(() => {
-    const raw = searchParams.get('tags')
-    if (!raw) return new Set<string>()
-    return new Set(
-      raw
-        .split(',')
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean),
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>(initialTimeFilter)
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all')
-  const [activeTags, setActiveTags] = useState<Set<string>>(initialTags)
 
   const initialSort = (() => {
     const raw = searchParams.get('sort') as SortBy | null
@@ -225,11 +212,10 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
     trackInteraction('search_query', { meta: { q: q.slice(0, 120) } })
   }, [debouncedSearch])
 
+  // An empty query hides suggestions at render time (see the filter bar
+  // props below) instead of clearing state inside this effect.
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSuggestions([])
-      return
-    }
+    if (!searchQuery.trim()) return
     const timer = setTimeout(async () => {
       const { data } = await supabase
         .from('events')
@@ -343,7 +329,9 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
 
   useEffect(() => {
     if (searchParams.get('focus') !== 'search') return
-    setSearchFocusSignal((n) => n + 1)
+    // Bump the focus signal from a callback, not the effect body
+    // (react-hooks/set-state-in-effect).
+    queueMicrotask(() => setSearchFocusSignal((n) => n + 1))
     const params = new URLSearchParams(searchParams.toString())
     params.delete('focus')
     const qs = params.toString()
@@ -356,7 +344,6 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
     if (activeCategory !== 'all') params.set('category', activeCategory)
     if (activeTimeFilter !== 'all') params.set('time', activeTimeFilter)
     if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
-    if (activeTags.size > 0) params.set('tags', Array.from(activeTags).sort().join(','))
     if (sortBy !== 'featured') params.set('sort', sortBy)
     if (dateFrom) params.set('from', dateFrom)
     if (dateTo) params.set('to', dateTo)
@@ -366,45 +353,16 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
     activeCategory,
     activeTimeFilter,
     debouncedSearch,
-    activeTags,
     sortBy,
     dateFrom,
     dateTo,
     router,
   ])
 
-  // Top tags by frequency in the currently loaded events. Capped at 16 so the
-  // chip row never gets out of hand.
-  const availableTags = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const e of events) {
-      if (!e.tags) continue
-      for (const t of e.tags) {
-        const tag = t.trim().toLowerCase()
-        if (!tag) continue
-        counts.set(tag, (counts.get(tag) ?? 0) + 1)
-      }
-    }
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 16)
-      .map(([tag, count]) => ({ tag, count }))
-  }, [events])
-
-  const toggleTag = (tag: string) => {
-    setActiveTags((prev) => {
-      const next = new Set(prev)
-      if (next.has(tag)) next.delete(tag)
-      else next.add(tag)
-      return next
-    })
-  }
-
   const clearAllFilters = () => {
     setActiveLocationSlug('all')
     setActiveCategory('all')
     setActiveTimeFilter('all')
-    setActiveTags(new Set())
     setSortBy('featured')
     setDateFrom('')
     setDateTo('')
@@ -446,14 +404,9 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
         activeCategory === 'all' ||
         event.category.toLowerCase() === activeCategory.toLowerCase()
 
-      const tagsMatch =
-        activeTags.size === 0 ||
-        (event.tags &&
-          event.tags.some((t) => activeTags.has(t.trim().toLowerCase())))
-
-      return timeMatches && categoryMatches && tagsMatch
+      return timeMatches && categoryMatches
     })
-  }, [activeTimeFilter, activeCategory, activeTags, events, hasDateRange, dateFrom, dateTo])
+  }, [activeTimeFilter, activeCategory, events, hasDateRange, dateFrom, dateTo])
 
   const sortedEvents = useMemo(() => {
     const today = getTodayDateString()
@@ -518,24 +471,6 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
             {t('events_hero_sub')}
           </p>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href={`/map?location=${activeLocationSlug}`}
-              className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 hover:-translate-y-0.5"
-            >
-              <MapPin className="h-4 w-4" />
-              {t('open_map')}
-            </Link>
-
-            <Link
-              href={`/map?location=${activeLocationSlug}&time=tonight`}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.06] hover:text-white"
-            >
-              <Flame className="h-4 w-4" />
-              {t('tonight')}
-            </Link>
-          </div>
         </div>
       </section>
 
@@ -543,7 +478,7 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         onSearchSubmit={() => setDebouncedSearch(searchQuery)}
-        suggestions={suggestions}
+        suggestions={searchQuery.trim() ? suggestions : []}
         onPickSuggestion={(s) => setSearchQuery(s.title)}
         isSearchMode={isSearchMode}
         searchFocusSignal={searchFocusSignal}
@@ -560,9 +495,7 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
         }}
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
-        availableTags={availableTags}
-        activeTags={activeTags}
-        onToggleTag={toggleTag}
+        mapHref={`/map?location=${activeLocationSlug}`}
         sortBy={sortBy}
         onSortChange={setSortBy}
         resultCount={sortedEvents.length}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowUpDown,
@@ -8,10 +9,10 @@ import {
   Check,
   ChevronDown,
   Globe,
+  Map as MapIcon,
   MapPin,
   Search,
   SlidersHorizontal,
-  Tag,
   X,
 } from 'lucide-react'
 import MiniCalendar from './MiniCalendar'
@@ -81,10 +82,8 @@ export type EventsFilterBarProps = {
   // Category
   activeCategory: string
   onCategoryChange: (category: string) => void
-  // Tags
-  availableTags: { tag: string; count: number }[]
-  activeTags: Set<string>
-  onToggleTag: (tag: string) => void
+  // Map shortcut for the current location
+  mapHref: string
   // Sort
   sortBy: SortBy
   onSortChange: (value: SortBy) => void
@@ -113,9 +112,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
     onDateRangeChange,
     activeCategory,
     onCategoryChange,
-    availableTags,
-    activeTags,
-    onToggleTag,
+    mapHref,
     sortBy,
     onSortChange,
     resultCount,
@@ -241,15 +238,12 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
         onRemove: () => onCategoryChange('all'),
       })
     }
-    for (const tag of Array.from(activeTags).sort()) {
-      list.push({ key: `tag-${tag}`, label: `#${tag}`, onRemove: () => onToggleTag(tag) })
-    }
     if (sortBy !== 'featured') {
       list.push({ key: 'sort', label: sortLabel, onRemove: () => onSortChange('featured') })
     }
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLocationSlug, locationLabel, dateValue, activeCategory, activeTags, sortBy, sortLabel, t])
+  }, [activeLocationSlug, locationLabel, dateValue, activeCategory, sortBy, sortLabel, t])
 
   const activeFilterCount = chips.length
 
@@ -426,6 +420,15 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                 </button>
               )}
 
+              <Link
+                href={mapHref}
+                aria-label={t('open_map')}
+                className="group inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 text-sm sm:w-auto sm:px-4 font-semibold text-flame-100 shadow-[0_0_24px_-10px_rgba(238,28,37,0.7)] transition hover:border-flame-500/60 hover:bg-flame-500/20 hover:text-white"
+              >
+                <MapIcon className="h-4 w-4 text-flame-300 transition group-hover:text-white" />
+                <span className="hidden sm:inline">{t('open_map')}</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => setIsSheetOpen(true)}
@@ -471,47 +474,8 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
         </div>
       </div>
 
-      {/* Below the sticky bar — tags rail + active filter chips */}
+      {/* Below the sticky bar — active filter chips */}
       <div className="mx-auto max-w-6xl px-4">
-        {availableTags.length > 0 && (
-          <div className="-mx-4 mt-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex w-max items-center gap-1.5">
-              <span className="inline-flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
-                <Tag className="h-3.5 w-3.5" />
-                {t('filter_tags')}
-              </span>
-              {availableTags.map(({ tag, count }) => {
-                const isActive = activeTags.has(tag)
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => onToggleTag(tag)}
-                    aria-pressed={isActive}
-                    className={[
-                      'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition',
-                      isActive
-                        ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/50'
-                        : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
-                    ].join(' ')}
-                  >
-                    {tag}
-                    <span
-                      className={[
-                        'rounded-full px-1.5 text-[10px]',
-                        isActive
-                          ? 'bg-flame-500/30 text-flame-50'
-                          : 'bg-white/[0.06] text-white/45',
-                      ].join(' ')}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
 
         <AnimatePresence>
           {chips.length > 0 && (
@@ -643,42 +607,6 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                   </div>
                 </section>
 
-                {availableTags.length > 0 && (
-                  <section>
-                    <SheetHeading>{t('filter_tags')}</SheetHeading>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {availableTags.map(({ tag, count }) => {
-                        const isActive = activeTags.has(tag)
-                        return (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => onToggleTag(tag)}
-                            aria-pressed={isActive}
-                            className={[
-                              'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
-                              isActive
-                                ? 'bg-flame-500/20 text-flame-100 ring-1 ring-flame-500/50'
-                                : 'border border-white/10 bg-white/[0.04] text-white/65',
-                            ].join(' ')}
-                          >
-                            {tag}
-                            <span
-                              className={[
-                                'rounded-full px-1.5 text-[10px]',
-                                isActive
-                                  ? 'bg-flame-500/30 text-flame-50'
-                                  : 'bg-white/[0.06] text-white/45',
-                              ].join(' ')}
-                            >
-                              {count}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </section>
-                )}
 
                 <section>
                   <SheetHeading>{t('filter_sort')}</SheetHeading>
