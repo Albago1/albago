@@ -7,7 +7,7 @@ export const translations: Record<Language, Record<string, string>> = {
     nav_map: "Map",
     nav_search: "Search",
     nav_events: "Events",
-    nav_find_events: "Find events",
+    nav_find_events: "Find Events",
     nav_submit_event: "Submit Event",
     nav_dashboard: 'Dashboard',
     open_menu: 'Open menu',
