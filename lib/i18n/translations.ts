@@ -1554,7 +1554,7 @@ export const translations: Record<Language, Record<string, string>> = {
     nav_map: "Harta",
     nav_search: "Kërko",
     nav_events: "Evente",
-    nav_find_events: "Gjej evente",
+    nav_find_events: "Gjej Evente",
     nav_submit_event: "Shto event",
     nav_dashboard: 'Paneli',
     open_menu: 'Hap menunë',
