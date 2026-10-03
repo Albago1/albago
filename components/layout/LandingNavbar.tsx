@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Building2,
   LogIn,
   LogOut,
   Map,
@@ -16,7 +15,6 @@ import {
   X,
   LayoutDashboard,
   Calendar,
-  Flame,
   ShieldCheck,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
@@ -85,24 +83,10 @@ export default function LandingNavbar() {
 
   const isMapRoute = pathname === '/map'
 
-  // No "Home" item — the logo is the home link (audit §30). Protests stays
-  // top-level: the civic wedge is the product's trust engine (bible rule),
-  // not a "More"-menu afterthought.
+  // No "Home" item — the logo is the home link (audit §30).
   const navItems = [
     { href: '/events', label: t('nav_events'), icon: Calendar, active: pathname === '/events' },
-    {
-      href: '/protests',
-      label: t('nav_protests'),
-      icon: Flame,
-      active: pathname === '/protests' || pathname.startsWith('/events/albanian-revolution'),
-    },
     { href: '/map', label: t('nav_map'), icon: Map, active: pathname === '/map' },
-    {
-      href: '/cities',
-      label: t('nav_cities'),
-      icon: Building2,
-      active: pathname === '/cities' || pathname.startsWith('/city/'),
-    },
     {
       href: '/organizers',
       label: t('footer_link_organizers'),

@@ -17,13 +17,14 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
-      // Public URL pinned to the year — keep the bare slug working for any
-      // pre-share links that pointed there.
-      {
-        source: "/protests/edi-rama-berlin",
-        destination: "/protests/edi-rama-berlin-2026",
-        permanent: true,
-      },
+      // Protest, movement and volunteer pages were removed (Phase 41).
+      // Old shared links land on event discovery instead of a 404.
+      { source: "/protests", destination: "/events", permanent: false },
+      { source: "/protests/:path*", destination: "/events", permanent: false },
+      { source: "/events/albanian-revolution", destination: "/events", permanent: false },
+      { source: "/events/albanian-revolution/:path*", destination: "/events", permanent: false },
+      { source: "/movements/:path*", destination: "/events", permanent: false },
+      { source: "/volunteer", destination: "/events", permanent: false },
     ];
   },
 };

@@ -3,10 +3,10 @@ import type { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'AlbaGo — Events, Movements & Nightlife',
+    name: 'AlbaGo — Events & Nightlife',
     short_name: 'AlbaGo',
     description:
-      'Discover events, venues, and civic gatherings across cities and continents.',
+      'Discover events and nightlife across Albania and the Albanian diaspora.',
     // source=pwa lets analytics separate installed-app sessions from browser
     // sessions — the M19 native-gate metrics depend on this split.
     start_url: '/?source=pwa',
@@ -70,13 +70,6 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: 'Events',
         url: '/events',
         description: 'Browse live, upcoming and recurring events.',
-        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
-      },
-      {
-        name: 'Protests',
-        short_name: 'Protests',
-        url: '/protests',
-        description: 'Worldwide directory of peaceful civic gatherings.',
         icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
       },
     ],

@@ -10,16 +10,14 @@ export default function Footer() {
 
   const exploreLinks = [
     { href: '/events', label: t('nav_events') },
-    { href: '/protests', label: t('nav_protests') },
     { href: '/map', label: t('nav_map') },
-    { href: '/events/albanian-revolution', label: t('footer_link_revolution') },
+    { href: '/cities', label: t('nav_cities') },
   ]
 
   const communityLinks = [
     { href: '/become-organizer', label: t('footer_link_become_organizer') },
     { href: '/organizers', label: t('footer_link_organizers') },
     { href: '/submit-event', label: t('nav_submit_event') },
-    { href: '/volunteer', label: t('footer_link_volunteer') },
     { href: '/sign-in', label: t('sign_in') },
   ]
 
@@ -54,7 +52,6 @@ export default function Footer() {
               {t('footer_tagline')}
             </p>
             <SocialLinks />
-            <div className="text-xs text-white/40">{t('footer_values')}</div>
           </div>
 
           <FooterColumn title={t('footer_explore')} links={exploreLinks} />
@@ -64,12 +61,7 @@ export default function Footer() {
 
         <div className="mt-12 flex flex-col gap-3 border-t border-white/5 pt-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <span>{t('footer_rights')}</span>
-          <span>
-            {t('footer_built')} ·{' '}
-            <Link href="/protests" className="underline-offset-2 hover:text-white hover:underline">
-              {t('footer_motto')}
-            </Link>
-          </span>
+          <span>{t('footer_built')}</span>
         </div>
       </div>
     </footer>

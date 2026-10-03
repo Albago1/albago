@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Calendar, CircleUserRound, Compass, Home, Megaphone, Search } from 'lucide-react'
+import { Calendar, CircleUserRound, Compass, Home, Search } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
 
@@ -37,15 +37,6 @@ const items: NavItem[] = [
     labelKey: 'nav_events',
     icon: Calendar,
     match: (p) => p === '/events' || p.startsWith('/events/'),
-  },
-  {
-    href: '/protests',
-    labelKey: 'nav_protests',
-    icon: Megaphone,
-    match: (p) =>
-      p === '/protests' ||
-      p.startsWith('/protests/') ||
-      p.startsWith('/movements/'),
   },
   {
     href: '/map',
