@@ -12,14 +12,12 @@ import { useRouter } from 'next/navigation'
 import {
   BadgeCheck,
   Calendar,
-  HandHeart,
   Inbox,
   LayoutDashboard,
   Megaphone,
   Plus as PlusIcon,
   ScanLine,
   Search,
-  Send,
   Users as UsersIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
@@ -102,15 +100,6 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     kind: 'nav',
-    id: 'nav-volunteers',
-    label: 'Volunteers',
-    sublabel: 'New volunteer signups',
-    href: '/admin/volunteers',
-    icon: HandHeart,
-    keywords: 'volunteers signups helpers',
-  },
-  {
-    kind: 'nav',
     id: 'nav-events',
     label: 'Events',
     sublabel: 'Browse and edit every event',
@@ -126,15 +115,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/users',
     icon: UsersIcon,
     keywords: 'users accounts profiles',
-  },
-  {
-    kind: 'nav',
-    id: 'nav-share-batch',
-    label: 'Share batch',
-    sublabel: 'Generate PNG kits for upcoming protests',
-    href: '/admin/share-batch',
-    icon: Send,
-    keywords: 'share batch png zip kit social',
   },
 ]
 

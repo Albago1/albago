@@ -180,7 +180,7 @@ export default async function DashboardPage() {
   const ticketCount = ticketsRes.count ?? 0
 
   // Split saved events into Upcoming vs Past so the section reads at a glance
-  // instead of mixing tomorrow's protest with last month's gig.
+  // instead of mixing tomorrow's event with last month's gig.
   const upcomingSaved = savedEvents.filter((e) =>
     isEventActive({ date: e.date, time: e.time }),
   )

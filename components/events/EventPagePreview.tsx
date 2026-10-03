@@ -3,12 +3,10 @@
 import Image from 'next/image'
 import {
   Clock3,
-  Flame,
   Globe2,
   MapPin,
   Megaphone,
   Ticket,
-  Users,
 } from 'lucide-react'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
@@ -40,11 +38,6 @@ export type EventPreviewData = {
   country?: string | null
   is_online?: boolean | null
   online_url?: string | null
-  is_civic?: boolean | null
-  expected_attendees?: number | null
-  telegram_link?: string | null
-  whatsapp_link?: string | null
-  safety_notes?: string | null
   tags?: string[] | null
   organizer_name?: string | null
 }
@@ -133,12 +126,6 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${getCategoryTone(event.category)}`}>
               {event.category}
             </span>
-            {event.is_civic && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-flame-500/20 px-2.5 py-1 text-[11px] font-semibold text-flame-200 ring-1 ring-flame-500/40">
-                <Flame className="h-3 w-3" />
-                Civic
-              </span>
-            )}
             {event.is_online && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 ring-1 ring-emerald-500/30">
                 <Globe2 className="h-3 w-3" />
@@ -206,18 +193,6 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
                 Price
               </span>
               <span className="text-base font-semibold text-white">{event.price}</span>
-            </div>
-          )}
-
-          {event.is_civic && event.expected_attendees != null && event.expected_attendees > 0 && (
-            <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-4">
-              <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
-                <Users className="h-3.5 w-3.5" />
-                Expected
-              </span>
-              <span className="text-base font-semibold text-white">
-                {event.expected_attendees.toLocaleString()}
-              </span>
             </div>
           )}
 
@@ -313,20 +288,6 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
             )}
           </div>
         ))}
-
-        {event.is_civic &&
-          (event.telegram_link || event.whatsapp_link || event.safety_notes) && (
-            <div className="rounded-2xl border border-flame-500/20 bg-flame-500/[0.05] p-4 text-sm text-white/70">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-flame-300/80">
-                Coordination
-              </p>
-              <div className="mt-2 space-y-1.5">
-                {event.telegram_link && <p className="break-all">Telegram: {event.telegram_link}</p>}
-                {event.whatsapp_link && <p className="break-all">WhatsApp: {event.whatsapp_link}</p>}
-                {event.safety_notes && <p className="leading-5">Safety: {event.safety_notes}</p>}
-              </div>
-            </div>
-          )}
 
         {event.organizer_name && (
           <p className="border-t border-white/[0.06] pt-4 text-xs text-white/50">

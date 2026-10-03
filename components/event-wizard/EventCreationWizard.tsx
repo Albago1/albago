@@ -59,13 +59,11 @@ type StepDef = {
 const STEPS: StepDef[] = [
   {
     // Type + category merged into one screen (audit P2 #8): both were
-    // single-choice steps, and category only exists for non-protest events
-    // (protest auto-sets category to 'civic').
+    // single-choice steps.
     key: 'type',
     label: 'Type',
     validate: (d) => {
-      if (!d.event_type) return 'Pick an event type.'
-      if (d.event_type !== 'protest' && !d.category) return 'Pick a category.'
+      if (!d.category) return 'Pick a category.'
       return null
     },
   },
@@ -130,8 +128,7 @@ const STEPS: StepDef[] = [
   {
     // Phase 33: optional free AlbaGo tickets. Only organizer/admin modes see
     // this step (community events don't exist until approval — filtered in
-    // activeSteps); civic events never get tiers (schema guard), so the step
-    // disappears entirely for protests.
+    // activeSteps).
     key: 'tickets',
     label: 'Tickets',
     validate: (d) => {
@@ -166,7 +163,6 @@ const STEPS: StepDef[] = [
       }
       return null
     },
-    skip: (d) => d.event_type === 'protest' || d.is_civic,
   },
   {
     key: 'organizer',
@@ -386,11 +382,9 @@ export default function EventCreationWizard({
         {activeStep.key === 'type' && (
           <>
             <EventTypeStep draft={draft} patch={patch} />
-            {draft.event_type && draft.event_type !== 'protest' && (
-              <div className="mt-8 border-t border-white/[0.08] pt-8">
-                <CategoryStep draft={draft} patch={patch} />
-              </div>
-            )}
+            <div className="mt-8 border-t border-white/[0.08] pt-8">
+              <CategoryStep draft={draft} patch={patch} />
+            </div>
           </>
         )}
         {activeStep.key === 'basics' && (

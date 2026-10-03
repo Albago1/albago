@@ -26,7 +26,6 @@ export type TicketsEvent = {
   slug: string
   date: string
   time: string | null
-  is_civic: boolean | null
   status: string
 }
 
@@ -248,18 +247,14 @@ export default function TicketsManagerClient({
               <Ticket className="mx-auto h-8 w-8 text-white/20" />
               <p className="mt-4 font-semibold text-white">No ticket tiers yet</p>
               <p className="mt-1 text-sm text-white/50">
-                {event.is_civic
-                  ? 'Civic events are always free to attend and never ticketed.'
-                  : 'Add ticket tiers when you create or edit this event, then claims will show up here.'}
+                Add ticket tiers when you create or edit this event, then claims will show up here.
               </p>
-              {!event.is_civic && (
-                <Link
-                  href={`/organizer/create?draft=${event.id}`}
-                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
-                >
-                  Edit event
-                </Link>
-              )}
+              <Link
+                href={`/organizer/create?draft=${event.id}`}
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-flame-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-flame-400"
+              >
+                Edit event
+              </Link>
             </div>
           ) : (
             <>

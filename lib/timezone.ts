@@ -3,7 +3,7 @@
 // countdowns line up for every viewer regardless of where they are browsing.
 //
 // We do this client-side from a static map because `cities.timezone` is NULL
-// for every row today (see schema-reference.md §cities) and the protest data
+// for every row today (see schema-reference.md §cities) and the event data
 // set is small. Country fallback covers ~95% of cases; per-slug overrides
 // handle the US (where country alone isn't enough — Michigan is Eastern, but
 // Phoenix is on its own).

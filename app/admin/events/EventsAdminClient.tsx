@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Flame, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/browser'
 import AdminRepostModal from './AdminRepostModal'
 
@@ -19,10 +19,6 @@ type EventRow = {
   region: string | null
   origin: string | null
   organizer_id: string | null
-  is_civic: boolean | null
-  event_type: string | null
-  featured_movement_slug: string | null
-  expected_attendees: number | null
   highlight: boolean | null
   created_at: string
   updated_at: string | null
@@ -69,7 +65,6 @@ export default function EventsAdminClient() {
   const [actionId, setActionId] = useState<string | null>(null)
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('published')
-  const [civicOnly, setCivicOnly] = useState(false)
   const [search, setSearch] = useState('')
 
   const [repostSource, setRepostSource] = useState<{ id: string; title: string } | null>(null)
@@ -81,7 +76,7 @@ export default function EventsAdminClient() {
     const { data, error } = await supabase
       .from('events')
       .select(
-        'id, slug, title, category, date, time, status, location_slug, country, region, origin, organizer_id, is_civic, event_type, featured_movement_slug, expected_attendees, highlight, created_at, updated_at',
+        'id, slug, title, category, date, time, status, location_slug, country, region, origin, organizer_id, highlight, created_at, updated_at',
       )
       .order('date', { ascending: false })
       .limit(500)
@@ -127,14 +122,13 @@ export default function EventsAdminClient() {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
-      if (civicOnly && !r.is_civic) return false
       if (q) {
-        const blob = `${r.title} ${r.location_slug} ${r.country} ${r.featured_movement_slug ?? ''}`.toLowerCase()
+        const blob = `${r.title} ${r.location_slug} ${r.country}`.toLowerCase()
         if (!blob.includes(q)) return false
       }
       return true
     })
-  }, [rows, statusFilter, civicOnly, search])
+  }, [rows, statusFilter, search])
 
   const patchStatus = async (row: EventRow, nextStatus: string, verbed: string) => {
     setActionId(row.id)
@@ -200,10 +194,9 @@ export default function EventsAdminClient() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to admin
           </Link>
-          <h1 className="text-3xl font-bold">Events &amp; protests</h1>
+          <h1 className="text-3xl font-bold">Events</h1>
           <p className="mt-2 text-sm text-white/55">
-            Edit, unpublish, or archive any published or draft event — including civic
-            gatherings. Approving submissions still happens in the Submissions queue.
+            Edit, unpublish, or archive any published or draft event. Approving submissions still happens in the Submissions queue.
           </p>
         </div>
 
@@ -214,13 +207,6 @@ export default function EventsAdminClient() {
         >
           <Plus className="h-4 w-4" />
           New event
-        </Link>
-        <Link
-          href="/admin/volunteers"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-        >
-          <Users className="h-4 w-4" />
-          Volunteer signups
         </Link>
         </div>
       </div>
@@ -249,20 +235,6 @@ export default function EventsAdminClient() {
             </span>
           </button>
         ))}
-
-        <button
-          type="button"
-          onClick={() => setCivicOnly((v) => !v)}
-          className={[
-            'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition',
-            civicOnly
-              ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
-              : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.04] hover:text-white/80',
-          ].join(' ')}
-        >
-          <Flame className="h-3.5 w-3.5" />
-          Civic only
-        </button>
       </div>
 
       <div className="mt-4 flex items-center gap-3">
@@ -276,7 +248,7 @@ export default function EventsAdminClient() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by title, city, country, movement..."
+            placeholder="Search by title, city, country..."
             className="h-10 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
           />
         </div>
@@ -326,23 +298,12 @@ export default function EventsAdminClient() {
                     {row.location_slug}
                     {' · '}
                     {row.country}
-                    {row.is_civic && (
-                      <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-2 py-0.5 text-xs text-flame-300">
-                        <Flame className="h-3 w-3" />
-                        civic
-                      </span>
-                    )}
                     {row.highlight && (
                       <span className="ml-2 rounded-full border border-amber-500/30 bg-amber-500/[0.08] px-2 py-0.5 text-xs text-amber-300">
                         featured
                       </span>
                     )}
                   </p>
-                  {row.featured_movement_slug && (
-                    <p className="mt-1 text-xs text-white/40">
-                      movement: {row.featured_movement_slug}
-                    </p>
-                  )}
                 </div>
 
                 <span

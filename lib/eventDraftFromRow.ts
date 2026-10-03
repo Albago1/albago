@@ -14,12 +14,9 @@ export function eventRowToDraft(
   opts?: { keepSchedule?: boolean },
 ): EventDraft {
   const socials = (row.organizer_socials as EventDraft['organizer_socials']) ?? {}
-  const expected = row.expected_attendees
   const gallery = Array.isArray(row.gallery_urls) ? (row.gallery_urls as string[]) : []
   return {
     ...defaultEventDraft,
-    event_type: row.is_civic ? 'protest' : 'event',
-    is_civic: Boolean(row.is_civic),
     is_online: Boolean(row.is_online),
     category: (row.category as string) ?? '',
     title: (row.title as string) ?? '',
@@ -64,11 +61,6 @@ export function eventRowToDraft(
     ticket_mode: row.ticket_url ? 'external' : 'none',
     ticket_url: (row.ticket_url as string) ?? '',
     ticket_provider: (row.ticket_provider as string) ?? '',
-    featured_movement_slug: (row.featured_movement_slug as string) ?? '',
-    telegram_link: (row.telegram_link as string) ?? '',
-    whatsapp_link: (row.whatsapp_link as string) ?? '',
-    safety_notes: (row.safety_notes as string) ?? '',
-    expected_attendees: expected != null ? String(expected) : '',
     recurrence: ((row.recurrence as EventDraft['recurrence']) ?? 'none'),
     recurrence_until: (row.recurrence_until as string) ?? '',
     recurrence_days_of_week: Array.isArray(row.recurrence_days_of_week)

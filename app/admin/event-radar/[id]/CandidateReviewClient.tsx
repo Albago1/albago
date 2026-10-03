@@ -85,7 +85,6 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
   })
   const [category, setCategory] = useState<string>(reading?.category ?? '')
   const [tags, setTags] = useState<string>((reading?.tags ?? []).join(', '))
-  const [isCivic, setIsCivic] = useState<boolean>(reading?.is_civic ?? false)
 
   const [busy, setBusy] = useState<
     null | 'save' | 'approve' | 'reject' | 'retry' | 'delete' | 'wizard'
@@ -120,10 +119,9 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
     () => ({
       ...form,
       category,
-      is_civic: isCivic,
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
     }),
-    [form, category, isCivic, tags],
+    [form, category, tags],
   )
 
   async function act(
@@ -296,11 +294,6 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
         <div className="flex flex-wrap items-center gap-2">
           <ConfidenceBadge confidence={candidate.confidence} />
           <StatusBadge status={candidate.status} />
-          {isCivic && (
-            <span className="rounded-full bg-flame-500/15 px-2 py-0.5 text-[11px] font-medium text-flame-300 ring-1 ring-flame-500/30">
-              civic
-            </span>
-          )}
         </div>
         <h1 className="mt-3 text-xl font-semibold text-white">
           {candidate.title || 'Untitled candidate'}
@@ -512,17 +505,6 @@ export default function CandidateReviewClient({ candidate }: { candidate: EventI
                 onChange={(e) => setTags(e.target.value)}
                 className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-white focus:border-flame-500/40 focus:outline-none disabled:opacity-60"
               />
-            </label>
-
-            <label className="flex items-center gap-2 sm:col-span-2">
-              <input
-                type="checkbox"
-                disabled={!isOpen}
-                checked={isCivic}
-                onChange={(e) => setIsCivic(e.target.checked)}
-                className="h-4 w-4 accent-flame-500"
-              />
-              <span className="text-[13px] text-white/70">Civic event (protest / commemoration / assembly)</span>
             </label>
           </div>
         </div>

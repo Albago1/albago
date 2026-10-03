@@ -17,7 +17,6 @@ export const LENS_CATEGORIES = [
   'sports',
   'culture',
   'food',
-  'civic',
 ] as const
 
 const LENS_LANGUAGES = ['en', 'sq', 'de', 'es', 'it', 'fr'] as const
@@ -30,7 +29,6 @@ export type PosterReading = {
   title: string
   description: string
   category: (typeof LENS_CATEGORIES)[number] | ''
-  is_civic: boolean
   /** ISO YYYY-MM-DD, or '' when the poster doesn't state a resolvable date. */
   date: string
   /** HH:MM 24h, or ''. */
@@ -60,7 +58,7 @@ export type PosterReading = {
 /** The exact JSON contract every Lens extractor (photo or URL) must return.
  *  Shared so the poster reader and the URL reader stay in lockstep. */
 export const LENS_JSON_SHAPE =
-  '{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","is_civic":bool,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","recurrence":"none","recurrence_until":"","recurrence_days_of_week":[]}'
+  '{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","recurrence":"none","recurrence_until":"","recurrence_days_of_week":[]}'
 
 /** Scan-theater regions (photo scans only): where key fields sit ON the
  *  poster image, as Gemini-native boxes [ymin,xmin,ymax,xmax] ∈ 0..1000. */
@@ -89,7 +87,7 @@ Rules:
 2. The description must be composed ONLY from text visible on the poster, written as 1–4 clean sentences in the poster's own language. No marketing additions.
 3. Dates: resolve to ISO YYYY-MM-DD using the reference date you are given. Posters often omit the year — assume the next occurrence (if the day/month already passed this year, use next year). Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), German, Spanish, or Italian. If a range of consecutive days is shown ("22–24 gusht", "22 to 24 August"), set date to the FIRST day, recurrence to "daily" and recurrence_until to the LAST day. If no date is readable, return "".
 4. Times: 24h HH:MM. "21:00", "9 PM" → "21:00". Doors vs start: prefer the start time; if only doors, use it.
-5. category: exactly one of nightlife, music, sports, culture, food, civic — or "" if unclear. Protests, marches, commemorations, civic assemblies → civic and is_civic true.
+5. category: exactly one of nightlife, music, sports, culture, food — or "" if unclear. Protests, marches, demonstrations and political rallies are out of scope for AlbaGo: set is_event false.
 6. price: exactly as printed, including currency word. Free entry → the poster's own wording.
 7. language: the poster's main language as one of en, sq, de, es, it, fr (closest match).
 8. tags: up to 5 lowercase single words drawn from the poster (genre, scene, occasion).
@@ -99,7 +97,7 @@ Rules:
 12. Repetition — ONLY when the poster states it, never guessed: a weekly pattern ("çdo të premte", "every Friday", "jeden Freitag", "cada viernes", "ogni venerdì") → recurrence "weekly" with recurrence_days_of_week as ISO numbers (1=Monday … 7=Sunday; Albanian: e hënë=1, e martë=2, e mërkurë=3, e enjte=4, e premte=5, e shtunë=6, e diel=7) and date = the next occurrence. "çdo ditë" / "every day" / "täglich" → recurrence "daily". A printed series end ("deri më 30 shtator", "until Sep 30", "bis 30.9.") → recurrence_until as ISO date. A one-off event → recurrence "none" with empty recurrence_until and [].
 
 Return ONLY a JSON object with exactly these keys:
-{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","is_civic":bool,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","recurrence":"none","recurrence_until":"","recurrence_days_of_week":[],"regions":{"title":[ymin,xmin,ymax,xmax]}}
+{"is_event":bool,"confidence":0..1,"title":"","description":"","category":"","date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","recurrence":"none","recurrence_until":"","recurrence_days_of_week":[],"regions":{"title":[ymin,xmin,ymax,xmax]}}
 No markdown fences, no commentary.`
 
 function str(value: unknown, max = 400): string {
@@ -180,7 +178,6 @@ export function coercePosterReading(raw: unknown): PosterReading | null {
     category: (LENS_CATEGORIES as readonly string[]).includes(category)
       ? (category as PosterReading['category'])
       : '',
-    is_civic: r.is_civic === true || category === 'civic',
     date: isoDate,
     time: /^\d{2}:\d{2}$/.test(time) ? time : '',
     end_time: /^\d{2}:\d{2}$/.test(endTime) ? endTime : '',

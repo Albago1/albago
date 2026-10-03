@@ -75,7 +75,7 @@ const SET_FIELDS_SCHEMA = jsonSchema<SetFieldsInput>({
     description: { type: 'string', description: 'Plain-text description.' },
     category: {
       type: 'string',
-      enum: ['nightlife', 'music', 'sports', 'culture', 'food', 'civic'],
+      enum: ['nightlife', 'music', 'sports', 'culture', 'food'],
     },
     tags: { type: 'array', items: { type: 'string' }, description: 'Up to 5 short lowercase tags.' },
     language: { type: 'string', description: "ISO 639-1 of the event's own text, e.g. 'sq'." },
@@ -359,7 +359,6 @@ export function createAgentTools(ctx: AgentContext): ToolSet {
             ticket_url: d.ticket_url,
             organizer_name: d.organizer_name,
             organizer_contact: d.organizer_contact,
-            is_civic: d.is_civic,
             has_translations: d.title_i18n !== null,
           },
           ...missingSummary(ctx),

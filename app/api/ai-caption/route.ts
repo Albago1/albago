@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     const { data: event, error: eventError } = await supabase
       .from('events')
       .select(
-        'title, description, category, location_slug, country, is_civic, tags, address, date, time, end_time, organizer_name, places ( name )',
+        'title, description, category, location_slug, country, tags, address, date, time, end_time, organizer_name, places ( name )',
       )
       .eq('status', 'published')
       .eq('slug', slug)
@@ -110,7 +110,6 @@ export async function POST(request: Request) {
       category: string | null
       location_slug: string | null
       country: string | null
-      is_civic: boolean | null
       tags: string[] | null
       address: string | null
       date: string
@@ -132,7 +131,6 @@ export async function POST(request: Request) {
       category: row.category,
       city,
       country: row.country,
-      isCivic: Boolean(row.is_civic),
       tags: row.tags,
       venueName: row.places?.name ?? null,
       address: row.address,

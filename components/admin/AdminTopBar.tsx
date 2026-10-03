@@ -8,11 +8,9 @@ const SECTION_TITLES: Record<string, string> = {
   '/admin': 'Overview',
   '/admin/queue': 'Moderation queue',
   '/admin/organizers': 'Organizers',
-  '/admin/volunteers': 'Volunteers',
   '/admin/events/new': 'New event',
   '/admin/events': 'Events',
   '/admin/users': 'Users',
-  '/admin/share-batch': 'Share batch',
 }
 
 function resolveTitle(pathname: string): string {

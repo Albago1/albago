@@ -52,7 +52,6 @@ type OrganizerEventRow = {
   location_slug: string
   country: string | null
   highlight: boolean | null
-  is_civic: boolean | null
   recurrence: string | null
   recurrence_until: string | null
   recurrence_days_of_week: number[] | null
@@ -67,7 +66,6 @@ function getCategoryTone(category?: string) {
   if (value === 'sports') return 'bg-emerald-500/20 text-emerald-300'
   if (value === 'culture') return 'bg-sky-500/20 text-sky-300'
   if (value === 'food') return 'bg-amber-500/20 text-amber-300'
-  if (value === 'civic') return 'bg-flame-500/20 text-flame-300'
   return 'bg-white/10 text-white/80'
 }
 
@@ -119,7 +117,7 @@ async function fetchOrganizerEvents(
     supabase
       .from('events')
       .select(
-        'id, slug, title, category, date, end_date, time, end_time, location_slug, country, highlight, is_civic, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
+        'id, slug, title, category, date, end_date, time, end_time, location_slug, country, highlight, recurrence, recurrence_until, recurrence_days_of_week, recurrence_exceptions',
       )
       .eq('status', 'published')
       .eq('organizer_id', organizerId)

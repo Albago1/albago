@@ -81,15 +81,6 @@ export default function WhereStep({ draft, patch }: Props) {
       lat: next.lat,
       lng: next.lng,
     }
-    // Protest template: replace the (City) placeholder in the title once the
-    // submitter picks a city.
-    if (
-      draft.event_type === 'protest' &&
-      next.city &&
-      draft.title.includes('(City)')
-    ) {
-      updates.title = draft.title.replace('(City)', next.city)
-    }
     patch(updates)
   }
 

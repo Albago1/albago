@@ -22,15 +22,12 @@ export const DRAFT_STORAGE_KEY = 'albago:event-draft:v1'
 
 /** Raw reading → draft fields, before any resolution is layered on. */
 export function readingToDraftPatch(reading: PosterReading): Partial<EventDraft> {
-  const isCivic = reading.is_civic || reading.category === 'civic'
   const description =
     reading.artists.length > 1
       ? `${reading.description}\n\nLineup: ${reading.artists.join(', ')}`
       : reading.description
   return {
-    event_type: isCivic ? 'protest' : 'event',
-    is_civic: isCivic,
-    category: isCivic ? 'civic' : reading.category,
+    category: reading.category,
     title: reading.title,
     description: description.trim(),
     tags: reading.tags,

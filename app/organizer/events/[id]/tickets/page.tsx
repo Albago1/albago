@@ -60,7 +60,7 @@ export default async function OrganizerEventTicketsPage({
   const [{ data: eventRow }, { data: profileRow }] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, slug, date, time, is_civic, organizer_id, status')
+      .select('id, title, slug, date, time, organizer_id, status')
       .eq('id', id)
       .maybeSingle(),
     supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
@@ -156,7 +156,6 @@ export default async function OrganizerEventTicketsPage({
         slug: event.slug,
         date: event.date,
         time: event.time,
-        is_civic: event.is_civic,
         status: event.status,
       }}
       tiers={tierStats}

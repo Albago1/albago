@@ -24,7 +24,6 @@ import {
   Sparkles,
   Ticket,
   TrendingUp,
-  Users,
   X,
   XCircle,
 } from 'lucide-react'
@@ -127,11 +126,6 @@ function eventToPreviewData(
     country: event.country,
     is_online: event.is_online ?? null,
     online_url: event.online_url ?? null,
-    is_civic: event.is_civic,
-    expected_attendees: event.expected_attendees,
-    telegram_link: event.telegram_link ?? null,
-    whatsapp_link: event.whatsapp_link ?? null,
-    safety_notes: event.safety_notes ?? null,
     tags: event.tags ?? null,
     organizer_name: event.organizer_name ?? organizer.display_name ?? null,
   }
@@ -252,12 +246,6 @@ function EventRow({ event, organizer, canRepost, studioAccess, hasTickets }: Eve
               {' · '}
               <span className="capitalize">{event.category}</span>
             </p>
-            {(event.expected_attendees ?? 0) > 0 && (
-              <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-white/45">
-                <Users className="h-3.5 w-3.5" />
-                {formatNumberCompact(event.expected_attendees ?? 0)} expected
-              </p>
-            )}
           </div>
           <span
             className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${statusStyle(event.status)}`}
@@ -403,19 +391,15 @@ export default function OrganizerDashboardClient({
     [events],
   )
 
-  // Hero stat: total expected across published events. Subtitle: cities · countries.
+  // Hero stat: published events. Subtitle: cities · countries.
   const audience = useMemo(() => {
-    const expected = published.reduce(
-      (sum, e) => sum + (e.expected_attendees ?? 0),
-      0,
-    )
     const cities = new Set(published.map((e) => e.location_slug).filter(Boolean)).size
     const countries = new Set(published.map((e) => e.country).filter(Boolean)).size
-    return { expected, cities, countries }
+    return { cities, countries }
   }, [published])
 
   // Sparklines: 14 daily buckets ending today. Counts: events created /
-  // published / expected attendees per day. Trend = sum of last 7 vs prior 7.
+  // published per day. Trend = sum of last 7 vs prior 7.
   const created14 = useMemo(
     () => bucketByDay(events, 14, (e) => e.created_at),
     [events],
@@ -434,39 +418,17 @@ export default function OrganizerDashboardClient({
     }
     const c = split(created14)
     const p = split(published14)
-    // Expected attendees delta: total added by events whose published_at falls
-    // in the recent half vs the prior half.
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const halfStart = new Date(today)
-    halfStart.setDate(today.getDate() - 7)
-    const fourteenStart = new Date(today)
-    fourteenStart.setDate(today.getDate() - 14)
-    let expRecent = 0
-    let expPrior = 0
-    for (const e of events) {
-      if (!e.published_at) continue
-      const d = new Date(e.published_at)
-      d.setHours(0, 0, 0, 0)
-      const attend = e.expected_attendees ?? 0
-      if (d >= halfStart && d <= today) expRecent += attend
-      else if (d >= fourteenStart && d < halfStart) expPrior += attend
-    }
-    return {
-      created: c,
-      publishedDelta: p,
-      expected: { recent: expRecent, prior: expPrior },
-    }
-  }, [created14, published14, events])
+    return { created: c, publishedDelta: p }
+  }, [created14, published14])
 
-  // Top-performing leaderboard: highest expected_attendees among published.
-  const topEvents = useMemo(
-    () =>
-      [...published]
-        .sort((a, b) => (b.expected_attendees ?? 0) - (a.expected_attendees ?? 0))
-        .slice(0, 5),
-    [published],
-  )
+  // Next five published events, soonest first.
+  const upcomingEvents = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return published
+      .filter((e) => e.date >= today)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+      .slice(0, 5)
+  }, [published])
 
   // Recent activity feed: last 6 state changes by updated_at desc.
   type ActivityKind = 'created' | 'published' | 'updated'
@@ -560,19 +522,19 @@ export default function OrganizerDashboardClient({
             </div>
           </div>
 
-          {/* HERO — display-weight expected number */}
+          {/* HERO — display-weight published count */}
           <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-flame-300">
-                  Audience this run
+                  Published events
                 </p>
                 <p className="mt-3 font-display text-6xl leading-none tracking-tight text-white sm:text-7xl">
-                  {formatNumberCompact(audience.expected)}
+                  {formatNumberCompact(published.length)}
                 </p>
                 <p className="mt-3 text-sm text-white/55">
-                  {audience.expected === 0 ? (
-                    'No expected attendance set yet'
+                  {published.length === 0 ? (
+                    'Nothing published yet'
                   ) : (
                     <>
                       across{' '}
@@ -589,8 +551,8 @@ export default function OrganizerDashboardClient({
               </div>
               <div className="flex flex-col items-start gap-2 sm:items-end">
                 <TrendBadge
-                  current={trend.expected.recent}
-                  previous={trend.expected.prior}
+                  current={trend.publishedDelta.recent}
+                  previous={trend.publishedDelta.prior}
                   label="last 7 days"
                 />
                 <Sparkline
@@ -765,17 +727,17 @@ export default function OrganizerDashboardClient({
               <div className="flex items-end justify-between gap-3">
                 <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
                   <TrendingUp className="h-3.5 w-3.5" />
-                  Top events
+                  Upcoming events
                 </h2>
-                <span className="text-xs text-white/35">by expected attendance</span>
+                <span className="text-xs text-white/35">soonest first</span>
               </div>
-              {topEvents.length === 0 ? (
+              {upcomingEvents.length === 0 ? (
                 <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-white/55">
-                  Publish an event with an expected-attendance estimate to see your top performers here.
+                  Your next published events will show up here.
                 </div>
               ) : (
                 <ol className="mt-4 space-y-2">
-                  {topEvents.map((e, i) => (
+                  {upcomingEvents.map((e, i) => (
                     <li
                       key={e.id}
                       className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
@@ -807,8 +769,8 @@ export default function OrganizerDashboardClient({
                           {e.country ? ` · ${e.country}` : ''}
                         </p>
                       </div>
-                      <span className="flex-shrink-0 text-sm font-bold tabular-nums text-flame-300">
-                        {formatNumberCompact(e.expected_attendees ?? 0)}
+                      <span className="flex-shrink-0 text-sm font-semibold text-flame-300">
+                        {formatEventDateLabel(e.date)}
                       </span>
                     </li>
                   ))}

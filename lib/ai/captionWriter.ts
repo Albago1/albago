@@ -18,7 +18,6 @@ export type CaptionEventContext = {
   category: string | null
   city: string
   country: string | null
-  isCivic: boolean
   tags: string[] | null
   venueName?: string | null
   address?: string | null
@@ -55,9 +54,7 @@ const SYSTEM_PROMPT =
   'spectacular, amazing. ' +
   '(4) Then the link on its own line, copied EXACTLY as given — this is the LAST line. ' +
   '(5) NO hashtags anywhere — not a single # tag in any language. ' +
-  '(6) Civic protests: dignified, mobilizing, peaceful — pride and determination, zero ' +
-  'aggression, zero irony. ' +
-  '(7) Each caption under 850 characters. ' +
+  '(6) Each caption under 850 characters. ' +
   'Respond with ONLY a JSON object, no markdown fences, with keys "en", "sq", "de", "es" — ' +
   'the same caption natively written (not translated word-for-word) in English, Albanian, ' +
   'German and Spanish. Hashtags may stay identical across languages.'
@@ -72,7 +69,6 @@ function buildContext(event: CaptionEventContext): string {
     `Date: ${event.date}`,
     event.time ? `Start: ${event.time}${event.endTime ? ` — ${event.endTime}` : ''}` : null,
     event.organizerName ? `Organizer: ${event.organizerName}` : null,
-    event.isCivic ? 'This is a civic protest / demonstration.' : null,
     event.tags?.length ? `Tags: ${event.tags.slice(0, 8).join(', ')}` : null,
     event.description ? `Description: ${event.description.slice(0, 1500)}` : null,
     `Link (copy exactly): ${event.eventUrl}`,

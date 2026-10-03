@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, Flame, Globe2 } from 'lucide-react'
+import { Calendar, Globe2 } from 'lucide-react'
 import type { EventDraft } from '@/types/eventDraft'
 
 type Props = {
@@ -9,7 +9,7 @@ type Props = {
 }
 
 type TypeOption = {
-  key: 'event' | 'protest' | 'online'
+  key: 'event' | 'online'
   label: string
   description: string
   icon: React.ComponentType<{ className?: string }>
@@ -23,47 +23,15 @@ const OPTIONS: TypeOption[] = [
     label: 'Event',
     description: 'Concert, nightlife, sports match, cultural night, food festival.',
     icon: Calendar,
-    apply: () => ({ event_type: 'event', is_civic: false, is_online: false }),
-    detect: (d) => d.event_type === 'event' && !d.is_online,
-  },
-  {
-    key: 'protest',
-    label: 'Protest / Movement',
-    description:
-      'Peaceful civic gathering. Includes safety guidance and coordination links.',
-    icon: Flame,
-    apply: (draft) => {
-      const patch: Partial<EventDraft> = {
-        event_type: 'protest',
-        is_civic: true,
-        category: 'civic',
-        is_online: false,
-      }
-      // Protest template — fills only the fields the user hasn't touched.
-      // City placeholder in the title is replaced from WhereStep when a
-      // location is resolved.
-      if (!draft.title.trim()) {
-        patch.title = '📍(City) Flamingo Revolution Protest'
-      }
-      if (!draft.description.trim()) {
-        patch.description = 'For the land .\nFor the people .\nFor Albania .'
-      }
-      if (!draft.organizer_name.trim()) {
-        patch.organizer_name = 'Activists'
-      }
-      if (!draft.organizer_contact.trim()) {
-        patch.organizer_contact = 'albago.org@gmail.com'
-      }
-      return patch
-    },
-    detect: (d) => d.event_type === 'protest',
+    apply: () => ({ is_online: false }),
+    detect: (d) => !d.is_online,
   },
   {
     key: 'online',
     label: 'Online event',
     description: 'Stream, webinar, virtual meetup — no physical location required.',
     icon: Globe2,
-    apply: () => ({ event_type: 'event', is_online: true, is_civic: false }),
+    apply: () => ({ is_online: true }),
     detect: (d) => d.is_online,
   },
 ]
@@ -79,7 +47,7 @@ export default function EventTypeStep({ draft, patch }: Props) {
         This decides the form fields and how the event is discovered.
       </p>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {OPTIONS.map((option) => {
           const isActive = option.key === activeKey
           const Icon = option.icon

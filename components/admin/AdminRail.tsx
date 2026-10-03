@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   BadgeCheck,
-  HandHeart,
   Inbox,
   LayoutDashboard,
   ListChecks,
@@ -13,7 +12,6 @@ import {
   Megaphone,
   Radio,
   ScanSearch,
-  Send,
   Sparkles,
   Users as UsersIcon,
 } from 'lucide-react'
@@ -22,7 +20,6 @@ import { createClient } from '@/lib/supabase/browser'
 type RailCounts = {
   pendingSubmissions: number
   pendingOrganizers: number
-  newVolunteers: number
 }
 
 type Section = {
@@ -50,16 +47,9 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
       icon: BadgeCheck,
       badge: counts.pendingOrganizers,
     },
-    {
-      href: '/admin/volunteers',
-      label: 'Volunteers',
-      icon: HandHeart,
-      badge: counts.newVolunteers,
-    },
     { href: '/admin/compose', label: 'Compose', icon: Sparkles },
     { href: '/admin/events', label: 'Events', icon: Megaphone },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
-    { href: '/admin/share-batch', label: 'Share batch', icon: Send },
     { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
     { href: '/admin/event-radar', label: 'Event Radar', icon: ScanSearch },
     { href: '/admin/sources', label: 'Sources', icon: ListChecks },

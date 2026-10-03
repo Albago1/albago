@@ -23,13 +23,11 @@ export type PosterEventContext = {
   category: string | null
   city: string
   country: string | null
-  isCivic: boolean
   tags: string[] | null
   venueName?: string | null
   addressHint?: string | null
   date?: string | null
   time?: string | null
-  expectedAttendees?: number | null
   organizerName?: string | null
   /** Event's own uploaded images — banner first, then gallery. */
   imageUrls?: string[]
@@ -58,10 +56,6 @@ const CATEGORY_SCENES: Record<string, string> = {
   food:
     'A moody chiaroscuro dinner scene: ember light, smoke rising from a charcoal grill, ' +
     'glistening dishes in deep red and black tones, hands mid-toast.',
-  civic:
-    'A vast crowd at dusk: red smoke flares, raised fists in silhouette, ' +
-    'waving red flags with a black double-headed eagle silhouette, determined faces, ' +
-    'dramatic storm-lit sky, revolutionary energy.',
 }
 
 const DEFAULT_SCENE =
@@ -70,8 +64,7 @@ const DEFAULT_SCENE =
 
 export function buildFallbackPrompt(event: PosterEventContext): string {
   const scene =
-    (event.category && CATEGORY_SCENES[event.category]) ||
-    (event.isCivic ? CATEGORY_SCENES.civic : DEFAULT_SCENE)
+    (event.category && CATEGORY_SCENES[event.category]) || DEFAULT_SCENE
   const place = event.country ? `${event.city}, ${event.country}` : event.city
   return `${scene} Set in ${place}. ${BRAND_CANVAS}`
 }
@@ -103,11 +96,7 @@ function buildContextText(event: PosterEventContext): string {
     event.addressHint ? `Meeting point hint: ${event.addressHint}` : null,
     event.date ? `Date: ${event.date}` : null,
     event.time ? `Start time: ${event.time}` : null,
-    event.expectedAttendees
-      ? `Expected attendance: ~${event.expectedAttendees} people`
-      : null,
     event.organizerName ? `Organizer: ${event.organizerName}` : null,
-    event.isCivic ? 'This is a civic protest / demonstration event.' : null,
     event.tags?.length ? `Tags: ${event.tags.slice(0, 8).join(', ')}` : null,
     event.description ? `Description: ${event.description.slice(0, 1500)}` : null,
     event.imageUrls?.length

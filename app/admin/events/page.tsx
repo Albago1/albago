@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import EventsAdminClient from './EventsAdminClient'
 
 export const metadata: Metadata = {
-  title: 'Admin · Events & Protests',
+  title: 'Admin · Events',
 }
 
 export default async function AdminEventsPage() {

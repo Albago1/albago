@@ -22,8 +22,6 @@ type OrganizerEventRow = {
   banner_url: string | null
   admin_note: string | null
   created_at: string
-  is_civic: boolean | null
-  expected_attendees: number | null
 }
 
 type StatusFilter = 'pending_review' | 'rejected' | 'all'
@@ -58,7 +56,7 @@ export default function OrganizerQueue() {
     const { data, error } = await supabase
       .from('events')
       .select(
-        'id, slug, title, description, category, date, time, price, location_slug, country, region, status, origin, organizer_id, banner_url, admin_note, created_at, is_civic, expected_attendees'
+        'id, slug, title, description, category, date, time, price, location_slug, country, region, status, origin, organizer_id, banner_url, admin_note, created_at'
       )
       .in('status', ['pending_review', 'rejected', 'draft', 'published'])
       .not('organizer_id', 'is', null)
@@ -221,11 +219,6 @@ export default function OrganizerQueue() {
                     {row.category}
                     {' · '}
                     {row.location_slug}
-                    {row.is_civic && (
-                      <span className="ml-2 rounded-full border border-flame-500/30 bg-flame-500/[0.08] px-2 py-0.5 text-xs text-flame-300">
-                        civic
-                      </span>
-                    )}
                     <span className="ml-2 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs text-white/55">
                       {row.origin}
                     </span>
@@ -244,9 +237,6 @@ export default function OrganizerQueue() {
                 {row.time && <p>Time: {row.time}</p>}
                 {row.price && <p>Price: {row.price}</p>}
                 <p>Submitted: {new Date(row.created_at).toLocaleString()}</p>
-                {row.expected_attendees != null && (
-                  <p>Expected attendees: {row.expected_attendees.toLocaleString()}</p>
-                )}
                 <p className="font-mono text-xs text-white/40">slug: {row.slug}</p>
               </div>
 

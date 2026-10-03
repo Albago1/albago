@@ -70,7 +70,6 @@ function coercePatch(raw: unknown): Partial<PosterReading> {
       .filter(Boolean)
       .slice(0, 5)
   }
-  if (typeof r.is_civic === 'boolean') patch.is_civic = r.is_civic
   return patch
 }
 

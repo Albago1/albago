@@ -7,7 +7,6 @@ import {
   CheckSquare,
   ChevronDown,
   Eye,
-  Flame,
   Loader2,
   Pencil,
   RotateCcw,
@@ -48,18 +47,11 @@ type SubmissionRow = {
   country: string
   region: string | null
   location_slug: string
-  event_type: string | null
-  is_civic: boolean | null
-  featured_movement_slug: string | null
   organizer_contact: string | null
   organizer_name: string | null
   organizer_phone: string | null
   organizer_website: string | null
   organizer_socials: Record<string, string> | null
-  telegram_link: string | null
-  whatsapp_link: string | null
-  safety_notes: string | null
-  expected_attendees: number | null
   lat: number | null
   lng: number | null
   address: string | null
@@ -97,13 +89,6 @@ type EventRow = {
   organizer_name: string | null
   submitted_by_user_id: string | null
   admin_note: string | null
-  is_civic: boolean | null
-  event_type: string | null
-  featured_movement_slug: string | null
-  expected_attendees: number | null
-  telegram_link: string | null
-  whatsapp_link: string | null
-  safety_notes: string | null
   created_at: string
 }
 
@@ -122,13 +107,6 @@ type UnifiedRow = {
   price: string | null
   locationSlug: string
   country: string
-  isCivic: boolean
-  eventType: string | null
-  featuredMovementSlug: string | null
-  expectedAttendees: number | null
-  telegramLink: string | null
-  whatsappLink: string | null
-  safetyNotes: string | null
   adminNote: string | null
   createdAt: string
   // Source-specific
@@ -184,13 +162,6 @@ function mapSubmission(s: SubmissionRow): UnifiedRow {
     price: s.price,
     locationSlug: s.location_slug,
     country: s.country,
-    isCivic: !!s.is_civic || s.category === 'civic',
-    eventType: s.event_type,
-    featuredMovementSlug: s.featured_movement_slug,
-    expectedAttendees: s.expected_attendees,
-    telegramLink: s.telegram_link,
-    whatsappLink: s.whatsapp_link,
-    safetyNotes: s.safety_notes,
     adminNote: s.admin_note,
     createdAt: s.created_at,
     venueName: s.venue_name,
@@ -231,13 +202,6 @@ function mapEvent(e: EventRow): UnifiedRow {
     price: e.price,
     locationSlug: e.location_slug,
     country: e.country,
-    isCivic: !!e.is_civic,
-    eventType: e.event_type,
-    featuredMovementSlug: e.featured_movement_slug,
-    expectedAttendees: e.expected_attendees,
-    telegramLink: e.telegram_link,
-    whatsappLink: e.whatsapp_link,
-    safetyNotes: e.safety_notes,
     adminNote: e.admin_note,
     createdAt: e.created_at,
     slug: e.slug,
@@ -324,7 +288,6 @@ export default function AdminClient() {
 
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
-  const [civicOnly, setCivicOnly] = useState(false)
   const [search, setSearch] = useState('')
 
   // Linear-style table state: multi-select, expanded detail rows, keyboard cursor.
@@ -348,7 +311,7 @@ export default function AdminClient() {
       supabase
         .from('events')
         .select(
-          'id, slug, title, description, category, date, time, price, highlight, status, location_slug, country, region, origin, organizer_id, organizer_name, submitted_by_user_id, admin_note, is_civic, event_type, featured_movement_slug, expected_attendees, telegram_link, whatsapp_link, safety_notes, created_at',
+          'id, slug, title, description, category, date, time, price, highlight, status, location_slug, country, region, origin, organizer_id, organizer_name, submitted_by_user_id, admin_note, created_at',
         )
         .order('created_at', { ascending: false })
         .limit(500),
@@ -436,14 +399,13 @@ export default function AdminClient() {
       if (sourceFilter === 'events' && r.source !== 'event') return false
       if (sourceFilter === 'organizer' && !(r.source === 'event' && r.organizerId)) return false
       if (statusFilter !== 'all' && r.unifiedStatus !== statusFilter) return false
-      if (civicOnly && !r.isCivic) return false
       if (q) {
-        const blob = `${r.title} ${r.locationSlug} ${r.country} ${r.featuredMovementSlug ?? ''} ${r.category}`.toLowerCase()
+        const blob = `${r.title} ${r.locationSlug} ${r.country} ${r.category}`.toLowerCase()
         if (!blob.includes(q)) return false
       }
       return true
     })
-  }, [unifiedRows, sourceFilter, statusFilter, civicOnly, search])
+  }, [unifiedRows, sourceFilter, statusFilter, search])
 
   // -- Submission actions -----------------------------------------------------
 
@@ -455,7 +417,6 @@ export default function AdminClient() {
     setMessage(null)
 
     const slug = `${createSlug(s.title)}-${s.id.slice(0, 8)}`
-    const isCivic = s.is_civic === true || s.category === 'civic'
 
     // Close the discovery loop: if this submission came from an imported/
     // discovered candidate, carry its source page onto the event so the daily
@@ -475,7 +436,7 @@ export default function AdminClient() {
 
     // Auto-seed cities row if this city isn't registered yet. Best-effort:
     // errors here are non-fatal — we still publish the event. Only runs when
-    // we have coordinates (civic flow always has them; non-civic may not).
+    // we have coordinates (not every submission has them).
     if (s.lat != null && s.lng != null && s.location_slug) {
       const { error: cityError } = await supabase.rpc('upsert_city_from_event', {
         p_slug: s.location_slug,
@@ -535,15 +496,6 @@ export default function AdminClient() {
         recurrence_until: s.recurrence_until ?? null,
         recurrence_days_of_week: s.recurrence_days_of_week ?? [],
         recurrence_exceptions: s.recurrence_exceptions ?? [],
-        ...(isCivic && {
-          event_type: s.event_type ?? 'protest',
-          is_civic: true,
-          featured_movement_slug: s.featured_movement_slug ?? null,
-          telegram_link: s.telegram_link ?? null,
-          whatsapp_link: s.whatsapp_link ?? null,
-          safety_notes: s.safety_notes ?? null,
-          expected_attendees: s.expected_attendees ?? null,
-        }),
       })
       .select('id')
       .single()
@@ -940,13 +892,6 @@ export default function AdminClient() {
             Users
           </Link>
           <Link
-            href="/admin/volunteers"
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
-          >
-            <Users className="h-4 w-4" />
-            Volunteer signups
-          </Link>
-          <Link
             href="/admin/organizers"
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
           >
@@ -1020,19 +965,6 @@ export default function AdminClient() {
                 </span>
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setCivicOnly((v) => !v)}
-              className={[
-                'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition',
-                civicOnly
-                  ? 'border-flame-500/40 bg-flame-500/15 text-flame-100'
-                  : 'border-white/10 bg-transparent text-white/55 hover:bg-white/[0.04] hover:text-white/80',
-              ].join(' ')}
-            >
-              <Flame className="h-3.5 w-3.5" />
-              Civic only
-            </button>
           </div>
         </div>
 
@@ -1047,7 +979,7 @@ export default function AdminClient() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title, city, country, movement, category..."
+              placeholder="Search by title, city, country, category..."
               className="h-10 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 transition focus:border-white/20"
             />
           </div>
@@ -1266,11 +1198,6 @@ export default function AdminClient() {
           country: sub.country,
           is_online: sub.is_online,
           online_url: sub.online_url,
-          is_civic: sub.is_civic,
-          expected_attendees: sub.expected_attendees,
-          telegram_link: sub.telegram_link,
-          whatsapp_link: sub.whatsapp_link,
-          safety_notes: sub.safety_notes,
           tags: sub.tags,
           organizer_name: sub.organizer_name,
         }
@@ -1435,12 +1362,6 @@ function QueueRow(props: {
               <p className="truncate font-semibold text-white">{row.title}</p>
               <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/45">
                 <span className="uppercase tracking-wide">{sourceBadge}</span>
-                {row.isCivic && (
-                  <span className="inline-flex items-center gap-0.5 text-flame-300">
-                    <Flame className="h-3 w-3" />
-                    civic
-                  </span>
-                )}
                 <span className="capitalize">{row.category}</span>
               </p>
             </div>
@@ -1619,14 +1540,6 @@ function QueueRowDetail({
         </p>
       )}
 
-      {row.featuredMovementSlug && (
-        <p className="text-xs text-white/55">
-          Movement:{' '}
-          <code className="rounded bg-white/10 px-1 text-[10px]">
-            {row.featuredMovementSlug}
-          </code>
-        </p>
-      )}
 
       {row.contactEmail && (
         <p className="text-xs text-white/55">
@@ -1634,44 +1547,6 @@ function QueueRowDetail({
         </p>
       )}
 
-      {row.isCivic &&
-        (row.expectedAttendees != null ||
-          row.telegramLink ||
-          row.whatsappLink ||
-          row.safetyNotes) && (
-          <div className="mt-3 rounded-2xl border border-flame-500/20 bg-flame-500/[0.04] p-3 space-y-1 text-xs text-white/65">
-            {row.expectedAttendees != null && (
-              <p>Expected attendees: {row.expectedAttendees.toLocaleString()}</p>
-            )}
-            {row.telegramLink && (
-              <p>
-                Telegram:{' '}
-                <a
-                  href={row.telegramLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-flame-300 hover:underline"
-                >
-                  {row.telegramLink}
-                </a>
-              </p>
-            )}
-            {row.whatsappLink && (
-              <p>
-                WhatsApp:{' '}
-                <a
-                  href={row.whatsappLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-flame-300 hover:underline"
-                >
-                  {row.whatsappLink}
-                </a>
-              </p>
-            )}
-            {row.safetyNotes && <p className="leading-5">Safety: {row.safetyNotes}</p>}
-          </div>
-        )}
 
       {row.adminNote && (
         <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/60">

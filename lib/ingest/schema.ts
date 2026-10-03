@@ -227,11 +227,6 @@ export function mergeAgentAndPage(agent: PosterReading, page: PosterReading): Me
     merged.recurrence_days_of_week = agent.recurrence_days_of_week
   }
 
-  // Civic is a safety flag: either source raising it is enough to route the
-  // event down the human-verified civic path (product bible standing AI rule #1).
-  merged.is_civic = page.is_civic || agent.is_civic
-  if (merged.is_civic && !merged.category) merged.category = 'civic'
-
   // "The page doesn't look like a single event" is real signal, but it must not
   // silently delete an event the agent saw — an event page inside a listing
   // reads as is_event:false often enough. Keep it, and surface the disagreement;

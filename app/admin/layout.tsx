@@ -32,7 +32,6 @@ export default async function AdminLayout({
   const [
     pendingSubmissions,
     pendingOrganizers,
-    newVolunteers,
   ] = await Promise.all([
     supabase
       .from('event_submissions')
@@ -42,16 +41,11 @@ export default async function AdminLayout({
       .from('organizers')
       .select('id', { count: 'exact', head: true })
       .eq('id_review_status', 'pending'),
-    supabase
-      .from('volunteer_signups')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'new'),
   ])
 
   const counts = {
     pendingSubmissions: pendingSubmissions.count ?? 0,
     pendingOrganizers: pendingOrganizers.count ?? 0,
-    newVolunteers: newVolunteers.count ?? 0,
   }
 
   return (

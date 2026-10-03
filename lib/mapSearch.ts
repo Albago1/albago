@@ -60,7 +60,7 @@ export function tokenizeQuery(query: string): string[] {
 }
 
 // Search-engine-style ranking. Every token must match somewhere in the
-// primary or secondary text (AND semantics — "protest berlin" needs both);
+// primary or secondary text (AND semantics — "techno berlin" needs both);
 // the score rewards WHERE it matches: whole-field > field prefix >
 // word-boundary > mid-word, with secondary-field hits worth half. Returns 0
 // when any token misses.

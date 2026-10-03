@@ -7,7 +7,6 @@ import {
   CalendarCheck,
   Clock,
   Globe,
-  HandHeart,
   Inbox,
   MapPin,
   Megaphone,
@@ -92,7 +91,6 @@ export default async function AdminHomePage() {
     upcomingEvents,
     pendingSubmissions,
     pendingOrganizers,
-    newVolunteers,
     totalUsers,
     eventsTimeline,
     profilesTimeline,
@@ -117,10 +115,6 @@ export default async function AdminHomePage() {
       .from('organizers')
       .select('id', { count: 'exact', head: true })
       .eq('id_review_status', 'pending'),
-    supabase
-      .from('volunteer_signups')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'new'),
     supabase.from('profiles').select('id', { count: 'exact', head: true }),
     supabase
       .from('events')
@@ -143,7 +137,7 @@ export default async function AdminHomePage() {
       .limit(8),
     supabase
       .from('events')
-      .select('location_slug, country, expected_attendees')
+      .select('location_slug, country')
       .eq('status', 'published'),
   ])
 
@@ -152,14 +146,11 @@ export default async function AdminHomePage() {
     upcomingEvents: safeCount(upcomingEvents),
     pendingSubmissions: safeCount(pendingSubmissions),
     pendingOrganizers: safeCount(pendingOrganizers),
-    newVolunteers: safeCount(newVolunteers),
     totalUsers: safeCount(totalUsers),
   }
 
   const totalPending =
-    counts.pendingSubmissions +
-    counts.pendingOrganizers +
-    counts.newVolunteers
+    counts.pendingSubmissions + counts.pendingOrganizers
 
   const eventsSpark = bucketDatesByDay(
     ((eventsTimeline.data as Array<{ created_at: string }> | null) ?? []).map(
@@ -180,13 +171,8 @@ export default async function AdminHomePage() {
   type PubEventRow = {
     location_slug: string | null
     country: string | null
-    expected_attendees: number | null
   }
   const pubEvents = (publishedEventsList.data as PubEventRow[] | null) ?? []
-  const totalExpected = pubEvents.reduce(
-    (s, e) => s + (e.expected_attendees ?? 0),
-    0,
-  )
   const distinctCities = new Set(
     pubEvents.map((e) => e.location_slug).filter(Boolean),
   ).size
@@ -195,25 +181,23 @@ export default async function AdminHomePage() {
   ).size
 
   // Top cities by event count
-  const cityMap = new Map<string, { country: string; count: number; expected: number }>()
+  const cityMap = new Map<string, { country: string; count: number }>()
   for (const e of pubEvents) {
     const key = e.location_slug ?? ''
     if (!key) continue
     const existing = cityMap.get(key)
     if (existing) {
       existing.count += 1
-      existing.expected += e.expected_attendees ?? 0
     } else {
       cityMap.set(key, {
         country: e.country ?? '',
         count: 1,
-        expected: e.expected_attendees ?? 0,
       })
     }
   }
   const topCities = Array.from(cityMap.entries())
     .map(([slug, v]) => ({ slug, ...v }))
-    .sort((a, b) => b.count - a.count || b.expected - a.expected)
+    .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 
   // Recent activity: merge submissions, organizer applications
@@ -261,10 +245,8 @@ export default async function AdminHomePage() {
   const tiles: Tile[] = [
     { href: '/admin/queue', title: 'Moderation queue', icon: Inbox, pending: counts.pendingSubmissions, pendingLabel: 'pending' },
     { href: '/admin/organizers', title: 'Organizers', icon: BadgeCheck, pending: counts.pendingOrganizers, pendingLabel: 'awaiting review' },
-    { href: '/admin/volunteers', title: 'Volunteers', icon: HandHeart, pending: counts.newVolunteers, pendingLabel: 'new' },
     { href: '/admin/events', title: 'Events', icon: Megaphone },
     { href: '/admin/users', title: 'Users', icon: UsersIcon },
-    { href: '/admin/share-batch', title: 'Share batch', icon: Send },
   ]
 
   return (
@@ -296,7 +278,7 @@ export default async function AdminHomePage() {
           </Link>
         </div>
 
-        {/* HERO — total expected attendance across the platform */}
+        {/* HERO — published events across the platform */}
         <section className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-flame-500/[0.08] via-white/[0.02] to-transparent p-6 sm:p-8">
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
@@ -304,14 +286,10 @@ export default async function AdminHomePage() {
                   Platform reach
                 </p>
                 <p className="mt-3 font-display text-6xl leading-none tracking-tight text-white sm:text-7xl">
-                  {formatNumberCompact(totalExpected)}
+                  {formatNumberCompact(counts.publishedEvents)}
                 </p>
                 <p className="mt-3 text-sm text-white/55">
-                  expected attendance across{' '}
-                  <span className="font-semibold text-white/85">
-                    {counts.publishedEvents}
-                  </span>{' '}
-                  published events ·{' '}
+                  published events across{' '}
                   <span className="font-semibold text-white/85">
                     {distinctCities}
                   </span>{' '}
@@ -417,11 +395,6 @@ export default async function AdminHomePage() {
                     {counts.pendingOrganizers} org
                   </span>
                 )}
-                {counts.newVolunteers > 0 && (
-                  <span className="text-white/55">
-                    {counts.newVolunteers} vol
-                  </span>
-                )}
                 {totalPending === 0 && (
                   <span className="text-white/35">All clear</span>
                 )}
@@ -464,12 +437,6 @@ export default async function AdminHomePage() {
                         </p>
                         <p className="truncate text-[11px] text-white/45">
                           {c.country || '—'}
-                          {c.expected > 0 && (
-                            <>
-                              {' · '}
-                              {formatNumberCompact(c.expected)} expected
-                            </>
-                          )}
                         </p>
                       </div>
                       <span className="flex-shrink-0 text-sm font-bold tabular-nums text-flame-300">

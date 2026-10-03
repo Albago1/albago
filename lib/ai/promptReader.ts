@@ -29,7 +29,7 @@ Rules:
 2. description: rewrite the person's own wording as 1–4 clean sentences in the SAME language they wrote in. Only facts they stated — no marketing additions, no invented details.
 3. Dates: resolve relative expressions ("next Friday", "nesër", "të shtunën", "übermorgen", "mañana") to ISO YYYY-MM-DD using the reference date you are given. Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), German, Spanish, or Italian. If a year is missing, assume the next occurrence. If they describe a range of consecutive days ("22–24 August", "nga 22 deri më 24 gusht"), set date to the FIRST day, recurrence to "daily" and recurrence_until to the LAST day. If no date is stated, return "".
 4. Times: 24h HH:MM. Prefer the start time over doors.
-5. category: exactly one of nightlife, music, sports, culture, food, civic — or "" if unclear. Protests, marches, commemorations, civic assemblies → civic and is_civic true.
+5. category: exactly one of nightlife, music, sports, culture, food — or "" if unclear. Protests, marches, demonstrations and political rallies are out of scope for AlbaGo: set is_event false.
 6. price: exactly as stated, including currency. Free → the person's own wording.
 7. language: the description's main language as one of en, sq, de, es, it, fr (closest match).
 8. tags: up to 5 lowercase single words (genre, scene, occasion).

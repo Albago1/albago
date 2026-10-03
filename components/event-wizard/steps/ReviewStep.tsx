@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Edit3,
-  Flame,
   Eye,
   Globe2,
   ImageIcon,
@@ -69,10 +68,9 @@ function formatTimeRange(start: string, end: string): string {
 }
 
 function draftToPreview(draft: EventDraft): EventPreviewData {
-  const attendees = parseInt(draft.expected_attendees, 10)
   return {
     title: draft.title || 'Untitled event',
-    category: draft.event_type === 'protest' || draft.is_civic ? 'civic' : draft.category || 'culture',
+    category: draft.category || 'culture',
     date: draft.date,
     time: draft.time,
     end_time: draft.end_time,
@@ -88,11 +86,6 @@ function draftToPreview(draft: EventDraft): EventPreviewData {
     country: draft.country,
     is_online: draft.is_online,
     online_url: draft.online_url,
-    is_civic: draft.event_type === 'protest' || draft.is_civic,
-    expected_attendees: Number.isFinite(attendees) ? attendees : null,
-    telegram_link: draft.telegram_link,
-    whatsapp_link: draft.whatsapp_link,
-    safety_notes: draft.safety_notes,
     tags: draft.tags,
     organizer_name: draft.organizer_name,
   }
@@ -100,12 +93,9 @@ function draftToPreview(draft: EventDraft): EventPreviewData {
 
 export default function ReviewStep({ draft, onJumpTo }: Props) {
   const [showPreview, setShowPreview] = useState(false)
-  const isCivic = draft.event_type === 'protest' || draft.is_civic
-  const categoryLabel = isCivic
-    ? 'Civic gathering'
-    : draft.category
-      ? CATEGORY_LABEL[draft.category] || draft.category
-      : '—'
+  const categoryLabel = draft.category
+    ? CATEGORY_LABEL[draft.category] || draft.category
+    : '—'
   const langLabel = LANG_LABEL[draft.language] || draft.language
 
   const previewUrl = draft.gallery_urls[0] ?? ''
@@ -117,8 +107,7 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
         <h2 className="text-xl font-semibold text-white">Review and submit</h2>
         <p className="mt-1 text-sm text-white/55">
           One last look — click any section to edit it. When you submit, this
-          {draft.event_type === 'protest' ? ' civic gathering' : ' event'} goes
-          to the moderation queue.
+          event goes to the moderation queue.
         </p>
         <button
           type="button"
@@ -176,12 +165,9 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
             <span
               className={[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ring-1',
-                isCivic
-                  ? 'bg-flame-500/15 text-flame-200 ring-flame-500/30'
-                  : 'bg-white/10 text-white/75 ring-white/15',
+                'bg-white/10 text-white/75 ring-white/15',
               ].join(' ')}
             >
-              {isCivic && <Flame className="h-3 w-3" />}
               {categoryLabel}
             </span>
             {draft.is_online && (
@@ -342,8 +328,8 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
       </Section>
 
       {/* Section: Tickets (Phase 33) — only when the organizer enabled them;
-          community mode never sees the step, civic events never have tiers. */}
-      {!isCivic && draft.ticket_tiers !== null && (
+          community mode never sees the step. */}
+      {draft.ticket_tiers !== null && (
         <Section
           title="Tickets"
           icon={<Ticket className="h-3.5 w-3.5" />}
@@ -367,7 +353,7 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
 
       {/* Sold on someone else's site: the review must show WHERE people are
           sent, since that link is the entire ticket experience for this event. */}
-      {!isCivic && draft.ticket_mode === 'external' && (
+      {draft.ticket_mode === 'external' && (
         <Section
           title="Tickets"
           icon={<Ticket className="h-3.5 w-3.5" />}
@@ -413,34 +399,6 @@ export default function ReviewStep({ draft, onJumpTo }: Props) {
             <Row key={k} label={capitalize(k)} value={v as string} />
           ))}
       </Section>
-
-      {/* Civic-only block — only show if event_type=protest */}
-      {isCivic && (
-        <Section
-          title="Civic details"
-          icon={<Flame className="h-3.5 w-3.5" />}
-          onEdit={() => onJumpTo('type')}
-        >
-          {draft.featured_movement_slug && (
-            <Row label="Movement" value={draft.featured_movement_slug} />
-          )}
-          {draft.expected_attendees && (
-            <Row
-              label="Expected attendees"
-              value={Number(draft.expected_attendees).toLocaleString()}
-            />
-          )}
-          {draft.telegram_link && (
-            <Row label="Telegram" value={draft.telegram_link} />
-          )}
-          {draft.whatsapp_link && (
-            <Row label="WhatsApp" value={draft.whatsapp_link} />
-          )}
-          {draft.safety_notes && (
-            <Row label="Safety notes" value={draft.safety_notes} />
-          )}
-        </Section>
-      )}
     </div>
   )
 }

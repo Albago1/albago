@@ -39,12 +39,8 @@ const READING_PROPERTIES = {
   },
   category: {
     type: 'string',
-    enum: ['nightlife', 'music', 'sports', 'culture', 'food', 'civic', ''],
+    enum: ['nightlife', 'music', 'sports', 'culture', 'food', ''],
     description: 'Exactly one, or empty if genuinely unclear.',
-  },
-  is_civic: {
-    type: 'boolean',
-    description: 'True for protests, marches, commemorations, civic assemblies. These are human-verified at AlbaGo.',
   },
   date: { type: 'string', description: 'ISO YYYY-MM-DD. If the year is genuinely absent from the source, leave empty — never assume.' },
   time: { type: 'string', description: 'Start time, 24h HH:MM. Empty if the source does not state one. Doors-only time is acceptable as the start.' },

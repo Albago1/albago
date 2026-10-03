@@ -238,7 +238,7 @@ Rules:
 2. The description must be built ONLY from the page's own text, as 1–4 clean sentences in the event's own language. No marketing additions.
 3. Dates: resolve to ISO YYYY-MM-DD using the reference date you are given. If a year is missing, assume the next occurrence. Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), German, Spanish, or Italian. Prefer an explicit startDate in structured data. If the event runs a range of consecutive days (startDate/endDate on different days, "22–24 August"), set date to the FIRST day, recurrence to "daily" and recurrence_until to the LAST day. If no date is readable, return "".
 4. Times: 24h HH:MM. Prefer the start time over doors.
-5. category: exactly one of nightlife, music, sports, culture, food, civic — or "" if unclear. Protests, marches, commemorations, civic assemblies → civic and is_civic true.
+5. category: exactly one of nightlife, music, sports, culture, food — or "" if unclear. Protests, marches, demonstrations and political rallies are out of scope for AlbaGo: set is_event false.
 6. price: exactly as stated, including currency. Free → the page's own wording.
 7. language: the event's main language as one of en, sq, de, es, it, fr (closest match).
 8. tags: up to 5 lowercase single words (genre, scene, occasion).
@@ -301,7 +301,7 @@ Rules:
 3. Do NOT return the same event twice. Merge obvious duplicates (same title + date).
 4. The description must be built ONLY from the page's own text for that event, 1–3 clean sentences in the event's own language. No marketing additions.
 5. Dates: resolve to ISO YYYY-MM-DD using the reference date you are given. If a year is missing, assume the next occurrence. Month names may be Albanian (janar, shkurt, mars, prill, maj, qershor, korrik, gusht, shtator, tetor, nëntor, dhjetor), English, German, Spanish, or Italian. Prefer explicit startDate in structured data. Consecutive-day ranges → date = first day, recurrence "daily", recurrence_until = last day. If no date is readable for an event, return "" for its date (still include it).
-6. Times: 24h HH:MM, prefer start over doors. category: exactly one of nightlife, music, sports, culture, food, civic — or "". Protests/marches/commemorations → civic, is_civic true. price: exactly as stated. language: one of en, sq, de, es, it, fr. tags: up to 5 lowercase words. artists: performer names, biggest first.
+6. Times: 24h HH:MM, prefer start over doors. category: exactly one of nightlife, music, sports, culture, food — or "". Protests, marches, demonstrations and political rallies are out of scope for AlbaGo: set is_event false. price: exactly as stated. language: one of en, sq, de, es, it, fr. tags: up to 5 lowercase words. artists: performer names, biggest first.
 7. is_event: true for a real event; set confidence honestly per event.
 8. Repetition — ONLY when stated: weekly ("every Friday", "çdo të premte", repeatFrequency weekly/byDay) → recurrence "weekly", recurrence_days_of_week as ISO numbers (1=Mon…7=Sun), date = next occurrence. "every day"/"daily" → "daily". A stated end → recurrence_until. One-off → "none", "", [].
 

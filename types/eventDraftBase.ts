@@ -45,7 +45,7 @@ export function normalizeSections(sections: MediaSection[]): MediaSection[] {
 
 /**
  * One free ticket tier configured inside the wizard (Phase 33). Numbers stay
- * strings while in the form (same rule as expected_attendees); parsed at
+ * strings while in the form; parsed at
  * submit. `id` is set only in edit mode, so saving updates the existing tier
  * instead of creating a duplicate.
  */
@@ -66,15 +66,10 @@ export type DraftTicketTier = {
  */
 export type EventDraft = {
   // Step 1 — Type
-  /** 'event' | 'protest'. Default 'event'. */
-  event_type: 'event' | 'protest'
-  /** Civic protests use this. Always true when event_type='protest'. */
-  is_civic: boolean
-  /** Online flag is orthogonal to event_type. */
   is_online: boolean
 
   // Step 2 — Category
-  /** 'nightlife' | 'music' | 'sports' | 'culture' | 'food' | 'civic' | '' */
+  /** 'nightlife' | 'music' | 'sports' | 'culture' | 'food' | '' */
   category: string
 
   // Step 3 — Basics
@@ -148,13 +143,8 @@ export type EventDraft = {
     twitter?: string
   }
 
-  // Misc / civic
+  // Misc
   price: string
-  featured_movement_slug: string
-  telegram_link: string
-  whatsapp_link: string
-  safety_notes: string
-  expected_attendees: string // string in form, parse on submit
 
   // Tickets (Phase 33) — organizer/admin modes only. null = not offering
   // tickets (the default); an array (even of one) = free tiers to create on
@@ -202,8 +192,6 @@ export function detectTimezone(): string {
 }
 
 export const defaultEventDraft: EventDraft = {
-  event_type: 'event',
-  is_civic: false,
   is_online: false,
 
   category: '',
@@ -243,11 +231,6 @@ export const defaultEventDraft: EventDraft = {
   organizer_socials: {},
 
   price: '',
-  featured_movement_slug: '',
-  telegram_link: '',
-  whatsapp_link: '',
-  safety_notes: '',
-  expected_attendees: '',
 
   ticket_tiers: null,
   ticket_mode: 'none',

@@ -253,7 +253,7 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
         const q = debouncedSearch.trim()
         // Typing a known place name ("Albania", "Tirana", "Berlin") means
         // "events THERE" — filter by location instead of matching the word
-        // inside titles/descriptions (which pulled in Rome/Köln protests
+        // inside titles/descriptions (which pulled in Rome/Köln events
         // whose text mentions Albania).
         const place = matchKnownPlace(q, locationOptions)
         let query = supabase

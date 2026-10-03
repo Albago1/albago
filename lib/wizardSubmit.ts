@@ -37,12 +37,6 @@ function cleanSocials(socials: EventDraft['organizer_socials']) {
   return out
 }
 
-function parseAttendees(raw: string): number | null {
-  const n = parseInt(raw, 10)
-  if (Number.isNaN(n)) return null
-  return Math.max(0, Math.min(5_000_000, n))
-}
-
 /**
  * Submit a community-mode wizard draft. Inserts a row into event_submissions
  * with status='pending'. Requires the user to be signed in (admins approve
@@ -60,8 +54,7 @@ export async function submitCommunityEvent(
     return { id: null, error: 'Sign in to submit an event.' }
   }
 
-  const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
-  const category = draft.category || (isCivic ? 'civic' : 'culture')
+  const category = draft.category || 'culture'
   const venueName =
     trim(draft.venue_name) ||
     trim(draft.city) ||
@@ -99,26 +92,12 @@ export async function submitCommunityEvent(
     gallery_urls: draft.gallery_urls,
     status: 'pending',
     submitted_by_user_id: user.id,
-    // The DB CHECK on event_type only accepts the civic subtypes
-    // ('protest' / 'civic_gathering' / 'movement_event' / 'demonstration')
-    // or NULL. The wizard stores the literal 'event' for non-civic
-    // submissions — translate that to NULL here so we don't trip
-    // event_submissions_event_type_check.
-    event_type: draft.event_type === 'protest' ? 'protest' : null,
-    is_civic: isCivic,
-    featured_movement_slug: trim(draft.featured_movement_slug),
     organizer_name: trim(draft.organizer_name),
     organizer_contact: trim(draft.organizer_contact),
     organizer_phone: trim(draft.organizer_phone),
     organizer_website: trim(draft.organizer_website),
     organizer_socials: hasAnySocial(draft.organizer_socials)
       ? cleanSocials(draft.organizer_socials)
-      : null,
-    telegram_link: trim(draft.telegram_link),
-    whatsapp_link: trim(draft.whatsapp_link),
-    safety_notes: trim(draft.safety_notes),
-    expected_attendees: draft.expected_attendees
-      ? parseAttendees(draft.expected_attendees)
       : null,
     recurrence: draft.recurrence,
     recurrence_until: trim(draft.recurrence_until),
@@ -258,8 +237,7 @@ async function saveDraftTiers(
  * so the two callers must never drift apart.
  */
 function buildOrganizerEventInput(draft: EventDraft) {
-  const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
-  const category = draft.category || (isCivic ? 'civic' : 'culture')
+  const category = draft.category || 'culture'
 
   return {
     title: draft.title.trim(),
@@ -290,21 +268,7 @@ function buildOrganizerEventInput(draft: EventDraft) {
     organizer_socials: hasAnySocial(draft.organizer_socials)
       ? cleanSocials(draft.organizer_socials)
       : null,
-    is_civic: isCivic,
-    // The DB CHECK on event_type only accepts the civic subtypes
-    // ('protest' / 'civic_gathering' / 'movement_event' / 'demonstration')
-    // or NULL. The wizard stores the literal 'event' for non-civic
-    // submissions — translate that to NULL here so we don't trip
-    // event_submissions_event_type_check.
-    event_type: draft.event_type === 'protest' ? 'protest' : null,
-    featured_movement_slug: trim(draft.featured_movement_slug),
     organizer_contact: trim(draft.organizer_contact),
-    telegram_link: trim(draft.telegram_link),
-    whatsapp_link: trim(draft.whatsapp_link),
-    safety_notes: trim(draft.safety_notes),
-    expected_attendees: draft.expected_attendees
-      ? String(parseAttendees(draft.expected_attendees) ?? '')
-      : null,
     recurrence: draft.recurrence,
     recurrence_until: trim(draft.recurrence_until),
     recurrence_days_of_week: draft.recurrence_days_of_week,
@@ -341,7 +305,7 @@ export async function submitOrganizerDraft(
 
   const eventId = data as string
   await saveEventMedia(supabase, eventId, draft)
-  if (draft.ticket_tiers && !draft.is_civic && draft.event_type !== 'protest') {
+  if (draft.ticket_tiers) {
     await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
   }
 
@@ -397,10 +361,8 @@ export async function updateOrganizerDraft(
 
   const updatedId = data as string
   await saveEventMedia(supabase, updatedId, draft)
-  if (!draft.is_civic && draft.event_type !== 'protest') {
-    // Full sync incl. archiving removed tiers / turning tickets off.
-    await saveDraftTiers(supabase, updatedId, draft.ticket_tiers)
-  }
+  // Full sync incl. archiving removed tiers / turning tickets off.
+  await saveDraftTiers(supabase, updatedId, draft.ticket_tiers)
 
   return { id: updatedId, error: null }
 }
@@ -454,8 +416,7 @@ export async function submitAdminEvent(
   draft: EventDraft,
   provenance?: ImportProvenance,
 ): Promise<AdminSubmitResult> {
-  const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
-  const category = draft.category || (isCivic ? 'civic' : 'culture')
+  const category = draft.category || 'culture'
   const locationSlug = trim(draft.location_slug) ?? 'unknown'
   const slug = `${createSlug(draft.title)}-${crypto.randomUUID().slice(0, 8)}`
 
@@ -517,17 +478,6 @@ export async function submitAdminEvent(
       recurrence_until: trim(draft.recurrence_until),
       recurrence_days_of_week: draft.recurrence_days_of_week,
       recurrence_exceptions: draft.recurrence_exceptions,
-      ...(isCivic && {
-        event_type: 'protest',
-        is_civic: true,
-        featured_movement_slug: trim(draft.featured_movement_slug),
-        telegram_link: trim(draft.telegram_link),
-        whatsapp_link: trim(draft.whatsapp_link),
-        safety_notes: trim(draft.safety_notes),
-        expected_attendees: draft.expected_attendees
-          ? parseAttendees(draft.expected_attendees)
-          : null,
-      }),
   }
 
   if (provenance) {
@@ -555,7 +505,7 @@ export async function submitAdminEvent(
   }
 
   const eventId = (data as { id: string }).id
-  if (draft.ticket_tiers && !isCivic) {
+  if (draft.ticket_tiers) {
     await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
   }
 
@@ -576,8 +526,7 @@ export async function updateAdminEvent(
   eventId: string,
   draft: EventDraft,
 ): Promise<SubmitResult> {
-  const isCivic = draft.event_type === 'protest' ? true : draft.is_civic
-  const category = draft.category || (isCivic ? 'civic' : 'culture')
+  const category = draft.category || 'culture'
 
   const { error } = await supabase
     .from('events')
@@ -620,17 +569,6 @@ export async function updateAdminEvent(
       recurrence_until: trim(draft.recurrence_until),
       recurrence_days_of_week: draft.recurrence_days_of_week,
       recurrence_exceptions: draft.recurrence_exceptions,
-      // Civic fields written unconditionally so toggling civic off clears them.
-      event_type: isCivic ? 'protest' : null,
-      is_civic: isCivic,
-      featured_movement_slug: isCivic ? trim(draft.featured_movement_slug) : null,
-      telegram_link: isCivic ? trim(draft.telegram_link) : null,
-      whatsapp_link: isCivic ? trim(draft.whatsapp_link) : null,
-      safety_notes: isCivic ? trim(draft.safety_notes) : null,
-      expected_attendees:
-        isCivic && draft.expected_attendees
-          ? parseAttendees(draft.expected_attendees)
-          : null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', eventId)
@@ -641,9 +579,7 @@ export async function updateAdminEvent(
   }
 
   // Full tier sync (incl. archiving removed tiers / turning tickets off).
-  if (!isCivic) {
-    await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
-  }
+  await saveDraftTiers(supabase, eventId, draft.ticket_tiers)
 
   return { id: eventId, error: null }
 }

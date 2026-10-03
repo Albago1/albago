@@ -69,9 +69,8 @@ export function crawlReadingToSubmission(
   imageUrl: string | null = null,
   submittedBy: string | null = null,
 ) {
-  const isCivic = reading.is_civic
   const banner = httpImageUrl(imageUrl)
-  const category = reading.category || (isCivic ? 'civic' : 'culture')
+  const category = reading.category || 'culture'
 
   const city = resolution?.city
   const cityMatched = city && city.status !== 'none'
@@ -127,20 +126,11 @@ export function crawlReadingToSubmission(
     // approving admin is passed here, which also satisfies the queue's
     // submitted_by_user_id NOT NULL constraint on the direct insert.
     submitted_by_user_id: submittedBy,
-    // event_submissions' CHECK only accepts civic subtypes or NULL; the crawler
-    // never asserts a protest subtype, so non-null civic reads stay is_civic.
-    event_type: null as string | null,
-    is_civic: isCivic,
-    featured_movement_slug: null as string | null,
     organizer_name: orNull(reading.organizer_name),
     organizer_contact: null as string | null,
     organizer_phone: null as string | null,
     organizer_website: orNull(reading.organizer_website),
     organizer_socials: null as Record<string, string> | null,
-    telegram_link: null as string | null,
-    whatsapp_link: null as string | null,
-    safety_notes: null as string | null,
-    expected_attendees: null as number | null,
     recurrence: reading.recurrence,
     recurrence_until: orNull(reading.recurrence_until),
     recurrence_days_of_week: reading.recurrence_days_of_week,

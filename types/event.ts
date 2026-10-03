@@ -9,22 +9,8 @@ export type Event = {
   category: string
   price?: string
   highlight?: boolean
-  // Phase 8 — optional civic-event extension. NULL for non-civic events.
-  eventType?: CivicEventType | null
-  isCivic?: boolean
-  featuredMovementSlug?: string | null
   organizerContact?: string | null
-  telegramLink?: string | null
-  whatsappLink?: string | null
-  safetyNotes?: string | null
-  expectedAttendees?: number | null
 }
-
-export type CivicEventType =
-  | 'protest'
-  | 'civic_gathering'
-  | 'movement_event'
-  | 'demonstration'
 
 export type EventStatus =
   | 'draft'
@@ -67,9 +53,7 @@ export type OrganizerEvent = {
   recurrence_until: string | null
   recurrence_days_of_week: number[] | null
   recurrence_exceptions: string[] | null
-  expected_attendees: number | null
   address: string | null
-  is_civic: boolean | null
   // Present in the DB row (fetched via select('*')) — declared for the
   // organizer dashboard's pre-publish preview.
   address_hint?: string | null
@@ -77,8 +61,5 @@ export type OrganizerEvent = {
   tags?: string[] | null
   is_online?: boolean | null
   online_url?: string | null
-  telegram_link?: string | null
-  whatsapp_link?: string | null
-  safety_notes?: string | null
   organizer_name?: string | null
 }

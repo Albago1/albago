@@ -86,12 +86,12 @@ Rules:
 5. Do not compute a location slug and do not send coordinates. AlbaGo resolves the location itself; anything you send for it is discarded.
 6. title and description keep the source's own wording in the source's own language. Do not translate, do not embellish, do not summarise into marketing copy.
 7. date is ISO YYYY-MM-DD. time and end_time are 24h HH:MM. If a source states only a doors time, use it as the start.
-8. category is exactly one of: nightlife, music, sports, culture, food, civic — or "" if genuinely unclear. Protests, marches, commemorations → civic.
+8. category is exactly one of: nightlife, music, sports, culture, food — or "" if genuinely unclear. Protests, marches, demonstrations and political rallies are out of scope for AlbaGo — leave them out.
 9. image_url only when it is a direct URL to the image FILE (.jpg/.png/.webp/.avif). A page URL, a search thumbnail, or a social CDN link that will expire is worse than nothing — leave it empty and AlbaGo will take the page's own preview image.
 10. Prefer venue sites, ticketing platforms, cultural institutions, municipality pages and festival sites. Social posts you cannot open are not sources.
 
 Return ONLY a JSON object of the form:
-{"events":[{"source_url":"","image_url":"","title":"","description":"","category":"","is_civic":false,"date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","notes_for_admin":""}]}
+{"events":[{"source_url":"","image_url":"","title":"","description":"","category":"","date":"","time":"","end_time":"","venue_name":"","address":"","city":"","country":"","price":"","language":"","tags":[],"artists":[],"organizer_name":"","organizer_website":"","notes_for_admin":""}]}
 No markdown fences, no commentary. An empty list is a valid and honest answer when you found nothing you can stand behind.`
 
 export type ScoutSearchResult = {
