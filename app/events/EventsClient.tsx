@@ -12,6 +12,7 @@ import EventsFilterBar, {
 } from '@/components/events/EventsFilterBar'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import { CATEGORIES, CATEGORY_ICONS, categoryLabel } from '@/components/events/categoryMeta'
+import EventRow from '@/components/events/EventRow'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import {
   isThisWeekend,
@@ -426,8 +427,8 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
     return sortEventsByPriority(filteredEvents)
   }, [filteredEvents, sortBy])
 
-  // "All" view: one section per category, in the filter-rail order, each
-  // keeping the chosen sort. Unknown categories collect at the end.
+  // "All" view: one horizontal row per category (Netflix-style), in the
+  // filter-rail order, each keeping the chosen sort. Unknown categories collect at the end.
   const eventGroups = useMemo(() => {
     if (activeCategory !== 'all') return null
     const order: string[] = CATEGORIES.filter((c) => c !== 'all')
@@ -644,11 +645,17 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
                         {categoryLabel(category, t)}
                       </h2>
                     </div>
-                    <motion.div layout className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      <AnimatePresence mode="popLayout">
-                        {groupEvents.map((event) => renderEventCard(event))}
-                      </AnimatePresence>
-                    </motion.div>
+                    <EventRow labelledBy={`events-group-${category}`}>
+                      {groupEvents.map((event) => (
+                        <div
+                          key={event.id}
+                          role="listitem"
+                          className="w-[82%] shrink-0 snap-start sm:w-[300px] lg:w-[340px]"
+                        >
+                          {renderEventCard(event)}
+                        </div>
+                      ))}
+                    </EventRow>
                   </section>
                 )
               })}
