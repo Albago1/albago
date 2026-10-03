@@ -11,6 +11,7 @@ import EventsFilterBar, {
   type TimeFilter,
 } from '@/components/events/EventsFilterBar'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
+import { CATEGORIES, CATEGORY_ICONS, categoryLabel } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import {
   isThisWeekend,
@@ -425,10 +426,55 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
     return sortEventsByPriority(filteredEvents)
   }, [filteredEvents, sortBy])
 
+  // "All" view: one section per category, in the filter-rail order, each
+  // keeping the chosen sort. Unknown categories collect at the end.
+  const eventGroups = useMemo(() => {
+    if (activeCategory !== 'all') return null
+    const order: string[] = CATEGORIES.filter((c) => c !== 'all')
+    const buckets = new Map<string, PublicEvent[]>()
+    for (const event of sortedEvents) {
+      const key = (event.category ?? '').toLowerCase() || 'other'
+      const list = buckets.get(key)
+      if (list) list.push(event)
+      else buckets.set(key, [event])
+    }
+    const known = order.filter((c) => buckets.has(c))
+    const rest = Array.from(buckets.keys()).filter((c) => !order.includes(c)).sort()
+    return [...known, ...rest].map((category) => ({
+      category,
+      events: buckets.get(category) ?? [],
+    }))
+  }, [activeCategory, sortedEvents])
+
   const isAllCities = activeLocationSlug === 'all'
   const activeLocation = resolveLocation(activeLocationSlug, locationOptions)
   const headerCity = isAllCities ? t('filter_worldwide') : activeLocation.label
   const headerCountry = isAllCities ? '' : activeLocation.country
+
+
+  const renderEventCard = (event: PublicEvent) => (
+    <motion.div
+      key={event.id}
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.6 }}
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.98 }}
+      className="h-full"
+    >
+      <EventCard
+        event={event}
+        venueName={
+          event.place_id ? placeNames.get(event.place_id) ?? null : null
+        }
+        cityLabel={resolveLocation(event.location_slug, locationOptions).label}
+        isAuthenticated={isAuth}
+        initialSaved={savedIds.has(event.id)}
+      />
+    </motion.div>
+  )
 
   return (
     <main className="min-h-screen bg-ink-950 text-white">
@@ -581,32 +627,38 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
             </div>
           )}
 
-          {!isLoading && !errorMessage && (
+          {!isLoading && !errorMessage && eventGroups && (
+            <div className="space-y-12">
+              {eventGroups.map(({ category, events: groupEvents }) => {
+                const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
+                return (
+                  <section key={category} aria-labelledby={`events-group-${category}`}>
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                        <Icon className="h-5 w-5 text-flame-300" />
+                      </span>
+                      <h2
+                        id={`events-group-${category}`}
+                        className="display-text text-2xl text-white sm:text-3xl"
+                      >
+                        {categoryLabel(category, t)}
+                      </h2>
+                    </div>
+                    <motion.div layout className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      <AnimatePresence mode="popLayout">
+                        {groupEvents.map((event) => renderEventCard(event))}
+                      </AnimatePresence>
+                    </motion.div>
+                  </section>
+                )
+              })}
+            </div>
+          )}
+
+          {!isLoading && !errorMessage && !eventGroups && (
             <motion.div layout className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <AnimatePresence mode="popLayout">
-              {sortedEvents.map((event) => (
-                <motion.div
-                  key={event.id}
-                  layout
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.6 }}
-                  whileHover={{ y: -4 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="h-full"
-                >
-                  <EventCard
-                    event={event}
-                    venueName={
-                      event.place_id ? placeNames.get(event.place_id) ?? null : null
-                    }
-                    cityLabel={resolveLocation(event.location_slug, locationOptions).label}
-                    isAuthenticated={isAuth}
-                    initialSaved={savedIds.has(event.id)}
-                  />
-                </motion.div>
-              ))}
+                {sortedEvents.map((event) => renderEventCard(event))}
               </AnimatePresence>
             </motion.div>
           )}
