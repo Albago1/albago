@@ -265,7 +265,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
         className="sticky top-16 z-40 border-b border-white/10 bg-ink-950/80 backdrop-blur-xl"
       >
         <div className="mx-auto max-w-6xl px-4 py-3">
-          {/* Row 1 — search + popover controls + count */}
+          {/* Row 1 — search + popover controls */}
           <div className="flex items-center gap-2">
             <div ref={searchRef} className="relative min-w-0 flex-1 md:max-w-sm">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -416,25 +416,6 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
             </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <span
-                aria-live="polite"
-                className="hidden h-11 items-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-white/75 lg:inline-flex"
-              >
-                {isLoading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-                    {t('filter_loading')}
-                  </span>
-                ) : (
-                  <>
-                    <span className="font-semibold text-white">{resultCount}</span>
-                    <span className="ml-1">
-                      {resultCount === 1 ? t('event_singular') : t('event_plural')}
-                    </span>
-                  </>
-                )}
-              </span>
-
               {activeFilterCount > 0 && (
                 <button
                   type="button"
