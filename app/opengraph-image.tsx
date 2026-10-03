@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
 
-export const alt = 'AlbaGo — Discover Events, Movements & Nightlife'
+export const alt = 'AlbaGo — Discover Events & Nightlife'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
@@ -70,7 +70,7 @@ export default async function Image() {
               maxWidth: '900px',
             }}
           >
-            Events, nightlife and civic gatherings — across Albania and the Albanian diaspora.
+            Events and nightlife — across Albania and the Albanian diaspora.
           </div>
         </div>
 

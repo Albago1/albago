@@ -8,7 +8,7 @@ import SubmitEventClient from './SubmitEventClient'
 export const metadata: Metadata = {
   title: 'Submit an event · AlbaGo',
   description:
-    'Submit an event to AlbaGo — nightlife, music, culture, food, sports, or a civic gathering. Our team reviews submissions before they go live.',
+    'Submit an event to AlbaGo — nightlife, music, culture, food or sports. Our team reviews submissions before they go live.',
 }
 
 export default async function SubmitEventPage() {

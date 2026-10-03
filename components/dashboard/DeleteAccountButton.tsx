@@ -13,7 +13,7 @@ export default function DeleteAccountButton({ email }: { email: string }) {
     [
       'Hi AlbaGo team,',
       '',
-      `Please delete my account and all associated data (saved events, submissions, volunteer signups).`,
+      `Please delete my account and all associated data (saved events, submissions and anything else linked to it).`,
       '',
       `Account email: ${email}`,
       '',

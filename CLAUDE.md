@@ -4,7 +4,9 @@
 
 ## Overview
 
-AlbaGo is a discovery platform for events, nightlife and civic gatherings across Albania and the Albanian diaspora — starting in Albania and Albanian communities worldwide, designed to scale internationally. This is the canonical positioning: every user-facing self-description uses the main sentence "Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora." with the optional expansion "Starting in Albania and Albanian communities worldwide, with more cities coming next."
+AlbaGo is a discovery platform for events and nightlife across Albania and the Albanian diaspora — starting in Albania and Albanian communities worldwide, designed to scale internationally. This is the canonical positioning: every user-facing self-description uses the main sentence "Discover events and nightlife across Albania and the Albanian diaspora." with the optional expansion "Starting in Albania and Albanian communities worldwide, with more cities coming next."
+
+Protests, civic gatherings and political movements are NOT part of AlbaGo (removed in Phase 41, 2026-10-03). Do not reintroduce protest pages, a civic category, or protest handling in the wizard or AI importers.
 
 The product combines:
 

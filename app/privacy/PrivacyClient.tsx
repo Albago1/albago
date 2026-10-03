@@ -28,16 +28,16 @@ const SECTIONS: Section[] = [
     titleKey: 'privacy_section_collected_title',
     body: [
       'Account email and a hashed password when you sign up (via Supabase Auth).',
-      'Events, places, and protests you save to your account.',
-      'Event submissions, volunteer signups, and the form fields you fill (name, email, role, contact channels, address, optional notes).',
-      'For civic events, the geocoded latitude/longitude of the address you type in the submission form.',
+      'Events and places you save to your account.',
+      'Event submissions and the form fields you fill (title, contact details, address, optional notes).',
+      'The geocoded latitude/longitude of the address you type in the submission form.',
     ],
   },
   {
     icon: MapPin,
     titleKey: 'privacy_section_map_title',
     body: [
-      'When you geocode an address (on /submit-event for civic events, on /protests when searching a city, or on the Albanian Revolution page), we send the text you typed to OpenStreetMap Nominatim — a public, third-party geocoding service.',
+      'When you geocode an address (in the event submission form, or when searching for a city), we send the text you typed to OpenStreetMap Nominatim — a public, third-party geocoding service.',
       'Nominatim sees the search text and your IP address, governed by their own usage policy. We do not send your account email or any logged-in identifier to them.',
       'Map tiles are served by Mapbox. Mapbox sees your IP and the tiles your viewport requests, governed by their privacy policy. They do not see your account identifier.',
     ],
@@ -47,7 +47,7 @@ const SECTIONS: Section[] = [
     titleKey: 'privacy_section_storage_title',
     body: [
       'All AlbaGo data is stored in Supabase (Postgres + Auth + Storage), hosted in the EU. Row-level security policies restrict access to your own rows.',
-      'Aggregate stats (e.g. published event counts) are public. Personal records (saved events, volunteer signups, draft submissions) are private to you and platform admins.',
+      'Aggregate stats (e.g. published event counts) are public. Personal records (saved events, draft submissions) are private to you and platform admins.',
       'We do not sell or share your data with advertisers. We do not run third-party analytics or ad pixels.',
     ],
   },
@@ -64,7 +64,7 @@ const SECTIONS: Section[] = [
     titleKey: 'privacy_section_rights_title',
     body: [
       'You can sign in and delete saved events at any time.',
-      'For deletion of your account, volunteer signups, or submitted events, email us — see "Contact" below — and we will action it within 30 days.',
+      'For deletion of your account or submitted events (including any older volunteer sign-ups), email us — see "Contact" below — and we will action it within 30 days.',
       'You can also request a copy of every row tied to your account.',
     ],
   },

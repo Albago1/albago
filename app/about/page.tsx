@@ -3,7 +3,6 @@ import Link from 'next/link'
 import {
   ArrowLeft,
   Camera,
-  Flag,
   Flame,
   Globe,
   HeartHandshake,
@@ -18,11 +17,11 @@ import { createClient } from '@/lib/supabase/server'
 export const metadata: Metadata = {
   title: 'About AlbaGo — Built for Albania and the diaspora',
   description:
-    'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
+    'Discover events and nightlife across Albania and the Albanian diaspora.',
   openGraph: {
     title: 'About AlbaGo',
     description:
-      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
+      'Discover events and nightlife across Albania and the Albanian diaspora.',
     type: 'website',
   },
 }
@@ -96,10 +95,10 @@ export default async function AboutPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-base leading-7 text-white/65">
-            Discover events, nightlife and civic gatherings across Albania and
-            the Albanian diaspora — calm, lawful, and open. From a nightlife
-            pick in Tirana to a peaceful protest in Berlin, everything that
-            matters in real life shows up in one place. Starting in Albania and
+            Discover events and nightlife across Albania and
+            the Albanian diaspora — calm, curated, and open. From a nightlife
+            pick in Tirana to a concert in Berlin, everything worth going out
+            for shows up in one place. Starting in Albania and
             Albanian communities worldwide, with more cities coming next.
           </p>
         </div>
@@ -166,12 +165,11 @@ export default async function AboutPage() {
                 <ShieldCheck className="h-5 w-5 text-flame-300" />
               </div>
               <h3 className="mt-4 text-lg font-semibold text-white">
-                Peaceful and lawful
+                Checked before it goes live
               </h3>
               <p className="mt-2 text-sm leading-6 text-white/65">
-                We host civic gatherings, marches, and protests — all coordinated
-                lawfully, peacefully, and in good faith. No calls to violence,
-                ever.
+                Every listing is reviewed before it is published, and anyone can
+                report a wrong detail. No spam, no fake events.
               </p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
@@ -246,15 +244,15 @@ export default async function AboutPage() {
               </p>
             </Link>
             <Link
-              href="/protests"
+              href="/map"
               className="group rounded-3xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-white/15 hover:bg-white/[0.05]"
             >
-              <Flag className="h-5 w-5 text-flame-300" />
+              <Map className="h-5 w-5 text-flame-300" />
               <h3 className="mt-3 text-base font-semibold text-white">
-                Stand together
+                Explore the map
               </h3>
               <p className="mt-1 text-xs leading-5 text-white/55">
-                Find or register a peaceful, lawful civic gathering.
+                See what&apos;s happening near you tonight.
               </p>
             </Link>
           </div>

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Terms of Service — AlbaGo',
     description:
-      'Plain-English terms covering account use, submitted content, civic events, and platform liability.',
+      'Plain-English terms covering account use, submitted content, listing rules, and platform liability.',
     type: 'website',
   },
 }

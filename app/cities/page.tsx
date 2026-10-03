@@ -74,7 +74,7 @@ export default async function CitiesPage() {
             Pick your <span className="italic text-flame-400">city</span>
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-white/65">
-            Events, nightlife and civic gatherings, city by city — across
+            Events and nightlife, city by city — across
             Albania and the Albanian diaspora.
           </p>
         </div>

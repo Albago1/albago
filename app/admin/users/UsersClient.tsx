@@ -787,8 +787,8 @@ function DeleteUserDialog({
               Also delete this user&apos;s published events
             </p>
             <p className="mt-0.5 text-xs text-white/55">
-              Removes every event where they are the organizer. Civic /
-              community submissions they only filed (not authored) are not
+              Removes every event where they are the organizer. Community
+              submissions they only filed (not authored) are not
               affected.
             </p>
           </div>

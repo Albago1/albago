@@ -33,9 +33,9 @@ const FACTS = [
 ]
 
 const TAGLINES = [
-  'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
+  'Discover events and nightlife across Albania and the Albanian diaspora.',
   'Starting in Albania and Albanian communities worldwide, with more cities coming next.',
-  'Find what is happening tonight, from Tirana to the Albanian diaspora in Berlin and beyond — peaceful protests to nightlife.',
+  'Find what is happening tonight, from Tirana to the Albanian diaspora in Berlin and beyond — concerts to nightlife.',
 ]
 
 export default function PressPage() {
@@ -203,13 +203,8 @@ export default function PressPage() {
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {[
               { href: '/', label: 'Homepage' },
-              { href: '/protests', label: 'Protest directory' },
               { href: '/map', label: 'Interactive map' },
               { href: '/events', label: 'Event discovery' },
-              {
-                href: '/events/albanian-revolution',
-                label: 'Albanian Revolution hub',
-              },
             ].map((s) => (
               <a
                 key={s.href}

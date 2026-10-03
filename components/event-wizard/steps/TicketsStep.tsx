@@ -16,8 +16,8 @@ type Props = {
 
 // Optional step (Phase 33): where do people get in? Three honest answers —
 // nothing to buy, bought on someone else's site, or claimed here on AlbaGo.
-// Only reachable in organizer/admin modes for non-civic events — the wizard
-// hides the step otherwise. Tiers are created via the organizer_save_tier RPC
+// Only reachable in organizer/admin modes — the wizard hides the step
+// otherwise. Tiers are created via the organizer_save_tier RPC
 // right after the event row exists (see wizardSubmit.saveDraftTiers).
 
 function newTier(): DraftTicketTier {

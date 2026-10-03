@@ -29,7 +29,6 @@ const CATEGORY_LABEL: Record<string, string> = {
   sports: 'Sports',
   culture: 'Culture',
   food: 'Food & drink',
-  civic: 'Civic gathering',
 }
 
 const LANG_LABEL: Record<string, string> = {

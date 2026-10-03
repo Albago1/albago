@@ -48,21 +48,21 @@ const SECTIONS: Section[] = [
     icon: Users,
     title: '3. Your content',
     body: [
-      'You retain ownership of everything you submit: event listings, organizer profiles, captions, volunteer signups.',
+      'You retain ownership of everything you submit: event listings, organizer profiles, captions.',
       'By submitting content, you grant AlbaGo a worldwide, non-exclusive, royalty-free licence to display, distribute, and share that content on the platform and in promotional material (e.g. share posters our team creates to promote listings).',
       'You confirm you have the right to share what you upload — including photos of other people, copyrighted material, or trademarks. If you don\'t own it, don\'t post it.',
-      'AlbaGo does not pre-screen submissions. Content goes live after admin moderation where moderation exists (organizer applications), and immediately where it does not (saved events, volunteer signups).',
+      'AlbaGo does not pre-screen submissions. Content goes live after admin moderation where moderation exists (organizer applications), and immediately where it does not (saved events).',
     ],
   },
   {
     icon: ShieldCheck,
     title: '4. Acceptable use',
     body: [
-      'Use AlbaGo for organising and discovering peaceful, lawful events: nightlife, culture, music, sports, civic gatherings.',
+      'Use AlbaGo for organising and discovering lawful events: nightlife, culture, music, sports and food.',
       'No content that incites violence, threatens individuals, promotes hate against any group, depicts illegal activity, or harasses other users.',
       'No spam, scraping, automated submissions, or attempts to overload the platform.',
       'No impersonation of other people, organizations, or political parties.',
-      'For civic events: peaceful and lawful only. AlbaGo does not host calls to violence, riot, or illegal disruption.',
+      'AlbaGo does not list protests, marches or political rallies.',
     ],
   },
   {
@@ -87,7 +87,7 @@ const SECTIONS: Section[] = [
     icon: AlertTriangle,
     title: '7. Real-world risk & disclaimers',
     body: [
-      'AlbaGo is an information platform. We do not organise, sponsor, or supervise any event listed on the site, including civic gatherings.',
+      'AlbaGo is an information platform. We do not organise, sponsor, or supervise any event listed on the site.',
       'You are responsible for your own safety when attending any event. Check local laws, follow organizer instructions, and use your own judgment.',
       'Event details (date, time, location, attendance) are submitted by users and may be inaccurate or out of date. Verify with the organizer before travelling.',
       'AlbaGo is provided "as is" without warranties of any kind. We are not liable for damages arising from event attendance, content accuracy, or platform downtime, to the maximum extent permitted by law.',

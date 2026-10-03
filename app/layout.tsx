@@ -34,14 +34,14 @@ export const metadata: Metadata = {
   ),
   title: {
     template: '%s | AlbaGo',
-    default: 'AlbaGo — Discover Events, Movements & Nightlife',
+    default: 'AlbaGo — Discover Events & Nightlife',
   },
   description:
-    'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora. Starting in Albania and Albanian communities worldwide, with more cities coming next.',
+    'Discover events and nightlife across Albania and the Albanian diaspora. Starting in Albania and Albanian communities worldwide, with more cities coming next.',
   openGraph: {
-    title: 'AlbaGo — Events, Movements & Nightlife',
+    title: 'AlbaGo — Events & Nightlife',
     description:
-      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
+      'Discover events and nightlife across Albania and the Albanian diaspora.',
     siteName: 'AlbaGo',
     locale: 'en_US',
     type: 'website',

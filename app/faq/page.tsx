@@ -6,11 +6,11 @@ import LandingNavbar from '@/components/layout/LandingNavbar'
 export const metadata: Metadata = {
   title: 'FAQ — AlbaGo',
   description:
-    'Common questions about AlbaGo — how to organize events, get verified, post protests, and protect your data.',
+    'Common questions about AlbaGo — how to organize events, get verified, and protect your data.',
   openGraph: {
     title: 'FAQ — AlbaGo',
     description:
-      'Common questions about organising on AlbaGo, getting verified, posting protests, and account control.',
+      'Common questions about organising on AlbaGo, getting verified, and account control.',
     type: 'website',
   },
 }
@@ -24,9 +24,9 @@ const FAQS: Faq[] = [
     q: 'What is AlbaGo?',
     a: (
       <>
-        AlbaGo is where you discover events, nightlife and civic gatherings
+        AlbaGo is where you discover events and nightlife
         across Albania and the Albanian diaspora. From a Tirana club night to a
-        peaceful protest in Berlin, you find it on the same map. We are
+        concert in Berlin, you find it on the same map. We are
         starting in Albania and Albanian communities worldwide, with more
         cities coming next.
       </>
@@ -90,8 +90,8 @@ const FAQS: Faq[] = [
     q: 'What kinds of events can I post?',
     a: (
       <>
-        Nightlife, music, culture, sports, food, festivals, pop-ups, civic
-        gatherings, protests. The platform is general-purpose. The only hard
+        Nightlife, music, culture, sports, food, festivals and pop-ups. The
+        only hard
         rules are in our{' '}
         <Link href="/terms" className="text-flame-300 hover:underline">
           Terms of Service
@@ -105,16 +105,9 @@ const FAQS: Faq[] = [
     q: 'Can I post a protest?',
     a: (
       <>
-        Yes — peaceful, lawful civic gatherings are welcome. Submit at{' '}
-        <Link href="/submit-event" className="text-flame-300 hover:underline">
-          /submit-event
-        </Link>{' '}
-        with the &ldquo;Civic / Protest&rdquo; category. We also have a
-        dedicated discovery surface at{' '}
-        <Link href="/protests" className="text-flame-300 hover:underline">
-          /protests
-        </Link>
-        . AlbaGo does not host calls to violence, riot, or illegal disruption.
+        No. AlbaGo is for events and nightlife — protests, marches and
+        political rallies are not listed, and submissions for them are
+        declined.
       </>
     ),
   },

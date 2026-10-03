@@ -92,7 +92,7 @@ export async function generateMetadata({
   if (!city) return { title: 'City not found' }
   return {
     title: `Events in ${city.name} — tonight, this weekend & upcoming`,
-    description: `What's happening in ${city.name}: events, nightlife and civic gatherings, updated live. Part of AlbaGo — across Albania and the Albanian diaspora.`,
+    description: `What's happening in ${city.name}: events and nightlife, updated live. Part of AlbaGo — across Albania and the Albanian diaspora.`,
     alternates: { canonical: `/city/${city.slug}` },
     openGraph: {
       title: `Events in ${city.name} — AlbaGo`,
@@ -228,8 +228,8 @@ export default async function CityPage({
             {city.name}
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-white/65">
-            What&apos;s happening in {city.name} — events, nightlife and civic
-            gatherings, updated live.{' '}
+            What&apos;s happening in {city.name} — events and nightlife,
+            updated live.{' '}
             {events.length > 0
               ? `${events.length} upcoming ${events.length === 1 ? 'event' : 'events'} right now.`
               : 'New events land here as organizers publish them.'}

@@ -104,7 +104,7 @@ export default function OrganizerStep({ draft, patch, mode }: Props) {
             required
             value={draft.organizer_name}
             onChange={(e) => patch({ organizer_name: e.target.value })}
-            placeholder='e.g. "Folie Marina", "Komiteti Civic"'
+            placeholder='e.g. "Folie Marina", "Kino Millennium"'
             className="input pl-10"
           />
         </div>

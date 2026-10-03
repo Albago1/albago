@@ -10,21 +10,21 @@ import HomeClient, { type HomeStats } from './HomeClient'
 export const revalidate = 1800
 
 export const metadata: Metadata = {
-  title: 'AlbaGo — Discover Events, Movements & Nightlife',
+  title: 'AlbaGo — Discover Events & Nightlife',
   description:
-    'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora. Search any city — Tirana, Prishtina, Berlin, New York, London — and join what matters tonight.',
+    'Discover events and nightlife across Albania and the Albanian diaspora. Search any city — Tirana, Prishtina, Berlin, New York, London — and join what matters tonight.',
   openGraph: {
-    title: 'AlbaGo — Discover Events, Movements & Nightlife',
+    title: 'AlbaGo — Discover Events & Nightlife',
     description:
-      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora. Starting in Albania and Albanian communities worldwide, with more cities coming next.',
+      'Discover events and nightlife across Albania and the Albanian diaspora. Starting in Albania and Albanian communities worldwide, with more cities coming next.',
     siteName: 'AlbaGo',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AlbaGo — Events, Movements & Nightlife',
+    title: 'AlbaGo — Events & Nightlife',
     description:
-      'Discover events, nightlife and civic gatherings across Albania and the Albanian diaspora.',
+      'Discover events and nightlife across Albania and the Albanian diaspora.',
   },
 }
 
