@@ -266,6 +266,8 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
       tools,
       stopWhen: stepCountIs(opts.maxSteps ?? goal.budget.max_searches + goal.budget.max_fetches + 10),
       temperature: 0.2,
+      // Hard stop: the budget must hold even if a provider call hangs or waits on a rate limit.
+      abortSignal: AbortSignal.timeout(Math.max(deadline - Date.now(), 10_000) + 30_000),
     })
     summary = result.text
     stats.input_tokens = result.totalUsage?.inputTokens ?? result.usage.inputTokens ?? 0
