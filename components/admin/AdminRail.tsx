@@ -10,6 +10,7 @@ import {
   ListChecks,
   LogOut,
   Megaphone,
+  Radar,
   Radio,
   ScanSearch,
   Sparkles,
@@ -51,6 +52,7 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
     { href: '/admin/events', label: 'Events', icon: Megaphone },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
+    { href: '/admin/engine', label: 'Event Engine', icon: Radar },
     { href: '/admin/event-radar', label: 'Event Radar', icon: ScanSearch },
     { href: '/admin/sources', label: 'Sources', icon: ListChecks },
   ]

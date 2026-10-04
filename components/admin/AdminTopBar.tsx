@@ -8,6 +8,7 @@ const SECTION_TITLES: Record<string, string> = {
   '/admin': 'Overview',
   '/admin/queue': 'Moderation queue',
   '/admin/organizers': 'Organizers',
+  '/admin/engine': 'Event Engine',
   '/admin/events/new': 'New event',
   '/admin/events': 'Events',
   '/admin/users': 'Users',
