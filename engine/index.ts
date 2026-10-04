@@ -15,3 +15,7 @@
 export * from './contract'
 export * from './core/text'
 export * from './core/match'
+export * from './extract/page'
+export * from './extract/extraction'
+export * from './extract/jsonld'
+export * from './core/normalize'
