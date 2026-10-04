@@ -96,7 +96,8 @@ How to work:
 4. Submit each distinct event page once. Results marked known:true are already in the engine — skip them unless you are checking for changes.
 5. When a website regularly lists many relevant events (a venue program, a ticketing category, an events calendar), call propose_source once with a short reason.
 6. Never invent events, dates or URLs, and never claim a site lacks information unless you read it. Social networks are not collected — do not target them. If a tool says the budget is exhausted, stop and write your summary.
-7. Finish with a short plain summary: what you searched, how many events you submitted, and gaps you could not cover.`
+7. Use the budget. Stopping early leaves events unfound: keep trying new angles (another language, event type, venue, promoter or ticketing site you learned about) until the searches or page reads are nearly used up or the time runs short.
+8. Finish with a short plain summary: what you searched, how many events you submitted, and gaps you could not cover.`
 
 export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: DiscoverOptions): Promise<DiscoverReport> {
   const now = deps.now?.() ?? new Date()

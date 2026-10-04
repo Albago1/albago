@@ -124,7 +124,8 @@ export function cityGoal(c: CityTarget): DiscoveryGoalV1 {
       ? `Albanian events in ${c.name}, ${country}: Albanian parties and club nights, concerts by Albanian artists, festivals and community events`
       : `Upcoming events in ${c.name}, ${country}`,
     geography: { country_codes: [c.country], localities: [c.name] },
-    horizon_days: diaspora ? 30 : 21,
+    // Diaspora parties and concerts are announced weeks ahead; region cities fill up closer to the date.
+    horizon_days: diaspora ? 60 : 21,
     relevance: ALBANIAN_RELEVANCE,
     languages: ['sq', ...c.languages],
     expansion: { places: [], entities: { performers: [], organizers: [], institutions: [] }, platforms: [], query_languages: ['sq', ...c.languages], learn: true },
