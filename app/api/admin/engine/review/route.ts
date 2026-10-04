@@ -15,7 +15,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const EDITABLE = ['title', 'event_type', 'start_date', 'start_time', 'end_date', 'end_time', 'venue_name', 'venue_address', 'locality', 'country_code', 'ticket_url', 'description', 'status'] as const
+const EDITABLE = ['title', 'event_type', 'start_date', 'start_time', 'end_date', 'end_time', 'venue_name', 'venue_address', 'locality', 'country_code', 'price', 'ticket_url', 'description', 'status'] as const
 
 export async function POST(request: Request) {
   if (!(await isRequestAdmin())) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })

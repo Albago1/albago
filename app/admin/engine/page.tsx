@@ -16,18 +16,21 @@ export default async function EngineReviewPage() {
   const engine = albagoEngine()
   const [queue, verified, runs] = await Promise.all([engine.review.queue(60), engine.review.queue(60, 'verified'), engine.runs.recent(5)])
 
-  // Approved in the engine but not on AlbaGo (held back by AlbaGo's rules, or
-  // the publish step failed) — kept visible so they can be fixed and published.
-  let approved: ReviewItem[] = []
+  // Approved events split by whether AlbaGo has them: not yet (held back by
+  // AlbaGo's rules, or the publish step failed) → fix and publish; live and
+  // upcoming → correct and save, which updates the AlbaGo page.
+  const albagoSlugs = new Map<string, string>()
   if (verified.length) {
     const db: SupabaseClient = createAdminClient() // engine_* columns aren't in the generated types yet
     const { data } = await db
       .from('events')
-      .select('engine_occurrence_id')
+      .select('engine_occurrence_id, slug')
       .in('engine_occurrence_id', verified.map((v) => v.occurrence.id))
-    const onAlbago = new Set((data ?? []).map((r) => r.engine_occurrence_id as string))
-    approved = verified.filter((v) => !onAlbago.has(v.occurrence.id))
+    for (const r of data ?? []) albagoSlugs.set(r.engine_occurrence_id as string, r.slug as string)
   }
+  const today = new Date().toISOString().slice(0, 10)
+  const approved = verified.filter((v) => !albagoSlugs.has(v.occurrence.id))
+  const published = verified.filter((v) => albagoSlugs.has(v.occurrence.id) && (v.occurrence.end.date ?? v.occurrence.start.date) >= today)
 
   const toCard = (item: ReviewItem, stage: ReviewCard['stage']): ReviewCard => {
     const o = item.occurrence
@@ -37,6 +40,7 @@ export default async function EngineReviewPage() {
       id: o.id,
       version: o.version,
       stage,
+      albagoSlug: albagoSlugs.get(o.id) ?? null,
       title: o.title,
       eventType: o.event_type,
       date: o.start.date,
@@ -58,7 +62,11 @@ export default async function EngineReviewPage() {
       wouldPublish: asVerified.deliver ? [] : asVerified.reasons.filter((r) => r !== 'not verified'),
     }
   }
-  const cards = [...approved.map((i) => toCard(i, 'approved')), ...queue.map((i) => toCard(i, 'review'))]
+  const cards = [
+    ...approved.map((i) => toCard(i, 'approved')),
+    ...queue.map((i) => toCard(i, 'review')),
+    ...published.map((i) => toCard(i, 'published')),
+  ]
 
   const recentRuns: RunSummary[] = runs.map((r) => ({
     id: r.id,
