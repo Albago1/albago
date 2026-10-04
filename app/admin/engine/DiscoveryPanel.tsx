@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Globe2, Loader2, Radar, TriangleAlert, X } from 'lucide-react'
 
-export type PlanItem = { id: string; label: string; kind: 'region' | 'diaspora' | 'artists'; lastRun: number | null; due: number }
+export type PlanItem = { id: string; label: string; kind: 'worldwide' | 'region' | 'diaspora' | 'artists'; lastRun: number | null; due: number }
 export type DiscoveryOverviewProps = {
   usage: { monthSearches: number; todayRuns: number; running: boolean }
   limits: { monthlySearches: number; dailyRuns: number }
@@ -24,6 +24,7 @@ const REASONS: Record<string, string> = {
 }
 
 const GROUPS: Array<{ kind: PlanItem['kind']; label: string }> = [
+  { kind: 'worldwide', label: 'Worldwide' },
   { kind: 'region', label: 'Albanian region' },
   { kind: 'diaspora', label: 'Diaspora cities' },
   { kind: 'artists', label: 'Artist watch' },
@@ -108,10 +109,13 @@ export default function DiscoveryPanel({ overview, candidates }: { overview: Dis
           <Globe2 className="h-4 w-4 text-flame-300" />
           <h2 className="text-sm font-semibold text-white">Worldwide discovery</h2>
           <span className="text-xs text-white/45">
-            {due} of {overview.plan.length} targets due · {overview.artists} artists watched · runs automatically 5× a day
+            {due} of {overview.plan.length} targets due · {overview.artists} artists watched
           </span>
         </div>
       </div>
+      <p className="mt-1 text-xs text-white/55">
+        Runs by itself 5× a day and always picks what is most overdue. Nothing to choose. Use the button only to search something right now.
+      </p>
 
       <div className="mt-4 flex flex-wrap gap-4">
         <Meter label="Searches this month (free plan)" used={overview.usage.monthSearches} max={overview.limits.monthlySearches} />
@@ -131,7 +135,7 @@ export default function DiscoveryPanel({ overview, candidates }: { overview: Dis
           aria-label="What to research"
           className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white [&_option]:bg-[#111]"
         >
-          <option value="next">Next due{next ? `: ${next.label}` : ' (nothing due)'}</option>
+          <option value="next">Automatic: most overdue{next ? ` (now: ${next.label})` : ' (nothing due)'}</option>
           {GROUPS.map((g) => (
             <optgroup key={g.kind} label={g.label}>
               {overview.plan
@@ -152,7 +156,7 @@ export default function DiscoveryPanel({ overview, candidates }: { overview: Dis
           className="inline-flex items-center justify-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 px-4 py-2.5 text-sm font-semibold text-flame-100 transition hover:bg-flame-500/20 disabled:opacity-60"
         >
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
-          {overview.usage.running && !running ? 'A run is in progress' : 'Run discovery'}
+          {overview.usage.running && !running ? 'A run is in progress' : 'Search now'}
         </button>
       </div>
 

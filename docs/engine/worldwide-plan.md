@@ -9,6 +9,8 @@ Status: **approved 2026-10-04** ("find every Albanian event worldwide, stay insi
 - **Admin.** A discovery panel and a "New artists to confirm" list.
 - **Cron.** `/api/cron/engine` runs 5× daily.
 
+- **Worldwide sweep.** Added 2026-10-05 at the user's request. Goal `worldwide` searches for Albanian events with no city limit, every 3 days, hinted towards public ticket sites. It catches cities not on the list. Budget: about 60 more searches/month, so the total is still under the 900 cap.
+
 Still open from the decisions below: grouping star tours as one series (W4).
 
 **Goal:** find Albanian events wherever they happen. That means:

@@ -128,9 +128,31 @@ export function cityGoal(c: CityTarget): DiscoveryGoalV1 {
     horizon_days: diaspora ? 60 : 21,
     relevance: ALBANIAN_RELEVANCE,
     languages: ['sq', ...c.languages],
-    expansion: { places: [], entities: { performers: [], organizers: [], institutions: [] }, platforms: [], query_languages: ['sq', ...c.languages], learn: true },
+    expansion: { places: [], entities: { performers: [], organizers: [], institutions: [] }, platforms: diaspora ? TICKET_SITES : [], query_languages: ['sq', ...c.languages], learn: true },
     required_fields: [],
     budget: { max_searches: 5, max_fetches: 14, ...RUN_BUDGET },
+  }
+}
+
+/** Public ticketing sites where diaspora events are sold (hints for the agent; robots.txt still applies). */
+const TICKET_SITES = ['eventfrog.ch', 'eventim.de', 'oeticket.com', 'ticketcorner.ch', 'ticketmaster.com', 'dice.fm', 'fatsoma.com', 'skiddle.com']
+
+/**
+ * Worldwide sweep: Albanian events anywhere, no city limit. Catches what the
+ * city list misses (Dubai, Oslo, Sydney…) and new cities worth adding.
+ */
+export function worldwideGoal(): DiscoveryGoalV1 {
+  return {
+    id: 'worldwide',
+    // Contract limit: 200 chars. The query hints steer the agent away from city-by-city searching.
+    label: 'Albanian events worldwide, any city: parties, club nights, concerts by Albanian artists, festivals (try "Albanian party", "koncert shqip", "festa shqiptare", "Albaner Party")',
+    geography: { scope: 'worldwide' },
+    horizon_days: 60,
+    relevance: ALBANIAN_RELEVANCE,
+    languages: ['sq', 'en', 'de', 'it'],
+    expansion: { places: [], entities: { performers: [], organizers: [], institutions: [] }, platforms: TICKET_SITES, query_languages: ['sq', 'en', 'de', 'it'], learn: true },
+    required_fields: [],
+    budget: { max_searches: 6, max_fetches: 16, ...RUN_BUDGET },
   }
 }
 

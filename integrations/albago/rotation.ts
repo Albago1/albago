@@ -1,5 +1,5 @@
 import type { DiscoveryGoalV1, RunRecord } from '@/engine'
-import { artistGoal, cityGoal, cityGoalId, DIASPORA_CITIES, REGION_CITIES, type CityTarget } from './goals'
+import { artistGoal, cityGoal, cityGoalId, DIASPORA_CITIES, REGION_CITIES, worldwideGoal, type CityTarget } from './goals'
 
 /**
  * Worldwide coverage on free tiers: many small discovery runs, one city or
@@ -10,7 +10,7 @@ import { artistGoal, cityGoal, cityGoalId, DIASPORA_CITIES, REGION_CITIES, type 
 const DAY = 24 * 60 * 60_000
 
 /** How often each kind of target should be researched (days). */
-export const INTERVAL_DAYS = { tirana: 4, region: 7, diaspora: 10, artist: 30 } as const
+export const INTERVAL_DAYS = { worldwide: 3, tirana: 4, region: 7, diaspora: 10, artist: 30 } as const
 export const ARTISTS_PER_RUN = 4
 
 export type RunInfo = {
@@ -53,7 +53,7 @@ export function usage(runs: RunInfo[], now: number): Usage {
 export type PlanEntry = {
   id: string
   label: string
-  kind: 'region' | 'diaspora' | 'artists'
+  kind: 'worldwide' | 'region' | 'diaspora' | 'artists'
   lastRun: number | null
   /** >= 1 means due; never-run targets are most due. */
   due: number
@@ -68,14 +68,18 @@ function cityInterval(c: CityTarget): number {
 export function planRotation(artists: string[], runs: RunInfo[], now: number): PlanEntry[] {
   const done = runs.filter(covered)
   const lastFor = (pred: (r: RunInfo) => boolean) => done.filter(pred).reduce<number | null>((m, r) => (m == null || r.startedAt > m ? r.startedAt : m), null)
-  // Never-run targets come first, in list order (region before diaspora).
+  // Never-run targets come first, in list order (worldwide, region, diaspora, artists).
   const dueScore = (last: number | null, intervalDays: number, order: number) => (last == null ? 1000 - order : (now - last) / (intervalDays * DAY))
 
   const cities = [...REGION_CITIES, ...DIASPORA_CITIES]
-  const entries: PlanEntry[] = cities.map((c, i) => {
+  const worldLast = lastFor((r) => r.goalId === 'worldwide')
+  const entries: PlanEntry[] = [
+    { id: 'worldwide', label: 'Worldwide (any city)', kind: 'worldwide', lastRun: worldLast, due: dueScore(worldLast, INTERVAL_DAYS.worldwide, -1), goal: worldwideGoal() },
+  ]
+  cities.forEach((c, i) => {
     const id = cityGoalId(c)
     const last = lastFor((r) => r.goalId === id)
-    return { id, label: c.kind === 'diaspora' ? `${c.name} (Albanian scene)` : c.name, kind: c.kind, lastRun: last, due: dueScore(last, cityInterval(c), i), goal: cityGoal(c) }
+    entries.push({ id, label: c.kind === 'diaspora' ? `${c.name} (Albanian scene)` : c.name, kind: c.kind, lastRun: last, due: dueScore(last, cityInterval(c), i), goal: cityGoal(c) })
   })
 
   // Artists: each one tracked on its own; a run takes the most overdue few.

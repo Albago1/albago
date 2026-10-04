@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DiscoveryGoalV1 } from '@/engine'
-import { ARTIST_SEED, DIASPORA_CITIES, REGION_CITIES, cityGoal, artistGoal } from '@/integrations/albago/goals'
+import { ARTIST_SEED, DIASPORA_CITIES, REGION_CITIES, cityGoal, artistGoal, worldwideGoal } from '@/integrations/albago/goals'
 import { ARTISTS_PER_RUN, freeTierLimits, pickNext, planRotation, usage, type RunInfo } from '@/integrations/albago/rotation'
 
 const NOW = Date.UTC(2026, 9, 20, 12)
@@ -11,6 +11,7 @@ describe('AlbaGo goals', () => {
   it('every city and the artist batches are valid engine goals', () => {
     for (const c of [...REGION_CITIES, ...DIASPORA_CITIES]) expect(() => DiscoveryGoalV1.parse(cityGoal(c))).not.toThrow()
     expect(() => DiscoveryGoalV1.parse(artistGoal(ARTIST_SEED.slice(0, 4)))).not.toThrow()
+    expect(() => DiscoveryGoalV1.parse(worldwideGoal())).not.toThrow()
     expect(new Set([...REGION_CITIES, ...DIASPORA_CITIES].map((c) => cityGoal(c).id)).size).toBe(REGION_CITIES.length + DIASPORA_CITIES.length)
   })
 
@@ -20,18 +21,24 @@ describe('AlbaGo goals', () => {
 })
 
 describe('rotation', () => {
-  it('starts with never-run targets, region first, then the most overdue', () => {
+  it('starts with never-run targets, worldwide then region first, then the most overdue', () => {
     const plan = planRotation(['Noizy'], [], NOW)
-    expect(pickNext(plan)?.id).toBe('city-tirana')
-    const runs = [...REGION_CITIES, ...DIASPORA_CITIES].map((c, i) => run(cityGoal(c).id, 1 + (i % 3)))
+    expect(pickNext(plan)?.id).toBe('worldwide')
+    expect(pickNext(planRotation(['Noizy'], [run('worldwide', 1)], NOW))?.id).toBe('city-tirana')
+    const runs = [run('worldwide', 1), ...[...REGION_CITIES, ...DIASPORA_CITIES].map((c, i) => run(cityGoal(c).id, 1 + (i % 3)))]
     // Every city ran in the last 3 days; the never-searched artist is now most due.
     expect(pickNext(planRotation(['Noizy'], runs, NOW))?.id).toBe('artists')
   })
 
   it('returns nothing when everything was covered recently (saves the free quota)', () => {
-    const runs = [...REGION_CITIES, ...DIASPORA_CITIES].map((c) => run(cityGoal(c).id, 0.5))
+    const runs = [run('worldwide', 0.5), ...[...REGION_CITIES, ...DIASPORA_CITIES].map((c) => run(cityGoal(c).id, 0.5))]
     runs.push(run('artists', 1, { performers: ['Noizy'] }))
     expect(pickNext(planRotation(['Noizy'], runs, NOW))).toBeNull()
+  })
+
+  it('worldwide is due every 3 days', () => {
+    expect(planRotation([], [run('worldwide', 3.5)], NOW).find((p) => p.id === 'worldwide')!.due).toBeGreaterThan(1)
+    expect(planRotation([], [run('worldwide', 2)], NOW).find((p) => p.id === 'worldwide')!.due).toBeLessThan(1)
   })
 
   it('Tirana is due after 4 days, other region cities after 7', () => {
