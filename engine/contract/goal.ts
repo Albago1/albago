@@ -10,6 +10,8 @@ export const RelevanceCriteriaV1 = z.object({
   description: z.string().min(1).max(300),
   /** Affiliation label used on entities, e.g. 'albanian'. */
   affiliation: z.string().regex(/^[a-z0-9_]{2,40}$/),
+  /** Words (any language, accent-insensitive) that mark a stated audience or occasion as matching. */
+  keywords: z.array(z.string().min(2)).default([]),
   /** Being located here is enough on its own (e.g. AL, XK for AlbaGo). */
   location_implies: z.object({
     country_codes: z.array(CountryCode),

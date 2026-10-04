@@ -9,3 +9,4 @@
 export * from './index'
 export { isPublicHttpUrl, safeFetch, type SafeFetchOptions } from './acquire/ssrf'
 export { normalizeImportUrl, sourceNameFromUrl } from './core/url'
+export * from './extract/llm'
