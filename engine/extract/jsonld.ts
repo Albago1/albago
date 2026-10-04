@@ -78,6 +78,26 @@ function namesOf(v: unknown): string[] {
     .filter((x): x is string => !!x)
 }
 
+// schema.org Event sub-types → engine taxonomy (deterministic; generic "Event" stays null).
+const SCHEMA_TYPES: Record<string, NonNullable<ExtractionV1['event_type']>> = {
+  MusicEvent: 'concert',
+  TheaterEvent: 'theatre',
+  ComedyEvent: 'comedy',
+  ScreeningEvent: 'film',
+  ExhibitionEvent: 'exhibition',
+  VisualArtsEvent: 'exhibition',
+  SportsEvent: 'sports_match',
+  Festival: 'festival',
+  FoodEvent: 'food_drink',
+  ChildrensEvent: 'family',
+  EducationEvent: 'talk_workshop',
+  BusinessEvent: 'talk_workshop',
+  LiteraryEvent: 'talk_workshop',
+  DanceEvent: 'club_night',
+  SocialEvent: 'party_social',
+  SaleEvent: 'market_fair',
+}
+
 const STATUS: Record<string, ExtractionV1['status']> = {
   EventScheduled: 'scheduled',
   EventCancelled: 'cancelled',
@@ -93,6 +113,11 @@ export function extractFromJsonLdEvent(node: Json): ExtractionV1 {
     x.field_status[field] = 'stated'
   }
   x.is_event = true
+  const schemaType = typesOf(node).map((t) => SCHEMA_TYPES[t]).find(Boolean)
+  if (schemaType) {
+    x.event_type = schemaType
+    x.field_status.event_type = 'derived'
+  }
 
   x.title = decode(str(node.name))
   if (x.title) stated('title')
