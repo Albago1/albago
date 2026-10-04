@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ExternalLink, Loader2, Radar, Sparkles, TriangleAlert, X } from 'lucide-react'
 
 export type ReviewCard = {
   id: string
+  version: number
+  /** review = waiting for a decision; approved = verified but not on AlbaGo yet. */
+  stage: 'review' | 'approved'
   title: string
   eventType: string
   date: string
@@ -55,9 +58,11 @@ function host(url: string): string {
 
 export default function EngineReviewClient({ initialCards, recentRuns }: { initialCards: ReviewCard[]; recentRuns: RunSummary[] }) {
   const router = useRouter()
-  const [cards, setCards] = useState(initialCards)
+  // Cards handled in this session, keyed by id:version — every approval bumps
+  // the version, so a card that comes back after a refresh (held back) shows again.
+  const [handled, setHandled] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string; href?: string } | null>(null)
   const [edits, setEdits] = useState<Record<string, Edits>>({})
   const [running, setRunning] = useState(false)
 
@@ -85,14 +90,15 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
       const res = await fetch('/api/admin/engine/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const body = await res.json()
       if (!res.ok || !body.ok) throw new Error(body.message ?? body.error ?? 'failed')
-      setCards((prev) => prev.filter((c) => c.id !== card.id))
+      setHandled((prev) => new Set(prev).add(`${card.id}:${card.version}`))
       if (action === 'reject') setNotice({ tone: 'ok', text: `Rejected “${card.title}”.` })
-      else if (body.delivery?.delivered) setNotice({ tone: 'ok', text: `Verified and published on AlbaGo: /events/${body.delivery.slug}` })
-      else setNotice({ tone: 'ok', text: `Verified. Not published on AlbaGo yet: ${(body.delivery?.reasons ?? []).join(', ')}` })
+      else if (body.delivery?.delivered) setNotice({ tone: 'ok', text: `Published on AlbaGo: “${card.title}”. Open it →`, href: `/events/${body.delivery.slug}` })
+      else setNotice({ tone: 'ok', text: `Approved, but not on AlbaGo yet: ${(body.delivery?.reasons ?? []).join(', ')}. Fix it under “Approved, not on AlbaGo yet”.` })
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Something went wrong' })
     } finally {
       setBusy(null)
+      router.refresh() // a failed publish leaves the event approved — the refresh moves it to that section
     }
   }
 
@@ -112,6 +118,9 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
       setRunning(false)
     }
   }
+
+  const visible = initialCards.filter((c) => !handled.has(`${c.id}:${c.version}`))
+  const approvedCount = visible.filter((c) => c.stage === 'approved').length
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -136,7 +145,13 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
 
       {notice && (
         <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${notice.tone === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-red-500/30 bg-red-500/10 text-red-100'}`}>
-          {notice.text}
+          {notice.href ? (
+            <a href={notice.href} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
+              {notice.text}
+            </a>
+          ) : (
+            notice.text
+          )}
         </div>
       )}
 
@@ -150,18 +165,29 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
         </div>
       )}
 
-      {cards.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/55">
           <Sparkles className="mx-auto h-6 w-6 text-flame-300" />
           <p className="mt-3">Nothing waiting for review. Run AI discovery to find events.</p>
         </div>
       ) : (
         <ul className="mt-6 space-y-4">
-          {cards.map((c) => {
+          {visible.map((c, i) => {
             const e = editsFor(c)
             const setE = (patch: Partial<Edits>) => setEdits((prev) => ({ ...prev, [c.id]: { ...e, ...patch } }))
+            const approved = c.stage === 'approved'
+            const firstOfStage = i === 0 || visible[i - 1].stage !== c.stage
             return (
-              <li key={c.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <Fragment key={c.id}>
+              {firstOfStage && (
+                <li className={i === 0 ? '' : 'pt-4'}>
+                  <h2 className="text-sm font-semibold text-white/80">
+                    {approved ? `Approved, not on AlbaGo yet · ${approvedCount}` : `Waiting for review · ${visible.length - approvedCount}`}
+                  </h2>
+                  {approved && <p className="mt-0.5 text-xs text-white/45">Fix what holds it back, then publish.</p>}
+                </li>
+              )}
+              <li className={`rounded-3xl border p-5 ${approved ? 'border-sky-400/25 bg-sky-500/[0.04]' : 'border-white/10 bg-white/[0.03]'}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <input
@@ -175,11 +201,14 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
                       {c.countryCode ? `, ${c.countryCode}` : ''}
                     </p>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                  {approved && <span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-200">Approved</span>}
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${c.relevance === 'relevant' ? 'bg-emerald-500/15 text-emerald-200' : c.relevance === 'possible' ? 'bg-amber-500/15 text-amber-200' : 'bg-white/10 text-white/60'}`}
                   >
                     {c.relevance ? `Albanian relevance: ${c.relevance.replace('_', ' ')}` : 'relevance not assessed'}
                   </span>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
@@ -220,13 +249,14 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
                   ))}
                 </div>
 
-                {(c.issues.length > 0 || c.possibleDuplicates > 0 || c.wouldPublish.length > 0) && (
+                {(c.issues.length > 0 || c.possibleDuplicates > 0 || c.wouldPublish.length > 0 || approved) && (
                   <div className="mt-3 space-y-1 text-xs text-amber-200/90">
                     {c.possibleDuplicates > 0 && (
                       <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> Possible duplicate of {c.possibleDuplicates} other event{c.possibleDuplicates > 1 ? 's' : ''}</p>
                     )}
                     {c.issues.length > 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> Reading issues: {c.issues.join(', ')}</p>}
-                    {c.wouldPublish.length > 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> AlbaGo would hold it back: {c.wouldPublish.join(', ')}</p>}
+                    {c.wouldPublish.length > 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> {approved ? 'Held back from AlbaGo' : 'AlbaGo would hold it back'}: {c.wouldPublish.join(', ')}</p>}
+                    {approved && c.wouldPublish.length === 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> Publishing failed last time. Try again.</p>}
                   </div>
                 )}
 
@@ -238,7 +268,7 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
                     className="inline-flex items-center gap-2 rounded-full bg-flame-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-flame-400 disabled:opacity-60"
                   >
                     {busy === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                    Approve &amp; publish
+                    {approved ? 'Publish to AlbaGo' : 'Approve & publish'}
                   </button>
                   <button
                     type="button"
@@ -250,6 +280,7 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
                   </button>
                 </div>
               </li>
+              </Fragment>
             )
           })}
         </ul>

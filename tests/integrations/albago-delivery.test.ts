@@ -84,6 +84,11 @@ describe('AlbaGo event row', () => {
     expect(toAlbagoEventRow(occ({ price: { state: 'free', min: null, max: null, currency: null, note: 'Hyrja falas' } }), null)).toMatchObject({ price: 'Free', price_from_cents: 0 })
   })
 
+  it('always sends a currency (public.events.price_currency is NOT NULL)', () => {
+    expect(toAlbagoEventRow(occ({ price: { state: 'unknown', min: null, max: null, currency: null, note: null } }), null).price_currency).toBe('EUR')
+    expect(toAlbagoEventRow(occ({ price: { state: 'paid', min: 1000, max: null, currency: 'ALL', note: null } }), null).price_currency).toBe('ALL')
+  })
+
   it('builds AlbaGo location slugs from canonical localities', () => {
     expect(albagoLocationSlug('Tirana')).toBe('tirana')
     expect(albagoLocationSlug('Durrës')).toBe('durres')

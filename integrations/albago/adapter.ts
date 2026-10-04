@@ -61,7 +61,8 @@ export function toAlbagoEventRow(o: CanonicalOccurrenceV1, verifiedAt: string | 
     language: o.language,
     price: priceText(o),
     price_from_cents: o.price.state === 'paid' && o.price.min != null ? Math.round(o.price.min * 100) : o.price.state === 'free' ? 0 : null,
-    price_currency: o.price.state === 'paid' ? o.price.currency : null,
+    // NOT NULL in public.events; 'EUR' is the column's own default.
+    price_currency: o.price.currency ?? 'EUR',
     ticket_url: o.ticket_url,
     official_source_url: o.source_urls[0] ?? null,
     last_verified_at: verifiedAt,

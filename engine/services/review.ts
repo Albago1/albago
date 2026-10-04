@@ -112,8 +112,8 @@ export function createReview(deps: EngineDeps) {
   return {
     get,
 
-    async queue(limit = 50): Promise<ReviewItem[]> {
-      const rows = await deps.store.occurrences.listByReviewStatus('needs_review', limit)
+    async queue(limit = 50, status: OccurrenceRecord['review_status'] = 'needs_review'): Promise<ReviewItem[]> {
+      const rows = await deps.store.occurrences.listByReviewStatus(status, limit)
       const items = await Promise.all(rows.map((r) => get(r.id)))
       return items.filter((i): i is ReviewItem => i !== null)
     },
