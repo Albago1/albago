@@ -89,11 +89,12 @@ const SYSTEM = `You are an event researcher. You find real, upcoming events that
 
 How to work:
 1. Plan several different searches: vary the language (local language first), the event type, the venue or organizer names you learn, and the dates ("this weekend", month names). Do not repeat a query.
-2. Prefer primary sources: venue, organizer, festival and ticketing pages. Aggregators and news roundups are good for finding names and links, then go to the primary page.
+2. Reading beats searching: after every search, read the 1–3 most promising results before searching again (the engine enforces this). Budget roughly two page reads per search.
+   Prefer primary sources: venue, organizer, festival and ticketing pages. Programme/agenda pages of venues and institutions are valuable — read them and follow their event_links. Aggregators and news roundups are good for finding names and links, then go to the primary page.
 3. ALWAYS read_page before submit_event. Submit only pages that announce ONE specific event with a date inside the goal window. A listing/agenda page is for finding links to individual event pages — use the links read_page returns.
 4. Submit each distinct event page once. Results marked known:true are already in the engine — skip them unless you are checking for changes.
 5. When a website regularly lists many relevant events (a venue program, a ticketing category, an events calendar), call propose_source once with a short reason.
-6. Never invent events, dates or URLs. If a tool says the budget is exhausted, stop and write your summary.
+6. Never invent events, dates or URLs, and never claim a site lacks information unless you read it. Social networks are not collected — do not target them. If a tool says the budget is exhausted, stop and write your summary.
 7. Finish with a short plain summary: what you searched, how many events you submitted, and gaps you could not cover.`
 
 export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: DiscoverOptions): Promise<DiscoverReport> {
@@ -104,12 +105,15 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
   const deadline = startedAt + goal.budget.max_minutes * 60_000
   const blocked = new Set((opts.blockedHosts ?? []).map((h) => h.toLowerCase().replace(/^www\./, '')))
 
-  const stats = { searches: 0, pages_read: 0, submitted: 0, new: 0, attached: 0, possible_duplicate: 0, unchanged: 0, not_event: 0, past: 0, outside_window: 0, failed: 0, refused: 0, sources_proposed: 0, input_tokens: 0, output_tokens: 0 }
+  const stats = { searches: 0, pages_read: 0, submitted: 0, new: 0, attached: 0, possible_duplicate: 0, unchanged: 0, not_event: 0, past: 0, outside_window: 0, failed: 0, refused: 0, guard_refusals: 0, sources_proposed: 0, input_tokens: 0, output_tokens: 0 }
   const log: Array<Record<string, unknown>> = []
   const outcomes: Array<ObserveOutcome & { url: string }> = []
   const proposedSources: string[] = []
   const pages = new Map<string, { page: DistilledPage; finalUrl: string; retrievedAt: string; query: string | null }>()
   let lastQuery: string | null = null
+  // Read-before-search discipline: a search with usable results must be followed
+  // by at least one read_page before the next search is allowed.
+  let unreadSearch = false
 
   const runId = await deps.store.runs.create('research', { goal, window }, opts.triggeredBy)
   const overBudget = (kind: 'search' | 'fetch') => {
@@ -118,6 +122,11 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
     if (kind === 'fetch' && stats.pages_read >= goal.budget.max_fetches) return 'page budget exhausted — stop reading'
     return null
   }
+  const remaining = () => ({
+    searches_left: Math.max(goal.budget.max_searches - stats.searches, 0),
+    page_reads_left: Math.max(goal.budget.max_fetches - stats.pages_read, 0),
+    minutes_left: Math.max(Math.round((deadline - Date.now()) / 6000) / 10, 0),
+  })
   const isBlocked = (url: string) => {
     const host = sourceNameFromUrl(url)
     return !host || [...blocked].some((b) => host === b || host.endsWith(`.${b}`))
@@ -134,20 +143,31 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
       }),
       execute: async ({ query }: { query: string }) => {
         const stop = overBudget('search')
-        if (stop) return { error: stop }
+        if (stop) return { error: stop, ...remaining() }
+        if (unreadSearch && stats.pages_read < goal.budget.max_fetches) {
+          stats.guard_refusals++
+          return { error: 'Read at least one promising result of your previous search (read_page) before searching again.', ...remaining() }
+        }
+        const siteTarget = query.match(/site:([^\s/]+)/i)?.[1]
+        if (siteTarget && isBlocked(`https://${siteTarget}/`)) {
+          stats.guard_refusals++
+          return { error: `${siteTarget} is not collected by this deployment — search the open web instead.`, ...remaining() }
+        }
         stats.searches++
         lastQuery = query
         try {
           const results = await deps.search.search(query, { maxResults: 8, recencyDays: Math.max(goal.horizon_days, 30) })
+          const usable = results.filter((r) => !isBlocked(r.url))
           const rows = await Promise.all(
-            results.map(async (r) => {
+            usable.map(async (r) => {
               const key = normalizeImportUrl(r.url)
               const known = key ? (await deps.store.observations.countRecentForUrl(key)) > 0 : false
-              return { url: r.url, title: r.title.slice(0, 160), snippet: r.snippet.slice(0, 300), known, blocked: isBlocked(r.url) }
+              return { url: r.url, title: r.title.slice(0, 160), snippet: r.snippet.slice(0, 300), known }
             }),
           )
-          log.push({ t: 'search', query, results: rows.length })
-          return { results: rows }
+          unreadSearch = rows.some((r) => !r.known)
+          log.push({ t: 'search', query, results: rows.length, hidden_blocked: results.length - usable.length })
+          return { results: rows, ...remaining() }
         } catch (error) {
           log.push({ t: 'search_error', query, error: String(error).slice(0, 200) })
           return { error: 'search failed' }
@@ -165,16 +185,17 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
       }),
       execute: async ({ url }: { url: string }) => {
         const stop = overBudget('fetch')
-        if (stop) return { error: stop }
+        if (stop) return { error: stop, ...remaining() }
         if (isBlocked(url)) {
           stats.refused++
-          return { error: 'this site is not collected by this deployment — do not use it' }
+          return { error: 'this site is not collected by this deployment — do not use it', ...remaining() }
         }
         stats.pages_read++
+        unreadSearch = false
         const fetched = await deps.fetcher.fetchHtml(url)
         if (!fetched) {
           log.push({ t: 'read_failed', url })
-          return { error: 'could not read this page (blocked, not HTML, or offline)' }
+          return { error: 'could not read this page (blocked, not HTML, or offline)', ...remaining() }
         }
         const page = distillPage(fetched.html, fetched.finalUrl)
         pages.set(url, { page, finalUrl: fetched.finalUrl, retrievedAt: new Date().toISOString(), query: lastQuery })
@@ -184,6 +205,7 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
           has_structured_event_data: page.jsonld.some((b) => JSON.stringify(b).includes('Event')),
           text_start: page.text.slice(0, 2500),
           event_links: eventLinks(fetched.html, fetched.finalUrl).slice(0, 20),
+          ...remaining(),
         }
       },
     }),
