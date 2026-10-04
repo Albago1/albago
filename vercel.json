@@ -3,6 +3,11 @@
   "crons": [
     { "path": "/api/cron/scout", "schedule": "0 3 * * *" },
     { "path": "/api/cron/discover", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/verify", "schedule": "0 5 * * *" }
+    { "path": "/api/cron/verify", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/engine", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/engine", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/engine", "schedule": "0 12 * * *" },
+    { "path": "/api/cron/engine", "schedule": "0 15 * * *" },
+    { "path": "/api/cron/engine", "schedule": "0 18 * * *" }
   ]
 }

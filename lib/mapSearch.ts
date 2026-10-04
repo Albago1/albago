@@ -32,6 +32,7 @@ export type MapSearchIndex = {
 
 // Accent-insensitive fold now lives in the engine (engine/core/text.ts).
 import { foldText } from '@/engine'
+import { citySlug } from '@/lib/citySlug'
 export { foldText }
 
 export function tokenizeQuery(query: string): string[] {
@@ -173,15 +174,6 @@ export type RemoteCity = {
   displayName: string
 }
 
-function slugifyCityName(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-}
 
 type NominatimHit = {
   lat: string
@@ -210,7 +202,7 @@ export async function searchRemoteCities(
     const city = a.city || a.town || a.village || a.municipality || ''
     const label = city || hit.display_name.split(',')[0]?.trim() || hit.display_name
     return {
-      slug: slugifyCityName(city || label) || 'unknown',
+      slug: citySlug(city || label) || 'unknown',
       label,
       country: a.country ?? '',
       center: [parseFloat(hit.lon), parseFloat(hit.lat)] as [number, number],

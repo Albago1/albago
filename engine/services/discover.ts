@@ -3,6 +3,7 @@ import type { DiscoveryGoalV1 } from '../contract/goal'
 import { normalizeImportUrl, sourceNameFromUrl } from '../core/url'
 import { distillPage, type DistilledPage } from '../extract/page'
 import type { EngineDeps } from '../ports'
+import { createEntities } from './entities'
 import { observe, type ObserveOutcome } from './observe'
 
 /**
@@ -105,7 +106,7 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
   const deadline = startedAt + goal.budget.max_minutes * 60_000
   const blocked = new Set((opts.blockedHosts ?? []).map((h) => h.toLowerCase().replace(/^www\./, '')))
 
-  const stats = { searches: 0, pages_read: 0, submitted: 0, new: 0, attached: 0, possible_duplicate: 0, unchanged: 0, not_event: 0, past: 0, outside_window: 0, failed: 0, refused: 0, guard_refusals: 0, sources_proposed: 0, input_tokens: 0, output_tokens: 0 }
+  const stats = { searches: 0, pages_read: 0, submitted: 0, new: 0, attached: 0, possible_duplicate: 0, unchanged: 0, not_event: 0, past: 0, outside_window: 0, failed: 0, refused: 0, guard_refusals: 0, sources_proposed: 0, entities_proposed: 0, input_tokens: 0, output_tokens: 0 }
   const log: Array<Record<string, unknown>> = []
   const outcomes: Array<ObserveOutcome & { url: string }> = []
   const proposedSources: string[] = []
@@ -300,6 +301,23 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
   } catch (e) {
     status = 'failed'
     error = e instanceof Error ? e.message.slice(0, 500) : 'discovery_failed'
+  }
+
+  // Learning: performers of relevant events found in this run become candidate
+  // entities for a human to confirm — the next runs then watch them too.
+  if (goal.relevance && (goal.expansion?.learn ?? true)) {
+    const criteria = goal.relevance
+    const entities = createEntities(deps)
+    for (const o of outcomes) {
+      if (!o.occurrenceId || (o.outcome !== 'new' && o.outcome !== 'attached')) continue
+      try {
+        const occ = await deps.store.occurrences.get(o.occurrenceId)
+        if (!occ || occ.relevance[criteria.id]?.verdict !== 'relevant' || occ.performers.length === 0) continue
+        stats.entities_proposed += await entities.propose('performer', occ.performers, criteria.affiliation, { occurrence_id: occ.id, title: occ.title })
+      } catch (e) {
+        log.push({ t: 'learn_error', occurrence: o.occurrenceId, error: String(e).slice(0, 200) })
+      }
+    }
   }
 
   await deps.store.runs.finish(runId, { status, stats, log: log.slice(0, 500), error })

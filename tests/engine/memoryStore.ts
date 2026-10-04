@@ -1,4 +1,4 @@
-import type { EngineStore, ObservationRow, OccurrenceRecord, RunRecord, VenueRecord } from '@/engine'
+import type { EngineStore, EntityRecord, ObservationRow, OccurrenceRecord, RunRecord, VenueRecord } from '@/engine'
 
 /** In-memory EngineStore for pipeline tests — same contract as the Supabase store. */
 export function memoryStore() {
@@ -10,7 +10,7 @@ export function memoryStore() {
   const venues = new Map<string, VenueRecord>()
   const sources = new Map<string, { id: string; status: string; normalized_url: string }>()
   const reviewActions: unknown[] = []
-  const entities: { name: string; kind: string; affiliation: string }[] = []
+  const entities = new Map<string, EntityRecord>()
   const nowIso = () => new Date().toISOString()
 
   const store: EngineStore = {
@@ -99,7 +99,24 @@ export function memoryStore() {
     entities: {
       async findAffiliated(names, affiliation) {
         const wanted = new Set(names.map((x) => x.toLowerCase()))
-        return entities.filter((e) => e.affiliation === affiliation && wanted.has(e.name.toLowerCase())).map(({ name, kind }) => ({ name, kind }))
+        return [...entities.values()]
+          .filter((e) => e.affiliations[affiliation]?.state === 'confirmed' && [e.name, ...e.aliases].some((n) => wanted.has(n.toLowerCase())))
+          .map(({ name, kind }) => ({ name, kind }))
+      },
+      async list(kind, affiliation) {
+        return [...entities.values()].filter((e) => e.kind === kind && e.affiliations[affiliation])
+      },
+      async findByName(kind, name) {
+        return [...entities.values()].find((e) => e.kind === kind && e.name.toLowerCase() === name.toLowerCase()) ?? null
+      },
+      async insert(row) {
+        const eid = id()
+        entities.set(eid, { ...row, id: eid })
+        return eid
+      },
+      async setAffiliation(eid, affiliation, claim) {
+        const e = entities.get(eid)!
+        entities.set(eid, { ...e, affiliations: { ...e.affiliations, [affiliation]: claim } })
       },
     },
     reviewActions: {

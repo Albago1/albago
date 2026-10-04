@@ -86,6 +86,29 @@ export type VenueRecord = {
   lng: number | null
 }
 
+/**
+ * A claim that an entity belongs to a community/affiliation (e.g. "albanian").
+ * Only `confirmed` claims count as relevance evidence; `candidate` waits for a
+ * human; `rejected` is remembered so it is never proposed again.
+ */
+export type AffiliationClaim = {
+  state: 'confirmed' | 'candidate' | 'rejected'
+  /** Where the claim came from: 'config', 'learned', 'review'. */
+  source: string
+  since: string
+  actor?: string | null
+  /** Occurrences the entity was seen in (learned claims), newest first, capped. */
+  evidence?: Array<{ occurrence_id: string; title: string }>
+}
+
+export type EntityRecord = {
+  id: string
+  kind: 'performer' | 'organizer' | 'institution'
+  name: string
+  aliases: string[]
+  affiliations: Record<string, AffiliationClaim>
+}
+
 export type RunRecord = {
   id: string
   lane: 'research' | 'monitoring' | 'direct' | 'manual'
@@ -130,7 +153,13 @@ export type EngineStore = {
     insert(row: Omit<VenueRecord, 'id'> & { created_from_observation: string | null }): Promise<string>
   }
   entities: {
+    /** Entities among `names` (or their aliases) with a CONFIRMED claim for the affiliation. */
     findAffiliated(names: string[], affiliation: string): Promise<{ name: string; kind: string }[]>
+    /** Every entity of a kind with any claim (confirmed, candidate, rejected) for the affiliation. */
+    list(kind: EntityRecord['kind'], affiliation: string): Promise<EntityRecord[]>
+    findByName(kind: EntityRecord['kind'], name: string): Promise<EntityRecord | null>
+    insert(row: Omit<EntityRecord, 'id'>): Promise<string>
+    setAffiliation(id: string, affiliation: string, claim: AffiliationClaim): Promise<void>
   }
   reviewActions: {
     insert(row: { occurrence_id: string | null; observation_id: string | null; action: string; changes: unknown; reason: string | null; actor: string | null }): Promise<void>

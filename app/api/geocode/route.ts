@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { citySlug } from '@/lib/citySlug'
 
 /**
  * Server-side proxy for OpenStreetMap Nominatim.
@@ -68,15 +69,6 @@ type NominatimHit = {
   }
 }
 
-function slugify(value: string): string {
-  return (value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-}
 
 function hitToSuggestion(hit: NominatimHit): Suggestion {
   const a = hit.address ?? {}
@@ -105,7 +97,7 @@ function hitToSuggestion(hit: NominatimHit): Suggestion {
   const addressParts = [a.house_number, a.road].filter(Boolean).join(' ')
 
   return {
-    slug: slugify(cityForSlug) || 'unknown',
+    slug: citySlug(cityForSlug) || 'unknown',
     city: city,
     country: country,
     countryCode: a.country_code ? a.country_code.toUpperCase() : null,

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { foldText } from '@/lib/mapSearch'
+import { citySlug } from '@/lib/citySlug'
 import {
   GEOCODE_SANITY_RING_KM,
   haversineKm,
@@ -188,15 +189,6 @@ type NominatimHit = {
   }
 }
 
-function slugifyCityName(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-}
 
 async function resolveCityRemote(
   reading: PosterReading,
@@ -219,7 +211,7 @@ async function resolveCityRemote(
     const a = hit.address ?? {}
     const cityName = a.city || a.town || a.village || a.municipality || ''
     if (!cityName) continue
-    const slug = slugifyCityName(cityName)
+    const slug = citySlug(cityName)
     if (!slug) continue
     return {
       status: 'remote',

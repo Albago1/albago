@@ -4,6 +4,7 @@ import type { ObservationInputV1 } from './contract/observation'
 import type { EngineDeps } from './ports'
 import { discover, type DiscoverOptions } from './services/discover'
 import { observe, type ObserveContext } from './services/observe'
+import { createEntities } from './services/entities'
 import { createReview, toContract } from './services/review'
 
 /**
@@ -18,6 +19,8 @@ export function createEngine(deps: EngineDeps) {
     /** Run the AI research lane for a goal (validated against the contract first). */
     discover: (goal: DiscoveryGoalV1, opts: DiscoverOptions) => discover(deps, GoalSchema.parse(goal), opts),
     review,
+    /** Performers/organizers and their confirmed or candidate affiliations. */
+    entities: createEntities(deps),
     occurrences: {
       get: async (id: string) => {
         const o = await deps.store.occurrences.get(id)

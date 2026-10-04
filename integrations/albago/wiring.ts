@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createClient } from '@supabase/supabase-js'
-import { createEngine, safeFetch, type Engine } from '@/engine/server'
+import { createEngine, createRobotsGate, safeFetch, type Engine } from '@/engine/server'
 import { supabaseEngineStore } from './store'
 import { tavilySearch } from './search'
 
@@ -11,11 +11,27 @@ import { tavilySearch } from './search'
  * code behind an admin guard. Reads env here so the engine never does.
  */
 
-const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+// Honest identification: sites can see who reads them and allow or refuse
+// AlbaGoBot in their robots.txt, which the fetcher below respects.
+const AGENT_TOKEN = 'AlbaGoBot'
+const HEADERS = {
+  'User-Agent': `Mozilla/5.0 (compatible; ${AGENT_TOKEN}/1.0; +https://www.albago.org)`,
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'sq,en;q=0.9,de;q=0.8,it;q=0.7',
 }
+
+// Per server instance; robots.txt answers are cached for a day.
+const robots = createRobotsGate({
+  agentToken: AGENT_TOKEN,
+  async fetchText(url) {
+    try {
+      const res = await safeFetch(url, { headers: HEADERS, timeoutMs: 6000 })
+      return { status: res.status, text: res.ok ? await res.text() : '' }
+    } catch {
+      return null
+    }
+  },
+})
 
 /**
  * Free-tier pacing for Gemini: space requests per model and, on a 429, wait
@@ -67,7 +83,11 @@ export function albagoEngine(): Engine {
     fetcher: {
       async fetchHtml(url) {
         try {
-          const res = await safeFetch(url, { headers: BROWSER_HEADERS, timeoutMs: 10_000 })
+          if (!(await robots.allows(url))) {
+            console.info('[engine] robots.txt disallows', new URL(url).host)
+            return null
+          }
+          const res = await safeFetch(url, { headers: HEADERS, timeoutMs: 10_000 })
           const contentType = res.headers.get('content-type') ?? ''
           if (!res.ok || !/html|xml/.test(contentType)) return null
           const html = (await res.text()).slice(0, 800_000)

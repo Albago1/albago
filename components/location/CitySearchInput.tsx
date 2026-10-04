@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Globe, Loader2, Search, X } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { citySlug } from '@/lib/citySlug'
 
 export type ResolvedCity = {
   slug: string
@@ -35,15 +36,6 @@ type Props = {
   suggestionsLimit?: number
 }
 
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-}
 
 type NominatimHit = {
   lat: string
@@ -65,7 +57,7 @@ function hitToResolved(hit: NominatimHit): ResolvedCity {
   const country = a.country || ''
   const cityName = city || hit.display_name.split(',')[0]?.trim() || hit.display_name
   return {
-    slug: slugify(city || cityName) || 'unknown',
+    slug: citySlug(city || cityName) || 'unknown',
     city: cityName,
     country,
     lat: parseFloat(hit.lat),
@@ -274,4 +266,4 @@ export default function CitySearchInput(props: Props) {
   )
 }
 
-export { slugify as slugifyCity }
+export { citySlug as slugifyCity }

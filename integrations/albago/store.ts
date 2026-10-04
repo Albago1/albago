@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { EngineStore, ObservationRow, OccurrenceRecord, RunRecord, VenueRecord } from '@/engine'
+import type { EngineStore, EntityRecord, ObservationRow, OccurrenceRecord, RunRecord, VenueRecord } from '@/engine'
 
 /**
  * EngineStore over the `engine` Postgres schema (service-role client only).
@@ -161,11 +161,32 @@ export function supabaseEngineStore(client: SupabaseClient): EngineStore {
     entities: {
       async findAffiliated(names, affiliation) {
         if (names.length === 0) return []
-        const rows = check(await db().from('entities').select('name, kind, aliases, affiliations').limit(500)) as { name: string; kind: string; aliases: string[]; affiliations: Record<string, unknown> }[]
+        const rows = check(
+          await db()
+            .from('entities')
+            .select('name, kind, aliases')
+            .contains('affiliations', { [affiliation]: { state: 'confirmed' } })
+            .limit(5000),
+        ) as { name: string; kind: string; aliases: string[] }[]
         const wanted = new Set(names.map((n) => n.toLowerCase()))
-        return rows
-          .filter((e) => e.affiliations?.[affiliation] && [e.name, ...(e.aliases ?? [])].some((n) => wanted.has(n.toLowerCase())))
-          .map(({ name, kind }) => ({ name, kind }))
+        return rows.filter((e) => [e.name, ...(e.aliases ?? [])].some((n) => wanted.has(n.toLowerCase()))).map(({ name, kind }) => ({ name, kind }))
+      },
+      async list(kind, affiliation) {
+        return check(
+          await db().from('entities').select('id, kind, name, aliases, affiliations').eq('kind', kind).not(`affiliations->${affiliation}`, 'is', null).order('name').limit(5000),
+        ) as EntityRecord[]
+      },
+      async findByName(kind, name) {
+        const pattern = name.replace(/[\\%_]/g, (c) => `\\${c}`)
+        const rows = check(await db().from('entities').select('id, kind, name, aliases, affiliations').eq('kind', kind).ilike('name', pattern).limit(1)) as EntityRecord[]
+        return rows[0] ?? null
+      },
+      async insert(row) {
+        return insertedId(await db().from('entities').insert(row).select('id').single())
+      },
+      async setAffiliation(id, affiliation, claim) {
+        const current = check(await db().from('entities').select('affiliations').eq('id', id).single()) as { affiliations: Record<string, unknown> }
+        check(await db().from('entities').update({ affiliations: { ...current.affiliations, [affiliation]: claim } }).eq('id', id))
       },
     },
 

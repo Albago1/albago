@@ -8,9 +8,11 @@
 
 export * from './index'
 export { isPublicHttpUrl, safeFetch, type SafeFetchOptions } from './acquire/ssrf'
+export { createRobotsGate, parseRobots, robotsAllows, type RobotsGate, type RobotsRules } from './acquire/robots'
 export { normalizeImportUrl, sourceNameFromUrl } from './core/url'
 export * from './extract/llm'
 export { createEngine, type Engine } from './create'
 export { observe, type ObserveContext, type ObserveOutcome } from './services/observe'
 export { discover, describeGoal, type DiscoverOptions, type DiscoverReport } from './services/discover'
 export { applyEdits, toContract, type ReviewEdits, type ReviewItem } from './services/review'
+export { cleanEntityName, createEntities, type Entities } from './services/entities'
