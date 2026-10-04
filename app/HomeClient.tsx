@@ -148,63 +148,7 @@ function buildSearchUrl(
 
 type SuggestionEvent = { id: string; slug: string; title: string; category: string; location_slug: string }
 
-/**
- * Odometer-style stat: counts up from the current value to the target when
- * the number scrolls into view (and re-animates when live data changes it).
- */
-function CountUp({ value }: { value: number }) {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [visible, setVisible] = useState(false)
-  // Starts at the server-provided value (not 0) so the prerendered HTML shows
-  // real inventory to crawlers and no-JS visitors; changes animate from there.
-  const [display, setDisplay] = useState(value)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setVisible(true)
-      },
-      { threshold: 0.4 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (!visible) return
-    let raf = 0
-    const from = display
-    const duration = 800
-    const start = performance.now()
-    const tick = (now: number) => {
-      const p = Math.min((now - start) / duration, 1)
-      // easeOutCubic so the last digits settle gently
-      setDisplay(Math.round(from + (value - from) * (1 - Math.pow(1 - p, 3))))
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-    // `display` is intentionally only read as the starting point.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, visible])
-
-  return (
-    <span ref={ref} className="tabular-nums">
-      {display}
-    </span>
-  )
-}
-
-/** Server-computed inventory counters passed in for a truthful first paint. */
-export type HomeStats = { events: number; cities: number; places: number }
-
-export default function HomeClient({
-  initialStats,
-}: {
-  initialStats?: HomeStats | null
-}) {
+export default function HomeClient() {
   const { t } = useLanguage()
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -245,9 +189,6 @@ export default function HomeClient({
     recurrence_exceptions: string[] | null
     status: string
   }>>([])
-  // True once the client-side inventory fetch has landed; until then the stat
-  // counters fall back to the server-computed initialStats.
-  const [globalLoaded, setGlobalLoaded] = useState(false)
   // Bumped every 60s so isEventActive re-runs against the current wall clock —
   // handles the end_time cutoff and the midnight rollover without needing a DB
   // event to fire.
@@ -533,7 +474,6 @@ export default function HomeClient({
 
       if (globalEventsRes.data) {
         setGlobalEventRows(globalEventsRes.data)
-        setGlobalLoaded(true)
       }
     }
 
@@ -711,28 +651,6 @@ export default function HomeClient({
   // it as "used" inside the filter callback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const activeGlobalEvents = useMemo(() => globalEventRows.filter(isEventActive), [globalEventRows, nowTick])
-  // Until the client fetch lands, fall back to the server-computed stats so
-  // the first paint (and the prerendered HTML) never shows a false zero.
-  const totalEventsCount = globalLoaded
-    ? activeGlobalEvents.length
-    : (initialStats?.events ?? 0)
-  const liveCitiesCount = useMemo(
-    () => new Set(activeGlobalEvents.map((e) => e.location_slug)).size,
-    [activeGlobalEvents],
-  )
-  const totalCitiesCount = globalLoaded ? liveCitiesCount : (initialStats?.cities ?? 0)
-  // Distinct venues with at least one live event. Online events without a
-  // place_id don't contribute — "venues" should mean actual venues.
-  const livePlacesCount = useMemo(
-    () =>
-      new Set(
-        activeGlobalEvents
-          .map((e) => e.place_id)
-          .filter((id): id is string => !!id),
-      ).size,
-    [activeGlobalEvents],
-  )
-  const totalPlacesCount = globalLoaded ? livePlacesCount : (initialStats?.places ?? 0)
 
   // Live events per category — drives the "N live" badges on the showcase
   // tiles and re-derives on every realtime change / wall-clock tick.
@@ -1280,35 +1198,6 @@ export default function HomeClient({
         </section>
       )}
 
-      <section className="border-y border-white/10 bg-white/[0.02] py-10">
-        <div className="mx-auto max-w-6xl px-4">
-          <p className="mb-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
-            {t('home_across_platform')}
-          </p>
-          <div className="flex items-center justify-around">
-            <div className="text-center">
-              <div className="text-5xl font-bold text-flame-500">
-                <CountUp value={totalPlacesCount} />
-              </div>
-              <div className="mt-2 text-xl text-white/65">{t('venues')}</div>
-            </div>
-
-            <div className="text-center">
-              <div className="text-5xl font-bold text-flame-500">
-                <CountUp value={totalEventsCount} />
-              </div>
-              <div className="mt-2 text-xl text-white/65">{t('events')}</div>
-            </div>
-
-            <div className="text-center">
-              <div className="text-5xl font-bold text-flame-500">
-                <CountUp value={totalCitiesCount} />
-              </div>
-              <div className="mt-2 text-xl text-white/65">{t('cities')}</div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <section className="px-4 py-20">
         <div className="mx-auto max-w-6xl">
