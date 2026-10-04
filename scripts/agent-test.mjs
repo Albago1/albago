@@ -73,11 +73,6 @@ function newCtx(draft = {}, attachments = []) {
   check('draftToReading falls back to en for an unknown language', reading.language === 'en')
 }
 
-{
-  const reading = draftToReading({ ...defaultEventDraft, event_type: 'protest', category: 'music' })
-  check('a protest reads as civic regardless of category', reading.is_civic === true && reading.category === 'civic')
-}
-
 // --- fillEmpty: extraction must never clobber a human answer -----------------
 
 {

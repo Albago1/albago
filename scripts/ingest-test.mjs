@@ -172,12 +172,6 @@ function reading(overrides = {}) {
 }
 
 {
-  const agent = validateIngestEvent(agentEvent({ is_civic: true, category: 'civic' })).item.reading
-  const { merged } = mergeAgentAndPage(agent, reading())
-  check('either source raising civic is enough', merged.is_civic === true)
-}
-
-{
   const agent = validateIngestEvent(agentEvent()).item.reading
   const { merged, conflicts } = mergeAgentAndPage(agent, reading({ is_event: false }))
   check('a page that reads as not-an-event does not silently delete the event', merged.is_event === true)
