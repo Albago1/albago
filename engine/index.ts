@@ -11,4 +11,4 @@
  * Architecture: docs/engine/phase-0-plan.md, docs/engine/discovery-architecture.md.
  */
 
-export {}
+export * from './contract'
