@@ -1,7 +1,8 @@
 /**
  * Event Intelligence Engine — public API.
  *
- * This file is the ONLY entry point other code may import (`@/engine`).
+ * Public entry points: `@/engine` (this file — pure, runtime-neutral, safe in
+ * the browser) and `@/engine/server` (Node-only I/O and services).
  * The engine is customer-neutral: it must not import AlbaGo code (app/,
  * components/, lib/, hooks/, types/, integrations/), Next.js, React,
  * `server-only`, or read process.env. Configuration and I/O arrive through
@@ -12,3 +13,5 @@
  */
 
 export * from './contract'
+export * from './core/text'
+export * from './core/match'

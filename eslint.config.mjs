@@ -31,13 +31,13 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  // Outside the engine, only its public index may be imported.
+  // Outside the engine, only its public entry points may be imported.
   {
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "hooks/**/*.{ts,tsx}", "integrations/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [
-          { group: ["@/engine/*"], message: "Import the engine through its public API: '@/engine'." },
+          { group: ["@/engine/*", "!@/engine/server"], message: "Import the engine through its public API: '@/engine' or '@/engine/server'." },
         ],
       }],
     },
