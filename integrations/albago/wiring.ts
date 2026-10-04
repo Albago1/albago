@@ -59,7 +59,11 @@ export function albagoEngine(): Engine {
   return createEngine({
     store: supabaseEngineStore(client),
     reasoner: { id: `google/${agentModel}+${extractModel}`, agent: google(agentModel), extractor: google(extractModel) },
-    search: tavilySearch(required('TAVILY_API_KEY')),
+    // Lazy: reviewing must work without a search key; only discovery needs it.
+    search: {
+      id: 'tavily',
+      search: (query, opts) => tavilySearch(required('TAVILY_API_KEY')).search(query, opts),
+    },
     fetcher: {
       async fetchHtml(url) {
         try {
