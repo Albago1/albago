@@ -117,6 +117,9 @@ type EventsClientProps = {
   initialPlaceNames?: Array<[string, string]> | null
 }
 
+// Below this many events, the desktop "All" view is one grid, not category rows.
+const COMPACT_GRID_LIMIT = 12
+
 export default function EventsClient({
   initialEvents = null,
   initialPlaceNames = null,
@@ -370,7 +373,9 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
     setDateTo('')
   }
 
-  const filteredEvents = useMemo(() => {
+  // Time/date filters only — category is applied after, so the category chips
+  // can show how many events each one would leave.
+  const timeFilteredEvents = useMemo(() => {
     const weekendDates = getWeekendDateStrings()
     const weekendFrom = weekendDates[0] ?? getTodayDateString()
     const weekendTo = weekendDates[weekendDates.length - 1] ?? weekendFrom
@@ -402,13 +407,28 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
         timeMatches = true
       }
 
-      const categoryMatches =
-        activeCategory === 'all' ||
-        event.category.toLowerCase() === activeCategory.toLowerCase()
-
-      return timeMatches && categoryMatches
+      return timeMatches
     })
-  }, [activeTimeFilter, activeCategory, events, hasDateRange, dateFrom, dateTo])
+  }, [activeTimeFilter, events, hasDateRange, dateFrom, dateTo])
+
+  const filteredEvents = useMemo(
+    () =>
+      activeCategory === 'all'
+        ? timeFilteredEvents
+        : timeFilteredEvents.filter(
+            (event) => event.category.toLowerCase() === activeCategory.toLowerCase(),
+          ),
+    [activeCategory, timeFilteredEvents],
+  )
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: timeFilteredEvents.length }
+    for (const event of timeFilteredEvents) {
+      const key = event.category.toLowerCase()
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+    return counts
+  }, [timeFilteredEvents])
 
   const sortedEvents = useMemo(() => {
     const today = getTodayDateString()
@@ -446,6 +466,11 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
       events: buckets.get(category) ?? [],
     }))
   }, [activeCategory, sortedEvents])
+
+  // With a small catalog, a row per category leaves most of a wide screen
+  // empty — desktop shows one grid instead (the chips still filter it). Phones
+  // keep the swipe rows; category rows return everywhere once there's enough.
+  const compactGrid = eventGroups !== null && sortedEvents.length < COMPACT_GRID_LIMIT
 
   const isAllCities = activeLocationSlug === 'all'
   const activeLocation = resolveLocation(activeLocationSlug, locationOptions)
@@ -542,6 +567,7 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
         }}
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
+        categoryCounts={isLoading ? undefined : categoryCounts}
         mapHref={`/map?location=${activeLocationSlug}`}
         sortBy={sortBy}
         onSortChange={setSortBy}
@@ -629,7 +655,7 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
           )}
 
           {!isLoading && !errorMessage && eventGroups && (
-            <div className="space-y-12">
+            <div className={`space-y-12${compactGrid ? ' lg:hidden' : ''}`}>
               {eventGroups.map(({ category, events: groupEvents }) => {
                 const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
                 return (
@@ -666,8 +692,11 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
             </div>
           )}
 
-          {!isLoading && !errorMessage && !eventGroups && (
-            <motion.div layout className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {!isLoading && !errorMessage && (!eventGroups || compactGrid) && (
+            <motion.div
+              layout
+              className={`${compactGrid ? 'hidden lg:grid' : 'grid'} gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-3`}
+            >
               <AnimatePresence mode="popLayout">
                 {sortedEvents.map((event) => renderEventCard(event))}
               </AnimatePresence>
