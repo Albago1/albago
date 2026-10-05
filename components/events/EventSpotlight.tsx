@@ -31,7 +31,7 @@ export default function EventSpotlight({
   isAuthenticated,
   initialSaved,
   label,
-}: EventCardProps & { label: string }) {
+}: EventCardProps & { label?: string }) {
   const { t } = useLanguage()
   const info = useEventDisplay(event)
   const [posterUrl, markPosterFailed] = usePoster(event.banner_url)
@@ -64,11 +64,13 @@ export default function EventSpotlight({
         </div>
 
         <div className="min-w-0">
-          <span className="inline-flex items-center gap-2 rounded-full bg-flame-500/15 px-3 py-1 text-xs font-semibold text-flame-200 ring-1 ring-flame-500/40">
-            <span className="h-1.5 w-1.5 rounded-full bg-flame-400" />
-            {label}
-          </span>
-          <div className="mt-6">
+          {label && (
+            <span className="mb-6 inline-flex items-center gap-2 rounded-full bg-flame-500/15 px-3 py-1 text-xs font-semibold text-flame-200 ring-1 ring-flame-500/40">
+              <span className="h-1.5 w-1.5 rounded-full bg-flame-400" />
+              {label}
+            </span>
+          )}
+          <div>
             <Kicker info={info} long />
           </div>
           <h3 className="mt-3 line-clamp-3 font-display text-[60px] leading-[0.98] tracking-[-0.01em] text-white">

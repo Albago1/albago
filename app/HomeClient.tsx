@@ -1163,7 +1163,6 @@ export default function HomeClient() {
               context={cardContext}
               isAuthenticated={isAuth}
               savedIds={savedIds}
-              spotlightLabel={`${t('home_tonight_in')} ${cityLabelFor(activeLocationSlug)}`}
               heading={
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">

@@ -110,9 +110,11 @@ function SimilarRow({ e }: { e: SimilarEvent }) {
   )
 }
 
-/** Fills the second half of a one-match row with a way to keep browsing. */
-function ExploreTile({ category, href }: { category: string; href: string }) {
+/** Fills the second half of a one-match row with a way to keep browsing —
+ *  the whole category, every city (the header's "See all" stays local). */
+function ExploreTile({ category }: { category: string }) {
   const key = category.toLowerCase()
+  const href = key ? `/events?category=${encodeURIComponent(key)}` : '/events'
   const Icon = CATEGORY_ICONS[key] ?? CATEGORY_ICONS.all
   return (
     <Link
@@ -176,7 +178,7 @@ export default function SimilarEvents({
           {events.map((e) => (
             <SimilarRow key={e.id} e={e} />
           ))}
-          {events.length === 1 && <ExploreTile category={category} href={browseHref} />}
+          {events.length === 1 && <ExploreTile category={category} />}
         </div>
       ) : (
       /* Horizontal snap rail — cards peek on mobile to signal scrollability,

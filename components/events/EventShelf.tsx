@@ -30,11 +30,14 @@ export default function EventShelf({
   context: (event: PublicEvent) => CardContext
   isAuthenticated: boolean
   savedIds: Set<string>
-  /** Chip on the single-event spotlight, e.g. "Next up in Berlin". */
-  spotlightLabel: string
+  /** Chip on the single-event spotlight, e.g. "Next up in Berlin". Omit it
+   *  when the heading already says why the event is here. */
+  spotlightLabel?: string
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
-  const arrows = useScrollArrows(trackRef, events)
+  // Keyed on which events are shown (a stable string), so the arrows
+  // re-measure when the set changes but not on every parent render.
+  const arrows = useScrollArrows(trackRef, events.map((e) => e.id).join(','))
   const count = events.length
   if (count === 0) return null
 
@@ -70,7 +73,7 @@ export default function EventShelf({
 
       {count === 1 && (
         <>
-          <div className="md:hidden">{card(events[0], '')}</div>
+          <div role="list" className="md:hidden">{card(events[0], '')}</div>
           <div className="hidden pt-2 md:block">
             <EventSpotlight {...props(events[0])} label={spotlightLabel} />
           </div>
