@@ -58,7 +58,7 @@ export default function BecomeOrganizerPage() {
               For event organizers
             </div>
 
-            <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
+            <h1 className="display-text mb-5 text-5xl sm:text-6xl">
               Bring your events<br />to AlbaGo
             </h1>
 

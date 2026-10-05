@@ -7,6 +7,7 @@ import { Event } from '@/types/event'
 import { Place } from '@/types/place'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
+import { displayPrice } from '@/lib/ticketDisplay'
 
 type PlacePanelProps = {
   place: Place | null
@@ -309,9 +310,9 @@ export default function PlacePanel({
                         </span>
                       )}
 
-                      {event.price && (
+                      {displayPrice(event.price) && (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                          <Banknote className="h-3.5 w-3.5" /> {event.price}
+                          <Banknote className="h-3.5 w-3.5" /> {displayPrice(event.price)}
                         </span>
                       )}
                     </div>

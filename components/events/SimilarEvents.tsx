@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, CalendarDays, MapPin } from 'lucide-react'
 import type { SimilarEvent } from '@/lib/similarEvents'
 import { getLocationBySlug } from '@/lib/locations'
-import { formatPriceFrom } from '@/lib/ticketDisplay'
+import { displayPrice, formatPriceFrom } from '@/lib/ticketDisplay'
 import { isMultiDay, isRecurring, nextOccurrence } from '@/lib/recurrence'
 
 function categoryTone(category?: string) {
@@ -43,7 +43,7 @@ function priceLabel(e: SimilarEvent): string | null {
       ? 'Free'
       : `From ${formatPriceFrom(e.price_from_cents, e.price_currency)}`
   }
-  return e.price?.trim() || null
+  return displayPrice(e.price)
 }
 
 export default function SimilarEvents({

@@ -33,7 +33,7 @@ import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
-import { formatPriceFrom, safeExternalUrl } from '@/lib/ticketDisplay'
+import { displayPrice, formatPriceFrom, safeExternalUrl } from '@/lib/ticketDisplay'
 import {
   buildLocationViewHref,
   buildMapHref,
@@ -691,6 +691,7 @@ export default async function EventDetailPage(
                 fill
                 priority
                 sizes="100vw"
+                unoptimized={!heroImage.includes('.supabase.co')}
                 className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/45 to-ink-950/70" />
@@ -943,7 +944,7 @@ export default async function EventDetailPage(
                 />
               )}
 
-              {!hasNativeTickets && (priceFromLabel || event.price) && (
+              {!hasNativeTickets && (priceFromLabel || displayPrice(event.price)) && (
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:mt-7 lg:p-5">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45 lg:text-xs">
@@ -951,7 +952,7 @@ export default async function EventDetailPage(
                       {priceFromLabel ? 'Tickets' : 'Price'}
                     </span>
                     <span className="text-lg font-semibold text-white lg:text-xl">
-                      {priceFromLabel ?? event.price}
+                      {priceFromLabel ?? displayPrice(event.price)}
                     </span>
                   </div>
                   {ticketMeta && (

@@ -340,7 +340,7 @@ export default function EventCreationWizard({
     <div ref={rootRef} className="mx-auto max-w-3xl scroll-mt-24">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="display-text text-4xl leading-[0.95] text-white sm:text-5xl">
             {heading ?? (mode === 'community' ? 'Submit an event' : 'Create event')}
           </h1>
           <p className="mt-1 text-sm text-white/55">

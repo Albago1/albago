@@ -104,7 +104,7 @@ export default function OnboardingClient({ email }: { email: string }) {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-3xl font-bold">Create your organizer profile</h1>
+                <h1 className="display-text text-4xl leading-[0.95]">Create your organizer profile</h1>
                 <p className="mt-2 text-sm text-white/50">
                   This is how you&apos;ll appear on AlbaGo.
                 </p>
@@ -167,7 +167,7 @@ export default function OnboardingClient({ email }: { email: string }) {
           {step === 2 && (
             <div className="space-y-7">
               <div>
-                <h1 className="text-3xl font-bold">About your events</h1>
+                <h1 className="display-text text-4xl leading-[0.95]">About your events</h1>
                 <p className="mt-2 text-sm text-white/50">
                   Help us understand your events. All optional — skip anything that doesn&apos;t apply.
                 </p>
@@ -279,7 +279,7 @@ export default function OnboardingClient({ email }: { email: string }) {
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-3xl font-bold">Looks good?</h1>
+                <h1 className="display-text text-4xl leading-[0.95]">Looks good?</h1>
                 <p className="mt-2 text-sm text-white/50">
                   Review your details and create your organizer account.
                 </p>

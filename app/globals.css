@@ -179,6 +179,13 @@ select:focus-visible,
   mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 80%);
 }
 
+/* Progressive blur under poster-card text: the backdrop-blur layer fades
+   out upward instead of ending in a hard edge (Apple-style). */
+.poster-fade {
+  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
+  mask-image: linear-gradient(to top, #000 45%, transparent);
+}
+
 .bg-noise {
   background-image:
     radial-gradient(ellipse at 0% 0%, rgba(238, 28, 37, 0.08), transparent 50%),
@@ -617,6 +624,11 @@ select:focus-visible,
 [data-theme="light"] .on-media .text-white\/55 { color: rgba(255, 255, 255, 0.55) !important; }
 [data-theme="light"] .on-media .text-flame-200 { color: #ffb3b3 !important; }
 [data-theme="light"] .on-media .border-white\/10 { border-color: rgba(255, 255, 255, 0.10) !important; }
+[data-theme="light"] .on-media .bg-ink-950\/45 { background-color: rgba(5, 5, 5, 0.45) !important; }
+[data-theme="light"] .on-media .bg-white\/15 { background-color: rgba(255, 255, 255, 0.15) !important; }
+[data-theme="light"] .on-media .ring-white\/10 { --tw-ring-color: rgba(255, 255, 255, 0.10) !important; }
+[data-theme="light"] .on-media .ring-white\/15 { --tw-ring-color: rgba(255, 255, 255, 0.15) !important; }
+[data-theme="light"] .on-media .ring-white\/20 { --tw-ring-color: rgba(255, 255, 255, 0.20) !important; }
 
 /* ────────────────────────────────────────────────────────────────────
    MapLibre controls (zoom / locate) — restyle the stock white boxes to
