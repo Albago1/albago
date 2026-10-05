@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { citySlug } from '@/lib/citySlug'
 import {
   Flame,
   MapPin,
@@ -65,7 +66,7 @@ const BIG_CITY_BY_COUNTRY: Record<string, string> = {
   XK: 'prishtina',
   RKS: 'prishtina',
   MK: 'prishtina', // North Macedonia → closest Albanian-speaking hub
-  IT: 'roma',
+  IT: 'rome',
   DE: 'berlin',
   AT: 'vienna',
   CH: 'zurich',
@@ -279,7 +280,7 @@ export default function HomeClient() {
         if (cityLabel === 'Your current location') {
           setActiveLocationSlug('current-location')
         } else {
-          const slug = cityLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+          const slug = citySlug(cityLabel)
           setActiveLocationSlug(slug)
           saveStoredLocation(slug, cityLabel)
         }

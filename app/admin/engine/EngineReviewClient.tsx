@@ -1,8 +1,8 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ExternalLink, Loader2, Radar, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { Check, ExternalLink, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
 
 export type ReviewCard = {
   id: string
@@ -32,7 +32,7 @@ export type ReviewCard = {
   wouldPublish: string[]
 }
 
-export type RunSummary = { id: string; status: string; startedAt: string; stats: Record<string, number> }
+export type RunSummary = { id: string; goal: string; status: string; startedAt: string; stats: Record<string, number> }
 
 type Edits = { title: string; start_date: string; start_time: string; locality: string; price_state: string; price_amount: string; price_currency: string }
 
@@ -73,7 +73,7 @@ function host(url: string): string {
   }
 }
 
-export default function EngineReviewClient({ initialCards, recentRuns }: { initialCards: ReviewCard[]; recentRuns: RunSummary[] }) {
+export default function EngineReviewClient({ initialCards, recentRuns, discovery }: { initialCards: ReviewCard[]; recentRuns: RunSummary[]; discovery?: ReactNode }) {
   const router = useRouter()
   // Cards handled in this session, keyed by id:version — every approval bumps
   // the version, so a card that comes back after a refresh (held back) shows again.
@@ -81,7 +81,6 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string; href?: string } | null>(null)
   const [edits, setEdits] = useState<Record<string, Edits>>({})
-  const [running, setRunning] = useState(false)
 
   const editsFor = (c: ReviewCard): Edits =>
     edits[c.id] ?? {
@@ -136,23 +135,6 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
     }
   }
 
-  async function runDiscovery() {
-    setRunning(true)
-    setNotice({ tone: 'ok', text: 'AI discovery running — searching the web for Tirana events (up to ~4 minutes)…' })
-    try {
-      const res = await fetch('/api/admin/engine/discover', { method: 'POST' })
-      const body = await res.json()
-      if (!res.ok || !body.ok) throw new Error(body.message ?? body.error ?? 'failed')
-      const s = body.stats ?? {}
-      setNotice({ tone: 'ok', text: `Run ${body.status}: ${s.searches ?? 0} searches, ${s.pages_read ?? 0} pages read, ${s.new ?? 0} new, ${s.attached ?? 0} merged.` })
-      router.refresh()
-    } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Discovery failed' })
-    } finally {
-      setRunning(false)
-    }
-  }
-
   const visible = initialCards.filter((c) => !handled.has(`${c.id}:${c.version}`))
   const stageCount = (stage: ReviewCard['stage']) => visible.filter((c) => c.stage === stage).length
 
@@ -166,16 +148,9 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
             Approve to confirm an event is real and correct. AlbaGo then publishes it if it meets AlbaGo&apos;s rules.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={runDiscovery}
-          disabled={running}
-          className="inline-flex items-center gap-2 rounded-full border border-flame-500/40 bg-flame-500/10 px-4 py-2.5 text-sm font-semibold text-flame-100 transition hover:bg-flame-500/20 disabled:opacity-60"
-        >
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
-          Run AI discovery: Tirana, 14 days
-        </button>
       </div>
+
+      {discovery}
 
       {notice && (
         <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${notice.tone === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-red-500/30 bg-red-500/10 text-red-100'}`}>
@@ -193,7 +168,7 @@ export default function EngineReviewClient({ initialCards, recentRuns }: { initi
         <div className="mt-5 flex flex-wrap gap-2 text-xs text-white/50">
           {recentRuns.map((r) => (
             <span key={r.id} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
-              {new Date(r.startedAt).toLocaleString()} · {r.status} · {r.stats.new ?? 0} new · {r.stats.searches ?? 0} searches
+              {new Date(r.startedAt).toLocaleString()} · {r.goal} · {r.status} · {r.stats.new ?? 0} new · {r.stats.searches ?? 0} searches
             </span>
           ))}
         </div>

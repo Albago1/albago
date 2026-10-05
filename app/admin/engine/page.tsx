@@ -4,7 +4,9 @@ import { toContract, type ReviewItem } from '@/engine/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { albagoEngine } from '@/integrations/albago/wiring'
 import { deliveryDecision } from '@/integrations/albago/policy'
+import { artistCandidates, discoveryOverview } from '@/integrations/albago/runner'
 import EngineReviewClient, { type ReviewCard, type RunSummary } from './EngineReviewClient'
+import DiscoveryPanel from './DiscoveryPanel'
 
 export const metadata: Metadata = { title: 'Admin · Event Engine' }
 
@@ -14,7 +16,14 @@ export const dynamic = 'force-dynamic'
 
 export default async function EngineReviewPage() {
   const engine = albagoEngine()
-  const [queue, verified, runs] = await Promise.all([engine.review.queue(60), engine.review.queue(60, 'verified'), engine.runs.recent(5)])
+  const [queue, verified, runs, overview, candidates] = await Promise.all([
+    engine.review.queue(60),
+    engine.review.queue(60, 'verified'),
+    engine.runs.recent(6),
+    discoveryOverview(),
+    artistCandidates(),
+  ])
+  const targetLabels = new Map(overview.plan.map((p) => [p.id, p.label]))
 
   // Approved events split by whether AlbaGo has them: not yet (held back by
   // AlbaGo's rules, or the publish step failed) → fix and publish; live and
@@ -25,7 +34,10 @@ export default async function EngineReviewPage() {
     const { data } = await db
       .from('events')
       .select('engine_occurrence_id, slug')
-      .in('engine_occurrence_id', verified.map((v) => v.occurrence.id))
+      .in(
+        'engine_occurrence_id',
+        verified.map((v) => v.occurrence.id),
+      )
     for (const r of data ?? []) albagoSlugs.set(r.engine_occurrence_id as string, r.slug as string)
   }
   const today = new Date().toISOString().slice(0, 10)
@@ -35,7 +47,10 @@ export default async function EngineReviewPage() {
   const toCard = (item: ReviewItem, stage: ReviewCard['stage']): ReviewCard => {
     const o = item.occurrence
     // What AlbaGo would do if this were approved as-is.
-    const asVerified = deliveryDecision({ ...toContract(o), review_status: 'verified' })
+    const asVerified = deliveryDecision({
+      ...toContract(o),
+      review_status: 'verified',
+    })
     return {
       id: o.id,
       version: o.version,
@@ -62,22 +77,30 @@ export default async function EngineReviewPage() {
       wouldPublish: asVerified.deliver ? [] : asVerified.reasons.filter((r) => r !== 'not verified'),
     }
   }
-  const cards = [
-    ...approved.map((i) => toCard(i, 'approved')),
-    ...queue.map((i) => toCard(i, 'review')),
-    ...published.map((i) => toCard(i, 'published')),
-  ]
+  const cards = [...approved.map((i) => toCard(i, 'approved')), ...queue.map((i) => toCard(i, 'review')), ...published.map((i) => toCard(i, 'published'))]
 
-  const recentRuns: RunSummary[] = runs.map((r) => ({
-    id: r.id,
-    status: r.status,
-    startedAt: r.started_at,
-    stats: r.stats ?? {},
-  }))
+  const recentRuns: RunSummary[] = runs.map((r) => {
+    const goal = (
+      r.goal as {
+        goal?: {
+          id?: string
+          expansion?: { entities?: { performers?: string[] } }
+        }
+      } | null
+    )?.goal
+    const performers = goal?.expansion?.entities?.performers ?? []
+    return {
+      id: r.id,
+      goal: performers.length ? `Artists: ${performers.join(', ')}` : (targetLabels.get(goal?.id ?? '') ?? goal?.id ?? 'run'),
+      status: r.status,
+      startedAt: r.started_at,
+      stats: r.stats ?? {},
+    }
+  })
 
   return (
     <div className="px-4 py-6 sm:px-6">
-      <EngineReviewClient initialCards={cards} recentRuns={recentRuns} />
+      <EngineReviewClient initialCards={cards} recentRuns={recentRuns} discovery={<DiscoveryPanel overview={overview} candidates={candidates} />} />
     </div>
   )
 }

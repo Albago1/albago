@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import {
   ArrowRight,
   CalendarDays,
@@ -10,6 +10,7 @@ import {
   Plus,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
+import { citySlug } from '@/lib/citySlug'
 import { createClient } from '@/lib/supabase/server'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import {
@@ -180,7 +181,12 @@ export default async function CityPage({
 }) {
   const { slug } = await params
   const city = await fetchCity(slug)
-  if (!city) notFound()
+  if (!city) {
+    // Old spellings (/city/munchen, /city/tirane) moved to one key per city.
+    const canonical = citySlug(slug.replace(/-/g, ' '))
+    if (canonical !== slug) permanentRedirect(`/city/${canonical}`)
+    notFound()
+  }
 
   const { events, venues } = await fetchCityData(city.slug)
 

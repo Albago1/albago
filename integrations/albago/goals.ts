@@ -27,18 +27,154 @@ export const ALBANIAN_RELEVANCE: RelevanceCriteriaV1 = {
   rule: { min_strong: 1, or_min_medium: 2 },
 }
 
-/** First vertical slice: everything happening in Tirana over the next 14 days. */
-export function tiranaNext14Days(): DiscoveryGoalV1 {
+/**
+ * Seed of the artist watch. Written into the engine as confirmed Albanian
+ * performers (so their concerts count as Albanian anywhere in the world); the
+ * list then grows from performers the engine learns and a reviewer confirms.
+ */
+export const ARTIST_SEED: string[] = [
+  // Global
+  'Dua Lipa', 'Rita Ora', 'Bebe Rexha', 'Ava Max', 'Ermal Meta', 'Action Bronson', 'Gashi',
+  // DACH / diaspora rap and pop
+  'Loredana', 'Azet', 'Ardian Bujupi', 'Lumi B', 'DJ Gimi-O', 'Don Phenom',
+  // Pop / R&B
+  'Alban Skënderaj', 'Elvana Gjata', 'Noizy', 'Era Istrefi', 'Yll Limani', 'Arilena Ara', 'Dafina Zeqiri',
+  'Dhurata Dora', 'Ledri Vula', 'Butrint Imeri', 'Ronela Hajati', 'Besa', 'Morena Taraku', 'Enca',
+  'Flori Mumajesi', 'Aurela Gaçe', 'Eneda Tarifa', 'Anjeza Shahini', 'Kejsi Tola', 'Elhaida Dani',
+  'Jonida Maliqi', 'Rona Nishliu', 'Genta Ismajli', 'Leonora Jakupi', 'Nora Istrefi', 'Vesa Luma', 'Bleona',
+  'Mariza Ikonomi', 'Rovena Stefa', 'Xhensila Myrtezaj', 'Olta Boka', 'Melinda Ademi', 'Arta Bajrami',
+  'Linda Halimi', 'Fifi', 'Blero', 'Ermal Fejzullahu', 'Endri & Stefi Prifti', 'Tayna', 'Kida',
+  // Rap / hip-hop
+  'Capital T', 'Gjiko', 'Majk', 'Getinjo', 'Mozzik', 'Stresi', 'Lyrical Son', 'Unikkatil', 'MC Kresha',
+  'Cozman', 'Ghetto Geasy', 'Varrosi', 'Vig Poppa', 'DJ Blunt & Real 1',
+  // Folk / traditional
+  'Shkurte Fejza', 'Sinan Hoxha', 'Ilir Shaqiri', 'Mahmut Ferati', 'Adelina Ismaili',
+]
+
+export type CityTarget = {
+  name: string
+  country: string
+  /** region = Albanian-speaking area (every event counts); diaspora = only Albanian-relevant events. */
+  kind: 'region' | 'diaspora'
+  /** Search languages besides Albanian. */
+  languages: string[]
+}
+
+const city = (name: string, country: string, kind: CityTarget['kind'], ...languages: string[]): CityTarget => ({ name, country, kind, languages })
+
+export const REGION_CITIES: CityTarget[] = [
+  city('Tirana', 'AL', 'region', 'en'),
+  city('Durrës', 'AL', 'region', 'en'),
+  city('Vlorë', 'AL', 'region', 'en'),
+  city('Sarandë', 'AL', 'region', 'en'),
+  city('Shkodër', 'AL', 'region', 'en'),
+  city('Korçë', 'AL', 'region', 'en'),
+  city('Prishtina', 'XK', 'region', 'en'),
+  city('Prizren', 'XK', 'region', 'en'),
+  city('Peja', 'XK', 'region', 'en'),
+  city('Gjakova', 'XK', 'region', 'en'),
+  city('Ferizaj', 'XK', 'region', 'en'),
+  city('Tetovo', 'MK', 'region', 'mk', 'en'),
+  city('Skopje', 'MK', 'region', 'mk', 'en'),
+  city('Ulcinj', 'ME', 'region', 'en'),
+]
+
+export const DIASPORA_CITIES: CityTarget[] = [
+  city('Zurich', 'CH', 'diaspora', 'de', 'en'),
+  city('Basel', 'CH', 'diaspora', 'de', 'en'),
+  city('Geneva', 'CH', 'diaspora', 'fr', 'en'),
+  city('Lausanne', 'CH', 'diaspora', 'fr', 'en'),
+  city('St. Gallen', 'CH', 'diaspora', 'de'),
+  city('Lucerne', 'CH', 'diaspora', 'de'),
+  city('Munich', 'DE', 'diaspora', 'de', 'en'),
+  city('Stuttgart', 'DE', 'diaspora', 'de'),
+  city('Frankfurt', 'DE', 'diaspora', 'de'),
+  city('Düsseldorf', 'DE', 'diaspora', 'de'),
+  city('Cologne', 'DE', 'diaspora', 'de'),
+  city('Berlin', 'DE', 'diaspora', 'de', 'en'),
+  city('Hamburg', 'DE', 'diaspora', 'de'),
+  city('Vienna', 'AT', 'diaspora', 'de', 'en'),
+  city('Milan', 'IT', 'diaspora', 'it'),
+  city('Athens', 'GR', 'diaspora', 'el', 'en'),
+  city('London', 'GB', 'diaspora', 'en'),
+  city('Brussels', 'BE', 'diaspora', 'fr', 'nl', 'en'),
+  city('Stockholm', 'SE', 'diaspora', 'sv', 'en'),
+  city('Malmö', 'SE', 'diaspora', 'sv', 'en'),
+  city('New York', 'US', 'diaspora', 'en'),
+  city('Detroit', 'US', 'diaspora', 'en'),
+  city('Chicago', 'US', 'diaspora', 'en'),
+]
+
+const COUNTRY_NAMES = new Intl.DisplayNames(['en'], { type: 'region' })
+
+export function cityGoalId(c: CityTarget): string {
+  return `city-${c.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}`
+}
+
+// Each run must finish inside one 300 s function call (abort at deadline + 30 s).
+const RUN_BUDGET = { max_tokens: 400_000, max_minutes: 3.75 }
+
+/** One city: everything in an Albanian-speaking city, or the Albanian scene in a diaspora city. */
+export function cityGoal(c: CityTarget): DiscoveryGoalV1 {
+  const country = COUNTRY_NAMES.of(c.country) ?? c.country
+  const diaspora = c.kind === 'diaspora'
   return {
-    id: 'tirana-14d',
-    label: 'Upcoming events in Tirana, Albania — next 14 days',
-    geography: { country_codes: ['AL'], localities: ['Tirana'] },
-    horizon_days: 14,
+    id: cityGoalId(c),
+    label: diaspora
+      ? `Albanian events in ${c.name}, ${country}: Albanian parties and club nights, concerts by Albanian artists, festivals and community events`
+      : `Upcoming events in ${c.name}, ${country}`,
+    geography: { country_codes: [c.country], localities: [c.name] },
+    // Diaspora parties and concerts are announced weeks ahead; region cities fill up closer to the date.
+    horizon_days: diaspora ? 60 : 21,
     relevance: ALBANIAN_RELEVANCE,
-    languages: ['sq', 'en'],
+    languages: ['sq', ...c.languages],
+    expansion: { places: [], entities: { performers: [], organizers: [], institutions: [] }, platforms: diaspora ? TICKET_SITES : [], query_languages: ['sq', ...c.languages], learn: true },
     required_fields: [],
-    budget: { max_searches: 12, max_fetches: 30, max_tokens: 400_000, max_minutes: 4.5 },
+    budget: { max_searches: 5, max_fetches: 14, ...RUN_BUDGET },
   }
+}
+
+/** Public ticketing sites where diaspora events are sold (hints for the agent; robots.txt still applies). */
+const TICKET_SITES = ['eventfrog.ch', 'eventim.de', 'oeticket.com', 'ticketcorner.ch', 'ticketmaster.com', 'dice.fm', 'fatsoma.com', 'skiddle.com']
+
+/**
+ * Worldwide sweep: Albanian events anywhere, no city limit. Catches what the
+ * city list misses (Dubai, Oslo, Sydney…) and new cities worth adding.
+ */
+export function worldwideGoal(): DiscoveryGoalV1 {
+  return {
+    id: 'worldwide',
+    // Contract limit: 200 chars. The query hints steer the agent away from city-by-city searching.
+    label: 'Albanian events worldwide, any city: parties, club nights, concerts by Albanian artists, festivals (try "Albanian party", "koncert shqip", "festa shqiptare", "Albaner Party")',
+    geography: { scope: 'worldwide' },
+    horizon_days: 60,
+    relevance: ALBANIAN_RELEVANCE,
+    languages: ['sq', 'en', 'de', 'it'],
+    expansion: { places: [], entities: { performers: [], organizers: [], institutions: [] }, platforms: TICKET_SITES, query_languages: ['sq', 'en', 'de', 'it'], learn: true },
+    required_fields: [],
+    budget: { max_searches: 6, max_fetches: 16, ...RUN_BUDGET },
+  }
+}
+
+/** A batch of Albanian artists: their upcoming concerts and shows anywhere in the world. */
+export function artistGoal(artists: string[]): DiscoveryGoalV1 {
+  return {
+    id: 'artists',
+    label: `Upcoming concerts, tours and shows by Albanian artists: ${artists.join(', ')}`,
+    geography: { scope: 'worldwide' },
+    categories: ['concert', 'festival', 'club_night', 'party_social', 'comedy'],
+    horizon_days: 180,
+    relevance: ALBANIAN_RELEVANCE,
+    languages: ['sq', 'en', 'de'],
+    expansion: { places: [], entities: { performers: artists, organizers: [], institutions: [] }, platforms: [], query_languages: ['sq', 'en', 'de'], learn: true },
+    required_fields: [],
+    budget: { max_searches: artists.length + 1, max_fetches: 14, ...RUN_BUDGET },
+  }
+}
+
+/** First vertical slice, kept for the manual script: Tirana, next 14 days. */
+export function tiranaNext14Days(): DiscoveryGoalV1 {
+  return { ...cityGoal(REGION_CITIES[0]), horizon_days: 14 }
 }
 
 /** Hosts the research lane must not collect from (platform terms / no permission). */
