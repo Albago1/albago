@@ -82,6 +82,9 @@ export type EventsFilterBarProps = {
   // Category
   activeCategory: string
   onCategoryChange: (category: string) => void
+  /** Events per category under the current time filters ('all' = total).
+   *  Shown on the chips; omitted while loading. */
+  categoryCounts?: Record<string, number>
   // Map shortcut for the current location
   mapHref: string
   // Sort
@@ -112,6 +115,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
     onDateRangeChange,
     activeCategory,
     onCategoryChange,
+    categoryCounts,
     mapHref,
     sortBy,
     onSortChange,
@@ -451,6 +455,7 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
               {CATEGORIES.map((cat) => {
                 const Icon = CATEGORY_ICONS[cat]
                 const isActive = activeCategory === cat
+                const count = categoryCounts ? (categoryCounts[cat] ?? 0) : null
                 return (
                   <button
                     key={cat}
@@ -462,10 +467,14 @@ export default function EventsFilterBar(props: EventsFilterBarProps) {
                       isActive
                         ? 'bg-flame-500 text-white shadow-glow-flame'
                         : 'border border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white',
+                      count === 0 && !isActive ? 'opacity-50' : '',
                     ].join(' ')}
                   >
                     <Icon className="h-4 w-4" />
                     {categoryLabel(cat, t)}
+                    {count != null && count > 0 && (
+                      <span className="opacity-60">· {count}</span>
+                    )}
                   </button>
                 )
               })}

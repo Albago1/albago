@@ -223,6 +223,8 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_in: "Venues in",
     home_venues_sub: "Places worth walking into",
     home_tonight_in: "Tonight in",
+    shelf_next_up: "Next up",
+    shelf_next_up_in: "Next up in",
     home_tonight_sub: "Happening today — doors open soon.",
     // /events page shell
     events_back: "Back",
@@ -738,6 +740,8 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_in: "Locations in",
     home_venues_sub: "Orte, die einen Besuch wert sind",
     home_tonight_in: "Heute Abend in",
+    shelf_next_up: "Als Nächstes",
+    shelf_next_up_in: "Als Nächstes in",
     home_tonight_sub: "Findet heute statt — es geht bald los.",
     // /events page shell
     events_back: "Zurück",
@@ -1253,6 +1257,8 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_in: "Locales en",
     home_venues_sub: "Lugares que vale la pena visitar",
     home_tonight_in: "Esta noche en",
+    shelf_next_up: "Próximamente",
+    shelf_next_up_in: "Próximamente en",
     home_tonight_sub: "Sucede hoy — las puertas abren pronto.",
     // /events page shell
     events_back: "Volver",
@@ -1768,6 +1774,8 @@ export const translations: Record<Language, Record<string, string>> = {
     home_venues_in: "Vende në",
     home_venues_sub: "Vende që ia vlen t'i vizitosh",
     home_tonight_in: "Sonte në",
+    shelf_next_up: "Së shpejti",
+    shelf_next_up_in: "Së shpejti në",
     home_tonight_sub: "Ndodh sot — dyert hapen së shpejti.",
     // /events page shell
     events_back: "Kthehu",

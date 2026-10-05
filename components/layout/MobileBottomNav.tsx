@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { Calendar, CircleUserRound, Compass, Home, Search } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/browser'
+import { hasMobileBottomNav } from '@/lib/mobileNav'
 
 type NavItem = {
   href: string
@@ -45,11 +46,6 @@ const items: NavItem[] = [
     match: (p) => p === '/map',
   },
 ]
-
-// Routes where the bottom nav is suppressed — admin / organizer / auth
-// surfaces are deeper workflows and the bar would distract from the task.
-// /dashboard stays visible: it is the Profile tab's destination.
-const SUPPRESS_PREFIXES = ['/admin', '/organizer', '/onboarding', '/sign-in', '/sign-up', '/forgot-password', '/reset-password', '/auth']
 
 // Shared-layout bubble that glides between tabs when the section changes.
 function ActiveBubble() {
@@ -126,7 +122,7 @@ export default function MobileBottomNav() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  if (SUPPRESS_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+  if (!hasMobileBottomNav(pathname)) {
     return null
   }
 

@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { ArrowRight, CalendarDays, MapPin } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, CalendarDays, MapPin } from 'lucide-react'
 import type { SimilarEvent } from '@/lib/similarEvents'
 import { getLocationBySlug } from '@/lib/locations'
 import { displayPrice, formatPriceFrom } from '@/lib/ticketDisplay'
 import { isMultiDay, isRecurring, nextOccurrence } from '@/lib/recurrence'
+import { CATEGORY_ICONS } from './categoryMeta'
 
 function categoryTone(category?: string) {
   const value = (category ?? '').toLowerCase()
@@ -46,12 +47,109 @@ function priceLabel(e: SimilarEvent): string | null {
   return displayPrice(e.price)
 }
 
+// One line under "All {category} events" on the explore tile.
+const CATEGORY_BLURBS: Record<string, string> = {
+  nightlife: 'Clubs, parties and late nights across Albania and the diaspora',
+  music: 'Concerts, DJs and live sets across Albania and the diaspora',
+  culture: 'Theatre, comedy, art and talks across Albania and the diaspora',
+  sports: 'Matches, races and outdoor events across Albania and the diaspora',
+  food: 'Food festivals, tastings and markets across Albania and the diaspora',
+}
+
+const DOTS: Record<string, string> = {
+  nightlife: 'bg-fuchsia-400',
+  music: 'bg-violet-400',
+  sports: 'bg-emerald-400',
+  culture: 'bg-sky-400',
+  food: 'bg-amber-400',
+}
+
+/** Compact poster row — used when there are only one or two matches, where a
+ *  full card rail would leave a lonely card in a wide row. */
+function SimilarRow({ e }: { e: SimilarEvent }) {
+  const image = e.gallery_urls?.[0] || e.banner_url || null
+  const category = (e.category ?? '').toLowerCase()
+  return (
+    <Link
+      href={`/events/${e.slug}`}
+      className="group flex items-center gap-4 rounded-[24px] bg-white/[0.03] p-3 pr-5 ring-1 ring-white/10 transition hover:bg-white/[0.06]"
+    >
+      <div className="relative aspect-[4/5] w-[88px] shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/10">
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="absolute inset-0">
+            <div className="absolute inset-0 bg-grid opacity-30" />
+            <div className="absolute inset-0 bg-radial-flame" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
+          {dateLabel(e)}
+          {e.time && (
+            <>
+              <span className="text-white/30"> · </span>
+              <span className="text-flame-300">{e.time.slice(0, 5)}</span>
+            </>
+          )}
+        </p>
+        <h3 className="mt-1 line-clamp-2 font-display text-[22px] leading-[1.08] text-white">
+          {e.title}
+        </h3>
+        <p className="mt-1.5 flex min-w-0 items-center gap-2 text-[13px] text-white/70">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOTS[category] ?? 'bg-white/40'}`} />
+          <span className="truncate capitalize">
+            {e.category} <span className="text-white/35">·</span> {cityLabel(e.location_slug)}
+          </span>
+        </p>
+      </div>
+      <ArrowUpRight className="h-5 w-5 shrink-0 text-white/40 transition group-hover:text-flame-300" />
+    </Link>
+  )
+}
+
+/** Fills the second half of a one-match row with a way to keep browsing —
+ *  the whole category, every city (the header's "See all" stays local). */
+function ExploreTile({ category }: { category: string }) {
+  const key = category.toLowerCase()
+  const href = key ? `/events?category=${encodeURIComponent(key)}` : '/events'
+  const Icon = CATEGORY_ICONS[key] ?? CATEGORY_ICONS.all
+  return (
+    <Link
+      href={href}
+      className="group relative flex min-h-[200px] flex-col justify-between overflow-hidden rounded-[30px] bg-white/[0.03] p-7 ring-1 ring-white/10 transition hover:bg-white/[0.06]"
+    >
+      <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-flame-500/15 blur-3xl transition group-hover:bg-flame-500/25" />
+      <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-flame-500/15 ring-1 ring-flame-500/40">
+        <Icon className="h-5 w-5 text-flame-300" />
+      </span>
+      <div className="relative">
+        <p className="font-display text-[34px] capitalize leading-none text-white">
+          All {key || 'similar'} events
+        </p>
+        <p className="mt-2 text-sm text-white/55">
+          {CATEGORY_BLURBS[key] ?? 'More of what’s on across Albania and the diaspora'}
+        </p>
+        <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-flame-300">
+          Explore
+          <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+        </span>
+      </div>
+    </Link>
+  )
+}
+
 export default function SimilarEvents({
   events,
   browseHref,
+  category,
 }: {
   events: SimilarEvent[]
   browseHref: string
+  /** The current event's category — names the explore tile. */
+  category: string
 }) {
   if (events.length < 1) return null
 
@@ -75,8 +173,16 @@ export default function SimilarEvents({
         </Link>
       </div>
 
-      {/* Horizontal snap rail — cards peek on mobile to signal scrollability,
-          settle into a row on desktop. Scrollbar hidden for a native feel. */}
+      {events.length <= 2 ? (
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {events.map((e) => (
+            <SimilarRow key={e.id} e={e} />
+          ))}
+          {events.length === 1 && <ExploreTile category={category} />}
+        </div>
+      ) : (
+      /* Horizontal snap rail — cards peek on mobile to signal scrollability,
+          settle into a row on desktop. Scrollbar hidden for a native feel. */
       <div className="mt-6 -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {events.map((e) => {
           const image = e.gallery_urls?.[0] || e.banner_url || null
@@ -137,6 +243,7 @@ export default function SimilarEvents({
           )
         })}
       </div>
+      )}
     </section>
   )
 }

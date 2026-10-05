@@ -1399,6 +1399,7 @@ export default async function EventDetailPage(
       <SimilarEvents
         events={similarEvents}
         browseHref={similarEventsHref}
+        category={event.category}
       />
     </main>
   )

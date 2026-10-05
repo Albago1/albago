@@ -1,6 +1,6 @@
 # Phase 42 — World-class UI (audit + plan)
 
-Status: **42.0 and 42.1 built** (2026-10-05, branch `claude/mobile-desktop-ui-upgrade-152322`, not pushed). 42.2 onward awaits approval.
+Status: **42.0 and 42.1 live** (PR #1, 2026-10-05). **42.2 built** (adaptive shelves). 42.3 onward awaits approval.
 
 ## How this was checked
 

@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { citySlug } from '@/lib/citySlug'
-import { motion } from 'framer-motion'
 import {
   Flame,
   MapPin,
@@ -22,7 +21,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import LandingNavbar from '@/components/layout/LandingNavbar'
-import EventCard, { type PublicEvent } from '@/components/events/EventCard'
+import EventShelf from '@/components/events/EventShelf'
+import { type PublicEvent } from '@/components/events/EventCard'
 import { CATEGORY_GRADIENTS } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { locations } from '@/lib/locations'
@@ -712,6 +712,12 @@ export default function HomeClient() {
       .join(' ')
   }
 
+  // Venue + city each poster card prints.
+  const cardContext = (event: PublicEvent) => ({
+    venueName: allPlaces.find((item) => item.id === event.place_id)?.name ?? null,
+    cityLabel: cityLabelFor(event.location_slug),
+  })
+
   // The active city, resolved against the dynamic list first —
   // getLocationBySlug() only knows the 4 seed cities and silently falls back
   // to Tirana, which highlighted the Tirana chip and titled sections
@@ -1152,49 +1158,36 @@ export default function HomeClient() {
       {tonightEvents.length > 0 && (
         <section className="px-4 pb-4 pt-2">
           <div className="mx-auto max-w-6xl">
-            <div className="mb-6 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
-                  <Moon className="h-5 w-5 text-flame-400" />
-                </div>
-                <div>
-                  <h2 className="display-text text-3xl text-white sm:text-4xl">
-                    {t('home_tonight_in')} {cityLabelFor(activeLocationSlug)}
-                  </h2>
-                  <p className="mt-1 text-sm text-white/55">
-                    {t('home_tonight_sub')}
-                  </p>
-                </div>
-              </div>
-              <Link
-                href={`/events?location=${activeLocationSlug}&time=tonight`}
-                className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
-              >
-                {t('view_all')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {tonightEvents.slice(0, 3).map((event) => {
-                const place = allPlaces.find((item) => item.id === event.place_id)
-                return (
-                  <motion.div
-                    key={event.id}
-                    whileHover={{ y: -4 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="h-full"
+            <EventShelf
+              events={tonightEvents.slice(0, 8)}
+              context={cardContext}
+              isAuthenticated={isAuth}
+              savedIds={savedIds}
+              heading={
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-flame-500/30 bg-flame-500/10">
+                      <Moon className="h-5 w-5 text-flame-400" />
+                    </div>
+                    <div>
+                      <h2 className="display-text text-3xl text-white sm:text-4xl">
+                        {t('home_tonight_in')} {cityLabelFor(activeLocationSlug)}
+                      </h2>
+                      <p className="mt-1 text-sm text-white/55">
+                        {t('home_tonight_sub')}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/events?location=${activeLocationSlug}&time=tonight`}
+                    className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white"
                   >
-                    <EventCard
-                      event={event}
-                      venueName={place?.name ?? null}
-                      cityLabel={cityLabelFor(event.location_slug)}
-                      isAuthenticated={isAuth}
-                      initialSaved={savedIds.has(event.id)}
-                    />
-                  </motion.div>
-                )
-              })}
-            </div>
+                    {t('view_all')}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              }
+            />
           </div>
         </section>
       )}
@@ -1202,55 +1195,45 @@ export default function HomeClient() {
 
       <section className="px-4 py-20">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-8 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                <Calendar className="h-5 w-5 text-flame-400" />
-              </div>
+          <EventShelf
+            events={featuredEvents}
+            context={cardContext}
+            isAuthenticated={isAuth}
+            savedIds={savedIds}
+            spotlightLabel={
+              featuredIsFallback
+                ? t('shelf_next_up')
+                : `${t('shelf_next_up_in')} ${cityLabelFor(activeLocationSlug)}`
+            }
+            heading={
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                    <Calendar className="h-5 w-5 text-flame-400" />
+                  </div>
 
-              <div>
-                <h2 className="display-text text-3xl text-white sm:text-5xl">
-                  {t('home_featured_events')}
-                </h2>
-                <p className="mt-2 text-sm text-white/55">
-                  {featuredIsFallback
-                    ? t('home_featured_fallback')
-                    : t('home_featured_sub')}
-                </p>
-              </div>
-            </div>
+                  <div>
+                    <h2 className="display-text text-3xl text-white sm:text-5xl">
+                      {t('home_featured_events')}
+                    </h2>
+                    <p className="mt-2 text-sm text-white/55">
+                      {featuredIsFallback
+                        ? t('home_featured_fallback')
+                        : t('home_featured_sub')}
+                    </p>
+                  </div>
+                </div>
 
-            <Link
-              href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
-              className="hidden items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white sm:inline-flex"
-            >
-              {t('view_all')}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {featuredEvents.map((event) => {
-              const place = allPlaces.find((item) => item.id === event.place_id)
-
-              return (
-                <motion.div
-                  key={event.id}
-                  whileHover={{ y: -4 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="h-full"
+                <Link
+                  href={buildSearchUrl('/events', activeLocationSlug, searchQuery)}
+                  className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-white/60 transition hover:text-white"
                 >
-                  <EventCard
-                    event={event}
-                    venueName={place?.name ?? null}
-                    cityLabel={cityLabelFor(event.location_slug)}
-                    isAuthenticated={isAuth}
-                    initialSaved={savedIds.has(event.id)}
-                  />
-                </motion.div>
-              )
-            })}
-          </div>
+                  {t('view_all')}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            }
+          />
         </div>
       </section>
 
