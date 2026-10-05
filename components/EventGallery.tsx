@@ -10,8 +10,12 @@ type Props = {
 }
 
 export default function EventGallery({ urls, alt }: Props) {
-  const photos = urls.filter(Boolean)
+  // Photos whose host 404s are dropped instead of showing a broken image.
+  const [failed, setFailed] = useState<Set<string>>(new Set())
+  const photos = urls.filter((url) => url && !failed.has(url))
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const markFailed = (url: string) =>
+    setFailed((prev) => new Set(prev).add(url))
 
   if (photos.length === 0) return null
 
@@ -33,6 +37,8 @@ export default function EventGallery({ urls, alt }: Props) {
             fill
             sizes="(max-width: 768px) 100vw, 720px"
             priority
+            unoptimized={!hero.includes('.supabase.co')}
+            onError={() => markFailed(hero)}
             className="cursor-zoom-in object-cover transition group-hover:opacity-95"
           />
         </button>
@@ -52,6 +58,8 @@ export default function EventGallery({ urls, alt }: Props) {
                   alt={`${alt} — photo ${i + 2}`}
                   fill
                   sizes="(max-width: 768px) 25vw, 180px"
+                  unoptimized={!url.includes('.supabase.co')}
+                  onError={() => markFailed(url)}
                   className="cursor-zoom-in object-cover transition hover:opacity-90"
                 />
               </button>

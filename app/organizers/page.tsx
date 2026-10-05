@@ -120,13 +120,13 @@ export default async function OrganizersIndexPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-base leading-7 text-white/65">
-            Verified and established organizers — venues, collectives, activists,
-            and promoters trusted to publish instantly. Want to join? Apply at{' '}
+            Verified and established organizers — venues, collectives and
+            promoters trusted to publish instantly. Want to join?{' '}
             <Link
               href="/become-organizer"
               className="text-flame-300 hover:underline"
             >
-              /become-organizer
+              Become an organizer
             </Link>
             .
           </p>
@@ -135,24 +135,9 @@ export default async function OrganizersIndexPage() {
 
       <section className="px-4 pb-24">
         <div className="mx-auto max-w-5xl">
-          {organizers.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-              <Building2 className="mx-auto h-8 w-8 text-white/20" />
-              <p className="mt-4 font-semibold text-white">
-                No verified organizers yet
-              </p>
-              <p className="mt-1 text-sm text-white/55">
-                Be the first.{' '}
-                <Link
-                  href="/become-organizer"
-                  className="text-flame-300 hover:underline"
-                >
-                  Become an organizer
-                </Link>
-                .
-              </p>
-            </div>
-          ) : (
+          {/* No public "nobody here yet" state — with no organizers the page
+              is just the pitch card below. */}
+          {organizers.length > 0 && (
             <>
               {verified.length > 0 && (
                 <section>
@@ -202,7 +187,7 @@ export default async function OrganizersIndexPage() {
             </>
           )}
 
-          <div className="mt-12 rounded-3xl border border-flame-500/25 bg-gradient-to-br from-flame-500/[0.08] to-transparent p-6 text-center sm:p-8">
+          <div className={`${organizers.length > 0 ? 'mt-12 ' : ''}rounded-3xl border border-flame-500/25 bg-gradient-to-br from-flame-500/[0.08] to-transparent p-6 text-center sm:p-8`}>
             <h2 className="text-xl font-semibold text-white">
               Want your name here?
             </h2>

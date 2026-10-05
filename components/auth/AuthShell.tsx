@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, MapPin } from 'lucide-react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 
 /**
@@ -42,9 +42,15 @@ export default function AuthShell({
 
         <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] sm:p-8">
           <div className="text-center">
-            <p className="font-display text-2xl font-normal text-white/85">
-              AlbaGo
-            </p>
+            {/* Same wordmark as the navbar: flame pin tile + Alba / italic Go */}
+            <Link href="/" className="inline-flex items-center gap-2.5" aria-label="AlbaGo home">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-flame-500 shadow-glow-flame">
+                <MapPin className="h-[18px] w-[18px] text-white" />
+              </span>
+              <span className="text-xl font-bold tracking-tight text-white">
+                Alba<span className="font-display font-normal italic text-flame-500">Go</span>
+              </span>
+            </Link>
             <h1 className="mt-6 font-display text-4xl font-normal tracking-tight text-white">
               {title}
             </h1>

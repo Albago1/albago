@@ -20,6 +20,7 @@ import { buildDirectionsHref } from '@/lib/eventLinks'
 import { formatEventTimeLabel, getTodayDateString } from '@/lib/dateFilters'
 import { activeEventsOrFilter, isEventActive } from '@/lib/eventActive'
 import { dateRangeLong, isMultiDay } from '@/lib/recurrence'
+import { displayPrice } from '@/lib/ticketDisplay'
 
 type Params = { slug: string }
 
@@ -219,7 +220,7 @@ export default async function VenueDetailPage(
             )}
           </div>
 
-          <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+          <h1 className="display-text mt-5 text-5xl text-white sm:text-6xl">
             {venue.name}
           </h1>
 
@@ -310,9 +311,9 @@ export default async function VenueDetailPage(
                         >
                           {event.category}
                         </span>
-                        {event.price && (
+                        {displayPrice(event.price) && (
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
-                            {event.price}
+                            {displayPrice(event.price)}
                           </span>
                         )}
                       </div>

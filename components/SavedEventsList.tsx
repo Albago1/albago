@@ -6,6 +6,7 @@ import { Calendar, Clock3, Heart, MapPin } from 'lucide-react'
 import SaveEventButton from '@/components/SaveEventButton'
 import { formatEventTimeLabel } from '@/lib/dateFilters'
 import { dateRangeLong } from '@/lib/recurrence'
+import { displayPrice } from '@/lib/ticketDisplay'
 import { categoryLabel } from '@/components/events/categoryMeta'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 
@@ -77,9 +78,9 @@ export default function SavedEventsList({
               >
                 {categoryLabel(event.category, t)}
               </span>
-              {event.price && (
+              {displayPrice(event.price) && (
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/80">
-                  {event.price}
+                  {displayPrice(event.price)}
                 </span>
               )}
             </div>

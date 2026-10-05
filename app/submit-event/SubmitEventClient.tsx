@@ -139,7 +139,7 @@ export default function SubmitEventClient({
     return (
       <div className="mx-auto max-w-3xl">
         <div className="pt-6 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h1 className="display-text text-4xl leading-[0.95] text-white sm:text-5xl">
             {t('submit_choice_title')}
           </h1>
         </div>

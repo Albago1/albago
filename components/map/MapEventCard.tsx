@@ -22,6 +22,7 @@ import {
   nextOccurrence,
   recurrenceLabel,
 } from '@/lib/recurrence'
+import { displayPrice } from '@/lib/ticketDisplay'
 
 export type MapCardEvent = {
   id: string
@@ -127,6 +128,7 @@ export default function MapEventCard({
             alt={event.title}
             fill
             sizes="(max-width: 767px) 100vw, 400px"
+            unoptimized={!mediaSrc.includes('.supabase.co')}
             className="object-cover"
             onError={handleMediaError}
           />
@@ -259,8 +261,8 @@ export default function MapEventCard({
         )}
 
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.08] pt-3">
-          {event.price ? (
-            <span className="truncate text-sm font-semibold text-white">{event.price}</span>
+          {displayPrice(event.price) ? (
+            <span className="truncate text-sm font-semibold text-white">{displayPrice(event.price)}</span>
           ) : (
             <span aria-hidden />
           )}

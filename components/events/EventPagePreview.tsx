@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
+import { displayPrice } from '@/lib/ticketDisplay'
 
 /**
  * Plain-data replica of the public event page (phase-29 layout: image-led
@@ -186,13 +187,13 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
             </div>
           </div>
 
-          {event.price && (
+          {displayPrice(event.price) && (
             <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-4">
               <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
                 <Ticket className="h-3.5 w-3.5" />
                 Price
               </span>
-              <span className="text-base font-semibold text-white">{event.price}</span>
+              <span className="text-base font-semibold text-white">{displayPrice(event.price)}</span>
             </div>
           )}
 

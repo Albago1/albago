@@ -66,6 +66,7 @@ export default function EventSections({ sections }: Props) {
                     alt={`${section.title || 'Section'} — photo ${i + 1}`}
                     fill
                     sizes="(max-width: 768px) 50vw, 240px"
+                    unoptimized={!url.includes('.supabase.co')}
                     className="cursor-zoom-in object-cover transition hover:opacity-90"
                   />
                 </button>
