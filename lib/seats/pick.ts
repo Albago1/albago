@@ -70,6 +70,59 @@ export function maxTogetherInBlock(runs: FreeRun[], block: BlockRef): number {
     .reduce((max, r) => Math.max(max, r.len), 0)
 }
 
+// ---- exact seats (block close-up) -------------------------------------------
+
+export type SeatRefKey = { area: string; block: string; row: string; seat: number }
+
+export const seatKeyOf = (s: SeatRefKey): string => `${s.area}|${s.block}|${s.row}|${s.seat}`
+
+export function parseSeatKey(key: string): SeatRefKey {
+  const parts = key.split('|')
+  const seat = Number(parts.pop())
+  const row = parts.pop() ?? ''
+  const block = parts.pop() ?? ''
+  return { area: parts.join('|'), block, row, seat }
+}
+
+const naturalCmp = (a: string, b: string) => a.localeCompare(b, 'en', { numeric: true })
+
+export type SeatRow<T extends { seat: number }> = {
+  row: string
+  /** Seats in order; `gapBefore` marks a jump in numbering (other people's seats). */
+  seats: Array<T & { gapBefore: boolean }>
+}
+
+/** Rows of one block, front row first, seats left to right. */
+export function rowsOf<T extends { row: string; seat: number }>(seats: T[]): SeatRow<T>[] {
+  const byRow = new Map<string, T[]>()
+  for (const s of seats) byRow.set(s.row, [...(byRow.get(s.row) ?? []), s])
+  return [...byRow.entries()]
+    .sort(([a], [b]) => naturalCmp(a, b))
+    .map(([row, list]) => {
+      const sorted = [...list].sort((a, b) => a.seat - b.seat)
+      return {
+        row,
+        seats: sorted.map((s, i) => ({ ...s, gapBefore: i > 0 && s.seat !== sorted[i - 1].seat + 1 })),
+      }
+    })
+}
+
+/** The best seats for `quantity` inside one block, as seat keys — what the
+ *  close-up pre-selects. Falls back to the biggest group that still fits. */
+export function bestKeysInBlock(
+  runs: FreeRun[],
+  category: string,
+  quantity: number,
+  block: BlockRef,
+): string[] {
+  const fit = Math.min(quantity, maxTogetherInBlock(runs, block))
+  if (fit < 1) return []
+  const pick = pickSeats(runs, category, fit, block)
+  return pick
+    ? pick.seats.map((seat) => seatKeyOf({ area: pick.area, block: pick.block, row: pick.row, seat }))
+    : []
+}
+
 export function freeInBlock(runs: FreeRun[], block: BlockRef): number {
   return runs
     .filter((r) => r.area === block.area && r.block === block.block)

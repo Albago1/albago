@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { freeInBlock } from '@/lib/seats/pick'
 import type { FreeRun, PublicSeatBlock } from '@/lib/seats/types'
 import {
@@ -54,14 +54,24 @@ export default function StadiumMap({
   )
   const outer = Math.max(...map.tiers.map((t) => t.outer)) + 4
   const ringHalf = map.ring.size / 2
+  const focus = map.focus
+  const viewBox = focus ? `${focus.x} ${focus.y} ${focus.w} ${focus.h}` : `0 0 ${VIEWBOX.w} ${VIEWBOX.h}`
+  const fadeId = `seatmap-fade-${useId().replace(/:/g, '')}`
 
   return (
-    <svg
-      viewBox={`0 0 ${VIEWBOX.w} ${VIEWBOX.h}`}
-      className="h-auto w-full select-none"
-      role="group"
-      aria-label={map.name}
-    >
+    <svg viewBox={viewBox} className="h-auto w-full select-none" role="group" aria-label={map.name}>
+      {focus?.fadeRight && (
+        <defs>
+          <linearGradient id={`${fadeId}-g`} x1={focus.x} x2={focus.x + focus.w} y1={0} y2={0} gradientUnits="userSpaceOnUse">
+            <stop offset="0.82" stopColor="#fff" stopOpacity={1} />
+            <stop offset="1" stopColor="#fff" stopOpacity={0} />
+          </linearGradient>
+          <mask id={fadeId} maskUnits="userSpaceOnUse" x={focus.x} y={focus.y} width={focus.w} height={focus.h}>
+            <rect x={focus.x} y={focus.y} width={focus.w} height={focus.h} fill={`url(#${fadeId}-g)`} />
+          </mask>
+        </defs>
+      )}
+      <g mask={focus?.fadeRight ? `url(#${fadeId})` : undefined}>
       {/* Bowl */}
       <rect
         x={FLOOR.x0 - outer}
@@ -195,6 +205,7 @@ export default function StadiumMap({
           </g>
         )
       })}
+      </g>
     </svg>
   )
 }

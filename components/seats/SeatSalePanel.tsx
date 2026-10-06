@@ -18,17 +18,27 @@ import {
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
-import { formatMoney } from '@/lib/seats/format'
-import { blockKey, maxTogetherInBlock, pickSeats } from '@/lib/seats/pick'
+import { formatMoney, groupSeats } from '@/lib/seats/format'
+import {
+  bestKeysInBlock,
+  blockKey,
+  freeInBlock,
+  maxTogetherInBlock,
+  parseSeatKey,
+  pickSeats,
+  seatKeyOf,
+} from '@/lib/seats/pick'
 import { venueMapById } from '@/lib/seats/venueMaps'
 import type { PublicSeatBlock, PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
+import BlockSeatPicker from './BlockSeatPicker'
 import StadiumMap from './StadiumMap'
 
 // Seat sales on the event page (phase 43). Presentation + honest error states
 // only — availability, "sits together", caps and holds are all enforced by
 // seat_reserve under a row lock. No payment step yet: a reservation is held
 // until the seller confirms payment. With a known venue, a simplified stadium
-// map shows where the seats are; tapping a block picks the best seats in it.
+// map shows where the seats are; tapping a block opens a close-up of its
+// seats with the best ones pre-selected, and the buyer can tap exact seats.
 
 type Props = {
   eventId: string
@@ -53,6 +63,8 @@ const ERROR_KEYS: Record<string, string> = {
   bad_details: 'seat_err_details',
   bad_quantity: 'seat_err_generic',
   rate_limited: 'seat_err_rate',
+  seats_taken: 'seat_err_seats_taken',
+  mixed_categories: 'seat_err_mixed',
 }
 
 const fill = (text: string, values: Record<string, string | number>) =>
@@ -87,6 +99,9 @@ export default function SeatSalePanel({
   const [step, setStep] = useState<'pick' | 'details'>('pick')
   // Block tapped on the map; null = best available in the category.
   const [chosenBlock, setChosenBlock] = useState<PublicSeatBlock | null>(null)
+  // Block open in the close-up, and the exact seats picked in it (seat keys).
+  const [openBlock, setOpenBlock] = useState<PublicSeatBlock | null>(null)
+  const [picked, setPicked] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [errorKey, setErrorKey] = useState<string | null>(null)
 
@@ -129,6 +144,23 @@ export default function SeatSalePanel({
       : 1
   const qty = Math.min(Math.max(1, quantity), maxQty)
   const preview = code ? pickSeats(runs, code, qty, chosenBlock) : null
+
+  const allSeats = useMemo(() => sale.seats ?? [], [sale.seats])
+  const canPickExact = allSeats.length > 0 && sale.mode !== 'waitlist'
+  const freeKeys = useMemo(
+    () => new Set(allSeats.filter((x) => x.free).map(seatKeyOf)),
+    [allSeats],
+  )
+  // A seat someone else took since the page loaded drops out of the pick.
+  const activePicked = picked.filter((k) => freeKeys.has(k))
+  const exact = !!openBlock && activePicked.length > 0
+  const pickedSeats = activePicked
+    .map(parseSeatKey)
+    .sort((a, b) => a.row.localeCompare(b.row, 'en', { numeric: true }) || a.seat - b.seat)
+  const seatCount = openBlock ? activePicked.length : qty
+  const blockSeats = openBlock
+    ? allSeats.filter((x) => x.area === openBlock.area && x.block === openBlock.block)
+    : []
   const lowest = sale.categories.reduce<number | null>(
     (min, c) => (min === null || c.price_cents < min ? c.price_cents : min),
     null,
@@ -140,10 +172,16 @@ export default function SeatSalePanel({
       })
     : null
 
+  const closeBlock = () => {
+    setOpenBlock(null)
+    setPicked([])
+    setChosenBlock(null)
+  }
+
   const choose = (category: PublicSeatCategory) => {
     if (busy || category.available <= 0) return
     setCode(category.code)
-    setChosenBlock(null)
+    closeBlock()
     setErrorKey(null)
   }
 
@@ -152,10 +190,28 @@ export default function SeatSalePanel({
     setCode(block.category)
     setChosenBlock(block)
     setErrorKey(null)
+    if (canPickExact) {
+      setOpenBlock(block)
+      setPicked(bestKeysInBlock(runs, block.category, quantity, block))
+    }
+  }
+
+  const toggleSeat = (key: string) => {
+    setErrorKey(null)
+    setPicked((prev) => {
+      const live = prev.filter((k) => freeKeys.has(k))
+      if (live.includes(key)) return live.filter((k) => k !== key)
+      return live.length >= sale.max_per_order ? live : [...live, key]
+    })
+  }
+
+  const pickBestInBlock = () => {
+    if (!openBlock) return
+    setPicked(bestKeysInBlock(runs, openBlock.category, activePicked.length || quantity, openBlock))
   }
 
   const startReserve = () => {
-    if (!selected || busy) return
+    if (!selected || busy || (openBlock && !exact)) return
     if (!isAuthenticated) {
       router.push(`/sign-in?next=${encodeURIComponent(`/events/${slug}`)}`)
       return
@@ -172,17 +228,21 @@ export default function SeatSalePanel({
       const res = await fetch('/api/seats/reserve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventId,
-          category: selected.code,
-          quantity: qty,
-          area: chosenBlock?.area ?? null,
-          block: chosenBlock?.block ?? null,
-          buyerName: name,
-          eventimEmail,
-          phone,
-          note,
-        }),
+        body: JSON.stringify(
+          exact
+            ? { eventId, seats: pickedSeats, buyerName: name, eventimEmail, phone, note }
+            : {
+                eventId,
+                category: selected.code,
+                quantity: qty,
+                area: chosenBlock?.area ?? null,
+                block: chosenBlock?.block ?? null,
+                buyerName: name,
+                eventimEmail,
+                phone,
+                note,
+              },
+        ),
       })
       const payload = (await res.json().catch(() => null)) as
         | { id?: string; error?: string }
@@ -193,7 +253,7 @@ export default function SeatSalePanel({
           entityId: eventId,
           city,
           country,
-          meta: { kind: 'seats', quantity: qty, category: selected.code },
+          meta: { kind: 'seats', quantity: seatCount, category: selected.code, exact },
         })
         router.push(`/dashboard/seats?new=${payload.id}`)
         return
@@ -211,7 +271,7 @@ export default function SeatSalePanel({
         country,
         meta: { kind: 'seats', reason: errCode },
       })
-      if (errCode === 'sold_out' || errCode === 'not_together') {
+      if (errCode === 'sold_out' || errCode === 'not_together' || errCode === 'seats_taken') {
         setStep('pick')
         router.refresh()
       }
@@ -367,7 +427,7 @@ export default function SeatSalePanel({
         blocks={sale.blocks ?? []}
         runs={runs}
         colorFor={colorFor}
-        activeKey={preview ? blockKey(preview) : null}
+        activeKey={openBlock ? blockKey(openBlock) : preview ? blockKey(preview) : null}
         onSelect={chooseBlock}
         disabled={busy}
         labels={{
@@ -377,7 +437,70 @@ export default function SeatSalePanel({
         }}
       />
       <p className="px-1.5 pb-0.5 pt-1.5 text-[11px] leading-snug text-white/45">{t('seat_map_hint')}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5 px-1 pb-1">
+        {[...(sale.blocks ?? [])]
+          .sort(
+            (a, b) =>
+              (sale.categories.find((c) => c.code === b.category)?.price_cents ?? 0) -
+                (sale.categories.find((c) => c.code === a.category)?.price_cents ?? 0) ||
+              a.block.localeCompare(b.block, 'en', { numeric: true }),
+          )
+          .map((b) => {
+            const free = freeInBlock(runs, b)
+            const active = openBlock ? blockKey(openBlock) === blockKey(b) : false
+            return (
+              <button
+                key={blockKey(b)}
+                type="button"
+                onClick={() => chooseBlock(b)}
+                disabled={free <= 0 || busy}
+                aria-pressed={active}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  active
+                    ? 'border-white bg-white/10 text-white'
+                    : 'border-white/10 bg-white/[0.03] text-white/80 hover:border-white/25'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorFor(b.category) }} aria-hidden />
+                {t('seat_block')} {b.block}
+                <span className="font-normal text-white/45">
+                  {free > 0 ? fill(t('seat_free_n'), { n: free }) : t('seat_sold_out')}
+                </span>
+              </button>
+            )
+          })}
+      </div>
     </div>
+  )
+
+  const closeUp = openBlock && selected && (
+    <BlockSeatPicker
+      title={`${t('seat_block')} ${openBlock.block}`}
+      subtitle={[
+        openBlock.area,
+        fill(t('seat_per_seat'), { price: money(selected.price_cents) }),
+        fill(t('seat_selected_n'), { n: activePicked.length }),
+      ].join(' · ')}
+      seats={blockSeats}
+      picked={new Set(activePicked)}
+      color={colorFor(openBlock.category)}
+      maxReached={activePicked.length >= sale.max_per_order}
+      onToggle={toggleSeat}
+      onBest={pickBestInBlock}
+      onClear={() => setPicked([])}
+      onClose={closeBlock}
+      disabled={busy}
+      labels={{
+        row: t('seat_row'),
+        toward: t('seat_toward_ring'),
+        hint: t('seat_closeup_hint'),
+        best: t('seat_best_for_me'),
+        clear: t('seat_clear'),
+        close: t('seat_close'),
+        taken: t('seat_taken'),
+        max: t('seat_closeup_max'),
+      }}
+    />
   )
 
   const previewStrip = preview && (
@@ -519,7 +642,7 @@ export default function SeatSalePanel({
     <ul className="mt-4 space-y-2 text-xs text-white/60">
       <li className="flex items-start gap-2">
         <Users className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-flame-300" />
-        {t('seat_trust_together')}
+        {exact ? t('seat_trust_exact') : t('seat_trust_together')}
       </li>
       <li className="flex items-start gap-2">
         <Smartphone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-flame-300" />
@@ -535,7 +658,7 @@ export default function SeatSalePanel({
   )
 
   if (step === 'details' && selected) {
-    const total = selected.price_cents * qty
+    const total = selected.price_cents * seatCount
     const canSubmit =
       consent && name.trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(eventimEmail.trim())
     return (
@@ -554,14 +677,18 @@ export default function SeatSalePanel({
         <div className="rounded-2xl border border-flame-500/30 bg-flame-500/[0.07] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-white">
-              {qty} × {selected.label}
+              {seatCount} × {selected.label}
             </span>
             <span className="text-base font-bold text-white">{money(total)}</span>
           </div>
           <p className="mt-1 text-xs text-white/55">
-            {preview
-              ? `${t('seat_block')} ${preview.block} · ${t('seat_row')} ${preview.row} · ${t('seat_seats')} ${preview.seats[0]}${preview.seats.length > 1 ? `–${preview.seats[preview.seats.length - 1]}` : ''}`
-              : t('seat_trust_together')}
+            {exact
+              ? groupSeats(pickedSeats)
+                  .map((g) => `${t('seat_block')} ${g.block} · ${t('seat_row')} ${g.row} · ${t('seat_seats')} ${g.seats}`)
+                  .join(' | ')
+              : preview
+                ? `${t('seat_block')} ${preview.block} · ${t('seat_row')} ${preview.row} · ${t('seat_seats')} ${preview.seats[0]}${preview.seats.length > 1 ? `–${preview.seats[preview.seats.length - 1]}` : ''}`
+                : t('seat_trust_together')}
           </p>
         </div>
 
@@ -657,18 +784,30 @@ export default function SeatSalePanel({
       {header}
       {categoryList}
       {seatMap}
-      {quantityRow}
-      {previewStrip}
+      {openBlock ? (
+        closeUp
+      ) : (
+        <>
+          {quantityRow}
+          {previewStrip}
+        </>
+      )}
       {trust}
       {errorBox}
       <button
         type="button"
         onClick={startReserve}
-        disabled={busy || !selected || selected.available <= 0}
+        disabled={busy || !selected || selected.available <= 0 || (!!openBlock && !exact)}
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:-translate-y-0.5 hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0"
       >
         <Armchair className="h-4 w-4" />
-        {selected ? fill(t('seat_reserve_cta'), { n: qty }) : t('seat_pick_category')}
+        {openBlock
+          ? exact
+            ? `${fill(t('seat_reserve_exact'), { n: activePicked.length })} · ${money((selected?.price_cents ?? 0) * activePicked.length)}`
+            : t('seat_tap_to_choose')
+          : selected
+            ? fill(t('seat_reserve_cta'), { n: qty })
+            : t('seat_pick_category')}
       </button>
       {!isAuthenticated && (
         <p className="mt-2 text-center text-xs text-white/50">{t('seat_signin_hint')}</p>
