@@ -68,6 +68,16 @@ export type FreeRun = {
   len: number
 }
 
+/** One seat of the stock with its live state (for the block close-up). */
+export type PublicSeat = {
+  category: string
+  area: string
+  block: string
+  row: string
+  seat: number
+  free: boolean
+}
+
 export type PublicSeatSale = {
   mode: SeatSaleMode
   currency: string
@@ -80,6 +90,7 @@ export type PublicSeatSale = {
   /** Stadium map data; optional so an older RPC version still renders. */
   blocks?: PublicSeatBlock[]
   runs?: FreeRun[]
+  seats?: PublicSeat[]
 }
 
 /** seat_reserve() / seat_admin_manual_sale() result. */

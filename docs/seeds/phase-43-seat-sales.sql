@@ -204,6 +204,7 @@ BEGIN;
 DROP FUNCTION IF EXISTS seat_reserve(uuid, text, int, text, text, text, text);
 DROP FUNCTION IF EXISTS seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text);
 DROP FUNCTION IF EXISTS seat_pick(uuid, text, int);
+DROP FUNCTION IF EXISTS seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text);
 
 -- ---------------------------------------------------------------------------
 -- 6. Reference generator — 'SEAT-XXXXXX', unambiguous alphabet (no 0/O/1/I/L),
@@ -337,10 +338,12 @@ END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 11. seat_create_reservation — shared core of online reservations and
---     admin manual sales. Not callable by clients (no GRANT); only the two
---     wrappers below call it, after their own checks, under the sale lock.
+--     admin manual sales. Not callable by clients; only the wrappers below
+--     call it, after their own checks, under the sale lock.
+--     p_seat_ids: the exact seats a buyer tapped on the map (all must still
+--     be free and in p_category); NULL = pick with seat_pick.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_create_reservation(p_event_id uuid, p_category text, p_quantity int, p_user_id uuid, p_created_by uuid, p_source text, p_status text, p_buyer_name text, p_buyer_email text, p_eventim_email text, p_phone text, p_note text, p_payment_method text, p_area text, p_block text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+CREATE OR REPLACE FUNCTION seat_create_reservation(p_event_id uuid, p_category text, p_quantity int, p_user_id uuid, p_created_by uuid, p_source text, p_status text, p_buyer_name text, p_buyer_email text, p_eventim_email text, p_phone text, p_note text, p_payment_method text, p_area text, p_block text, p_seat_ids uuid[]) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_sale     seat_sales%ROWTYPE;
   v_cat      seat_categories%ROWTYPE;
@@ -360,7 +363,17 @@ BEGIN
     RAISE EXCEPTION 'category_not_on_sale';
   END IF;
 
-  v_ids := seat_pick(p_event_id, p_category, p_quantity, p_area, p_block);
+  IF p_seat_ids IS NOT NULL THEN
+    SELECT array_agg(DISTINCT s.id) INTO v_ids
+      FROM seat_free_stock(p_event_id) s
+     WHERE s.id = ANY (p_seat_ids)
+       AND s.category = p_category;
+    IF v_ids IS NULL OR array_length(v_ids, 1) IS DISTINCT FROM p_quantity THEN
+      RAISE EXCEPTION 'seats_taken';
+    END IF;
+  ELSE
+    v_ids := seat_pick(p_event_id, p_category, p_quantity, p_area, p_block);
+  END IF;
   IF v_ids IS NULL OR array_length(v_ids, 1) IS DISTINCT FROM p_quantity THEN
     SELECT count(*)::int INTO v_free
       FROM seat_free_stock(p_event_id) s
@@ -374,7 +387,7 @@ BEGIN
 
   SELECT jsonb_agg(jsonb_build_object(
            'area', s.area, 'block', s.block, 'row', s.row_label, 'seat', s.seat_number)
-           ORDER BY s.seat_number)
+           ORDER BY s.area, s.block, s.row_label, s.seat_number)
     INTO v_seats
     FROM seat_stock s
    WHERE s.id = ANY (v_ids);
@@ -433,9 +446,10 @@ END; $fn$;
 --     serialized, so two buyers can never get the same seat — by construction.
 --     In 'draft' mode only admins may reserve (test the flow before launch).
 --     p_area/p_block: optional block chosen on the stadium map (NULL = best
---     available in the category).
+--     available in the category). The buyer checks live in seat_guard_reserve,
+--     shared with seat_reserve_seats.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_reserve(p_event_id uuid, p_category text, p_quantity int, p_buyer_name text, p_eventim_email text, p_phone text, p_note text, p_area text, p_block text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+CREATE OR REPLACE FUNCTION seat_guard_reserve(p_event_id uuid, p_quantity int, p_buyer_name text, p_eventim_email text, p_phone text, p_note text) RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_uid         uuid := auth.uid();
   v_admin       boolean := is_admin();
@@ -444,7 +458,6 @@ DECLARE
   v_ev_listing  text;
   v_ev_over     boolean;
   v_have        int;
-  v_email       text;
   v_name        text := btrim(COALESCE(p_buyer_name, ''));
   v_eventim     text := lower(btrim(COALESCE(p_eventim_email, '')));
   v_phone       text := NULLIF(btrim(COALESCE(p_phone, '')), '');
@@ -454,6 +467,7 @@ BEGIN
     RAISE EXCEPTION 'auth_required';
   END IF;
 
+  -- The lock is held until the calling transaction ends.
   SELECT * INTO v_sale FROM seat_sales WHERE event_id = p_event_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'sale_not_found';
@@ -499,15 +513,68 @@ BEGIN
   IF v_have + p_quantity > v_sale.max_per_order THEN
     RAISE EXCEPTION 'user_cap_reached';
   END IF;
+END; $fn$;
 
-  SELECT email INTO v_email FROM auth.users WHERE id = v_uid;
+CREATE OR REPLACE FUNCTION seat_reserve(p_event_id uuid, p_category text, p_quantity int, p_buyer_name text, p_eventim_email text, p_phone text, p_note text, p_area text, p_block text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+DECLARE
+  v_email    text;
+  v_eventim  text := lower(btrim(COALESCE(p_eventim_email, '')));
+BEGIN
+  PERFORM seat_guard_reserve(p_event_id, p_quantity, p_buyer_name, p_eventim_email, p_phone, p_note);
+  SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
 
   RETURN seat_create_reservation(
     p_event_id, p_category, p_quantity,
-    v_uid, v_uid, 'online', 'held',
-    v_name, COALESCE(v_email, v_eventim), v_eventim, v_phone, v_note, NULL,
+    auth.uid(), auth.uid(), 'online', 'held',
+    btrim(COALESCE(p_buyer_name, '')), COALESCE(v_email, v_eventim), v_eventim,
+    NULLIF(btrim(COALESCE(p_phone, '')), ''), NULLIF(btrim(COALESCE(p_note, '')), ''), NULL,
     CASE WHEN p_block IS NOT NULL THEN NULLIF(btrim(p_area), '') END,
-    CASE WHEN p_area IS NOT NULL THEN NULLIF(btrim(p_block), '') END
+    CASE WHEN p_area IS NOT NULL THEN NULLIF(btrim(p_block), '') END,
+    NULL
+  );
+END; $fn$;
+
+-- ---------------------------------------------------------------------------
+-- 12b. seat_reserve_seats — the buyer tapped exact seats on the stadium map.
+--      p_seats: [{"area","block","row","seat"}, …]. All must still be free and
+--      in one category (one price), otherwise nothing is reserved.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION seat_reserve_seats(p_event_id uuid, p_seats jsonb, p_buyer_name text, p_eventim_email text, p_phone text, p_note text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+DECLARE
+  v_qty      int;
+  v_ids      uuid[];
+  v_cats     text[];
+  v_email    text;
+  v_eventim  text := lower(btrim(COALESCE(p_eventim_email, '')));
+BEGIN
+  IF p_seats IS NULL OR jsonb_typeof(p_seats) <> 'array'
+     OR jsonb_array_length(p_seats) < 1 OR jsonb_array_length(p_seats) > 20 THEN
+    RAISE EXCEPTION 'bad_quantity';
+  END IF;
+  v_qty := jsonb_array_length(p_seats);
+
+  PERFORM seat_guard_reserve(p_event_id, v_qty, p_buyer_name, p_eventim_email, p_phone, p_note);
+
+  SELECT array_agg(DISTINCT s.id), array_agg(DISTINCT s.category)
+    INTO v_ids, v_cats
+    FROM seat_free_stock(p_event_id) s
+    JOIN jsonb_to_recordset(p_seats) AS x(area text, block text, "row" text, seat int)
+      ON s.area = x.area AND s.block = x.block AND s.row_label = x."row" AND s.seat_number = x.seat;
+  IF v_ids IS NULL OR array_length(v_ids, 1) IS DISTINCT FROM v_qty THEN
+    RAISE EXCEPTION 'seats_taken';
+  END IF;
+  IF array_length(v_cats, 1) <> 1 THEN
+    RAISE EXCEPTION 'mixed_categories';
+  END IF;
+
+  SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
+
+  RETURN seat_create_reservation(
+    p_event_id, v_cats[1], v_qty,
+    auth.uid(), auth.uid(), 'online', 'held',
+    btrim(COALESCE(p_buyer_name, '')), COALESCE(v_email, v_eventim), v_eventim,
+    NULLIF(btrim(COALESCE(p_phone, '')), ''), NULLIF(btrim(COALESCE(p_note, '')), ''), NULL,
+    NULL, NULL, v_ids
   );
 END; $fn$;
 
@@ -559,7 +626,7 @@ BEGIN
     NULLIF(btrim(COALESCE(p_phone, '')), ''),
     NULLIF(btrim(COALESCE(p_note, '')), ''),
     p_payment_method,
-    NULL, NULL
+    NULL, NULL, NULL
   );
 END; $fn$;
 
@@ -786,7 +853,8 @@ END; $fn$;
 -- 17. seat_sale_public — everything the event page needs, safe for anonymous
 --     visitors: per category the price, how many are free, and the biggest
 --     group that can still sit together. For the stadium map: every block on
---     sale (sold-out ones too, drawn dimmed) and the free runs of seats in it.
+--     sale (sold-out ones too, drawn dimmed), the free runs of seats in it,
+--     and every seat with its free/taken state for the block close-up.
 --     Never exposes buyers or seat ids. 'draft' sales are admins-only.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION seat_sale_public(p_event_id uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $fn$
@@ -795,6 +863,7 @@ DECLARE
   v_cats    jsonb;
   v_blocks  jsonb;
   v_runs    jsonb;
+  v_seats   jsonb;
 BEGIN
   SELECT * INTO v_sale FROM seat_sales WHERE event_id = p_event_id;
   IF NOT FOUND THEN
@@ -842,6 +911,18 @@ BEGIN
     INTO v_runs
     FROM seat_free_runs(p_event_id) r;
 
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+           'category', s.category, 'area', s.area, 'block', s.block,
+           'row', s.row_label, 'seat', s.seat_number, 'free', f.id IS NOT NULL)
+           ORDER BY s.area, s.block, s.row_label, s.seat_number), '[]'::jsonb)
+    INTO v_seats
+    FROM seat_stock s
+    JOIN seat_categories c ON c.event_id = s.event_id AND c.code = s.category
+    LEFT JOIN seat_free_stock(p_event_id) f ON f.id = s.id
+   WHERE s.event_id = p_event_id
+     AND NOT s.withdrawn
+     AND c.price_cents IS NOT NULL;
+
   RETURN jsonb_build_object(
     'mode', v_sale.mode,
     'currency', v_sale.currency,
@@ -852,7 +933,8 @@ BEGIN
     'public_note', v_sale.public_note,
     'categories', v_cats,
     'blocks', v_blocks,
-    'runs', v_runs
+    'runs', v_runs,
+    'seats', v_seats
   );
 END; $fn$;
 
@@ -864,7 +946,8 @@ REVOKE ALL ON FUNCTION seat_free_stock(uuid) FROM public;
 REVOKE ALL ON FUNCTION seat_free_runs(uuid) FROM public;
 REVOKE ALL ON FUNCTION seat_pick(uuid, text, int, text, text) FROM public;
 REVOKE ALL ON FUNCTION seat_sweep(uuid) FROM public;
-REVOKE ALL ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text) FROM public;
+REVOKE ALL ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text, uuid[]) FROM public;
+REVOKE ALL ON FUNCTION seat_guard_reserve(uuid, int, text, text, text, text) FROM public;
 
 REVOKE ALL ON FUNCTION seat_sale_public(uuid) FROM public;
 GRANT EXECUTE ON FUNCTION seat_sale_public(uuid) TO anon, authenticated;
@@ -874,6 +957,9 @@ GRANT EXECUTE ON FUNCTION seat_join_waitlist(uuid, text, text, text, text, int, 
 
 REVOKE ALL ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text, text, text) FROM public;
 GRANT EXECUTE ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text, text, text) TO authenticated;
+
+REVOKE ALL ON FUNCTION seat_reserve_seats(uuid, jsonb, text, text, text, text) FROM public;
+GRANT EXECUTE ON FUNCTION seat_reserve_seats(uuid, jsonb, text, text, text, text) TO authenticated;
 
 REVOKE ALL ON FUNCTION seat_buyer_update(uuid, text) FROM public;
 GRANT EXECUTE ON FUNCTION seat_buyer_update(uuid, text) TO authenticated;
@@ -893,8 +979,10 @@ REVOKE EXECUTE ON FUNCTION seat_free_stock(uuid) FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION seat_free_runs(uuid) FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION seat_pick(uuid, text, int, text, text) FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION seat_sweep(uuid) FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text, uuid[]) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_guard_reserve(uuid, int, text, text, text, text) FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text, text, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION seat_reserve_seats(uuid, jsonb, text, text, text, text) FROM anon;
 REVOKE EXECUTE ON FUNCTION seat_buyer_update(uuid, text) FROM anon;
 REVOKE EXECUTE ON FUNCTION seat_admin_manual_sale(uuid, text, int, text, text, text, text, text, boolean, text) FROM anon;
 REVOKE EXECUTE ON FUNCTION seat_admin_update(uuid, text, text, text, text, boolean) FROM anon;

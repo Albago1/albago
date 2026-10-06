@@ -38,6 +38,8 @@ const B = '00000000-0000-0000-0000-0000000000b1'
 const C = '00000000-0000-0000-0000-0000000000c1'
 const D = '00000000-0000-0000-0000-0000000000d1'
 const EV = '11111111-1111-1111-1111-111111111111'
+const OBER = 'Nord-Tribüne Oberrang'
+const UNTER = 'Nord-Tribüne Unterrang'
 
 let failures = 0
 function check(name, cond, detail) {
@@ -253,6 +255,32 @@ check('block 20 B pair → 20 B/10/7-8 (leaves 1 only because asked there)', r.d
 await as(null)
 p = (await pub()).data
 check('map runs reflect the picks', p.runs.some((x) => x.block === '20 A' && x.first === 9 && x.len === 2), p.runs.filter((x) => x.block.startsWith('20')))
+
+console.log('— exact seats tapped on the map')
+const exact = (seats, name = 'Exact Buyer', mail = 'd@x.com') =>
+  rpc(`SELECT seat_reserve_seats($1,$2::jsonb,$3,$4,NULL,NULL)`, [EV, JSON.stringify(seats), name, mail])
+const seat = (area, block, row, n) => ({ area, block, row, seat: n })
+await as(D)
+// D holds 4 (two pairs) → cap 8 leaves 4.
+r = await exact([seat(OBER, '125', '20', 2), seat(OBER, '125', '20', 3)])
+check('exact pair 125/20/2-3', r.data && seatsStr(r) === '125/20/2,125/20/3' && r.data.status === 'held', r)
+r = await exact([seat(OBER, '125', '20', 3), seat(OBER, '125', '20', 4)])
+check('a seat someone just took → seats_taken', r.error === 'seats_taken', r)
+r = await exact([seat(OBER, '125', '20', 4), seat(UNTER, '12', '18', 14)])
+check('two prices in one go → mixed_categories', r.error === 'mixed_categories', r)
+r = await exact([seat(OBER, '125', '20', 4), seat(OBER, '125', '20', 4)])
+check('same seat twice → seats_taken', r.error === 'seats_taken', r)
+r = await exact([seat(OBER, '125', '20', 99)])
+check('a seat that is not in stock → seats_taken', r.error === 'seats_taken', r)
+r = await exact([])
+check('empty selection → bad_quantity', r.error === 'bad_quantity', r)
+r = await exact([seat(OBER, '125', '20', 4), seat(OBER, '125', '20', 5), seat(OBER, '125', '20', 1)])
+check('cap still applies to exact seats (4 held + 2 + 3 > 8)', r.error === 'user_cap_reached', r)
+await as(null)
+check('exact seats need sign-in', (await exact([seat(OBER, '125', '20', 4)])).error === 'auth_required')
+p = (await pub()).data
+const s125 = p.seats.filter((x) => x.block === '125')
+check('public seats list shows 125/20/2-3 taken, 4 free', s125.find((x) => x.seat === 2)?.free === false && s125.find((x) => x.seat === 4)?.free === true, s125)
 
 console.log('— cascade delete')
 await db.exec(`DELETE FROM events WHERE id = '${EV}'`)

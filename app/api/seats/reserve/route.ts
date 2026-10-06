@@ -11,10 +11,31 @@ export const maxDuration = 20
 // Seat reservation (phase 43). All correctness lives in seat_reserve: one
 // transaction under the seat_sales row lock, seats picked so a group always
 // sits together. This route only authenticates, validates shape, and maps RPC
-// codes to stable JSON. No payment happens here — the reservation is 'held'
-// until the seller confirms payment.
+// codes to stable JSON. Two shapes: { category, quantity, area?, block? }
+// (best available, optionally inside one block) or { seats: [...] } (the
+// exact seats tapped on the stadium map). No payment happens here — the
+// reservation is 'held' until the seller confirms payment.
 
 const limited = createRateLimiter(10 * 60_000, 12)
+
+type SeatKey = { area: string; block: string; row: string; seat: number }
+
+/** Exact seats from the body, or null when the body isn't an exact pick. */
+function exactSeats(value: unknown): SeatKey[] | null | 'invalid' {
+  if (value === undefined || value === null) return null
+  if (!Array.isArray(value) || value.length < 1 || value.length > 20) return 'invalid'
+  const seats: SeatKey[] = []
+  for (const item of value) {
+    const v = item as Record<string, unknown>
+    const area = cleanText(v?.area, 80)
+    const block = cleanText(v?.block, 20)
+    const row = cleanText(v?.row, 20)
+    const seat = typeof v?.seat === 'number' && Number.isInteger(v.seat) && v.seat > 0 ? v.seat : null
+    if (!area || !block || !row || seat === null) return 'invalid'
+    seats.push({ area, block, row, seat })
+  }
+  return seats
+}
 
 export async function POST(request: Request) {
   let body: Record<string, unknown>
@@ -25,9 +46,13 @@ export async function POST(request: Request) {
   }
 
   const eventId = typeof body.eventId === 'string' ? body.eventId : ''
+  const seats = exactSeats(body.seats)
   const category = cleanText(body.category, 40)
   const quantity = typeof body.quantity === 'number' ? body.quantity : NaN
-  if (!UUID_RE.test(eventId) || !category || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
+  if (!UUID_RE.test(eventId) || seats === 'invalid') {
+    return NextResponse.json({ error: 'bad_request' }, { status: 400 })
+  }
+  if (!seats && (!category || !Number.isInteger(quantity) || quantity < 1 || quantity > 20)) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }
 
@@ -42,20 +67,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
 
-  // Block tapped on the stadium map — both parts or neither.
-  const area = cleanText(body.area, 80)
-  const block = cleanText(body.block, 20)
-  const { data, error } = await supabase.rpc('seat_reserve', {
-    p_event_id: eventId,
-    p_category: category,
-    p_quantity: quantity,
+  const buyer = {
     p_buyer_name: cleanText(body.buyerName, 120),
     p_eventim_email: cleanText(body.eventimEmail, 254),
     p_phone: cleanText(body.phone, 40),
     p_note: cleanText(body.note, 500),
-    p_area: area && block ? area : null,
-    p_block: area && block ? block : null,
-  })
+  }
+  // Block tapped on the stadium map — both parts or neither.
+  const area = cleanText(body.area, 80)
+  const block = cleanText(body.block, 20)
+  const { data, error } = seats
+    ? await supabase.rpc('seat_reserve_seats', { p_event_id: eventId, p_seats: seats, ...buyer })
+    : await supabase.rpc('seat_reserve', {
+        p_event_id: eventId,
+        p_category: category,
+        p_quantity: quantity,
+        ...buyer,
+        p_area: area && block ? area : null,
+        p_block: area && block ? block : null,
+      })
 
   if (error) {
     const known = seatRpcError(error.message)

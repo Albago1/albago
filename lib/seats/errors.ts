@@ -17,6 +17,8 @@ const SEAT_RPC_ERRORS: Record<string, number> = {
   sold_out: 409,
   bad_transition: 409,
   hold_expired: 409,
+  seats_taken: 409,
+  mixed_categories: 409,
 }
 
 export function seatRpcError(message: string): { code: string; status: number } | null {

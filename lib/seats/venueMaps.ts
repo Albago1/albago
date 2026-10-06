@@ -35,6 +35,9 @@ export type VenueMap = {
   tiers: TierDef[]
   floorBlocks: Record<string, FloorBlockDef>
   ring: { cx: number; cy: number; size: number }
+  /** Part of the viewBox to show (zoom on the stand that has the stock);
+   *  the cut side fades out. Omit to show the whole stadium. */
+  focus?: { x: number; y: number; w: number; h: number; fadeRight?: boolean }
 }
 
 // Floor rectangle inside a 360 × 300 viewBox.
@@ -132,6 +135,9 @@ const MERKUR_SPIEL_ARENA_BOXING: VenueMap = {
   floorBlocks: Object.fromEntries(
     Object.entries(OFFICIAL_FLOOR).map(([label, [px, py]]) => [label, floorCell(px, py)]),
   ),
+  // All stock is in the Nord-Tribüne + floor block 204: zoom on the left
+  // two thirds so the blocks are big enough to tap on a phone.
+  focus: { x: 16, y: 14, w: 240, h: 272, fadeRight: true },
   // The ring sits in the gap the blocks around it leave (233/232 · 234–236 · 237 · 230/231).
   ring: (() => {
     const c = floorPoint(5100, 5080)

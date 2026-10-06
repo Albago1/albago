@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { freeInBlock, maxTogetherInBlock, pickSeats } from '@/lib/seats/pick'
+import {
+  bestKeysInBlock,
+  freeInBlock,
+  maxTogetherInBlock,
+  parseSeatKey,
+  pickSeats,
+  rowsOf,
+  seatKeyOf,
+} from '@/lib/seats/pick'
 import { normalizeBlock, placeBlock, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
 import type { FreeRun } from '@/lib/seats/types'
 
@@ -83,5 +91,42 @@ describe('venue map', () => {
   it('normalises block spellings', () => {
     expect(normalizeBlock('20 A')).toBe('20A')
     expect(normalizeBlock('20a')).toBe('20A')
+  })
+})
+
+describe('exact seats (block close-up)', () => {
+  it('round-trips a seat key, even with spaces in the block', () => {
+    const seat = { area: UNTER, block: '20 A', row: '9', seat: 7 }
+    expect(parseSeatKey(seatKeyOf(seat))).toEqual(seat)
+  })
+
+  it('lays a block out front row first, with gaps where numbering jumps', () => {
+    const seats = [
+      { row: '20', seat: 16 },
+      { row: '20', seat: 2 },
+      { row: '20', seat: 1 },
+      { row: '20', seat: 15 },
+      { row: '9', seat: 4 },
+    ]
+    const rows = rowsOf(seats)
+    expect(rows.map((r) => r.row)).toEqual(['9', '20'])
+    expect(rows[1].seats.map((s) => [s.seat, s.gapBefore])).toEqual([
+      [1, false],
+      [2, false],
+      [15, true],
+      [16, false],
+    ])
+  })
+
+  it('pre-selects the best seats inside the opened block', () => {
+    expect(bestKeysInBlock(RUNS, 'Cat 8', 2, { area: OBER, block: '125' })).toEqual([
+      seatKeyOf({ area: OBER, block: '125', row: '20', seat: 1 }),
+      seatKeyOf({ area: OBER, block: '125', row: '20', seat: 2 }),
+    ])
+  })
+
+  it('shrinks the pre-selection to what fits together in the block', () => {
+    expect(bestKeysInBlock(RUNS, 'Cat 6', 5, { area: UNTER, block: '18' })).toHaveLength(2)
+    expect(bestKeysInBlock(RUNS, 'Cat 6', 2, { area: UNTER, block: '999' })).toEqual([])
   })
 })
