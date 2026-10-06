@@ -2,6 +2,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
+  Armchair,
   ArrowRight,
   Bell,
   Building2,
@@ -155,7 +156,7 @@ export default async function DashboardPage() {
   if (profile?.role === 'admin') redirect('/admin')
 
   // — Regular user view —
-  const [submissionsRes, savedEvents, organizer, prefsRes, ticketsRes] =
+  const [submissionsRes, savedEvents, organizer, prefsRes, ticketsRes, seatsRes] =
     await Promise.all([
       supabase
         .from('event_submissions')
@@ -174,10 +175,18 @@ export default async function DashboardPage() {
         .select('id', { count: 'exact', head: true })
         .eq('owner_user_id', user.id)
         .in('status', ['valid', 'checked_in']),
+      // Seat reservations (phase 43) — the hand-off card only shows when the
+      // buyer has some; a missing table just reads as zero.
+      supabase
+        .from('seat_reservations')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .in('status', ['held', 'paid', 'transfer_sent', 'delivered']),
     ])
 
   const userSubmissions: Submission[] = submissionsRes.data ?? []
   const ticketCount = ticketsRes.count ?? 0
+  const seatReservationCount = seatsRes.count ?? 0
 
   // Split saved events into Upcoming vs Past so the section reads at a glance
   // instead of mixing tomorrow's event with last month's gig.
@@ -413,6 +422,27 @@ export default async function DashboardPage() {
             </div>
             <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
           </Link>
+
+          {/* My Seats hand-off (phase 43) */}
+          {seatReservationCount > 0 && (
+            <Link
+              href="/dashboard/seats"
+              className="group mt-4 flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-white/15 hover:bg-white/[0.05]"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <Armchair className="h-5 w-5 text-flame-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-white">My Seats</p>
+                  <p className="mt-0.5 text-sm text-white/50">
+                    {seatReservationCount} reservation{seatReservationCount === 1 ? '' : 's'} · track payment and transfer
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
+            </Link>
+          )}
 
           {/* Organizer hand-off */}
           <Link

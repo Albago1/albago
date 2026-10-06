@@ -693,7 +693,13 @@ docs/               plans, audits, handoffs (next-session.md is the rolling stat
 
 ## Commits
 
-Plan-first workflow per user preference. Each phase: write `docs/phase-N-plan.md`, get explicit approval, implement, test, commit. Commit messages are `Phase N: short description`. Manual SQL migrations are presented as copy-paste blocks for the user to run in Supabase — never executed programmatically.
+Plan-first workflow per user preference. Each phase: write `docs/phase-N-plan.md`, get explicit approval, implement, test, commit. Commit messages are `Phase N: short description`.
+
+## SQL migrations
+
+The Supabase connector is connected (project `stvjpcqcpmhngihfjhga`, since 2026-10-06). Claude may apply migrations through it, but only after telling the user in one line what will run and getting a yes. Before applying: check the live schema (seeds drift), test the SQL locally, then run Supabase's security advisor afterwards. Without the connector, fall back to copy-paste blocks for the Supabase SQL editor.
+
+Supabase grants EXECUTE on every new `public` function to `anon` and `authenticated` directly, so `REVOKE ... FROM public` does nothing on its own. Internal helper functions need `REVOKE EXECUTE ... FROM anon, authenticated`, and signed-in-only RPCs need `REVOKE ... FROM anon`.
 
 ---
 

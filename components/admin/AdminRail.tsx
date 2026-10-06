@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
+  Armchair,
   ArrowLeft,
   BadgeCheck,
   Inbox,
@@ -50,6 +51,7 @@ export default function AdminRail({ counts }: { counts: RailCounts }) {
     },
     { href: '/admin/compose', label: 'Compose', icon: Sparkles },
     { href: '/admin/events', label: 'Events', icon: Megaphone },
+    { href: '/admin/seats', label: 'Seats', icon: Armchair },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/broadcast', label: 'Broadcast', icon: Radio },
     { href: '/admin/engine', label: 'Event Engine', icon: Radar },

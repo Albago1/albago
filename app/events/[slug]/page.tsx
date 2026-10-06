@@ -29,6 +29,9 @@ import SimilarEvents from '@/components/events/SimilarEvents'
 import LocalizedEventText from '@/components/events/LocalizedEventText'
 import EventWeatherCard from '@/components/events/EventWeatherCard'
 import TierPicker, { type TierView } from '@/components/events/TierPicker'
+import SeatSalePanel from '@/components/seats/SeatSalePanel'
+import type { PublicSeatSale } from '@/lib/seats/types'
+import { venueMapFor } from '@/lib/seats/venueMaps'
 import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
@@ -218,6 +221,16 @@ async function fetchEvent(slug: string): Promise<EventRecord | null> {
     .eq('slug', slug)
     .maybeSingle()
   return (data as EventRecord | null) ?? null
+}
+
+// Seat sales (phase 43): AlbaGo's own stock of real seats. The RPC returns
+// null when the event has none, or when the sale is still a draft and the
+// viewer isn't an admin. Fails soft to null if the migration isn't applied.
+async function fetchSeatSale(eventId: string): Promise<PublicSeatSale | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('seat_sale_public', { p_event_id: eventId })
+  if (error || !data) return null
+  return data as PublicSeatSale
 }
 
 // Native free-ticket tiers (TIX-1). Anon RLS already scopes the read to
@@ -517,13 +530,13 @@ export default async function EventDetailPage(
   // action stays on the lighter glass pill.
   const PRIMARY_CTA =
     'inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-flame-400 to-flame-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(238,28,37,0.6)] ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 hover:from-flame-300 hover:to-flame-500 hover:shadow-[0_16px_44px_-10px_rgba(238,28,37,0.78)]'
-  // Native free-ticket tiers (TIX-1) supersede the external ticket link and
-  // the static price row whenever they exist — never both CTAs.
-  const ticketTiers =
-    !hasEnded && event.listing_status !== 'cancelled'
-      ? await fetchTicketTiers(event.id)
-      : []
-  const hasNativeTickets = ticketTiers.length > 0
+  // AlbaGo's own seat stock (phase 43) wins over everything else; then native
+  // free-ticket tiers (TIX-1) supersede the external ticket link and the
+  // static price row — never two CTAs.
+  const salesOpen = !hasEnded && event.listing_status !== 'cancelled'
+  const seatSale = salesOpen ? await fetchSeatSale(event.id) : null
+  const ticketTiers = salesOpen && !seatSale ? await fetchTicketTiers(event.id) : []
+  const hasNativeTickets = ticketTiers.length > 0 || !!seatSale
 
   // External ticketing (structured fields on events). Native tiers from the
   // TIX track supersede these per-event.
@@ -933,7 +946,27 @@ export default async function EventDetailPage(
 
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
 
-              {hasNativeTickets && (
+              {seatSale && (
+                <SeatSalePanel
+                  eventId={event.id}
+                  slug={event.slug}
+                  sale={seatSale}
+                  venueMapId={
+                    venueMapFor([event.title, venue?.name, event.address])?.id ?? null
+                  }
+                  isAuthenticated={!!user}
+                  defaultName={
+                    typeof user?.user_metadata?.full_name === 'string'
+                      ? user.user_metadata.full_name
+                      : null
+                  }
+                  defaultEmail={user?.email ?? null}
+                  city={event.location_slug}
+                  country={event.country}
+                />
+              )}
+
+              {ticketTiers.length > 0 && (
                 <TierPicker
                   eventId={event.id}
                   slug={event.slug}
