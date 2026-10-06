@@ -76,7 +76,7 @@ Estimated face value ≈ 4×650 + 13×450 + 20×250 = **€13,450 = the money at
 **Payment seam** — none built on purpose. Today: the buyer gets a hold + "payment details follow by email"; the seller collects any way and clicks "Mark paid". Later Stripe: a checkout route + webhook that calls `seat_admin_update(…, 'mark_paid', 'stripe', …)` — no schema change.
 
 ### Go-live checklist (user)
-1. Run `docs/seeds/phase-43-seat-sales.sql` in the Supabase SQL editor (expect one row of zeros).
+1. ~~Run the SQL~~ **DONE 2026-10-06** via the Supabase connector: migrations `phase_43_seat_sales_part1_tables`, `…_part2_functions`, `…_part3_lock_grants`. Verified: permissions as intended, a rolled-back live reserve test worked, tables empty.
 2. Create the fight event in the admin wizard (category Sports, Düsseldorf).
 3. `/admin/seats` → search the event → "Sell seats".
 4. Stock & prices → paste the Eventim ticket list → set label / face value / price per category.

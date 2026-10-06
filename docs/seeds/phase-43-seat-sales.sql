@@ -209,7 +209,7 @@ DROP FUNCTION IF EXISTS seat_pick(uuid, text, int);
 -- 6. Reference generator — 'SEAT-XXXXXX', unambiguous alphabet (no 0/O/1/I/L),
 --    short enough to type into a bank-transfer reference field.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION generate_seat_reference() RETURNS text LANGUAGE plpgsql VOLATILE AS $fn$
+CREATE OR REPLACE FUNCTION generate_seat_reference() RETURNS text LANGUAGE plpgsql VOLATILE SET search_path = public AS $fn$
 DECLARE
   alphabet constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   s text := '';
@@ -883,6 +883,21 @@ GRANT EXECUTE ON FUNCTION seat_admin_manual_sale(uuid, text, int, text, text, te
 
 REVOKE ALL ON FUNCTION seat_admin_update(uuid, text, text, text, text, boolean) FROM public;
 GRANT EXECUTE ON FUNCTION seat_admin_update(uuid, text, text, text, text, boolean) TO authenticated;
+
+-- Supabase grants EXECUTE on every new public function to anon and
+-- authenticated directly (default privileges), so REVOKE ... FROM public
+-- above is not enough — found by the security advisor on the first apply
+-- (2026-10-06). Internal helpers: nobody; signed-in-only RPCs: not anon.
+REVOKE EXECUTE ON FUNCTION generate_seat_reference() FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_free_stock(uuid) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_free_runs(uuid) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_pick(uuid, text, int, text, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_sweep(uuid) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text, text, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION seat_buyer_update(uuid, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION seat_admin_manual_sale(uuid, text, int, text, text, text, text, text, boolean, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION seat_admin_update(uuid, text, text, text, text, boolean) FROM anon;
 
 COMMIT;
 
