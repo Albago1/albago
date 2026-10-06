@@ -428,12 +428,19 @@ export default function SeatSalePanel({
         runs={runs}
         colorFor={colorFor}
         activeKey={openBlock ? blockKey(openBlock) : preview ? blockKey(preview) : null}
+        focusKey={openBlock ? blockKey(openBlock) : null}
         onSelect={chooseBlock}
         disabled={busy}
         labels={{
           floor: t('seat_floor'),
           ring: t('seat_ring'),
           blockFree: (block, free) => fill(t('seat_block_free'), { block, n: free }),
+          zoomIn: t('seat_zoom_in'),
+          zoomOut: t('seat_zoom_out'),
+          reset: t('seat_zoom_reset'),
+          legendFree: t('seat_legend_blocks'),
+          legendSoldOut: t('seat_sold_out'),
+          legendOther: t('seat_legend_not_here'),
         }}
       />
       <p className="px-1.5 pb-0.5 pt-1.5 text-[11px] leading-snug text-white/45">{t('seat_map_hint')}</p>
@@ -499,6 +506,10 @@ export default function SeatSalePanel({
         close: t('seat_close'),
         taken: t('seat_taken'),
         max: t('seat_closeup_max'),
+        legendFree: t('seat_legend_free'),
+        legendPicked: t('seat_legend_picked'),
+        legendTaken: t('seat_legend_taken'),
+        legendOther: t('seat_legend_other'),
       }}
     />
   )

@@ -8,7 +8,7 @@ import {
   rowsOf,
   seatKeyOf,
 } from '@/lib/seats/pick'
-import { normalizeBlock, placeBlock, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
+import { allBlocks, findBlock, normalizeBlock, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
 import type { FreeRun } from '@/lib/seats/types'
 
 // The real 37-seat stock as free runs (what seat_sale_public returns before
@@ -74,18 +74,41 @@ describe('venue map', () => {
     expect(venueMapFor(['Some club night', 'Kino Berlin'])).toBeNull()
   })
 
-  it('places every block of the real stock', () => {
+  it('draws the whole venue: upper tier 101–164 once each, floor 200–237', () => {
     const map = venueMapById('merkur-spiel-arena-boxing')!
-    for (const run of RUNS) {
-      expect(placeBlock(map, run.area, run.block), `${run.area} ${run.block}`).not.toBeNull()
-    }
+    const blocks = allBlocks(map)
+    const upper = blocks.filter((b) => b.tier === 1).map((b) => b.label)
+    expect(upper).toHaveLength(64)
+    expect(new Set(upper).size).toBe(64)
+    expect([...upper].map(Number).sort((a, b) => a - b)).toEqual(Array.from({ length: 64 }, (_, i) => 101 + i))
+    const floor = blocks.filter((b) => b.tier === -1).map((b) => Number(b.label))
+    expect([...floor].sort((a, b) => a - b)).toEqual(Array.from({ length: 38 }, (_, i) => 200 + i))
+    const lower = blocks.filter((b) => b.tier === 0)
+    expect(lower).toHaveLength(54)
+    expect(lower.map((b) => b.label)).toEqual(expect.arrayContaining(['11A', '12', '19', '20A', '20B', '21', '33B', '41', '42B', '44']))
   })
 
-  it('draws bowl blocks as paths and floor blocks as rects', () => {
+  it('finds every block of the real stock on the map', () => {
     const map = venueMapById('merkur-spiel-arena-boxing')!
-    expect(placeBlock(map, OBER, '114')?.d).toMatch(/^M/)
-    expect(placeBlock(map, 'Innenraum', '204')?.rect).toBeDefined()
-    expect(placeBlock(map, 'Süd-Tribüne Unterrang', '40')).toBeNull()
+    const blocks = allBlocks(map)
+    for (const run of RUNS) {
+      expect(findBlock(map, blocks, run.area, run.block), `${run.area} ${run.block}`).not.toBeNull()
+    }
+    expect(findBlock(map, blocks, OBER, '114')?.d).toMatch(/^M/)
+    expect(findBlock(map, blocks, 'Innenraum', '204')?.rect).toBeDefined()
+    expect(findBlock(map, blocks, 'Süd-Tribüne Unterrang', '40')).toBeNull()
+  })
+
+  it('puts the Nord-Tribüne blocks on the left, 204 on the floor near the ring', () => {
+    const map = venueMapById('merkur-spiel-arena-boxing')!
+    const blocks = allBlocks(map)
+    const at = (area: string, block: string) => findBlock(map, blocks, area, block)!
+    expect(at(OBER, '125').cx).toBeLessThan(map.field.x0)
+    expect(at(UNTER, '12').cx).toBeLessThan(map.field.x0)
+    expect(at(UNTER, '12').cy).toBeGreaterThan(at(UNTER, '18').cy) // 12 below 18
+    const b204 = at('Innenraum', '204')
+    expect(b204.cx).toBeGreaterThan(map.ring.cx)
+    expect(b204.cy).toBeLessThan(map.ring.cy)
   })
 
   it('normalises block spellings', () => {
