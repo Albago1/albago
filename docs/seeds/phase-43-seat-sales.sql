@@ -7,12 +7,17 @@
 -- marks it paid (any method). Stripe later only needs to call the same
 -- transition — no schema change.
 --
--- Idempotent: safe to re-run. Apply via Supabase Studio → SQL editor: open this
--- file in VS Code → Ctrl+A → copy → paste into the editor → Run.
+-- Idempotent: safe to re-run. TWO PARTS, each its own transaction — run
+-- PART 1 (tables + RLS) first, then PART 2 (functions + grants), via Supabase
+-- Studio → SQL editor → New query → paste → Run. Function bodies use $fn$
+-- and one-line headers so a browser paste can't mangle them.
 -- Depends on (all verified present by the phase-33 seed): events(id, status,
 -- date, end_date, timezone, listing_status), profiles(id, role), is_admin(),
 -- set_updated_at(), auth.users(id, email).
 
+-- ===========================================================================
+-- PART 1 of 2 — tables, triggers, RLS
+-- ===========================================================================
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -124,9 +129,7 @@ CREATE TABLE IF NOT EXISTS seat_stock (
   withdrawn       boolean     NOT NULL DEFAULT false,
   reservation_id  uuid        REFERENCES seat_reservations(id) ON DELETE SET NULL,
   created_at      timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT seat_stock_category_fk FOREIGN KEY (event_id, category)
-    REFERENCES seat_categories(event_id, code)
-    ON UPDATE CASCADE ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
+  CONSTRAINT seat_stock_category_fk FOREIGN KEY (event_id, category) REFERENCES seat_categories(event_id, code) ON UPDATE CASCADE ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
   CONSTRAINT seat_stock_unique_seat UNIQUE (event_id, area, block, row_label, seat_number)
 );
 
@@ -156,11 +159,51 @@ CREATE TRIGGER seat_waitlist_set_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- 18. RLS — admins manage stock directly; buyers read only their own
+--     reservations; every write a buyer makes goes through an RPC above.
+-- ---------------------------------------------------------------------------
+ALTER TABLE seat_sales        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seat_categories   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seat_stock        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seat_reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seat_waitlist     ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS seat_sales_admin ON seat_sales;
+CREATE POLICY seat_sales_admin ON seat_sales FOR ALL
+  USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS seat_categories_admin ON seat_categories;
+CREATE POLICY seat_categories_admin ON seat_categories FOR ALL
+  USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS seat_stock_admin ON seat_stock;
+CREATE POLICY seat_stock_admin ON seat_stock FOR ALL
+  USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS seat_reservations_select ON seat_reservations;
+CREATE POLICY seat_reservations_select ON seat_reservations FOR SELECT
+  USING (user_id = auth.uid() OR is_admin());
+
+DROP POLICY IF EXISTS seat_waitlist_admin_select ON seat_waitlist;
+CREATE POLICY seat_waitlist_admin_select ON seat_waitlist FOR SELECT
+  USING (is_admin());
+
+DROP POLICY IF EXISTS seat_waitlist_admin_delete ON seat_waitlist;
+CREATE POLICY seat_waitlist_admin_delete ON seat_waitlist FOR DELETE
+  USING (is_admin());
+
+COMMIT;
+
+-- ===========================================================================
+-- PART 2 of 2 — functions + grants (run after PART 1)
+-- ===========================================================================
+BEGIN;
+
+-- ---------------------------------------------------------------------------
 -- 6. Reference generator — 'SEAT-XXXXXX', unambiguous alphabet (no 0/O/1/I/L),
 --    short enough to type into a bank-transfer reference field.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION generate_seat_reference()
-RETURNS text LANGUAGE plpgsql VOLATILE AS $$
+CREATE OR REPLACE FUNCTION generate_seat_reference() RETURNS text LANGUAGE plpgsql VOLATILE AS $fn$
 DECLARE
   alphabet constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   s text := '';
@@ -170,17 +213,14 @@ BEGIN
     s := s || substr(alphabet, 1 + floor(random() * length(alphabet))::int, 1);
   END LOOP;
   RETURN 'SEAT-' || s;
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 7. seat_free_stock — THE single definition of "this seat can be sold":
 --    not withdrawn, its category has a price, and it is not attached to a
 --    live reservation (an expired-but-not-yet-swept hold counts as free).
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_free_stock(p_event_id uuid)
-RETURNS SETOF seat_stock LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_free_stock(p_event_id uuid) RETURNS SETOF seat_stock LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
   SELECT s.*
   FROM seat_stock s
   JOIN seat_categories c ON c.event_id = s.event_id AND c.code = s.category
@@ -194,18 +234,14 @@ AS $$
       OR r.status IN ('cancelled','expired')
       OR (r.status = 'held' AND r.expires_at <= now())
     );
-$$;
+$fn$;
 
 -- ---------------------------------------------------------------------------
 -- 8. seat_free_runs — free seats grouped into runs of side-by-side seats
 --    (same category/area/block/row, consecutive numbers). The classic
 --    gaps-and-islands trick: seat_number − row_number() is constant per run.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_free_runs(p_event_id uuid)
-RETURNS TABLE (category text, area text, block text, row_label text, first_seat int, len int)
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_free_runs(p_event_id uuid) RETURNS TABLE (category text, area text, block text, row_label text, first_seat int, len int) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
   SELECT f.category, f.area, f.block, f.row_label,
          min(f.seat_number)::int AS first_seat,
          count(*)::int           AS len
@@ -218,7 +254,7 @@ AS $$
     FROM seat_free_stock(p_event_id) s
   ) f
   GROUP BY f.category, f.area, f.block, f.row_label, f.grp;
-$$;
+$fn$;
 
 -- ---------------------------------------------------------------------------
 -- 9. seat_pick — choose seats for a group so it always sits together and the
@@ -230,10 +266,7 @@ $$;
 --    Takes seats from the low end of the run so the remainder stays together.
 --    Caller must hold the seat_sales row lock. Returns NULL if nothing fits.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_pick(p_event_id uuid, p_category text, p_quantity int)
-RETURNS uuid[] LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_pick(p_event_id uuid, p_category text, p_quantity int) RETURNS uuid[] LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_run record;
   v_ids uuid[];
@@ -268,7 +301,7 @@ BEGIN
   ) x;
 
   RETURN v_ids;
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 10. seat_sweep — bookkeeping: flip lapsed holds to 'expired' and detach any
@@ -276,10 +309,7 @@ END; $$;
 --     this (seat_free_stock already treats them as free); it keeps the admin
 --     view and the per-user caps honest. Caller holds the sale lock.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_sweep(p_event_id uuid)
-RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_sweep(p_event_id uuid) RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 BEGIN
   UPDATE seat_reservations
      SET status = 'expired'
@@ -293,31 +323,14 @@ BEGIN
    WHERE s.reservation_id = r.id
      AND s.event_id = p_event_id
      AND r.status IN ('cancelled','expired');
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 11. seat_create_reservation — shared core of online reservations and
 --     admin manual sales. Not callable by clients (no GRANT); only the two
 --     wrappers below call it, after their own checks, under the sale lock.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_create_reservation(
-  p_event_id       uuid,
-  p_category       text,
-  p_quantity       int,
-  p_user_id        uuid,
-  p_created_by     uuid,
-  p_source         text,
-  p_status         text,
-  p_buyer_name     text,
-  p_buyer_email    text,
-  p_eventim_email  text,
-  p_phone          text,
-  p_note           text,
-  p_payment_method text
-)
-RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_create_reservation(p_event_id uuid, p_category text, p_quantity int, p_user_id uuid, p_created_by uuid, p_source text, p_status text, p_buyer_name text, p_buyer_email text, p_eventim_email text, p_phone text, p_note text, p_payment_method text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_sale     seat_sales%ROWTYPE;
   v_cat      seat_categories%ROWTYPE;
@@ -401,7 +414,7 @@ BEGIN
     'seats', v_seats,
     'expires_at', v_expires
   );
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 12. seat_reserve — the public reservation (signed-in buyers).
@@ -409,18 +422,7 @@ END; $$;
 --     serialized, so two buyers can never get the same seat — by construction.
 --     In 'draft' mode only admins may reserve (test the flow before launch).
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_reserve(
-  p_event_id       uuid,
-  p_category       text,
-  p_quantity       int,
-  p_buyer_name     text,
-  p_eventim_email  text,
-  p_phone          text,
-  p_note           text
-)
-RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_reserve(p_event_id uuid, p_category text, p_quantity int, p_buyer_name text, p_eventim_email text, p_phone text, p_note text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_uid         uuid := auth.uid();
   v_admin       boolean := is_admin();
@@ -492,7 +494,7 @@ BEGIN
     v_uid, v_uid, 'online', 'held',
     v_name, COALESCE(v_email, v_eventim), v_eventim, v_phone, v_note, NULL
   );
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 13. seat_admin_manual_sale — sales agreed outside the site (WhatsApp, in
@@ -500,21 +502,7 @@ END; $$;
 --     Links to the buyer's AlbaGo account when the email matches one, so they
 --     still get the tracker.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_admin_manual_sale(
-  p_event_id        uuid,
-  p_category        text,
-  p_quantity        int,
-  p_buyer_name      text,
-  p_buyer_email     text,
-  p_eventim_email   text,
-  p_phone           text,
-  p_note            text,
-  p_paid            boolean,
-  p_payment_method  text
-)
-RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_admin_manual_sale(p_event_id uuid, p_category text, p_quantity int, p_buyer_name text, p_buyer_email text, p_eventim_email text, p_phone text, p_note text, p_paid boolean, p_payment_method text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_uid      uuid := auth.uid();
   v_sale     seat_sales%ROWTYPE;
@@ -557,24 +545,14 @@ BEGIN
     NULLIF(btrim(COALESCE(p_note, '')), ''),
     p_payment_method
   );
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 14. seat_admin_update — every admin status move goes through this one
 --     state machine (Stripe's webhook will call 'mark_paid' the same way).
 --     Seats go back on sale on cancel, and on refund when p_release is true.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_admin_update(
-  p_reservation_id  uuid,
-  p_action          text,
-  p_payment_method  text,
-  p_payment_ref     text,
-  p_admin_note      text,
-  p_release         boolean
-)
-RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_admin_update(p_reservation_id uuid, p_action text, p_payment_method text, p_payment_ref text, p_admin_note text, p_release boolean) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_event_id  uuid;
   v_sale      seat_sales%ROWTYPE;
@@ -697,16 +675,13 @@ BEGIN
 
   SELECT * INTO v_res FROM seat_reservations WHERE id = p_reservation_id;
   RETURN to_jsonb(v_res);
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 15. Buyer self-service: cancel an unpaid hold; confirm the Eventim transfer
 --     arrived.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_buyer_update(p_reservation_id uuid, p_action text)
-RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_buyer_update(p_reservation_id uuid, p_action text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_uid       uuid := auth.uid();
   v_event_id  uuid;
@@ -747,24 +722,13 @@ BEGIN
 
   SELECT * INTO v_res FROM seat_reservations WHERE id = p_reservation_id;
   RETURN jsonb_build_object('id', v_res.id, 'status', v_res.status);
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 16. seat_join_waitlist — anyone (signed in or not) can join; the API route
 --     rate-limits by IP. Re-joining with the same email updates the row.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_join_waitlist(
-  p_event_id  uuid,
-  p_name      text,
-  p_email     text,
-  p_phone     text,
-  p_category  text,
-  p_quantity  int,
-  p_city      text
-)
-RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_join_waitlist(p_event_id uuid, p_name text, p_email text, p_phone text, p_category text, p_quantity int, p_city text) RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_mode   text;
   v_name   text := btrim(COALESCE(p_name, ''));
@@ -800,7 +764,7 @@ BEGIN
          quantity = EXCLUDED.quantity,
          city = COALESCE(EXCLUDED.city, seat_waitlist.city),
          user_id = COALESCE(seat_waitlist.user_id, EXCLUDED.user_id);
-END; $$;
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 17. seat_sale_public — everything the event page needs, safe for anonymous
@@ -808,10 +772,7 @@ END; $$;
 --     group that can still sit together. Never exposes buyers or seat ids.
 --     'draft' sales are visible to admins only.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_sale_public(p_event_id uuid)
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION seat_sale_public(p_event_id uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_sale  seat_sales%ROWTYPE;
   v_cats  jsonb;
@@ -854,41 +815,7 @@ BEGIN
     'public_note', v_sale.public_note,
     'categories', v_cats
   );
-END; $$;
-
--- ---------------------------------------------------------------------------
--- 18. RLS — admins manage stock directly; buyers read only their own
---     reservations; every write a buyer makes goes through an RPC above.
--- ---------------------------------------------------------------------------
-ALTER TABLE seat_sales        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seat_categories   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seat_stock        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seat_reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seat_waitlist     ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS seat_sales_admin ON seat_sales;
-CREATE POLICY seat_sales_admin ON seat_sales FOR ALL
-  USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS seat_categories_admin ON seat_categories;
-CREATE POLICY seat_categories_admin ON seat_categories FOR ALL
-  USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS seat_stock_admin ON seat_stock;
-CREATE POLICY seat_stock_admin ON seat_stock FOR ALL
-  USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS seat_reservations_select ON seat_reservations;
-CREATE POLICY seat_reservations_select ON seat_reservations FOR SELECT
-  USING (user_id = auth.uid() OR is_admin());
-
-DROP POLICY IF EXISTS seat_waitlist_admin_select ON seat_waitlist;
-CREATE POLICY seat_waitlist_admin_select ON seat_waitlist FOR SELECT
-  USING (is_admin());
-
-DROP POLICY IF EXISTS seat_waitlist_admin_delete ON seat_waitlist;
-CREATE POLICY seat_waitlist_admin_delete ON seat_waitlist FOR DELETE
-  USING (is_admin());
+END; $fn$;
 
 -- ---------------------------------------------------------------------------
 -- 19. Grants — internal helpers are callable by nobody but the definer.
