@@ -590,6 +590,12 @@ export const translations: Record<Language, Record<string, string>> = {
     seat_cancelled_note: "This reservation was cancelled.",
     seat_expired_note: "This hold expired before payment, so the seats went back on sale.",
     seat_refunded_note: "This reservation was refunded.",
+    seat_floor: "Floor",
+    seat_ring: "Ring",
+    seat_block_free: "Block {block}: {n} free",
+    seat_map_hint: "Tap a block to sit there — we pick the best seats in it, side by side.",
+    seat_best_available: "Best available",
+    seat_any_block: "Back to best available",
   },
 
   de: {
@@ -1182,6 +1188,12 @@ export const translations: Record<Language, Record<string, string>> = {
     seat_cancelled_note: "Diese Reservierung wurde storniert.",
     seat_expired_note: "Die Reservierung ist vor der Zahlung abgelaufen, die Plätze sind wieder im Verkauf.",
     seat_refunded_note: "Diese Reservierung wurde erstattet.",
+    seat_floor: "Innenraum",
+    seat_ring: "Ring",
+    seat_block_free: "Block {block}: {n} frei",
+    seat_map_hint: "Tippe auf einen Block, um dort zu sitzen – wir wählen die besten Plätze nebeneinander.",
+    seat_best_available: "Beste verfügbare",
+    seat_any_block: "Zurück zu den besten",
   },
 
   es: {
@@ -1774,6 +1786,12 @@ export const translations: Record<Language, Record<string, string>> = {
     seat_cancelled_note: "Esta reserva se canceló.",
     seat_expired_note: "La reserva caducó antes del pago y los asientos volvieron a la venta.",
     seat_refunded_note: "Esta reserva fue reembolsada.",
+    seat_floor: "Pista",
+    seat_ring: "Ring",
+    seat_block_free: "Bloque {block}: {n} libres",
+    seat_map_hint: "Toca un bloque para sentarte ahí: elegimos los mejores asientos, juntos.",
+    seat_best_available: "Mejor disponible",
+    seat_any_block: "Volver a la mejor opción",
   },
 
   sq: {
@@ -2366,5 +2384,11 @@ export const translations: Record<Language, Record<string, string>> = {
     seat_cancelled_note: "Ky rezervim u anulua.",
     seat_expired_note: "Rezervimi skadoi para pagesës, ndaj vendet u kthyen në shitje.",
     seat_refunded_note: "Ky rezervim u rimbursua.",
+    seat_floor: "Parteri",
+    seat_ring: "Ring",
+    seat_block_free: "Blloku {block}: {n} të lira",
+    seat_map_hint: "Prek një bllok për t’u ulur aty — zgjedhim vendet më të mira, pranë njëri-tjetrit.",
+    seat_best_available: "Më të mirat në dispozicion",
+    seat_any_block: "Kthehu te më të mirat",
   },
 }

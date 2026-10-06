@@ -36,6 +36,7 @@ const ADMIN = '00000000-0000-0000-0000-00000000000a'
 const A = '00000000-0000-0000-0000-0000000000a1'
 const B = '00000000-0000-0000-0000-0000000000b1'
 const C = '00000000-0000-0000-0000-0000000000c1'
+const D = '00000000-0000-0000-0000-0000000000d1'
 const EV = '11111111-1111-1111-1111-111111111111'
 
 let failures = 0
@@ -57,8 +58,8 @@ async function rpc(sql, params = []) {
     return { error: e.message }
   }
 }
-const reserve = (cat, qty, name = 'Test Buyer', mail = 'buyer@example.com') =>
-  rpc(`SELECT seat_reserve($1,$2,$3,$4,$5,NULL,NULL)`, [EV, cat, qty, name, mail])
+const reserve = (cat, qty, name = 'Test Buyer', mail = 'buyer@example.com', area = null, block = null) =>
+  rpc(`SELECT seat_reserve($1,$2,$3,$4,$5,NULL,NULL,$6,$7)`, [EV, cat, qty, name, mail, area, block])
 const pub = () => rpc(`SELECT seat_sale_public($1)`, [EV])
 const seatsStr = (res) =>
   res.data.seats.map((s) => `${s.block}/${s.row}/${s.seat}`).join(',')
@@ -71,8 +72,8 @@ await db.exec(seed)
 console.log('seed applied twice (idempotent)')
 
 await db.exec(`
-INSERT INTO auth.users VALUES ('${ADMIN}','admin@x.com'),('${A}','a@x.com'),('${B}','b@x.com'),('${C}','c@x.com');
-INSERT INTO profiles VALUES ('${ADMIN}','admin'),('${A}','user'),('${B}','user'),('${C}','user');
+INSERT INTO auth.users VALUES ('${ADMIN}','admin@x.com'),('${A}','a@x.com'),('${B}','b@x.com'),('${C}','c@x.com'),('${D}','d@x.com');
+INSERT INTO profiles VALUES ('${ADMIN}','admin'),('${A}','user'),('${B}','user'),('${C}','user'),('${D}','user');
 INSERT INTO events VALUES ('${EV}','published','2099-11-28',NULL,'Europe/Berlin',NULL);
 INSERT INTO seat_sales (event_id, deliver_by) VALUES ('${EV}','2099-11-21');
 INSERT INTO seat_categories (event_id, code, label, face_value_cents, price_cents, sort_order) VALUES
@@ -116,6 +117,9 @@ const cat = (code) => p.categories.find((c) => c.code === code)
 check('Cat 4: 4 free, 4 together', cat('Cat 4').available === 4 && cat('Cat 4').max_together === 4, cat('Cat 4'))
 check('Cat 6: 13 free, 4 together', cat('Cat 6').available === 13 && cat('Cat 6').max_together === 4, cat('Cat 6'))
 check('Cat 8: 20 free, 7 together', cat('Cat 8').available === 20 && cat('Cat 8').max_together === 7, cat('Cat 8'))
+check('map: 8 blocks on sale', p.blocks.length === 8, p.blocks)
+check('map: 10 free runs', p.runs.length === 10, p.runs.length)
+check('map: run 114/22 starts at 7, 7 long', p.runs.some((r) => r.block === '114' && r.row === '22' && r.first === 7 && r.len === 7), p.runs)
 
 const adminTest = await reserve('Cat 4', 1, 'Admin Test', 'admin@x.com')
 check('admin can test-reserve in draft', !!adminTest.data?.reference, adminTest)
@@ -236,6 +240,19 @@ await as(A)
 check('reserve refused in waitlist mode', (await reserve('Cat 8', 1)).error === 'sales_closed')
 await db.exec(`UPDATE seat_sales SET mode = 'closed'`)
 check('waitlist refused when closed', (await rpc(`SELECT seat_join_waitlist($1,'X Y','x@y.com',NULL,NULL,1,NULL)`, [EV])).error === 'sales_closed')
+
+console.log('— block chosen on the map')
+await db.exec(`UPDATE seat_sales SET mode = 'live'`)
+await as(D)
+r = await reserve('Cat 6', 2, 'Map Buyer', 'd@x.com', 'Nord-Tribüne Unterrang', '20 A')
+check('block 20 A pair → 20 A/9/7-8', r.data && seatsStr(r) === '20 A/9/7,20 A/9/8', r)
+r = await reserve('Cat 6', 3, 'Map Buyer', 'd@x.com', 'Nord-Tribüne Unterrang', '20 A')
+check('3 more in 20 A (only 2 left) → sold_out', r.error === 'sold_out', r)
+r = await reserve('Cat 6', 2, 'Map Buyer', 'd@x.com', 'Nord-Tribüne Unterrang', '20 B')
+check('block 20 B pair → 20 B/10/7-8 (leaves 1 only because asked there)', r.data && seatsStr(r) === '20 B/10/7,20 B/10/8', r)
+await as(null)
+p = (await pub()).data
+check('map runs reflect the picks', p.runs.some((x) => x.block === '20 A' && x.first === 9 && x.len === 2), p.runs.filter((x) => x.block.startsWith('20')))
 
 console.log('— cascade delete')
 await db.exec(`DELETE FROM events WHERE id = '${EV}'`)

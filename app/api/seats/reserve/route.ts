@@ -42,6 +42,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
 
+  // Block tapped on the stadium map — both parts or neither.
+  const area = cleanText(body.area, 80)
+  const block = cleanText(body.block, 20)
   const { data, error } = await supabase.rpc('seat_reserve', {
     p_event_id: eventId,
     p_category: category,
@@ -50,6 +53,8 @@ export async function POST(request: Request) {
     p_eventim_email: cleanText(body.eventimEmail, 254),
     p_phone: cleanText(body.phone, 40),
     p_note: cleanText(body.note, 500),
+    p_area: area && block ? area : null,
+    p_block: area && block ? block : null,
   })
 
   if (error) {

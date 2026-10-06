@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Armchair,
@@ -19,17 +19,23 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
 import { formatMoney } from '@/lib/seats/format'
-import type { PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
+import { blockKey, maxTogetherInBlock, pickSeats } from '@/lib/seats/pick'
+import { venueMapById } from '@/lib/seats/venueMaps'
+import type { PublicSeatBlock, PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
+import StadiumMap from './StadiumMap'
 
 // Seat sales on the event page (phase 43). Presentation + honest error states
 // only — availability, "sits together", caps and holds are all enforced by
 // seat_reserve under a row lock. No payment step yet: a reservation is held
-// until the seller confirms payment.
+// until the seller confirms payment. With a known venue, a simplified stadium
+// map shows where the seats are; tapping a block picks the best seats in it.
 
 type Props = {
   eventId: string
   slug: string
   sale: PublicSeatSale
+  /** lib/seats/venueMaps id (ids cross the server→client boundary; maps hold RegExps). */
+  venueMapId: string | null
   isAuthenticated: boolean
   defaultName: string | null
   defaultEmail: string | null
@@ -52,6 +58,9 @@ const ERROR_KEYS: Record<string, string> = {
 const fill = (text: string, values: Record<string, string | number>) =>
   text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ''))
 
+// Category colours on the map and the cards, most expensive first.
+const CATEGORY_COLORS = ['#ee1c25', '#f59e0b', '#38bdf8', '#a78bfa', '#34d399', '#f472b6']
+
 const INPUT =
   'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-flame-400/60 focus:outline-none'
 
@@ -59,6 +68,7 @@ export default function SeatSalePanel({
   eventId,
   slug,
   sale,
+  venueMapId,
   isAuthenticated,
   defaultName,
   defaultEmail,
@@ -75,6 +85,8 @@ export default function SeatSalePanel({
   const [code, setCode] = useState<string | null>(sellable[0]?.code ?? null)
   const [quantity, setQuantity] = useState(2)
   const [step, setStep] = useState<'pick' | 'details'>('pick')
+  // Block tapped on the map; null = best available in the category.
+  const [chosenBlock, setChosenBlock] = useState<PublicSeatBlock | null>(null)
   const [busy, setBusy] = useState(false)
   const [errorKey, setErrorKey] = useState<string | null>(null)
 
@@ -100,9 +112,23 @@ export default function SeatSalePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const runs = useMemo(() => sale.runs ?? [], [sale.runs])
+  const venueMap = venueMapId ? venueMapById(venueMapId) : null
+  const showMap = !!venueMap && (sale.blocks?.length ?? 0) > 0
+  const colorFor = useMemo(() => {
+    const byPrice = [...sale.categories].sort((a, b) => b.price_cents - a.price_cents)
+    const colors = new Map(byPrice.map((c, i) => [c.code, CATEGORY_COLORS[i % CATEGORY_COLORS.length]]))
+    return (category: string) => colors.get(category) ?? 'rgba(255,255,255,0.5)'
+  }, [sale.categories])
+
   const selected = sale.categories.find((c) => c.code === code) ?? null
-  const maxQty = selected ? Math.max(1, selected.max_together) : 1
+  const maxQty = chosenBlock
+    ? Math.max(1, Math.min(maxTogetherInBlock(runs, chosenBlock), sale.max_per_order))
+    : selected
+      ? Math.max(1, selected.max_together)
+      : 1
   const qty = Math.min(Math.max(1, quantity), maxQty)
+  const preview = code ? pickSeats(runs, code, qty, chosenBlock) : null
   const lowest = sale.categories.reduce<number | null>(
     (min, c) => (min === null || c.price_cents < min ? c.price_cents : min),
     null,
@@ -117,6 +143,14 @@ export default function SeatSalePanel({
   const choose = (category: PublicSeatCategory) => {
     if (busy || category.available <= 0) return
     setCode(category.code)
+    setChosenBlock(null)
+    setErrorKey(null)
+  }
+
+  const chooseBlock = (block: PublicSeatBlock) => {
+    if (busy) return
+    setCode(block.category)
+    setChosenBlock(block)
     setErrorKey(null)
   }
 
@@ -142,6 +176,8 @@ export default function SeatSalePanel({
           eventId,
           category: selected.code,
           quantity: qty,
+          area: chosenBlock?.area ?? null,
+          block: chosenBlock?.block ?? null,
           buyerName: name,
           eventimEmail,
           phone,
@@ -287,6 +323,13 @@ export default function SeatSalePanel({
                   >
                     {isSelected && <Check className="h-3 w-3 text-white" />}
                   </span>
+                  {showMap && (
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: gone ? 'rgba(255,255,255,0.25)' : colorFor(category.code) }}
+                    />
+                  )}
                   <span className="text-sm font-semibold leading-snug text-white">{category.label}</span>
                 </span>
                 <span className="mt-1 block pl-6 text-xs text-white/50">
@@ -314,6 +357,67 @@ export default function SeatSalePanel({
           </button>
         )
       })}
+    </div>
+  )
+
+  const seatMap = showMap && venueMap && (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-ink-950/40 p-2.5">
+      <StadiumMap
+        map={venueMap}
+        blocks={sale.blocks ?? []}
+        runs={runs}
+        colorFor={colorFor}
+        activeKey={preview ? blockKey(preview) : null}
+        onSelect={chooseBlock}
+        disabled={busy}
+        labels={{
+          floor: t('seat_floor'),
+          ring: t('seat_ring'),
+          blockFree: (block, free) => fill(t('seat_block_free'), { block, n: free }),
+        }}
+      />
+      <p className="px-1.5 pb-0.5 pt-1.5 text-[11px] leading-snug text-white/45">{t('seat_map_hint')}</p>
+    </div>
+  )
+
+  const previewStrip = preview && (
+    <div className="mt-3 rounded-2xl border border-flame-500/25 bg-flame-500/[0.06] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="text-[13px] font-semibold text-white">
+          {preview.area}
+          {preview.block !== '-' ? ` · ${t('seat_block')} ${preview.block}` : ''} · {t('seat_row')} {preview.row}
+        </span>
+        {chosenBlock ? (
+          <button
+            type="button"
+            onClick={() => setChosenBlock(null)}
+            className="text-[11px] font-semibold text-flame-200 underline-offset-2 hover:underline"
+          >
+            {t('seat_any_block')}
+          </button>
+        ) : (
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
+            {t('seat_best_available')}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {Array.from({ length: preview.runLen }, (_, i) => preview.runFirst + i).map((n) => {
+          const mine = preview.seats.includes(n)
+          return (
+            <span
+              key={n}
+              className={`flex h-7 min-w-[1.75rem] items-center justify-center rounded-md border px-1 text-[11px] font-bold tabular-nums ${
+                mine
+                  ? 'border-flame-400 bg-flame-500 text-white shadow-glow-flame'
+                  : 'border-white/15 bg-white/[0.03] text-white/40'
+              }`}
+            >
+              {n}
+            </span>
+          )
+        })}
+      </div>
     </div>
   )
 
@@ -352,6 +456,7 @@ export default function SeatSalePanel({
         {draftBadge}
         {header}
         {sale.mode === 'waitlist' && categoryList}
+        {sale.mode === 'waitlist' && seatMap}
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           {wlDone ? (
             <p className="inline-flex items-start gap-2 text-sm text-emerald-200">
@@ -453,7 +558,11 @@ export default function SeatSalePanel({
             </span>
             <span className="text-base font-bold text-white">{money(total)}</span>
           </div>
-          <p className="mt-1 text-xs text-white/55">{t('seat_trust_together')}</p>
+          <p className="mt-1 text-xs text-white/55">
+            {preview
+              ? `${t('seat_block')} ${preview.block} · ${t('seat_row')} ${preview.row} · ${t('seat_seats')} ${preview.seats[0]}${preview.seats.length > 1 ? `–${preview.seats[preview.seats.length - 1]}` : ''}`
+              : t('seat_trust_together')}
+          </p>
         </div>
 
         <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
@@ -547,7 +656,9 @@ export default function SeatSalePanel({
       {draftBadge}
       {header}
       {categoryList}
+      {seatMap}
       {quantityRow}
+      {previewStrip}
       {trust}
       {errorBox}
       <button

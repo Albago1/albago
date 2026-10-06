@@ -31,6 +31,7 @@ import EventWeatherCard from '@/components/events/EventWeatherCard'
 import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import SeatSalePanel from '@/components/seats/SeatSalePanel'
 import type { PublicSeatSale } from '@/lib/seats/types'
+import { venueMapFor } from '@/lib/seats/venueMaps'
 import ShareEventButton from '@/components/share/ShareEventButton'
 import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
@@ -950,6 +951,9 @@ export default async function EventDetailPage(
                   eventId={event.id}
                   slug={event.slug}
                   sale={seatSale}
+                  venueMapId={
+                    venueMapFor([event.title, venue?.name, event.address])?.id ?? null
+                  }
                   isAuthenticated={!!user}
                   defaultName={
                     typeof user?.user_metadata?.full_name === 'string'

@@ -199,6 +199,12 @@ COMMIT;
 -- ===========================================================================
 BEGIN;
 
+-- Earlier drafts had shorter signatures; drop them so only the current
+-- versions exist (CREATE OR REPLACE would otherwise add overloads).
+DROP FUNCTION IF EXISTS seat_reserve(uuid, text, int, text, text, text, text);
+DROP FUNCTION IF EXISTS seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text);
+DROP FUNCTION IF EXISTS seat_pick(uuid, text, int);
+
 -- ---------------------------------------------------------------------------
 -- 6. Reference generator — 'SEAT-XXXXXX', unambiguous alphabet (no 0/O/1/I/L),
 --    short enough to type into a bank-transfer reference field.
@@ -264,9 +270,12 @@ $fn$;
 --                  runs for big groups)
 --      last resort: a run that would leave exactly 1 seat behind
 --    Takes seats from the low end of the run so the remainder stays together.
+--    p_area/p_block (both or neither): the block the buyer tapped on the
+--    stadium map — same rules, limited to that block.
+--    Mirrored for the on-screen preview by lib/seats/pick.ts (keep in sync).
 --    Caller must hold the seat_sales row lock. Returns NULL if nothing fits.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_pick(p_event_id uuid, p_category text, p_quantity int) RETURNS uuid[] LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+CREATE OR REPLACE FUNCTION seat_pick(p_event_id uuid, p_category text, p_quantity int, p_area text, p_block text) RETURNS uuid[] LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_run record;
   v_ids uuid[];
@@ -275,6 +284,7 @@ BEGIN
   FROM seat_free_runs(p_event_id) r
   WHERE r.category = p_category
     AND r.len >= p_quantity
+    AND (p_area IS NULL OR (r.area = p_area AND r.block = p_block))
   ORDER BY
     CASE WHEN r.len = p_quantity THEN 0
          WHEN r.len - p_quantity >= 2 THEN 1
@@ -330,7 +340,7 @@ END; $fn$;
 --     admin manual sales. Not callable by clients (no GRANT); only the two
 --     wrappers below call it, after their own checks, under the sale lock.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_create_reservation(p_event_id uuid, p_category text, p_quantity int, p_user_id uuid, p_created_by uuid, p_source text, p_status text, p_buyer_name text, p_buyer_email text, p_eventim_email text, p_phone text, p_note text, p_payment_method text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+CREATE OR REPLACE FUNCTION seat_create_reservation(p_event_id uuid, p_category text, p_quantity int, p_user_id uuid, p_created_by uuid, p_source text, p_status text, p_buyer_name text, p_buyer_email text, p_eventim_email text, p_phone text, p_note text, p_payment_method text, p_area text, p_block text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_sale     seat_sales%ROWTYPE;
   v_cat      seat_categories%ROWTYPE;
@@ -350,11 +360,12 @@ BEGIN
     RAISE EXCEPTION 'category_not_on_sale';
   END IF;
 
-  v_ids := seat_pick(p_event_id, p_category, p_quantity);
+  v_ids := seat_pick(p_event_id, p_category, p_quantity, p_area, p_block);
   IF v_ids IS NULL OR array_length(v_ids, 1) IS DISTINCT FROM p_quantity THEN
     SELECT count(*)::int INTO v_free
       FROM seat_free_stock(p_event_id) s
-     WHERE s.category = p_category;
+     WHERE s.category = p_category
+       AND (p_area IS NULL OR (s.area = p_area AND s.block = p_block));
     IF v_free >= p_quantity THEN
       RAISE EXCEPTION 'not_together';
     END IF;
@@ -421,8 +432,10 @@ END; $fn$;
 --     Locks the seat_sales row FOR UPDATE: every reservation for one event is
 --     serialized, so two buyers can never get the same seat — by construction.
 --     In 'draft' mode only admins may reserve (test the flow before launch).
+--     p_area/p_block: optional block chosen on the stadium map (NULL = best
+--     available in the category).
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION seat_reserve(p_event_id uuid, p_category text, p_quantity int, p_buyer_name text, p_eventim_email text, p_phone text, p_note text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
+CREATE OR REPLACE FUNCTION seat_reserve(p_event_id uuid, p_category text, p_quantity int, p_buyer_name text, p_eventim_email text, p_phone text, p_note text, p_area text, p_block text) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
   v_uid         uuid := auth.uid();
   v_admin       boolean := is_admin();
@@ -492,7 +505,9 @@ BEGIN
   RETURN seat_create_reservation(
     p_event_id, p_category, p_quantity,
     v_uid, v_uid, 'online', 'held',
-    v_name, COALESCE(v_email, v_eventim), v_eventim, v_phone, v_note, NULL
+    v_name, COALESCE(v_email, v_eventim), v_eventim, v_phone, v_note, NULL,
+    CASE WHEN p_block IS NOT NULL THEN NULLIF(btrim(p_area), '') END,
+    CASE WHEN p_area IS NOT NULL THEN NULLIF(btrim(p_block), '') END
   );
 END; $fn$;
 
@@ -543,7 +558,8 @@ BEGIN
     v_name, v_email, v_eventim,
     NULLIF(btrim(COALESCE(p_phone, '')), ''),
     NULLIF(btrim(COALESCE(p_note, '')), ''),
-    p_payment_method
+    p_payment_method,
+    NULL, NULL
   );
 END; $fn$;
 
@@ -769,13 +785,16 @@ END; $fn$;
 -- ---------------------------------------------------------------------------
 -- 17. seat_sale_public — everything the event page needs, safe for anonymous
 --     visitors: per category the price, how many are free, and the biggest
---     group that can still sit together. Never exposes buyers or seat ids.
---     'draft' sales are visible to admins only.
+--     group that can still sit together. For the stadium map: every block on
+--     sale (sold-out ones too, drawn dimmed) and the free runs of seats in it.
+--     Never exposes buyers or seat ids. 'draft' sales are admins-only.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION seat_sale_public(p_event_id uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $fn$
 DECLARE
-  v_sale  seat_sales%ROWTYPE;
-  v_cats  jsonb;
+  v_sale    seat_sales%ROWTYPE;
+  v_cats    jsonb;
+  v_blocks  jsonb;
+  v_runs    jsonb;
 BEGIN
   SELECT * INTO v_sale FROM seat_sales WHERE event_id = p_event_id;
   IF NOT FOUND THEN
@@ -805,6 +824,24 @@ BEGIN
      AND EXISTS (SELECT 1 FROM seat_stock s
                   WHERE s.event_id = c.event_id AND s.category = c.code);
 
+  SELECT COALESCE(jsonb_agg(b ORDER BY b->>'area', b->>'block'), '[]'::jsonb)
+    INTO v_blocks
+    FROM (
+      SELECT DISTINCT jsonb_build_object('category', s.category, 'area', s.area, 'block', s.block) AS b
+        FROM seat_stock s
+        JOIN seat_categories c ON c.event_id = s.event_id AND c.code = s.category
+       WHERE s.event_id = p_event_id
+         AND NOT s.withdrawn
+         AND c.price_cents IS NOT NULL
+    ) x;
+
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+           'category', r.category, 'area', r.area, 'block', r.block,
+           'row', r.row_label, 'first', r.first_seat, 'len', r.len)
+           ORDER BY r.area, r.block, r.row_label, r.first_seat), '[]'::jsonb)
+    INTO v_runs
+    FROM seat_free_runs(p_event_id) r;
+
   RETURN jsonb_build_object(
     'mode', v_sale.mode,
     'currency', v_sale.currency,
@@ -813,7 +850,9 @@ BEGIN
     'deliver_by', v_sale.deliver_by,
     'seller_name', v_sale.seller_name,
     'public_note', v_sale.public_note,
-    'categories', v_cats
+    'categories', v_cats,
+    'blocks', v_blocks,
+    'runs', v_runs
   );
 END; $fn$;
 
@@ -823,9 +862,9 @@ END; $fn$;
 REVOKE ALL ON FUNCTION generate_seat_reference() FROM public;
 REVOKE ALL ON FUNCTION seat_free_stock(uuid) FROM public;
 REVOKE ALL ON FUNCTION seat_free_runs(uuid) FROM public;
-REVOKE ALL ON FUNCTION seat_pick(uuid, text, int) FROM public;
+REVOKE ALL ON FUNCTION seat_pick(uuid, text, int, text, text) FROM public;
 REVOKE ALL ON FUNCTION seat_sweep(uuid) FROM public;
-REVOKE ALL ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text) FROM public;
+REVOKE ALL ON FUNCTION seat_create_reservation(uuid, text, int, uuid, uuid, text, text, text, text, text, text, text, text, text, text) FROM public;
 
 REVOKE ALL ON FUNCTION seat_sale_public(uuid) FROM public;
 GRANT EXECUTE ON FUNCTION seat_sale_public(uuid) TO anon, authenticated;
@@ -833,8 +872,8 @@ GRANT EXECUTE ON FUNCTION seat_sale_public(uuid) TO anon, authenticated;
 REVOKE ALL ON FUNCTION seat_join_waitlist(uuid, text, text, text, text, int, text) FROM public;
 GRANT EXECUTE ON FUNCTION seat_join_waitlist(uuid, text, text, text, text, int, text) TO anon, authenticated;
 
-REVOKE ALL ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text) FROM public;
-GRANT EXECUTE ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text) TO authenticated;
+REVOKE ALL ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text, text, text) FROM public;
+GRANT EXECUTE ON FUNCTION seat_reserve(uuid, text, int, text, text, text, text, text, text) TO authenticated;
 
 REVOKE ALL ON FUNCTION seat_buyer_update(uuid, text) FROM public;
 GRANT EXECUTE ON FUNCTION seat_buyer_update(uuid, text) TO authenticated;

@@ -51,6 +51,23 @@ export type PublicSeatCategory = {
   max_together: number
 }
 
+/** A block that has seats on sale (sold-out ones included — drawn dimmed). */
+export type PublicSeatBlock = {
+  category: string
+  area: string
+  block: string
+}
+
+/** A run of side-by-side free seats: seats first … first + len − 1. */
+export type FreeRun = {
+  category: string
+  area: string
+  block: string
+  row: string
+  first: number
+  len: number
+}
+
 export type PublicSeatSale = {
   mode: SeatSaleMode
   currency: string
@@ -60,6 +77,9 @@ export type PublicSeatSale = {
   seller_name: string | null
   public_note: string | null
   categories: PublicSeatCategory[]
+  /** Stadium map data; optional so an older RPC version still renders. */
+  blocks?: PublicSeatBlock[]
+  runs?: FreeRun[]
 }
 
 /** seat_reserve() / seat_admin_manual_sale() result. */
