@@ -951,6 +951,9 @@ export default async function EventDetailPage(
                   eventId={event.id}
                   slug={event.slug}
                   sale={seatSale}
+                  eventTitle={event.title}
+                  eventDate={event.date}
+                  venueName={venue?.name ?? cityLabel}
                   venueMapId={
                     venueMapFor([event.title, venue?.name, event.address])?.id ?? null
                   }

@@ -8,8 +8,9 @@ import {
   rowsOf,
   seatKeyOf,
 } from '@/lib/seats/pick'
-import { allBlocks, findBlock, normalizeBlock, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
-import type { FreeRun } from '@/lib/seats/types'
+import { allBlocks, findBlock, normalizeBlock, planShapeFor, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
+import { buildSeatPlan } from '@/lib/seats/blockPlan'
+import type { FreeRun, PublicSeat } from '@/lib/seats/types'
 
 // The real 37-seat stock as free runs (what seat_sale_public returns before
 // any sale). The same scenarios are asserted against the SQL in
@@ -151,5 +152,72 @@ describe('exact seats (block close-up)', () => {
   it('shrinks the pre-selection to what fits together in the block', () => {
     expect(bestKeysInBlock(RUNS, 'Cat 6', 5, { area: UNTER, block: '18' })).toHaveLength(2)
     expect(bestKeysInBlock(RUNS, 'Cat 6', 2, { area: UNTER, block: '999' })).toEqual([])
+  })
+})
+
+describe('block seat plan (full-screen picker)', () => {
+  const map = venueMapById('merkur-spiel-arena-boxing')!
+  const blocks = allBlocks(map)
+  const seatsOf = (area: string, block: string): PublicSeat[] =>
+    RUNS.filter((r) => r.area === area && r.block === block).flatMap((r) =>
+      Array.from({ length: r.len }, (_, i) => ({
+        category: r.category,
+        area: r.area,
+        block: r.block,
+        row: r.row,
+        seat: r.first + i,
+        free: true,
+      })),
+    )
+  const planOf = (area: string, block: string) =>
+    buildSeatPlan(seatsOf(area, block), planShapeFor(map, findBlock(map, blocks, area, block)!))
+
+  it('draws the whole block, front row first, with our seats at their exact numbers', () => {
+    const plan = planOf(OBER, '114')
+    expect(plan.rows.map((r) => r.label)).toEqual(Array.from({ length: 26 }, (_, i) => String(i + 1)))
+    expect(plan.rows.every((r) => r.seats.length === 24)).toBe(true)
+    const ys = plan.rows.map((r) => r.y)
+    expect([...ys].sort((a, b) => a - b)).toEqual(ys)
+    const row22 = plan.rows.find((r) => r.label === '22')!
+    expect(row22.seats.filter((s) => s.seat).map((s) => s.n)).toEqual([7, 8, 9, 10, 11, 12, 13])
+    expect(row22.seats[0].x).toBeLessThan(row22.seats[1].x) // seat 1 on the left
+    const ours = plan.rows.flatMap((r) => r.seats.filter((s) => s.seat))
+    expect(ours).toHaveLength(10)
+    for (const s of ours) {
+      expect(s.x).toBeGreaterThanOrEqual(plan.focus!.x)
+      expect(s.x).toBeLessThanOrEqual(plan.focus!.x + plan.focus!.w)
+      expect(s.y).toBeGreaterThanOrEqual(plan.focus!.y)
+      expect(s.y).toBeLessThanOrEqual(plan.focus!.y + plan.focus!.h)
+    }
+  })
+
+  it('grows a block to fit seat numbers beyond the typical size', () => {
+    const plan = planOf(OBER, '125')
+    expect(plan.rows[0].seats.length).toBeGreaterThanOrEqual(19) // seat 17 + room
+    expect(plan.rows.find((r) => r.label === '20')!.seats.filter((s) => s.seat).map((s) => s.n)).toEqual([1, 2, 3, 4, 5, 15, 16, 17])
+  })
+
+  it('draws the floor flat, the bowl corners fanned', () => {
+    const floor = findBlock(map, blocks, 'Innenraum', '204')!
+    expect(planShapeFor(map, floor).fan).toBe(0)
+    const corner = findBlock(map, blocks, UNTER, '20 A')!
+    const straight = findBlock(map, blocks, UNTER, '12')!
+    expect(planShapeFor(map, corner).fan).toBeGreaterThan(planShapeFor(map, straight).fan)
+    const plan = planOf('Innenraum', '204')
+    expect(plan.rows).toHaveLength(10)
+    expect(plan.rows[0].seats.filter((s) => s.seat).map((s) => s.n)).toEqual([14, 15, 16, 17])
+  })
+
+  it('keeps every seat inside the plan', () => {
+    for (const run of RUNS) {
+      const plan = planOf(run.area, run.block)
+      for (const row of plan.rows) {
+        for (const s of row.seats) {
+          expect(s.x - plan.radius).toBeGreaterThan(0)
+          expect(s.x + plan.radius).toBeLessThan(plan.width)
+          expect(s.y + plan.radius).toBeLessThan(plan.height)
+        }
+      }
+    }
   })
 })
