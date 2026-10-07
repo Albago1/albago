@@ -23,7 +23,12 @@ export type TierDef = {
   /** Block labels per side, in clockwise order; null = a block we draw but
    *  can't name with certainty. Array length = number of blocks on the side. */
   sides: Record<Side, Array<string | null>>
+  /** Typical rows × seats of a block in this tier, for the seat plan. */
+  plan: PlanSize
 }
+
+/** Rows and seats per row a block's seat plan is drawn with (at least). */
+export type PlanSize = { rows: number; seatsPerRow: number }
 
 export type FloorBlockDef = { x: number; y: number; w: number; h: number }
 
@@ -44,6 +49,8 @@ export type VenueMap = {
   ring: { cx: number; cy: number; size: number }
   /** Ringside area (the floor gap the ringside rows frame). */
   ringside: FloorBlockDef
+  /** Typical rows × seats of a floor block, for the seat plan. */
+  floorPlan: PlanSize
 }
 
 const range = (from: number, to: number) =>
@@ -102,6 +109,7 @@ const MERKUR_SPIEL_ARENA_BOXING: VenueMap = {
         B: ['43', '44', '1', ...nulls(12), '8', '9', '10'],
         BL: ['11A', '11B'],
       },
+      plan: { rows: 22, seatsPerRow: 22 },
     },
     {
       match: /oberrang/i,
@@ -117,6 +125,7 @@ const MERKUR_SPIEL_ARENA_BOXING: VenueMap = {
         B: ['163', '164', ...range(101, 112)],
         BL: range(113, 117),
       },
+      plan: { rows: 26, seatsPerRow: 24 },
     },
   ],
   floorBlocks: Object.fromEntries(
@@ -124,6 +133,7 @@ const MERKUR_SPIEL_ARENA_BOXING: VenueMap = {
   ),
   ring: { cx: 212.3, cy: 163.5, size: 24 },
   ringside: { x: 188.7, y: 142, w: 47.3, h: 43.1 },
+  floorPlan: { rows: 10, seatsPerRow: 20 },
 }
 
 const MAPS = [MERKUR_SPIEL_ARENA_BOXING]
@@ -210,6 +220,8 @@ export type MapBlock = {
   label: string | null
   /** Tier index in `map.tiers`, or -1 for the floor. */
   tier: number
+  /** Side of the bowl the block is on (bowl blocks only). */
+  side?: Side
   d?: string
   rect?: FloorBlockDef
   cx: number
@@ -230,6 +242,7 @@ export function allBlocks(map: VenueMap): MapBlock[] {
         blocks.push({
           label,
           tier: t,
+          side,
           d: slicePath(map.field, side, i / n, (i + 1) / n, tier.inner, tier.outer),
           cx,
           cy,
@@ -262,4 +275,12 @@ export function findBlock(map: VenueMap, blocks: MapBlock[], area: string, block
   const tier = map.tiers.findIndex((t) => t.match.test(area))
   if (tier < 0) return null
   return blocks.find((b) => b.tier === tier && b.label === label) ?? null
+}
+
+/** How a block's seat plan is drawn: its size, and how much the rows fan
+ *  out toward the back (bowl corners most, the flat floor not at all). */
+export function planShapeFor(map: VenueMap, block: MapBlock): PlanSize & { fan: number } {
+  if (block.tier < 0) return { ...map.floorPlan, fan: 0 }
+  const size = map.tiers[block.tier]?.plan ?? { rows: 20, seatsPerRow: 20 }
+  return { ...size, fan: block.side && isCorner(block.side) ? 0.028 : 0.012 }
 }

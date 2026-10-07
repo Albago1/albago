@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Armchair,
@@ -8,6 +8,7 @@ import {
   BellRing,
   Check,
   CheckCircle2,
+  ChevronRight,
   Loader2,
   Minus,
   Plus,
@@ -19,31 +20,30 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
 import { formatMoney, groupSeats } from '@/lib/seats/format'
-import {
-  bestKeysInBlock,
-  blockKey,
-  freeInBlock,
-  maxTogetherInBlock,
-  parseSeatKey,
-  pickSeats,
-  seatKeyOf,
-} from '@/lib/seats/pick'
-import { venueMapById } from '@/lib/seats/venueMaps'
-import type { PublicSeatBlock, PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
-import BlockSeatPicker from './BlockSeatPicker'
-import StadiumMap from './StadiumMap'
+import { blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@/lib/seats/pick'
+import { allBlocks, venueMapById } from '@/lib/seats/venueMaps'
+import type { PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
+import SeatMapPicker from './SeatMapPicker'
+import { StadiumPreview, stockOnMap } from './StadiumMap'
 
 // Seat sales on the event page (phase 43). Presentation + honest error states
 // only — availability, "sits together", caps and holds are all enforced by
-// seat_reserve under a row lock. No payment step yet: a reservation is held
-// until the seller confirms payment. With a known venue, a simplified stadium
-// map shows where the seats are; tapping a block opens a close-up of its
-// seats with the best ones pre-selected, and the buyer can tap exact seats.
+// the seat_reserve RPCs under a row lock. No payment step yet: a reservation
+// is held until the seller confirms payment.
+//
+// With a known venue the buyer picks exact seats in the full-screen seat
+// picker (stadium → block → seats, like the big ticket shops); this card shows
+// the stadium, the prices and the current selection. Without a venue map it
+// falls back to category + quantity, best seats together.
 
 type Props = {
   eventId: string
   slug: string
   sale: PublicSeatSale
+  eventTitle: string
+  /** YYYY-MM-DD */
+  eventDate: string | null
+  venueName: string | null
   /** lib/seats/venueMaps id (ids cross the server→client boundary; maps hold RegExps). */
   venueMapId: string | null
   isAuthenticated: boolean
@@ -76,10 +76,21 @@ const CATEGORY_COLORS = ['#ee1c25', '#f59e0b', '#38bdf8', '#a78bfa', '#34d399', 
 const INPUT =
   'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-flame-400/60 focus:outline-none'
 
+const PRIMARY =
+  'inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:-translate-y-0.5 hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0'
+
+/** ?seats=1 in the URL = the seat picker is open (Back closes it). */
+const PICKER_PARAM = 'seats'
+
+const naturalCmp = (a: string, b: string) => a.localeCompare(b, 'en', { numeric: true })
+
 export default function SeatSalePanel({
   eventId,
   slug,
   sale,
+  eventTitle,
+  eventDate,
+  venueName,
   venueMapId,
   isAuthenticated,
   defaultName,
@@ -97,11 +108,9 @@ export default function SeatSalePanel({
   const [code, setCode] = useState<string | null>(sellable[0]?.code ?? null)
   const [quantity, setQuantity] = useState(2)
   const [step, setStep] = useState<'pick' | 'details'>('pick')
-  // Block tapped on the map; null = best available in the category.
-  const [chosenBlock, setChosenBlock] = useState<PublicSeatBlock | null>(null)
-  // Block open in the close-up, and the exact seats picked in it (seat keys).
-  const [openBlock, setOpenBlock] = useState<PublicSeatBlock | null>(null)
   const [picked, setPicked] = useState<string[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerFilter, setPickerFilter] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [errorKey, setErrorKey] = useState<string | null>(null)
 
@@ -128,39 +137,47 @@ export default function SeatSalePanel({
   }, [])
 
   const runs = useMemo(() => sale.runs ?? [], [sale.runs])
+  const allSeats = useMemo(() => sale.seats ?? [], [sale.seats])
   const venueMap = venueMapId ? venueMapById(venueMapId) : null
   const showMap = !!venueMap && (sale.blocks?.length ?? 0) > 0
+  const mapFlow = showMap && allSeats.length > 0 && sale.mode !== 'waitlist'
   const colorFor = useMemo(() => {
     const byPrice = [...sale.categories].sort((a, b) => b.price_cents - a.price_cents)
     const colors = new Map(byPrice.map((c, i) => [c.code, CATEGORY_COLORS[i % CATEGORY_COLORS.length]]))
     return (category: string) => colors.get(category) ?? 'rgba(255,255,255,0.5)'
   }, [sale.categories])
-
-  const selected = sale.categories.find((c) => c.code === code) ?? null
-  const maxQty = chosenBlock
-    ? Math.max(1, Math.min(maxTogetherInBlock(runs, chosenBlock), sale.max_per_order))
-    : selected
-      ? Math.max(1, selected.max_together)
-      : 1
-  const qty = Math.min(Math.max(1, quantity), maxQty)
-  const preview = code ? pickSeats(runs, code, qty, chosenBlock) : null
-
-  const allSeats = useMemo(() => sale.seats ?? [], [sale.seats])
-  const canPickExact = allSeats.length > 0 && sale.mode !== 'waitlist'
-  const freeKeys = useMemo(
-    () => new Set(allSeats.filter((x) => x.free).map(seatKeyOf)),
-    [allSeats],
+  const stock = useMemo(
+    () => (venueMap ? stockOnMap(venueMap, allBlocks(venueMap), sale.blocks ?? [], runs) : []),
+    [venueMap, sale.blocks, runs],
   )
-  // A seat someone else took since the page loaded drops out of the pick.
-  const activePicked = picked.filter((k) => freeKeys.has(k))
-  const exact = !!openBlock && activePicked.length > 0
+
+  // Exact seats (map flow). A seat someone else took since the page loaded
+  // drops out of the selection.
+  const seatIndex = useMemo(() => new Map(allSeats.map((s) => [seatKeyOf(s), s])), [allSeats])
+  const activePicked = useMemo(() => picked.filter((k) => seatIndex.get(k)?.free), [picked, seatIndex])
   const pickedSeats = activePicked
     .map(parseSeatKey)
-    .sort((a, b) => a.row.localeCompare(b.row, 'en', { numeric: true }) || a.seat - b.seat)
-  const seatCount = openBlock ? activePicked.length : qty
-  const blockSeats = openBlock
-    ? allSeats.filter((x) => x.area === openBlock.area && x.block === openBlock.block)
-    : []
+    .sort((a, b) => naturalCmp(a.block, b.block) || naturalCmp(a.row, b.row) || a.seat - b.seat)
+  const pickedCategory = activePicked.length ? (seatIndex.get(activePicked[0])?.category ?? null) : null
+  const exact = mapFlow && activePicked.length > 0
+  const counts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const k of activePicked) {
+      const key = blockKey(parseSeatKey(k))
+      m.set(key, (m.get(key) ?? 0) + 1)
+    }
+    return m
+  }, [activePicked])
+
+  // Category + quantity (no venue map).
+  const selected = mapFlow
+    ? (sale.categories.find((c) => c.code === pickedCategory) ?? null)
+    : (sale.categories.find((c) => c.code === code) ?? null)
+  const maxQty = selected ? Math.max(1, selected.max_together) : 1
+  const qty = Math.min(Math.max(1, quantity), maxQty)
+  const preview = !mapFlow && code ? pickSeats(runs, code, qty) : null
+  const seatCount = mapFlow ? activePicked.length : qty
+
   const lowest = sale.categories.reduce<number | null>(
     (min, c) => (min === null || c.price_cents < min ? c.price_cents : min),
     null,
@@ -171,49 +188,96 @@ export default function SeatSalePanel({
         month: 'long',
       })
     : null
+  const storeKey = `albago:seat-pick:${eventId}`
 
-  const closeBlock = () => {
-    setOpenBlock(null)
-    setPicked([])
-    setChosenBlock(null)
+  // ---- picker open / close, in step with the browser's Back button ---------
+  const pushed = useRef(false)
+  const setUrlParam = (on: boolean, push: boolean) => {
+    const url = new URL(window.location.href)
+    if (on) url.searchParams.set(PICKER_PARAM, '1')
+    else url.searchParams.delete(PICKER_PARAM)
+    if (push) window.history.pushState(null, '', url)
+    else window.history.replaceState(null, '', url)
+  }
+
+  const openPicker = (filter: string | null) => {
+    setPickerFilter(filter)
+    setErrorKey(null)
+    setPickerOpen(true)
+    if (!new URLSearchParams(window.location.search).has(PICKER_PARAM)) {
+      setUrlParam(true, true)
+      pushed.current = true
+    }
+  }
+
+  const closePicker = () => {
+    setPickerOpen(false)
+    setStep('pick')
+    if (pushed.current) {
+      pushed.current = false
+      window.history.back()
+    } else {
+      setUrlParam(false, false)
+    }
+  }
+
+  useEffect(() => {
+    const onPop = () => {
+      if (!new URLSearchParams(window.location.search).has(PICKER_PARAM)) {
+        pushed.current = false
+        setPickerOpen(false)
+        setStep('pick')
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // Back from sign-in (?seats=1): reopen the picker with the saved selection.
+  useEffect(() => {
+    if (!mapFlow || !new URLSearchParams(window.location.search).has(PICKER_PARAM)) return
+    let saved: string[] = []
+    try {
+      const raw = JSON.parse(window.sessionStorage.getItem(storeKey) ?? '[]')
+      if (Array.isArray(raw)) saved = raw.filter((k): k is string => typeof k === 'string')
+    } catch {
+      /* nothing saved */
+    }
+    // One-off restore from the URL + session storage after the redirect.
+    setPicked(saved)
+    setPickerOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const goSignIn = (next: string) => {
+    router.push(`/sign-in?next=${encodeURIComponent(next)}`)
+  }
+
+  const continueFromPicker = () => {
+    if (!exact || busy) return
+    setErrorKey(null)
+    if (!isAuthenticated) {
+      try {
+        window.sessionStorage.setItem(storeKey, JSON.stringify(activePicked))
+      } catch {
+        /* private mode — the buyer picks again after signing in */
+      }
+      goSignIn(`/events/${slug}?${PICKER_PARAM}=1`)
+      return
+    }
+    setStep('details')
   }
 
   const choose = (category: PublicSeatCategory) => {
     if (busy || category.available <= 0) return
     setCode(category.code)
-    closeBlock()
     setErrorKey(null)
-  }
-
-  const chooseBlock = (block: PublicSeatBlock) => {
-    if (busy) return
-    setCode(block.category)
-    setChosenBlock(block)
-    setErrorKey(null)
-    if (canPickExact) {
-      setOpenBlock(block)
-      setPicked(bestKeysInBlock(runs, block.category, quantity, block))
-    }
-  }
-
-  const toggleSeat = (key: string) => {
-    setErrorKey(null)
-    setPicked((prev) => {
-      const live = prev.filter((k) => freeKeys.has(k))
-      if (live.includes(key)) return live.filter((k) => k !== key)
-      return live.length >= sale.max_per_order ? live : [...live, key]
-    })
-  }
-
-  const pickBestInBlock = () => {
-    if (!openBlock) return
-    setPicked(bestKeysInBlock(runs, openBlock.category, activePicked.length || quantity, openBlock))
   }
 
   const startReserve = () => {
-    if (!selected || busy || (openBlock && !exact)) return
+    if (!selected || busy) return
     if (!isAuthenticated) {
-      router.push(`/sign-in?next=${encodeURIComponent(`/events/${slug}`)}`)
+      goSignIn(`/events/${slug}`)
       return
     }
     setErrorKey(null)
@@ -235,8 +299,8 @@ export default function SeatSalePanel({
                 eventId,
                 category: selected.code,
                 quantity: qty,
-                area: chosenBlock?.area ?? null,
-                block: chosenBlock?.block ?? null,
+                area: null,
+                block: null,
                 buyerName: name,
                 eventimEmail,
                 phone,
@@ -255,12 +319,19 @@ export default function SeatSalePanel({
           country,
           meta: { kind: 'seats', quantity: seatCount, category: selected.code, exact },
         })
+        try {
+          window.sessionStorage.removeItem(storeKey)
+        } catch {
+          /* ignore */
+        }
+        // Leave no "?seats=1" entry behind: Back from My Seats lands on the page.
+        if (new URLSearchParams(window.location.search).has(PICKER_PARAM)) setUrlParam(false, false)
         router.push(`/dashboard/seats?new=${payload.id}`)
         return
       }
       const errCode = payload?.error ?? 'reserve_failed'
       if (errCode === 'auth_required') {
-        router.push(`/sign-in?next=${encodeURIComponent(`/events/${slug}`)}`)
+        goSignIn(`/events/${slug}`)
         return
       }
       setErrorKey(ERROR_KEYS[errCode] ?? 'seat_err_generic')
@@ -344,6 +415,14 @@ export default function SeatSalePanel({
     </p>
   ) : null
 
+  const soldBy =
+    sale.seller_name || sale.public_note ? (
+      <div className="mt-4 space-y-1 text-[11px] leading-snug text-white/40">
+        {sale.seller_name && <p>{fill(t('seat_sold_by'), { name: sale.seller_name })}</p>}
+        {sale.public_note && <p>{sale.public_note}</p>}
+      </div>
+    ) : null
+
   if (sale.mode === 'closed') {
     return (
       <div className="mt-5 border-t border-white/[0.08] pt-5">
@@ -420,140 +499,16 @@ export default function SeatSalePanel({
     </div>
   )
 
-  const seatMap = showMap && venueMap && (
-    <div className="mt-3 rounded-2xl border border-white/10 bg-ink-950/40 p-2.5">
-      <StadiumMap
+  const stadiumPicture = (counted: boolean) =>
+    venueMap ? (
+      <StadiumPreview
         map={venueMap}
-        blocks={sale.blocks ?? []}
-        runs={runs}
+        stock={stock}
         colorFor={colorFor}
-        activeKey={openBlock ? blockKey(openBlock) : preview ? blockKey(preview) : null}
-        focusKey={openBlock ? blockKey(openBlock) : null}
-        onSelect={chooseBlock}
-        disabled={busy}
-        labels={{
-          floor: t('seat_floor'),
-          ring: t('seat_ring'),
-          blockFree: (block, free) => fill(t('seat_block_free'), { block, n: free }),
-          zoomIn: t('seat_zoom_in'),
-          zoomOut: t('seat_zoom_out'),
-          reset: t('seat_zoom_reset'),
-          legendFree: t('seat_legend_blocks'),
-          legendSoldOut: t('seat_sold_out'),
-          legendOther: t('seat_legend_not_here'),
-        }}
+        counts={counted ? counts : undefined}
+        labels={{ floor: t('seat_floor'), ring: t('seat_ring') }}
       />
-      <p className="px-1.5 pb-0.5 pt-1.5 text-[11px] leading-snug text-white/45">{t('seat_map_hint')}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5 px-1 pb-1">
-        {[...(sale.blocks ?? [])]
-          .sort(
-            (a, b) =>
-              (sale.categories.find((c) => c.code === b.category)?.price_cents ?? 0) -
-                (sale.categories.find((c) => c.code === a.category)?.price_cents ?? 0) ||
-              a.block.localeCompare(b.block, 'en', { numeric: true }),
-          )
-          .map((b) => {
-            const free = freeInBlock(runs, b)
-            const active = openBlock ? blockKey(openBlock) === blockKey(b) : false
-            return (
-              <button
-                key={blockKey(b)}
-                type="button"
-                onClick={() => chooseBlock(b)}
-                disabled={free <= 0 || busy}
-                aria-pressed={active}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  active
-                    ? 'border-white bg-white/10 text-white'
-                    : 'border-white/10 bg-white/[0.03] text-white/80 hover:border-white/25'
-                }`}
-              >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorFor(b.category) }} aria-hidden />
-                {t('seat_block')} {b.block}
-                <span className="font-normal text-white/45">
-                  {free > 0 ? fill(t('seat_free_n'), { n: free }) : t('seat_sold_out')}
-                </span>
-              </button>
-            )
-          })}
-      </div>
-    </div>
-  )
-
-  const closeUp = openBlock && selected && (
-    <BlockSeatPicker
-      title={`${t('seat_block')} ${openBlock.block}`}
-      subtitle={[
-        openBlock.area,
-        fill(t('seat_per_seat'), { price: money(selected.price_cents) }),
-        fill(t('seat_selected_n'), { n: activePicked.length }),
-      ].join(' · ')}
-      seats={blockSeats}
-      picked={new Set(activePicked)}
-      color={colorFor(openBlock.category)}
-      maxReached={activePicked.length >= sale.max_per_order}
-      onToggle={toggleSeat}
-      onBest={pickBestInBlock}
-      onClear={() => setPicked([])}
-      onClose={closeBlock}
-      disabled={busy}
-      labels={{
-        row: t('seat_row'),
-        toward: t('seat_toward_ring'),
-        hint: t('seat_closeup_hint'),
-        best: t('seat_best_for_me'),
-        clear: t('seat_clear'),
-        close: t('seat_close'),
-        taken: t('seat_taken'),
-        max: t('seat_closeup_max'),
-        legendFree: t('seat_legend_free'),
-        legendPicked: t('seat_legend_picked'),
-        legendTaken: t('seat_legend_taken'),
-        legendOther: t('seat_legend_other'),
-      }}
-    />
-  )
-
-  const previewStrip = preview && (
-    <div className="mt-3 rounded-2xl border border-flame-500/25 bg-flame-500/[0.06] px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <span className="text-[13px] font-semibold text-white">
-          {preview.area}
-          {preview.block !== '-' ? ` · ${t('seat_block')} ${preview.block}` : ''} · {t('seat_row')} {preview.row}
-        </span>
-        {chosenBlock ? (
-          <button
-            type="button"
-            onClick={() => setChosenBlock(null)}
-            className="text-[11px] font-semibold text-flame-200 underline-offset-2 hover:underline"
-          >
-            {t('seat_any_block')}
-          </button>
-        ) : (
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
-            {t('seat_best_available')}
-          </span>
-        )}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {Array.from({ length: preview.runLen }, (_, i) => preview.runFirst + i).map((n) => {
-          const mine = preview.seats.includes(n)
-          return (
-            <span
-              key={n}
-              className={`flex h-7 min-w-[1.75rem] items-center justify-center rounded-md border px-1 text-[11px] font-bold tabular-nums ${
-                mine
-                  ? 'border-flame-400 bg-flame-500 text-white shadow-glow-flame'
-                  : 'border-white/15 bg-white/[0.03] text-white/40'
-              }`}
-            >
-              {n}
-            </span>
-          )
-        })}
-      </div>
-    </div>
-  )
+    ) : null
 
   const quantityRow = selected && selected.available > 0 && (
     <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5">
@@ -590,7 +545,9 @@ export default function SeatSalePanel({
         {draftBadge}
         {header}
         {sale.mode === 'waitlist' && categoryList}
-        {sale.mode === 'waitlist' && seatMap}
+        {sale.mode === 'waitlist' && showMap && (
+          <div className="mt-3 rounded-2xl border border-white/10 bg-ink-950/40 p-2.5">{stadiumPicture(false)}</div>
+        )}
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           {wlDone ? (
             <p className="inline-flex items-start gap-2 text-sm text-emerald-200">
@@ -637,7 +594,7 @@ export default function SeatSalePanel({
                 type="button"
                 onClick={() => void joinWaitlist()}
                 disabled={busy || name.trim().length < 2 || !wlEmail.includes('@')}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                className={`mt-3 ${PRIMARY}`}
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
                 {t('seat_waitlist_cta')}
@@ -653,7 +610,7 @@ export default function SeatSalePanel({
     <ul className="mt-4 space-y-2 text-xs text-white/60">
       <li className="flex items-start gap-2">
         <Users className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-flame-300" />
-        {exact ? t('seat_trust_exact') : t('seat_trust_together')}
+        {mapFlow ? t('seat_trust_exact') : t('seat_trust_together')}
       </li>
       <li className="flex items-start gap-2">
         <Smartphone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-flame-300" />
@@ -668,22 +625,24 @@ export default function SeatSalePanel({
     </ul>
   )
 
-  if (step === 'details' && selected) {
+  const checkout = (inPicker: boolean) => {
+    if (!selected) return null
     const total = selected.price_cents * seatCount
     const canSubmit =
       consent && name.trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(eventimEmail.trim())
     return (
-      <div className="mt-5 border-t border-white/[0.08] pt-5">
-        {draftBadge}
-        <button
-          type="button"
-          onClick={() => setStep('pick')}
-          disabled={busy}
-          className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition hover:text-white"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {t('seat_form_back')}
-        </button>
+      <div>
+        {!inPicker && (
+          <button
+            type="button"
+            onClick={() => setStep('pick')}
+            disabled={busy}
+            className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            {t('seat_form_back')}
+          </button>
+        )}
 
         <div className="rounded-2xl border border-flame-500/30 bg-flame-500/[0.07] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
@@ -764,12 +723,7 @@ export default function SeatSalePanel({
 
         {errorBox}
 
-        <button
-          type="button"
-          onClick={() => void reserve()}
-          disabled={busy || !canSubmit}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:-translate-y-0.5 hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0"
-        >
+        <button type="button" onClick={() => void reserve()} disabled={busy || !canSubmit} className={`mt-4 ${PRIMARY}`}>
           {busy ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -789,46 +743,180 @@ export default function SeatSalePanel({
     )
   }
 
+  // ---- with a venue map: stadium card + full-screen picker ------------------
+  if (mapFlow && venueMap) {
+    const total = selected ? selected.price_cents * activePicked.length : 0
+    const when = eventDate
+      ? new Date(`${eventDate}T12:00:00`).toLocaleDateString(locale, {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+        })
+      : null
+    return (
+      <div className="mt-5 border-t border-white/[0.08] pt-5">
+        {draftBadge}
+        {header}
+
+        <button
+          type="button"
+          onClick={() => openPicker(null)}
+          className="group mt-3 block w-full rounded-2xl border border-white/10 bg-ink-950/50 p-2.5 text-left transition hover:border-flame-500/45 hover:bg-ink-950/70"
+        >
+          {stadiumPicture(true)}
+          <span className="mt-2 flex items-center justify-between gap-2 px-1 pb-0.5">
+            <span className="text-[13px] font-semibold text-white">{t('seat_choose_on_map')}</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition group-hover:translate-x-0.5 group-hover:bg-flame-500 group-hover:text-white">
+              <ChevronRight className="h-4 w-4" />
+            </span>
+          </span>
+        </button>
+
+        <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+          {sale.categories.map((c, i) => {
+            const gone = c.available <= 0
+            return (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => openPicker(c.code)}
+                disabled={gone}
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50 ${
+                  i > 0 ? 'border-t border-white/[0.06]' : ''
+                }`}
+              >
+                <span
+                  className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: gone ? 'rgba(255,255,255,0.25)' : colorFor(c.code) }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-white">{c.label}</span>
+                  <span className="block text-[11px] text-white/45">
+                    {gone ? t('seat_sold_out') : fill(t('seat_left'), { n: c.available })}
+                  </span>
+                </span>
+                <span className="text-sm font-semibold text-white">{money(c.price_cents)}</span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-white/30" />
+              </button>
+            )
+          })}
+        </div>
+
+        {exact && selected && (
+          <div className="mt-3 rounded-2xl border border-flame-500/30 bg-flame-500/[0.07] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-white">
+                {t('seat_your_selection')} · {activePicked.length === 1 ? t('seat_one_seat') : fill(t('seat_n_seats'), { n: activePicked.length })}
+              </span>
+              <span className="text-base font-bold text-white">{money(total)}</span>
+            </div>
+            <p className="mt-1 text-xs text-white/55">
+              {groupSeats(pickedSeats)
+                .map((g) => `${t('seat_block')} ${g.block} · ${t('seat_row')} ${g.row} · ${t('seat_seats')} ${g.seats}`)
+                .join(' | ')}
+            </p>
+          </div>
+        )}
+
+        {trust}
+        {!pickerOpen && errorBox}
+        <button type="button" onClick={() => openPicker(null)} className={`mt-4 ${PRIMARY}`}>
+          <Armchair className="h-4 w-4" />
+          {exact ? `${t('seat_continue')} · ${money(total)}` : t('seat_choose_cta')}
+        </button>
+        {!isAuthenticated && <p className="mt-2 text-center text-xs text-white/50">{t('seat_signin_hint')}</p>}
+        {soldBy}
+
+        {pickerOpen && (
+          <SeatMapPicker
+            onClose={closePicker}
+            title={eventTitle}
+            subtitle={[when, venueName].filter(Boolean).join(' · ') || null}
+            sale={sale}
+            map={venueMap}
+            colorFor={colorFor}
+            money={money}
+            picked={activePicked}
+            onPickedChange={(keys) => {
+              setErrorKey(null)
+              setPicked(keys)
+            }}
+            initialFilter={pickerFilter}
+            onContinue={continueFromPicker}
+            checkout={step === 'details' && exact ? checkout(true) : null}
+            onBackFromCheckout={() => setStep('pick')}
+            notice={errorKey && step === 'pick' ? t(errorKey) : null}
+            busy={busy}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ---- no venue map: category + quantity -------------------------------------
+  if (step === 'details' && selected) {
+    return (
+      <div className="mt-5 border-t border-white/[0.08] pt-5">
+        {draftBadge}
+        {checkout(false)}
+      </div>
+    )
+  }
+
+  const previewStrip = preview && (
+    <div className="mt-3 rounded-2xl border border-flame-500/25 bg-flame-500/[0.06] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="text-[13px] font-semibold text-white">
+          {preview.area}
+          {preview.block !== '-' ? ` · ${t('seat_block')} ${preview.block}` : ''} · {t('seat_row')} {preview.row}
+        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-white/45">
+          {t('seat_best_available')}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {Array.from({ length: preview.runLen }, (_, i) => preview.runFirst + i).map((n) => {
+          const mine = preview.seats.includes(n)
+          return (
+            <span
+              key={n}
+              className={`flex h-7 min-w-[1.75rem] items-center justify-center rounded-md border px-1 text-[11px] font-bold tabular-nums ${
+                mine
+                  ? 'border-flame-400 bg-flame-500 text-white shadow-glow-flame'
+                  : 'border-white/15 bg-white/[0.03] text-white/40'
+              }`}
+            >
+              {n}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+
   return (
     <div className="mt-5 border-t border-white/[0.08] pt-5">
       {draftBadge}
       {header}
       {categoryList}
-      {seatMap}
-      {openBlock ? (
-        closeUp
-      ) : (
-        <>
-          {quantityRow}
-          {previewStrip}
-        </>
-      )}
+      {quantityRow}
+      {previewStrip}
       {trust}
       {errorBox}
       <button
         type="button"
         onClick={startReserve}
-        disabled={busy || !selected || selected.available <= 0 || (!!openBlock && !exact)}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-glow-flame transition hover:-translate-y-0.5 hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0"
+        disabled={busy || !selected || selected.available <= 0}
+        className={`mt-4 ${PRIMARY}`}
       >
         <Armchair className="h-4 w-4" />
-        {openBlock
-          ? exact
-            ? `${fill(t('seat_reserve_exact'), { n: activePicked.length })} · ${money((selected?.price_cents ?? 0) * activePicked.length)}`
-            : t('seat_tap_to_choose')
-          : selected
-            ? fill(t('seat_reserve_cta'), { n: qty })
-            : t('seat_pick_category')}
+        {selected ? fill(t('seat_reserve_cta'), { n: qty }) : t('seat_pick_category')}
       </button>
       {!isAuthenticated && (
         <p className="mt-2 text-center text-xs text-white/50">{t('seat_signin_hint')}</p>
       )}
-      {(sale.seller_name || sale.public_note) && (
-        <div className="mt-4 space-y-1 text-[11px] leading-snug text-white/40">
-          {sale.seller_name && <p>{fill(t('seat_sold_by'), { name: sale.seller_name })}</p>}
-          {sale.public_note && <p>{sale.public_note}</p>}
-        </div>
-      )}
+      {soldBy}
     </div>
   )
 }
