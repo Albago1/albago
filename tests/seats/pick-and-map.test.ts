@@ -8,8 +8,8 @@ import {
   rowsOf,
   seatKeyOf,
 } from '@/lib/seats/pick'
-import { allBlocks, findBlock, normalizeBlock, planShapeFor, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
-import { buildSeatPlan } from '@/lib/seats/blockPlan'
+import { allBlocks, findBlock, normalizeBlock, venueMapById, venueMapFor } from '@/lib/seats/venueMaps'
+import { layoutBlock } from '@/lib/seats/seatLayout'
 import type { FreeRun, PublicSeat } from '@/lib/seats/types'
 
 // The real 37-seat stock as free runs (what seat_sale_public returns before
@@ -155,7 +155,7 @@ describe('exact seats (block close-up)', () => {
   })
 })
 
-describe('block seat plan (full-screen picker)', () => {
+describe('seats drawn on the map', () => {
   const map = venueMapById('merkur-spiel-arena-boxing')!
   const blocks = allBlocks(map)
   const seatsOf = (area: string, block: string): PublicSeat[] =>
@@ -169,55 +169,77 @@ describe('block seat plan (full-screen picker)', () => {
         free: true,
       })),
     )
-  const planOf = (area: string, block: string) =>
-    buildSeatPlan(seatsOf(area, block), planShapeFor(map, findBlock(map, blocks, area, block)!))
+  const shapeOf = (area: string, block: string) => findBlock(map, blocks, area, block)!
+  const layoutOf = (area: string, block: string) => layoutBlock(map, shapeOf(area, block), seatsOf(area, block))
+  const inside = (b: { x0: number; y0: number; x1: number; y1: number }, x: number, y: number) =>
+    x >= b.x0 - 0.01 && x <= b.x1 + 0.01 && y >= b.y0 - 0.01 && y <= b.y1 + 0.01
 
-  it('draws the whole block, front row first, with our seats at their exact numbers', () => {
-    const plan = planOf(OBER, '114')
-    expect(plan.rows.map((r) => r.label)).toEqual(Array.from({ length: 26 }, (_, i) => String(i + 1)))
-    expect(plan.rows.every((r) => r.seats.length === 24)).toBe(true)
-    const ys = plan.rows.map((r) => r.y)
-    expect([...ys].sort((a, b) => a - b)).toEqual(ys)
-    const row22 = plan.rows.find((r) => r.label === '22')!
-    expect(row22.seats.filter((s) => s.seat).map((s) => s.n)).toEqual([7, 8, 9, 10, 11, 12, 13])
-    expect(row22.seats[0].x).toBeLessThan(row22.seats[1].x) // seat 1 on the left
-    const ours = plan.rows.flatMap((r) => r.seats.filter((s) => s.seat))
-    expect(ours).toHaveLength(10)
-    for (const s of ours) {
-      expect(s.x).toBeGreaterThanOrEqual(plan.focus!.x)
-      expect(s.x).toBeLessThanOrEqual(plan.focus!.x + plan.focus!.w)
-      expect(s.y).toBeGreaterThanOrEqual(plan.focus!.y)
-      expect(s.y).toBeLessThanOrEqual(plan.focus!.y + plan.focus!.h)
-    }
-  })
-
-  it('grows a block to fit seat numbers beyond the typical size', () => {
-    const plan = planOf(OBER, '125')
-    expect(plan.rows[0].seats.length).toBeGreaterThanOrEqual(19) // seat 17 + room
-    expect(plan.rows.find((r) => r.label === '20')!.seats.filter((s) => s.seat).map((s) => s.n)).toEqual([1, 2, 3, 4, 5, 15, 16, 17])
-  })
-
-  it('draws the floor flat, the bowl corners fanned', () => {
-    const floor = findBlock(map, blocks, 'Innenraum', '204')!
-    expect(planShapeFor(map, floor).fan).toBe(0)
-    const corner = findBlock(map, blocks, UNTER, '20 A')!
-    const straight = findBlock(map, blocks, UNTER, '12')!
-    expect(planShapeFor(map, corner).fan).toBeGreaterThan(planShapeFor(map, straight).fan)
-    const plan = planOf('Innenraum', '204')
-    expect(plan.rows).toHaveLength(10)
-    expect(plan.rows[0].seats.filter((s) => s.seat).map((s) => s.n)).toEqual([14, 15, 16, 17])
-  })
-
-  it('keeps every seat inside the plan', () => {
+  it('places every one of our seats exactly once, at its row and seat number', () => {
     for (const run of RUNS) {
-      const plan = planOf(run.area, run.block)
-      for (const row of plan.rows) {
-        for (const s of row.seats) {
-          expect(s.x - plan.radius).toBeGreaterThan(0)
-          expect(s.x + plan.radius).toBeLessThan(plan.width)
-          expect(s.y + plan.radius).toBeLessThan(plan.height)
-        }
+      const layout = layoutOf(run.area, run.block)
+      const ours = layout.seats.filter((s) => s.seat)
+      expect(ours).toHaveLength(seatsOf(run.area, run.block).length)
+      for (const s of ours) {
+        expect(s.row).toBe(String(Number(s.seat!.row)))
+        expect(s.n).toBe(s.seat!.seat)
       }
     }
+  })
+
+  it('keeps the seats inside their block on the map', () => {
+    for (const run of RUNS) {
+      const shape = shapeOf(run.area, run.block)
+      for (const s of layoutOf(run.area, run.block).seats) {
+        expect(inside(shape.box, s.x, s.y), `${run.block} r${s.row} s${s.n}`).toBe(true)
+      }
+    }
+  })
+
+  it('fills a straight bowl block with a typical tier: 26 rows × 24 seats upstairs', () => {
+    const layout = layoutOf(OBER, '125')
+    const rows = new Set(layout.seats.map((s) => s.row))
+    expect(rows.size).toBe(26)
+    expect(layout.seats.filter((s) => s.row === '1')).toHaveLength(24)
+    expect(layout.rowLabels).toHaveLength(26 * 2)
+  })
+
+  it('runs rows along the field edge, row 1 nearest the field', () => {
+    // Block 125 is on the left straight: the field is to the right (larger x).
+    const layout = layoutOf(OBER, '125')
+    const x1 = layout.seats.find((s) => s.row === '1')!.x
+    const x20 = layout.seats.find((s) => s.row === '20')!.x
+    expect(x1).toBeGreaterThan(x20)
+    // Seats of one row line up along the side (same x).
+    const row20 = layout.seats.filter((s) => s.row === '20')
+    expect(Math.max(...row20.map((s) => s.x)) - Math.min(...row20.map((s) => s.x))).toBeLessThan(0.01)
+  })
+
+  it('faces the floor rows toward the ring', () => {
+    // 204 sits above the ring: row 1 is its bottom row.
+    const layout = layoutOf('Innenraum', '204')
+    const y1 = layout.seats.find((s) => s.row === '1')!.y
+    const yMax = Math.max(...layout.seats.map((s) => s.y))
+    expect(y1).toBeCloseTo(yMax, 5)
+    expect(layout.seats.filter((s) => s.seat).map((s) => s.n)).toEqual([14, 15, 16, 17])
+  })
+
+  it('gives corner rows more seats toward the back', () => {
+    const shape = shapeOf(UNTER, '20 A')
+    const layout = layoutBlock(map, shape, [])
+    const count = (row: string) => layout.seats.filter((s) => s.row === row).length
+    expect(count('20')).toBeGreaterThan(count('5'))
+  })
+
+  it('flies to the middle of our free seats', () => {
+    const layout = layoutOf(OBER, '115')
+    const ours = layout.seats.filter((s) => s.seat)
+    expect(layout.focus.x).toBeCloseTo((ours[0].x + ours[1].x) / 2, 3)
+    expect(layout.focus.y).toBeCloseTo((ours[0].y + ours[1].y) / 2, 3)
+  })
+
+  it('draws a block without our seats as grey seats only', () => {
+    const empty = layoutBlock(map, blocks.find((b) => b.label === '140')!, [])
+    expect(empty.seats.every((s) => s.seat === null)).toBe(true)
+    expect(empty.others.length).toBeGreaterThan(0)
   })
 })
