@@ -46,7 +46,7 @@ function emptyLayout(map: VenueMap, block: MapBlock): BlockLayout {
   return layout
 }
 
-type Hover = { text: string; clientX: number; clientY: number } | null
+type Hover = { text: string; clientX: number; clientY: number; kind: 'block' | 'seat' } | null
 
 type Interaction = {
   onBlock: (s: StockBlock) => void
@@ -98,7 +98,7 @@ export const StadiumArt = memo(function StadiumArt({
   const ringHalf = map.ring.size / 2
   const { field } = map
   const hover = (text: string) => (e: React.PointerEvent) => {
-    if (e.pointerType === 'mouse') interaction?.onHover({ text, clientX: e.clientX, clientY: e.clientY })
+    if (e.pointerType === 'mouse') interaction?.onHover({ text, clientX: e.clientX, clientY: e.clientY, kind: 'block' })
   }
   const unhover = () => interaction?.onHover(null)
   const seatLabel = (x: number, y: number, text: string, fill: string) => (
@@ -413,7 +413,7 @@ const OurSeats = memo(function OurSeats({
                     }
                   }}
                   onPointerEnter={(e) => {
-                    if (tappable && e.pointerType === 'mouse') onHover({ text: label, clientX: e.clientX, clientY: e.clientY })
+                    if (tappable && e.pointerType === 'mouse') onHover({ text: label, clientX: e.clientX, clientY: e.clientY, kind: 'seat' })
                   }}
                   onPointerLeave={() => onHover(null)}
                 >
@@ -527,7 +527,7 @@ export default function StadiumMap({
   const content = useMemo<Box>(() => ({ x: 0, y: 0, w: map.viewBox.w, h: map.viewBox.h }), [map])
   const pz = usePanZoom({ content, maxZoom: 40, maxPxPerUnit: MAX_PPU, pad: 0.02 })
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [tip, setTip] = useState<{ text: string; x: number; y: number; kind: 'block' | 'seat' } | null>(null)
 
   // Latest callbacks, so the memoised layers never need new props for them.
   const cb = useRef({ onToggleSeat, onOther, onViewBlock, labels })
@@ -594,7 +594,7 @@ export default function StadiumMap({
   const onHover = useMemo(
     () => (info: Hover) => {
       const rect = wrapRef.current?.getBoundingClientRect()
-      setTip(info && rect ? { text: info.text, x: info.clientX - rect.left, y: info.clientY - rect.top } : null)
+      setTip(info && rect ? { text: info.text, x: info.clientX - rect.left, y: info.clientY - rect.top, kind: info.kind } : null)
     },
     [],
   )
@@ -670,7 +670,7 @@ export default function StadiumMap({
         )}
       </svg>
 
-      {tip && (
+      {tip && (tip.kind === 'seat' ? tappable : !seatLevel) && (
         <div
           className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-lg border border-white/15 bg-ink-950/95 px-2.5 py-1.5 text-xs font-semibold text-white shadow-xl"
           style={{ left: tip.x, top: tip.y }}
