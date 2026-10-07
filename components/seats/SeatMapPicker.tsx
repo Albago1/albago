@@ -4,16 +4,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, Check, ChevronRight, Minus, Plus, Sparkles, X } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
-import { buildSeatPlan } from '@/lib/seats/blockPlan'
 import { bestKeysInBlock, blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@/lib/seats/pick'
-import type { PublicSeat, PublicSeatBlock, PublicSeatSale } from '@/lib/seats/types'
-import { allBlocks, planShapeFor, type VenueMap } from '@/lib/seats/venueMaps'
-import BlockPlanView from './BlockPlanView'
-import StadiumMap, { StadiumPreview, stockOnMap, type StockBlock } from './StadiumMap'
+import type { PublicSeat, PublicSeatSale } from '@/lib/seats/types'
+import { allBlocks, type VenueMap } from '@/lib/seats/venueMaps'
+import StadiumMap, { stockOnMap, type StockBlock } from './StadiumMap'
 
 // Full-screen seat picker (phase 43), the way the big ticket shops do it:
-//   1. the whole stadium — tap a coloured block (or filter by price)
-//   2. the map flies into the block and its seat plan opens in place
+//   1. the whole stadium — filter by price, pinch / scroll / tap to zoom
+//   2. zoomed in, the blocks fill with their seats right on the map; tapping
+//      a coloured block flies straight to its seats
 //   3. tap seats; they collect in the selection (bottom sheet on phones,
 //      sidebar on desktop) with the total — or let us pick the best ones
 //   4. Continue → the checkout step renders inside the picker
@@ -64,7 +63,10 @@ export default function SeatMapPicker({
 }: Props) {
   const { t } = useLanguage()
   const [filter, setFilter] = useState<string | null>(initialFilter)
-  const [openKey, setOpenKey] = useState<string | null>(null)
+  // AlbaGo block the zoomed-in map is on (reported by the map).
+  const [viewKey, setViewKey] = useState<string | null>(null)
+  // Ask the map to fly to seats (best seats, a seat in the basket).
+  const [fly, setFly] = useState<{ id: number; keys: string[] } | null>(null)
   const [quantity, setQuantity] = useState(2)
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null)
   const [entered, setEntered] = useState(false)
@@ -95,16 +97,8 @@ export default function SeatMapPicker({
     return m
   }, [picked])
 
-  const open = useMemo(
-    () => (openKey ? (stock.find((s) => blockKey(s.block) === openKey) ?? null) : null),
-    [openKey, stock],
-  )
+  const open = viewKey ? (stock.find((s) => blockKey(s.block) === viewKey) ?? null) : null
   const openCat = open ? catOf(open.block.category) : null
-  const plan = useMemo(() => {
-    if (!open) return null
-    const inBlock = seats.filter((s) => s.area === open.block.area && s.block === open.block.block)
-    return buildSeatPlan(inBlock, planShapeFor(map, open.shape))
-  }, [open, seats, map])
 
   // Slide in; lock the page behind; focus the close button.
   useEffect(() => {
@@ -129,14 +123,13 @@ export default function SeatMapPicker({
     return () => window.clearTimeout(id)
   }, [toast])
 
-  const say = (text: string) => setToast({ text, id: Date.now() })
+  const say = (text: string) => setToast((prev) => ({ text, id: (prev?.id ?? 0) + 1 }))
 
-  // Escape steps back: checkout → block → stadium → closed.
+  // Escape steps back: checkout → map → closed.
   const escape = useRef(() => {})
   useEffect(() => {
     escape.current = () => {
       if (checkout) onBackFromCheckout()
-      else if (openKey) setOpenKey(null)
       else onClose()
     }
   })
@@ -148,9 +141,7 @@ export default function SeatMapPicker({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const openBlock = (block: PublicSeatBlock) => {
-    if (ready.current) setOpenKey(blockKey(block))
-  }
+  const flyTo = (keys: string[]) => setFly((prev) => ({ id: (prev?.id ?? 0) + 1, keys }))
 
   const sayOther = (text: string) => {
     if (ready.current) say(text)
@@ -185,15 +176,18 @@ export default function SeatMapPicker({
   const findBest = () => {
     if (open) {
       const keys = bestKeysInBlock(runs, open.block.category, qty, open.block)
-      if (keys.length) onPickedChange(keys)
-      else say(fill(t('seat_no_group'), { n: qty }))
+      if (keys.length) {
+        onPickedChange(keys)
+        flyTo(keys)
+      } else say(fill(t('seat_no_group'), { n: qty }))
       return
     }
     for (const c of bestPool) {
       const p = pickSeats(runs, c.code, qty)
       if (p) {
-        onPickedChange(p.seats.map((seat) => seatKeyOf({ area: p.area, block: p.block, row: p.row, seat })))
-        setOpenKey(blockKey(p))
+        const keys = p.seats.map((seat) => seatKeyOf({ area: p.area, block: p.block, row: p.row, seat }))
+        onPickedChange(keys)
+        flyTo(keys)
         return
       }
     }
@@ -332,7 +326,7 @@ export default function SeatMapPicker({
               >
                 <button
                   type="button"
-                  onClick={() => setOpenKey(blockKey(s))}
+                  onClick={() => flyTo([seatKeyOf(s)])}
                   className="inline-flex items-center gap-2 whitespace-nowrap"
                 >
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorFor(s.category) }} aria-hidden />
@@ -444,76 +438,48 @@ export default function SeatMapPicker({
               </div>
 
               <div className="relative min-h-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,rgba(238,28,37,0.07),transparent_65%)]">
-                <div className={`absolute inset-0 transition-opacity duration-500 ${open ? 'pointer-events-none opacity-[0.06]' : 'opacity-100'}`}>
-                  <StadiumMap
-                    map={map}
-                    stock={stock}
-                    colorFor={colorFor}
-                    filter={filter}
-                    counts={counts}
-                    focusKey={openKey}
-                    onSelect={openBlock}
-                    onOther={sayOther}
-                    disabled={busy}
-                    labels={{
-                      floor: t('seat_floor'),
-                      ring: t('seat_ring'),
-                      zoomIn: t('seat_zoom_in'),
-                      zoomOut: t('seat_zoom_out'),
-                      reset: t('seat_zoom_reset'),
-                      legendOnSale: t('seat_legend_blocks'),
-                      legendSoldOut: t('seat_sold_out'),
-                      legendOther: t('seat_legend_not_here'),
-                      describe,
-                      describeOther: (label) => `${t('seat_block')} ${label} · ${t('seat_legend_not_here')}`,
-                    }}
-                  />
-                </div>
-
-                {open && plan && openCat && (
-                  <FadeIn key={openKey}>
-                    <BlockPlanView
-                      plan={plan}
-                      color={colorFor(open.block.category)}
-                      picked={pickedSet}
-                      onToggle={toggle}
-                      price={money(openCat.price_cents)}
-                      disabled={busy}
-                      labels={{
-                        row: t('seat_row'),
-                        seat: t('seat_seat'),
-                        ring: t('seat_ring'),
-                        taken: t('seat_taken'),
-                        zoomIn: t('seat_zoom_in'),
-                        zoomOut: t('seat_zoom_out'),
-                        reset: t('seat_fit_block'),
-                        legendFree: t('seat_legend_free'),
-                        legendPicked: t('seat_legend_picked'),
-                        legendTaken: t('seat_legend_taken'),
-                        legendOther: t('seat_legend_other'),
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setOpenKey(null)}
-                      className="absolute left-3 top-3 inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-ink-950/85 pl-3 pr-4 text-sm font-semibold text-white shadow-lg backdrop-blur transition hover:bg-ink-900"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                      {t('seat_back_to_stadium')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOpenKey(null)}
-                      aria-label={t('seat_back_to_stadium')}
-                      className="absolute right-3 top-3 w-[108px] rounded-xl border border-white/15 bg-ink-950/85 p-1.5 shadow-lg backdrop-blur transition hover:border-white/35 lg:w-[150px]"
-                    >
-                      <StadiumPreview map={map} stock={stock} colorFor={colorFor} activeKey={openKey} labels={{ floor: '', ring: '' }} mini />
-                      <span className="mt-0.5 block text-center text-[10px] font-bold text-white">
-                        {t('seat_block')} {open.shape.label ?? open.block.block}
-                      </span>
-                    </button>
-                  </FadeIn>
-                )}
+                <StadiumMap
+                  map={map}
+                  stock={stock}
+                  seats={seats}
+                  colorFor={colorFor}
+                  filter={filter}
+                  picked={pickedSet}
+                  counts={counts}
+                  fly={fly}
+                  onToggleSeat={toggle}
+                  onOther={sayOther}
+                  onViewBlock={setViewKey}
+                  disabled={busy}
+                  labels={{
+                    floor: t('seat_floor'),
+                    ring: t('seat_ring'),
+                    zoomIn: t('seat_zoom_in'),
+                    zoomOut: t('seat_zoom_out'),
+                    reset: t('seat_zoom_reset'),
+                    legendOnSale: t('seat_legend_blocks'),
+                    legendSoldOut: t('seat_sold_out'),
+                    legendOther: t('seat_legend_not_here'),
+                    legendFree: t('seat_legend_free'),
+                    legendPicked: t('seat_legend_picked'),
+                    legendTaken: t('seat_legend_taken'),
+                    legendNotOnSale: t('seat_legend_other'),
+                    block: t('seat_block'),
+                    describe,
+                    describeOther: (label) => `${t('seat_block')} ${label} · ${t('seat_legend_not_here')}`,
+                    describeSeat: (seat, n) => {
+                      const c = catOf(seat.category)
+                      return [
+                        `${t('seat_block')} ${seat.block}`,
+                        `${t('seat_row')} ${seat.row}`,
+                        `${t('seat_seat')} ${n}`,
+                        seat.free ? (c ? money(c.price_cents) : null) : t('seat_taken'),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    },
+                  }}
+                />
 
                 {toast && (
                   <div
@@ -542,22 +508,4 @@ export default function SeatMapPicker({
   )
 
   return createPortal(node, document.body)
-}
-
-/** The block layer fades and scales in after the map starts flying. */
-function FadeIn({ children }: { children: ReactNode }) {
-  const [shown, setShown] = useState(false)
-  useEffect(() => {
-    const id = window.setTimeout(() => setShown(true), 160)
-    return () => window.clearTimeout(id)
-  }, [])
-  return (
-    <div
-      className={`absolute inset-0 bg-ink-950 transition-[opacity,transform] duration-300 ease-out ${
-        shown ? 'scale-100 opacity-100' : 'pointer-events-none scale-[0.94] opacity-0'
-      }`}
-    >
-      {children}
-    </div>
-  )
 }

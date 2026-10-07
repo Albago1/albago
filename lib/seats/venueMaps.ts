@@ -23,7 +23,7 @@ export type TierDef = {
   /** Block labels per side, in clockwise order; null = a block we draw but
    *  can't name with certainty. Array length = number of blocks on the side. */
   sides: Record<Side, Array<string | null>>
-  /** Typical rows × seats of a block in this tier, for the seat plan. */
+  /** Typical rows × seats of a block in this tier (seats drawn on the map). */
   plan: PlanSize
 }
 
@@ -49,8 +49,6 @@ export type VenueMap = {
   ring: { cx: number; cy: number; size: number }
   /** Ringside area (the floor gap the ringside rows frame). */
   ringside: FloorBlockDef
-  /** Typical rows × seats of a floor block, for the seat plan. */
-  floorPlan: PlanSize
 }
 
 const range = (from: number, to: number) =>
@@ -133,7 +131,6 @@ const MERKUR_SPIEL_ARENA_BOXING: VenueMap = {
   ),
   ring: { cx: 212.3, cy: 163.5, size: 24 },
   ringside: { x: 188.7, y: 142, w: 47.3, h: 43.1 },
-  floorPlan: { rows: 10, seatsPerRow: 20 },
 }
 
 const MAPS = [MERKUR_SPIEL_ARENA_BOXING]
@@ -162,10 +159,10 @@ export function normalizeBlock(block: string): string {
 // digit, which React reports as a hydration mismatch.
 const r2 = (n: number) => Math.round(n * 100) / 100
 
-type Pt = [number, number]
+export type Pt = [number, number]
 
 /** Point on `side` at fraction f (clockwise), offset d from the field. */
-function pointOn(field: Rect, side: Side, f: number, d: number): Pt {
+export function pointOn(field: Rect, side: Side, f: number, d: number): Pt {
   const { x0, y0, x1, y1 } = field
   const W = x1 - x0
   const H = y1 - y0
@@ -193,7 +190,7 @@ function pointOn(field: Rect, side: Side, f: number, d: number): Pt {
   }
 }
 
-const isCorner = (side: Side) => side.length === 2
+export const isCorner = (side: Side) => side.length === 2
 const fmt = (p: Pt) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`
 
 /** SVG path for the slice [f0, f1] of a side, between offsets a and b. */
@@ -222,6 +219,10 @@ export type MapBlock = {
   tier: number
   /** Side of the bowl the block is on (bowl blocks only). */
   side?: Side
+  /** Where a bowl block sits: fractions along its side, offsets from the field. */
+  slice?: { side: Side; f0: number; f1: number; inner: number; outer: number }
+  /** Bounding box, for finding the blocks in view. */
+  box: { x0: number; y0: number; x1: number; y1: number }
   d?: string
   rect?: FloorBlockDef
   cx: number
@@ -230,8 +231,14 @@ export type MapBlock = {
   size: number
 }
 
+// One block list per map, so every component shares the same block objects
+// (the seat layer and the block layer match blocks by identity).
+const blockCache = new WeakMap<VenueMap, MapBlock[]>()
+
 /** Every block of the venue — bowl and floor — for drawing the full map. */
 export function allBlocks(map: VenueMap): MapBlock[] {
+  const cached = blockCache.get(map)
+  if (cached) return cached
   const blocks: MapBlock[] = []
   map.tiers.forEach((tier, t) => {
     for (const side of SIDES) {
@@ -239,10 +246,23 @@ export function allBlocks(map: VenueMap): MapBlock[] {
       const n = labels.length
       labels.forEach((label, i) => {
         const [cx, cy] = sliceCenter(map.field, side, i / n, (i + 1) / n, tier.inner, tier.outer)
+        const f0 = i / n
+        const f1 = (i + 1) / n
+        const pts = [f0, (f0 + f1) / 2, f1].flatMap((f) => [
+          pointOn(map.field, side, f, tier.inner),
+          pointOn(map.field, side, f, tier.outer),
+        ])
         blocks.push({
           label,
           tier: t,
           side,
+          slice: { side, f0, f1, inner: tier.inner, outer: tier.outer },
+          box: {
+            x0: Math.min(...pts.map((q) => q[0])),
+            y0: Math.min(...pts.map((q) => q[1])),
+            x1: Math.max(...pts.map((q) => q[0])),
+            y1: Math.max(...pts.map((q) => q[1])),
+          },
           d: slicePath(map.field, side, i / n, (i + 1) / n, tier.inner, tier.outer),
           cx,
           cy,
@@ -256,11 +276,13 @@ export function allBlocks(map: VenueMap): MapBlock[] {
       label,
       tier: -1,
       rect,
+      box: { x0: rect.x, y0: rect.y, x1: rect.x + rect.w, y1: rect.y + rect.h },
       cx: r2(rect.x + rect.w / 2),
       cy: r2(rect.y + rect.h / 2),
       size: Math.max(rect.w, rect.h),
     })
   }
+  blockCache.set(map, blocks)
   return blocks
 }
 
@@ -275,12 +297,4 @@ export function findBlock(map: VenueMap, blocks: MapBlock[], area: string, block
   const tier = map.tiers.findIndex((t) => t.match.test(area))
   if (tier < 0) return null
   return blocks.find((b) => b.tier === tier && b.label === label) ?? null
-}
-
-/** How a block's seat plan is drawn: its size, and how much the rows fan
- *  out toward the back (bowl corners most, the flat floor not at all). */
-export function planShapeFor(map: VenueMap, block: MapBlock): PlanSize & { fan: number } {
-  if (block.tier < 0) return { ...map.floorPlan, fan: 0 }
-  const size = map.tiers[block.tier]?.plan ?? { rows: 20, seatsPerRow: 20 }
-  return { ...size, fan: block.side && isCorner(block.side) ? 0.028 : 0.012 }
 }

@@ -31,16 +31,21 @@ const viewOf = (cam: Cam, home: Box): Box => {
 type Options = {
   content: Box
   maxZoom: number
+  /** Cap zoom by screen pixels per map unit instead (wins over maxZoom). */
+  maxPxPerUnit?: number
   pad?: number
   /** Camera to start from once the box size is known (null = all of it). */
   initial?: (home: Box, pxPerUnit: number) => Cam | null
 }
 
-export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
+export function usePanZoom({ content, maxZoom: maxZoomOpt, maxPxPerUnit, pad = 0.03, initial }: Options) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   const aspect = size ? size.h / size.w : content.h / content.w
   const home = useMemo(() => fit(content, aspect, pad), [content, aspect, pad])
+  // Pixels per map unit at zoom 1; the zoom cap follows the box width.
+  const homePpu = size ? size.w / home.w : 0
+  const maxZoom = maxPxPerUnit && homePpu ? Math.max(1, maxPxPerUnit / homePpu) : maxZoomOpt
 
   const clampCam = useCallback(
     (c: Cam, h: Box): Cam => {
@@ -70,9 +75,9 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
   const view = viewOf(cam, home)
 
   // Latest values for the event handlers.
-  const live = useRef({ cam, view, home, clampCam, content, initial, pad })
+  const live = useRef({ cam, view, home, clampCam, content, initial, pad, homePpu, maxZoom })
   useEffect(() => {
-    live.current = { cam, view, home, clampCam, content, initial, pad }
+    live.current = { cam, view, home, clampCam, content, initial, pad, homePpu, maxZoom }
   })
 
   // Track the box size; place the first camera once it's known.
@@ -122,8 +127,8 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
   /** Zoom by `factor` keeping the map point (px, py) where it is on screen. */
   const zoomAround = useCallback(
     (factor: number, px: number, py: number, animate = false) => {
-      const { cam: c, view: v, home: h, clampCam: clamp } = live.current
-      const k = Math.min(maxZoom, Math.max(1, c.k * factor))
+      const { cam: c, view: v, home: h, clampCam: clamp, maxZoom: kMax } = live.current
+      const k = Math.min(kMax, Math.max(1, c.k * factor))
       const w = h.w / k
       const vh = h.h / k
       const x = px - (px - v.x) * (w / v.w)
@@ -132,7 +137,7 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
       if (animate) animateTo(next)
       else setCam(clamp(next, h))
     },
-    [maxZoom, animateTo],
+    [animateTo],
   )
 
   const zoomBy = useCallback(
@@ -153,6 +158,15 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
     (box: Box) => {
       const { home: h } = live.current
       animateTo({ cx: box.x + box.w / 2, cy: box.y + box.h / 2, k: Math.min(h.w / box.w, h.h / box.h) })
+    },
+    [animateTo],
+  )
+
+  /** Fly to centre (x, y) at the given screen pixels per map unit. */
+  const flyTo = useCallback(
+    (x: number, y: number, ppu: number) => {
+      const { homePpu: base } = live.current
+      animateTo({ cx: x, cy: y, k: base ? ppu / base : 1 })
     },
     [animateTo],
   )
@@ -208,7 +222,7 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const g = gesture.current
     const rect = svgRef.current!.getBoundingClientRect()
-    const { home: h, clampCam: clamp } = live.current
+    const { home: h, clampCam: clamp, maxZoom: kMax } = live.current
     const pts = [...pointers.current.values()]
 
     if (pts.length >= 2 && g.startDist > 0) {
@@ -217,7 +231,7 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
       const midX = (pts[0].x + pts[1].x) / 2
       const midY = (pts[0].y + pts[1].y) / 2
       const sv = g.startView
-      const k = Math.min(maxZoom, Math.max(1, (g.startK * dist) / g.startDist))
+      const k = Math.min(kMax, Math.max(1, (g.startK * dist) / g.startDist))
       const w = h.w / k
       const vh = h.h / k
       const ax = sv.x + ((g.startX - rect.left) / rect.width) * sv.w
@@ -291,6 +305,7 @@ export function usePanZoom({ content, maxZoom, pad = 0.03, initial }: Options) {
     zoomBy,
     reset,
     focusBox,
+    flyTo,
     svgProps: {
       ref: svgRef,
       viewBox: `${view.x.toFixed(3)} ${view.y.toFixed(3)} ${view.w.toFixed(3)} ${view.h.toFixed(3)}`,
