@@ -34,6 +34,17 @@ const ALLOWED_TYPES = new Set([
   'ticket_view_tiers',
   'ticket_claim',
   'ticket_claim_blocked',
+  // Campaign landing pages (phase 44, /hysa)
+  'page_view',
+  'ticket_category_view',
+  'ticket_category_click',
+  'official_shop_click',
+  'seat_map_click',
+  'language_changed',
+  'share_whatsapp',
+  'share_facebook',
+  'share_copy_link',
+  'group_ticket_click',
 ])
 
 const ALLOWED_ENTITY_TYPES = new Set(['event', 'place', 'submission'])
