@@ -25,6 +25,17 @@ export type TrackType =
   | 'ticket_view_tiers'
   | 'ticket_claim'
   | 'ticket_claim_blocked'
+  // Campaign landing pages (phase 44, /hysa)
+  | 'page_view'
+  | 'ticket_category_view'
+  | 'ticket_category_click'
+  | 'official_shop_click'
+  | 'seat_map_click'
+  | 'language_changed'
+  | 'share_whatsapp'
+  | 'share_facebook'
+  | 'share_copy_link'
+  | 'group_ticket_click'
 
 export type TrackOptions = {
   entityType?: 'event' | 'place' | 'submission'
@@ -34,6 +45,9 @@ export type TrackOptions = {
   platform?: string | null
   source?: string | null
   meta?: Record<string, unknown>
+  /** Dedupe *_view events per tab by this key instead of entity / path
+   *  (e.g. one ticket_category_view per category). */
+  dedupeKey?: string
 }
 
 const SESSION_KEY = 'albago_sid'
@@ -76,6 +90,7 @@ type Attribution = {
   utm_source: string | null
   utm_medium: string | null
   utm_campaign: string | null
+  utm_content?: string | null
   referrer: string | null
 }
 
@@ -95,6 +110,7 @@ function getAttribution(): Attribution {
       utm_source: params.get('utm_source'),
       utm_medium: params.get('utm_medium'),
       utm_campaign: params.get('utm_campaign'),
+      utm_content: params.get('utm_content'),
       // Ignore self-referrals so internal navigation doesn't look like a source.
       referrer: ref && !ref.includes(window.location.host) ? ref.slice(0, 300) : null,
     }
@@ -122,7 +138,7 @@ export function trackInteraction(type: TrackType, opts: TrackOptions = {}): void
 
     // Views are deduped per tab, per entity (or per path for page-level views).
     if (type.endsWith('_view')) {
-      const seenKey = `${SEEN_PREFIX}${type}:${opts.entityId ?? window.location.pathname}`
+      const seenKey = `${SEEN_PREFIX}${type}:${opts.dedupeKey ?? opts.entityId ?? window.location.pathname}`
       if (!firstThisTab(seenKey)) return
     }
 
@@ -144,7 +160,10 @@ export function trackInteraction(type: TrackType, opts: TrackOptions = {}): void
       path: window.location.pathname.slice(0, 300),
       referrer: attribution.referrer,
       session_id: sessionId,
-      metadata: opts.meta ?? {},
+      // utm_content has no column of its own; it rides along in metadata.
+      metadata: attribution.utm_content
+        ? { ...(opts.meta ?? {}), utm_content: attribution.utm_content.slice(0, 120) }
+        : (opts.meta ?? {}),
     })
 
     // keepalive lets the request survive navigation (e.g. share links opening

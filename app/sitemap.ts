@@ -12,6 +12,9 @@ const STATIC_ROUTES: Array<{
 }> = [
   { path: '/', changeFrequency: 'daily', priority: 1.0 },
   { path: '/events', changeFrequency: 'hourly', priority: 0.9 },
+  { path: '/hysa', changeFrequency: 'daily', priority: 0.9 },
+  { path: '/hysa/de', changeFrequency: 'daily', priority: 0.7 },
+  { path: '/hysa/en', changeFrequency: 'daily', priority: 0.7 },
   { path: '/map', changeFrequency: 'daily', priority: 0.8 },
   { path: '/cities', changeFrequency: 'daily', priority: 0.7 },
   { path: '/submit-event', changeFrequency: 'monthly', priority: 0.6 },
