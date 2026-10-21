@@ -62,6 +62,16 @@ export async function runDiscovery(opts: { goalId?: string; triggeredBy: string 
   return { ran: true, goalId: entry.id, label: entry.label, report }
 }
 
+/**
+ * Re-check Albanian relevance of every open suggestion with the current rules
+ * and the current artist list (seed included). Human decisions are kept.
+ */
+export async function reassessRelevance() {
+  const engine = albagoEngine()
+  await engine.entities.ensureAffiliated('performer', ARTIST_SEED, AFFILIATION, 'config')
+  return engine.maintenance.reassessRelevance(ALBANIAN_RELEVANCE)
+}
+
 /** Housekeeping: delete pending suggestions whose event is over (per the expiry setting). */
 export async function expireEnded() {
   return albagoEngine().maintenance.expireEnded()
@@ -83,7 +93,10 @@ export async function saveExpiry(next: ExpirySettingsV1, actor: string | null) {
 
 /** Human decision on a learned artist. */
 export async function decideArtist(id: string, decision: 'confirm' | 'reject', actor: string | null): Promise<void> {
-  await albagoEngine().entities.decide(id, AFFILIATION, decision === 'confirm' ? 'confirmed' : 'rejected', actor)
+  const engine = albagoEngine()
+  await engine.entities.decide(id, AFFILIATION, decision === 'confirm' ? 'confirmed' : 'rejected', actor)
+  // A confirmed artist makes their events Albanian-relevant right away.
+  if (decision === 'confirm') await engine.maintenance.reassessRelevance(ALBANIAN_RELEVANCE)
 }
 
 export async function artistCandidates(limit = 40) {

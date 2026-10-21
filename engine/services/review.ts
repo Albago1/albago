@@ -33,6 +33,8 @@ export type ReviewEdits = Partial<{
   status: OccurrenceRecord['status']
   /** Replace the event's pictures (e.g. remove a wrong poster, or add one the reviewer found). */
   media: OccurrenceRecord['media']
+  /** A human relevance decision for one criteria ("this IS an Albanian event"). Rules never override it. */
+  relevance: { criteria_id: string; verdict: 'relevant' | 'not_relevant' }
 }>
 
 export function toContract(o: OccurrenceRecord): CanonicalOccurrenceV1 {
@@ -90,6 +92,23 @@ export function applyEdits(o: OccurrenceRecord, edits: ReviewEdits): { next: Occ
   set('description', o.description, edits.description, () => (next.description = edits.description ?? null))
   set('status', o.status, edits.status, () => (next.status = edits.status!))
   set('media', o.media, edits.media, () => (next.media = edits.media!))
+  if (edits.relevance) {
+    const { criteria_id, verdict } = edits.relevance
+    const before = o.relevance[criteria_id]
+    if (before?.verdict !== verdict || before?.assessed_by !== 'human') {
+      changes[`relevance.${criteria_id}`] = { from: before?.verdict ?? null, to: verdict }
+      next.relevance = {
+        ...next.relevance,
+        [criteria_id]: {
+          verdict,
+          // Keep the evidence the rules found; the reviewer's decision is the deciding signal.
+          signals: [...(before?.signals ?? []).filter((x) => x.kind !== 'reviewer'), { kind: 'reviewer', value: verdict === 'relevant' ? 'confirmed by reviewer' : 'ruled out by reviewer', strength: 'strong', observation_id: null }],
+          assessed_by: 'human',
+          at: new Date().toISOString(),
+        },
+      }
+    }
+  }
   return { next, changes }
 }
 

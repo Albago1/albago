@@ -4,6 +4,7 @@ import { isRequestAdmin, currentUserId } from '@/lib/admin/apiAuth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { albagoEngine } from '@/integrations/albago/wiring'
 import { deliverToAlbago, retractFromAlbago } from '@/integrations/albago/adapter'
+import { ALBANIAN_RELEVANCE } from '@/integrations/albago/goals'
 
 /**
  * Event Engine review (admin only).
@@ -46,7 +47,18 @@ export async function POST(request: Request) {
       for (const key of EDITABLE) {
         if (key in raw) (edits as Record<string, unknown>)[key] = raw[key] === '' ? null : raw[key]
       }
+      // The reviewer's call on Albanian relevance (publishing on AlbaGo confirms it).
+      const rel = raw.relevance as { verdict?: unknown } | undefined
+      if (rel && (rel.verdict === 'relevant' || rel.verdict === 'not_relevant')) {
+        edits.relevance = { criteria_id: ALBANIAN_RELEVANCE.id, verdict: rel.verdict }
+      }
       const verified = await engine.review.verify(id, edits, actor)
+      // Learning from the decision: the performers of a confirmed Albanian event become artists to confirm.
+      if (edits.relevance?.verdict === 'relevant' && verified.performers.length) {
+        await engine.entities
+          .propose('performer', verified.performers, ALBANIAN_RELEVANCE.affiliation, { occurrence_id: verified.id, title: verified.title })
+          .catch((e) => console.error('[engine review] learn failed', e))
+      }
       const delivery = await deliverToAlbago(createAdminClient(), verified, new Date().toISOString())
       return NextResponse.json({ ok: true, verified: true, delivery })
     }

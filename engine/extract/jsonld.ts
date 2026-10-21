@@ -1,3 +1,5 @@
+import { countryToIso } from '../core/normalize'
+import { timezoneForPlace } from '../core/places'
 import { emptyExtraction, type ExtractionV1 } from './extraction'
 
 /**
@@ -50,22 +52,63 @@ export function splitIsoDateTime(raw: string | null): { date: string | null; tim
   if (!m) return { date: null, time: null }
   const date = m[1]
   const time = m[2] != null ? `${m[2]}:${m[3]}` : null
-  // A bare midnight on a date-only event is how many CMSs write "no time".
   return { date, time }
 }
 
-function placeOf(location: unknown): { name: string | null; address: string | null; locality: string | null; country: string | null } {
+// Countries that keep UTC (+00:00) part of the year: a "Z" time there can be local.
+const UTC_COUNTRIES = new Set(['GB', 'IE', 'PT', 'IS'])
+
+/**
+ * The event's LOCAL date and time from an ISO value. A time written with an
+ * offset is an instant: it is converted to the event's timezone when known.
+ * When the zone is unknown and the value is in UTC (a common CMS shortcut,
+ * e.g. midnight New York stored as 05:00Z), the time is not trustworthy and
+ * is dropped — an unknown time waits for a human, a wrong one misleads.
+ */
+export function localDateTime(raw: string | null, timezone: string | null, countryCode: string | null): { date: string | null; time: string | null; dropped: boolean } {
+  const wall = splitIsoDateTime(raw)
+  if (!raw || !wall.date || !wall.time) return { ...wall, dropped: false }
+  const off = raw.match(/[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i)?.[1]
+  if (!off) return { ...wall, dropped: false } // no offset: the wall time as written
+  const sign = off === 'Z' || off === 'z' ? 1 : off.startsWith('-') ? -1 : 1
+  const digits = off.replace(/[^0-9]/g, '')
+  const offsetMin = off.toUpperCase() === 'Z' ? 0 : sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2, 4) || 0))
+  if (timezone) {
+    const [y, mo, d] = wall.date.split('-').map(Number)
+    const [h, mi] = wall.time.split(':').map(Number)
+    const instant = new Date(Date.UTC(y, mo - 1, d, h, mi) - offsetMin * 60_000)
+    try {
+      const parts = Object.fromEntries(
+        new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+          .formatToParts(instant)
+          .map((p) => [p.type, p.value]),
+      )
+      const date = `${parts.year}-${parts.month}-${parts.day}`
+      const time = `${parts.hour}:${parts.minute}`
+      // Local midnight stored as UTC is how date-only CMS fields come out ("no time given").
+      if (offsetMin === 0 && time === '00:00') return { date, time: null, dropped: true }
+      return { date, time, dropped: false }
+    } catch {
+      // unknown zone name: fall through to the rules below
+    }
+  }
+  if (offsetMin === 0 && !(countryCode && UTC_COUNTRIES.has(countryCode))) return { date: wall.date, time: null, dropped: true }
+  return { ...wall, dropped: false }
+}
+
+export function placeOf(location: unknown): { name: string | null; address: string | null; locality: string | null; region: string | null; country: string | null } {
   const loc = Array.isArray(location) ? location[0] : location
-  if (typeof loc === 'string') return { name: decode(loc), address: null, locality: null, country: null }
-  if (!isObj(loc)) return { name: null, address: null, locality: null, country: null }
+  if (typeof loc === 'string') return { name: decode(loc), address: null, locality: null, region: null, country: null }
+  if (!isObj(loc)) return { name: null, address: null, locality: null, region: null, country: null }
   const addr = loc.address
-  if (typeof addr === 'string') return { name: decode(str(loc.name)), address: decode(addr), locality: null, country: null }
+  if (typeof addr === 'string') return { name: decode(str(loc.name)), address: decode(addr), locality: null, region: null, country: null }
   const a = isObj(addr) ? addr : {}
   const country = isObj(a.addressCountry) ? str(a.addressCountry.name) : str(a.addressCountry)
   return {
     name: decode(str(loc.name)),
     address: decode(str(a.streetAddress)),
     locality: decode(str(a.addressLocality)),
+    region: decode(str(a.addressRegion)),
     country: decode(country),
   }
 }
@@ -124,8 +167,13 @@ export function extractFromJsonLdEvent(node: Json): ExtractionV1 {
   x.description = decode(str(node.description))
   if (x.description) stated('description')
 
-  const start = splitIsoDateTime(str(node.startDate))
-  const end = splitIsoDateTime(str(node.endDate))
+  // Times are read in the event's own timezone (from its country) — see localDateTime.
+  const place0 = placeOf(node.location)
+  const iso = countryToIso(place0.country)
+  const zone = timezoneForPlace(iso, place0.region)
+  const start = localDateTime(str(node.startDate), zone, iso)
+  const end = localDateTime(str(node.endDate), zone, iso)
+  if (start.dropped) x.issues.push('jsonld_utc_time_dropped')
   if (start.date) {
     x.start_date = start.date
     stated('start_date')
@@ -155,7 +203,7 @@ export function extractFromJsonLdEvent(node: Json): ExtractionV1 {
     stated('status')
   }
 
-  const place = placeOf(node.location)
+  const place = place0
   x.venue_name = place.name
   x.address = place.address
   x.locality = place.locality

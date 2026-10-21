@@ -2,7 +2,9 @@
 
 import { Fragment, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ExternalLink, Eye, ImageOff, Link2, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { Check, ExternalLink, Eye, ImageOff, Info, Link2, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { EVENT_TYPES } from '@/engine'
+import { ALBAGO_CATEGORY } from '@/integrations/albago/policy'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import EventPagePreview, { type EventPreviewData } from '@/components/events/EventPagePreview'
 import { albagoPriceFields } from '@/integrations/albago/adapter'
@@ -27,6 +29,8 @@ export type ReviewCard = {
   price: { state: string; min: number | null; max: number | null; currency: string | null; note: string | null }
   performers: string[]
   relevance: 'relevant' | 'possible' | 'not_relevant' | null
+  /** The relevance verdict is a reviewer's decision, not the rules'. */
+  relevanceByHuman: boolean
   relevanceSignals: string[]
   sources: string[]
   issues: string[]
@@ -47,7 +51,58 @@ export type ReviewCard = {
 
 export type RunSummary = { id: string; goal: string; status: string; startedAt: string; stats: Record<string, number> }
 
-type Edits = { title: string; start_date: string; start_time: string; locality: string; price_state: string; price_amount: string; price_currency: string; picture: string }
+type Edits = { title: string; event_type: string; start_date: string; start_time: string; locality: string; price_state: string; price_amount: string; price_currency: string; picture: string }
+
+const TYPE_LABEL: Record<string, string> = {
+  concert: 'Concert',
+  club_night: 'Club night',
+  party_social: 'Party',
+  festival: 'Festival',
+  theatre: 'Theatre',
+  opera_ballet_classical: 'Opera, ballet, classical',
+  comedy: 'Comedy',
+  film: 'Film',
+  exhibition: 'Exhibition',
+  talk_workshop: 'Talk or workshop',
+  sports_match: 'Sports match',
+  sports_participation: 'Sports (take part)',
+  food_drink: 'Food & drink',
+  family: 'Family & kids',
+  market_fair: 'Market or fair',
+  community_civic: 'Community / civic',
+  other: 'Other',
+}
+
+/** What still keeps an event off AlbaGo, live from the current edits, in plain words. */
+function holdReasons(c: ReviewCard, e: Edits): Array<{ text: string; blocking: boolean }> {
+  const out: Array<{ text: string; blocking: boolean }> = []
+  if (ALBAGO_CATEGORY[e.event_type as keyof typeof ALBAGO_CATEGORY] == null) out.push({ text: 'AlbaGo does not list this type of event. Pick another type, or reject it.', blocking: true })
+  if (!e.start_time) out.push({ text: 'No start time yet. Add it above.', blocking: true })
+  if (!e.locality.trim()) out.push({ text: 'No city yet. Add it above.', blocking: true })
+  if (c.wouldPublish.includes('country unknown')) out.push({ text: 'The country is unknown, so AlbaGo cannot place it. Reject it, or ask for it to be fixed.', blocking: true })
+  if (c.wouldPublish.includes('cancelled')) out.push({ text: 'The event is cancelled.', blocking: true })
+  if (c.wouldPublish.includes('not Albanian-relevant'))
+    out.push({ text: 'Not recognised as Albanian automatically. Publishing confirms it is an Albanian event (your decision; its artists are then suggested below).', blocking: false })
+  return out
+}
+
+/** Reading notes from the engine, in one plain sentence (informational — they do not block publishing). */
+function readingNotes(codes: string[]): string {
+  const unconfirmed = codes.map((c) => c.match(/^unsupported_(.+)$/)?.[1]).filter((f): f is string => Boolean(f))
+  const rest = codes.filter((c) => !c.startsWith('unsupported_')).map(issueText)
+  const parts = [...(unconfirmed.length ? [`the AI's ${unconfirmed.map((f) => f.replace(/_/g, ' ')).join(', ')} could not be confirmed on the page, so the page's own data was used`] : []), ...rest]
+  return parts.join('; ')
+}
+
+function issueText(code: string): string {
+  const known: Record<string, string> = {
+    jsonld_utc_time_dropped: 'the page gives the time in UTC only, so it was left out — add the local start time',
+    jsonld_end_before_start: "the page's end time was before its start, so it was ignored",
+    jsonld_zero_price_unverified: 'the page says price 0, which was not taken as free',
+    ambiguous_venue: 'several known venues match this name',
+  }
+  return known[code] ?? code.replace(/_/g, ' ')
+}
 
 const CURRENCIES = ['ALL', 'EUR', 'USD', 'GBP', 'CHF']
 
@@ -86,7 +141,7 @@ function previewEvent(card: ReviewCard, e: Edits): PublicEvent {
     title: e.title.trim() || card.title,
     slug: card.albagoSlug ?? 'preview',
     place_id: null,
-    category: card.albagoCategory ?? 'other',
+    category: ALBAGO_CATEGORY[e.event_type as keyof typeof ALBAGO_CATEGORY] ?? 'other',
     description: card.description ?? '',
     date: e.start_date || card.date,
     end_date: card.endDate,
@@ -166,6 +221,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
       price_amount: c.price.min != null ? String(c.price.min) : '',
       price_currency: c.price.currency ?? 'ALL',
       picture: c.poster ?? '',
+      event_type: c.eventType,
     }
 
   async function act(card: ReviewCard, action: 'verify' | 'reject') {
@@ -185,6 +241,9 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
           if (e.picture.trim() && !link) throw new Error('The picture link must start with https://')
           changed.media = link ? [{ url: link, role: 'poster', rights: 'unknown' }] : []
         }
+        if (e.event_type !== card.eventType) changed.event_type = e.event_type
+        // Publishing on AlbaGo is the reviewer's confirmation that it is an Albanian event.
+        if (card.stage !== 'published' && card.wouldPublish.includes('not Albanian-relevant')) changed.relevance = { verdict: 'relevant' }
         const price = priceEdit(card, e)
         if (price) {
           if (price.state === 'paid' && (price.min == null || !Number.isFinite(price.min) || price.min < 0)) throw new Error('Enter the ticket price as a number.')
@@ -288,7 +347,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
                       className="w-full bg-transparent text-lg font-semibold text-white outline-none focus:underline"
                     />
                     <p className="mt-1 text-xs uppercase tracking-wide text-white/45">
-                      {c.eventType.replace(/_/g, ' ')} · {c.venue ?? 'venue unknown'} · {c.locality ?? 'city unknown'}
+                      {c.venue ?? 'venue unknown'} · {c.locality ?? 'city unknown'}
                       {c.countryCode ? `, ${c.countryCode}` : ''}
                     </p>
                   </div>
@@ -303,12 +362,23 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${c.relevance === 'relevant' ? 'bg-emerald-500/15 text-emerald-200' : c.relevance === 'possible' ? 'bg-amber-500/15 text-amber-200' : 'bg-white/10 text-white/60'}`}
                   >
-                    {c.relevance ? `Albanian relevance: ${c.relevance.replace('_', ' ')}` : 'relevance not assessed'}
+                    {c.relevance === 'relevant' ? (c.relevanceByHuman ? 'Albanian · confirmed by you' : 'Albanian') : c.relevance === 'possible' ? 'Albanian? Not sure' : 'Not recognised as Albanian'}
                   </span>
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <label className="text-xs text-white/50">
+                    Type
+                    <select value={e.event_type} onChange={(ev) => setE({ event_type: ev.target.value })} className={FIELD}>
+                      {EVENT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {TYPE_LABEL[t] ?? t}
+                          {ALBAGO_CATEGORY[t] ? ` → ${ALBAGO_CATEGORY[t]}` : ' (not on AlbaGo)'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="text-xs text-white/50">
                     Date
                     <input type="date" value={e.start_date} onChange={(ev) => setE({ start_date: ev.target.value })} className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white" />
@@ -331,16 +401,16 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
                       </select>
                     </label>
                     {e.price_state === 'paid' && (
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
                         <input
                           inputMode="decimal"
                           placeholder="Amount"
                           aria-label="Ticket price"
                           value={e.price_amount}
                           onChange={(ev) => setE({ price_amount: ev.target.value.replace(',', '.') })}
-                          className={`${FIELD} mt-0 min-w-0 flex-1`}
+                          className={`${FIELD} mt-0`}
                         />
-                        <select aria-label="Currency" value={e.price_currency} onChange={(ev) => setE({ price_currency: ev.target.value })} className={`${FIELD} mt-0 w-24`}>
+                        <select aria-label="Currency" value={e.price_currency} onChange={(ev) => setE({ price_currency: ev.target.value })} className={`${FIELD} mt-0`}>
                           {[...new Set([...CURRENCIES, e.price_currency])].map((cur) => (
                             <option key={cur} value={cur}>
                               {cur}
@@ -362,7 +432,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
                 </div>
 
                 {c.performers.length > 0 && <p className="mt-2 text-sm text-white/65">With {c.performers.join(', ')}</p>}
-                {c.relevanceSignals.length > 0 && <p className="mt-1 text-xs text-white/45">Why relevant: {c.relevanceSignals.join(' · ')}</p>}
+                {c.relevanceSignals.length > 0 && <p className="mt-1 text-xs text-white/45">Why it counts as Albanian: {c.relevanceSignals.join(' · ')}</p>}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {c.sources.map((s) => (
@@ -372,16 +442,41 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
                   ))}
                 </div>
 
-                {(c.issues.length > 0 || c.possibleDuplicates > 0 || c.wouldPublish.length > 0 || approved) && (
-                  <div className="mt-3 space-y-1 text-xs text-amber-200/90">
-                    {c.possibleDuplicates > 0 && (
-                      <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> Possible duplicate of {c.possibleDuplicates} other event{c.possibleDuplicates > 1 ? 's' : ''}</p>
-                    )}
-                    {c.issues.length > 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> Reading issues: {c.issues.join(', ')}</p>}
-                    {c.wouldPublish.length > 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> {approved ? 'Held back from AlbaGo' : 'AlbaGo would hold it back'}: {c.wouldPublish.join(', ')}</p>}
-                    {approved && c.wouldPublish.length === 0 && <p className="flex items-center gap-1.5"><TriangleAlert className="h-3.5 w-3.5" /> Publishing failed last time. Try again.</p>}
-                  </div>
-                )}
+                {(() => {
+                  const holds = published ? [] : holdReasons(c, e)
+                  const blocking = holds.filter((h) => h.blocking)
+                  return (
+                    <div className="mt-3 space-y-1.5 text-xs">
+                      {c.possibleDuplicates > 0 && (
+                        <p className="flex items-start gap-1.5 text-amber-200/90">
+                          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" /> Possible duplicate of {c.possibleDuplicates} other event{c.possibleDuplicates > 1 ? 's' : ''}
+                        </p>
+                      )}
+                      {blocking.map((h) => (
+                        <p key={h.text} className="flex items-start gap-1.5 text-amber-200/90">
+                          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" /> {h.text}
+                        </p>
+                      ))}
+                      {holds
+                        .filter((h) => !h.blocking)
+                        .map((h) => (
+                          <p key={h.text} className="flex items-start gap-1.5 text-sky-200/90">
+                            <Info className="mt-px h-3.5 w-3.5 shrink-0" /> {h.text}
+                          </p>
+                        ))}
+                      {!published && blocking.length === 0 && (
+                        <p className="flex items-start gap-1.5 text-emerald-300/90">
+                          <Check className="mt-px h-3.5 w-3.5 shrink-0" /> Ready: publishing puts it on AlbaGo right away.
+                        </p>
+                      )}
+                      {c.issues.length > 0 && (
+                        <p className="flex items-start gap-1.5 text-white/40">
+                          <Info className="mt-px h-3.5 w-3.5 shrink-0" /> Reading notes: {readingNotes(c.issues)}.
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
@@ -406,10 +501,10 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
 
                 <aside className="mx-auto w-full max-w-[17rem] lg:mx-0">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                    {c.albagoCategory ? 'On AlbaGo' : 'Not listed on AlbaGo'}
+                    {ALBAGO_CATEGORY[e.event_type as keyof typeof ALBAGO_CATEGORY] ? 'On AlbaGo' : 'Not listed on AlbaGo'}
                   </p>
                   {/* The real listing card, non-interactive: it is a picture of the result. */}
-                  <div inert aria-hidden="true" className={c.albagoCategory ? '' : 'opacity-40 grayscale'}>
+                  <div inert aria-hidden="true" className={ALBAGO_CATEGORY[e.event_type as keyof typeof ALBAGO_CATEGORY] ? '' : 'opacity-40 grayscale'}>
                     <EventCard event={previewEvent(c, e)} venueName={c.venue} cityLabel={canonicalCityName(e.locality || c.locality || '')} isAuthenticated={false} initialSaved={false} />
                   </div>
                   {pictureLink(e.picture) ? (

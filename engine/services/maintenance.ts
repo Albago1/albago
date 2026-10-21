@@ -1,4 +1,6 @@
+import type { RelevanceCriteriaV1 } from '../contract/goal'
 import { DEFAULT_EXPIRY, ExpiryRunV1, ExpirySettingsV1 } from '../contract/settings'
+import { evaluateRelevance } from '../core/relevance'
 import type { EngineDeps } from '../ports'
 
 /**
@@ -45,6 +47,58 @@ export function createMaintenance(deps: EngineDeps) {
       const value = ExpirySettingsV1.parse(next)
       await deps.store.settings.set('expiry', value, actor)
       return value
+    },
+
+    /**
+     * Re-check relevance of open occurrences with the current rules and the
+     * current entity knowledge (e.g. an artist confirmed since the event was
+     * found). A human decision is never touched. Safe to run any number of times.
+     */
+    async reassessRelevance(criteria: RelevanceCriteriaV1): Promise<{ checked: number; changed: number; now_relevant: number }> {
+      const rows = [
+        ...(await deps.store.occurrences.listByReviewStatus('needs_review', 1000)),
+        ...(await deps.store.occurrences.listByReviewStatus('verified', 1000)),
+      ]
+      // One read of the affiliated names instead of a query per occurrence.
+      const known = new Map<string, 'performer' | 'other'>()
+      for (const kind of ['performer', 'organizer', 'institution'] as const) {
+        for (const e of await deps.store.entities.list(kind, criteria.affiliation)) {
+          if (e.affiliations[criteria.affiliation]?.state !== 'confirmed') continue
+          for (const n of [e.name, ...e.aliases]) known.set(n.toLowerCase(), kind === 'performer' ? 'performer' : 'other')
+        }
+      }
+      const at = now().toISOString()
+      let changed = 0
+      let nowRelevant = 0
+      for (const o of rows) {
+        const before = o.relevance[criteria.id]
+        if (before?.assessed_by === 'human') continue
+        const names = [...o.performers, ...(o.organizer_name ? [o.organizer_name] : [])]
+        const verdict = evaluateRelevance(
+          criteria,
+          {
+            country_code: o.location.country_code,
+            locality: o.location.locality,
+            promotion_languages: o.promotion_languages,
+            audience_statements: o.audience_statements,
+            cultural_occasion: o.cultural_occasion,
+            affiliated_performers: names.filter((n) => known.get(n.toLowerCase()) === 'performer'),
+            affiliated_organizers: names.filter((n) => known.get(n.toLowerCase()) === 'other'),
+            title: o.title,
+            description: o.description,
+            organizer_name: o.organizer_name,
+            performers: o.performers,
+          },
+          before?.signals[0]?.observation_id ?? null,
+          at,
+        )
+        const sig = (v: typeof verdict | undefined) => JSON.stringify([v?.verdict, ...(v?.signals ?? []).map((x) => `${x.kind}:${x.value}`)])
+        if (sig(before) === sig(verdict)) continue
+        await deps.store.occurrences.update(o.id, { relevance: { ...o.relevance, [criteria.id]: verdict } })
+        changed++
+        if (verdict.verdict === 'relevant' && before?.verdict !== 'relevant') nowRelevant++
+      }
+      return { checked: rows.length, changed, now_relevant: nowRelevant }
     },
 
     /** Delete pending suggestions for events that are over. Safe to run any number of times. */

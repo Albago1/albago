@@ -138,3 +138,37 @@ const TIMEZONES: Record<string, string> = {
 export function timezoneForCountry(countryCode: string | null): string | null {
   return countryCode ? (TIMEZONES[countryCode] ?? null) : null
 }
+
+// Multi-zone countries: state/province → its (main) zone. Neutral world data.
+const REGION_ZONES: Record<string, Record<string, string>> = {
+  US: {
+    ...Object.fromEntries(
+      ['CT', 'DE', 'DC', 'FL', 'GA', 'ME', 'MD', 'MA', 'NH', 'NJ', 'NY', 'NC', 'OH', 'PA', 'RI', 'SC', 'VT', 'VA', 'WV', 'KY'].map((s) => [s, 'America/New_York']),
+    ),
+    MI: 'America/Detroit',
+    IN: 'America/Indiana/Indianapolis',
+    ...Object.fromEntries(['AL', 'AR', 'IL', 'IA', 'LA', 'MN', 'MS', 'MO', 'OK', 'WI', 'TX', 'KS', 'NE', 'ND', 'SD', 'TN'].map((s) => [s, 'America/Chicago'])),
+    ...Object.fromEntries(['CO', 'MT', 'NM', 'UT', 'WY', 'ID'].map((s) => [s, 'America/Denver'])),
+    AZ: 'America/Phoenix',
+    ...Object.fromEntries(['CA', 'NV', 'OR', 'WA'].map((s) => [s, 'America/Los_Angeles'])),
+    AK: 'America/Anchorage',
+    HI: 'Pacific/Honolulu',
+  },
+  CA: { ON: 'America/Toronto', QC: 'America/Toronto', BC: 'America/Vancouver', AB: 'America/Edmonton', MB: 'America/Winnipeg', SK: 'America/Regina', NS: 'America/Halifax', NB: 'America/Halifax' },
+  AU: { NSW: 'Australia/Sydney', VIC: 'Australia/Melbourne', QLD: 'Australia/Brisbane', WA: 'Australia/Perth', SA: 'Australia/Adelaide', ACT: 'Australia/Sydney', TAS: 'Australia/Hobart' },
+}
+const REGION_NAMES: Record<string, string> = {
+  'new jersey': 'NJ', 'new york': 'NY', connecticut: 'CT', massachusetts: 'MA', pennsylvania: 'PA', michigan: 'MI', illinois: 'IL', texas: 'TX',
+  florida: 'FL', california: 'CA', ohio: 'OH', georgia: 'GA', virginia: 'VA', maryland: 'MD', 'north carolina': 'NC', washington: 'WA',
+  arizona: 'AZ', colorado: 'CO', minnesota: 'MN', wisconsin: 'WI', ontario: 'ON', quebec: 'QC', 'british columbia': 'BC', alberta: 'AB',
+  'new south wales': 'NSW', victoria: 'VIC', queensland: 'QLD',
+}
+
+/** IANA zone from a country and, for multi-zone countries, its state/province ("NJ" or "New Jersey"). */
+export function timezoneForPlace(countryCode: string | null, region: string | null | undefined): string | null {
+  const byCountry = timezoneForCountry(countryCode)
+  if (byCountry || !countryCode || !region) return byCountry
+  const r = region.trim()
+  const code = REGION_NAMES[foldText(r)] ?? r.toUpperCase()
+  return REGION_ZONES[countryCode]?.[code] ?? null
+}

@@ -24,6 +24,14 @@ export const RelevanceCriteriaV1 = z.object({
     promotion_language: z.object({ languages: z.array(LanguageCode).min(1), strength: Strength }).optional(),
     cultural_occasion: Strength.optional(),
     community_venue: Strength.optional(),
+    /** A keyword in the event's own title ("Albanian Night", "Koncert shqip"). */
+    title_keyword: Strength.optional(),
+    /** A keyword in the organizer's name ("Albanian Cultural Center", "Shoqata …"). */
+    organizer_keyword: Strength.optional(),
+    /** A keyword anywhere in the event description. */
+    description_keyword: Strength.optional(),
+    /** A title, performer or organizer named after a place the criteria implies ("Shkodra Elektronike"). */
+    place_mention: Strength.optional(),
   }),
   /** Deterministic combination: relevant when >= min_strong strong signals OR >= or_min_medium medium ones. */
   rule: z.object({ min_strong: z.int().min(1), or_min_medium: z.int().min(1) }),

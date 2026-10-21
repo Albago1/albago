@@ -13,6 +13,21 @@ import SettingsPanel from './SettingsPanel'
 const COUNTRY_NAMES = new Intl.DisplayNames(['en'], { type: 'region' })
 const lastDay = (o: ReviewItem['occurrence']) => o.end.date ?? o.start.date
 
+// Why the engine counts an event as Albanian, in plain words.
+const SIGNAL_LABEL: Record<string, string> = {
+  location: 'takes place in',
+  performer_affiliation: 'Albanian artist',
+  organizer_affiliation: 'Albanian organizer',
+  audience_statement: 'the page says',
+  promotion_language: 'promoted in',
+  cultural_occasion: 'occasion:',
+  title_keyword: 'title:',
+  organizer_keyword: 'organizer:',
+  description_keyword: 'description mentions',
+  place_mention: 'named after',
+  reviewer: 'you:',
+}
+
 export const metadata: Metadata = { title: 'Admin · Event Engine' }
 
 // Auth + admin role are enforced by app/admin/layout.tsx. The engine is read
@@ -81,7 +96,8 @@ export default async function EngineReviewPage() {
       price: o.price,
       performers: o.performers,
       relevance: o.relevance.albanian?.verdict ?? null,
-      relevanceSignals: (o.relevance.albanian?.signals ?? []).map((s) => `${s.kind}: ${s.value}`),
+      relevanceByHuman: o.relevance.albanian?.assessed_by === 'human',
+      relevanceSignals: (o.relevance.albanian?.signals ?? []).map((s) => `${SIGNAL_LABEL[s.kind] ?? s.kind} ${s.value.length > 40 ? `${s.value.slice(0, 40)}…` : s.value}`),
       sources: o.source_urls,
       issues: item.issues,
       possibleDuplicates: item.possibleDuplicates.length,

@@ -11,10 +11,14 @@ export const ALBANIAN_RELEVANCE: RelevanceCriteriaV1 = {
   description:
     'Albanian or Albanian-diaspora relevant: located in Albania or Kosovo or an Albanian-majority town, or featuring Albanian performers/organizers, explicitly for the Albanian community, or marking an Albanian occasion.',
   affiliation: 'albanian',
-  keywords: ['shqiptar', 'shqiptare', 'shqip', 'albanian', 'albaner', 'albanisch', 'albanese', 'albanais', 'kosov', 'arberesh', 'arbëresh'],
+  keywords: [
+    'shqiptar', 'shqiptare', 'shqip', 'shqipëri', 'shqiperi', 'albanian', 'albaner', 'albanisch', 'albanes', 'albanais', 'albansk', 'kosov', 'arberesh', 'arbëresh',
+    // Albanian words only Albanian organizers and occasions use: association, flag, independence.
+    'shoqata', 'shoqëria', 'flamurit', 'pavarësi', 'pavaresi',
+  ],
   location_implies: {
     country_codes: ['AL', 'XK'],
-    localities: ['Tetovo', 'Struga', 'Gostivar', 'Kičevo', 'Ulcinj', 'Tuzi', 'Preševo', 'Bujanovac'],
+    localities: ['Tetovo', 'Struga', 'Gostivar', 'Kičevo', 'Ulcinj', 'Plazhi i Madh', 'Tuzi', 'Preševo', 'Bujanovac'],
   },
   signals: {
     performer_affiliation: 'strong',
@@ -23,6 +27,12 @@ export const ALBANIAN_RELEVANCE: RelevanceCriteriaV1 = {
     promotion_language: { languages: ['sq'], strength: 'medium' },
     cultural_occasion: 'medium',
     community_venue: 'medium',
+    // The event's own words: an 'Albanian Night' or a 'Shoqata …' organizer is explicit.
+    title_keyword: 'strong',
+    organizer_keyword: 'strong',
+    description_keyword: 'medium',
+    // Named after an Albanian place ("Shkodra Elektronike").
+    place_mention: 'medium',
   },
   rule: { min_strong: 1, or_min_medium: 2 },
 }
@@ -34,7 +44,7 @@ export const ALBANIAN_RELEVANCE: RelevanceCriteriaV1 = {
  */
 export const ARTIST_SEED: string[] = [
   // Global
-  'Dua Lipa', 'Rita Ora', 'Bebe Rexha', 'Ava Max', 'Ermal Meta', 'Action Bronson', 'Gashi',
+  'Dua Lipa', 'Rita Ora', 'Bebe Rexha', 'Ava Max', 'Ermal Meta', 'Action Bronson', 'Gashi', 'Elina Duni',
   // DACH / diaspora rap and pop
   'Loredana', 'Azet', 'Ardian Bujupi', 'Lumi B', 'DJ Gimi-O', 'Don Phenom',
   // Pop / R&B
@@ -47,6 +57,8 @@ export const ARTIST_SEED: string[] = [
   // Rap / hip-hop
   'Capital T', 'Gjiko', 'Majk', 'Getinjo', 'Mozzik', 'Stresi', 'Lyrical Son', 'Unikkatil', 'MC Kresha',
   'Cozman', 'Ghetto Geasy', 'Varrosi', 'Vig Poppa', 'DJ Blunt & Real 1',
+  // Bands
+  'Shkodra Elektronike',
   // Folk / traditional
   'Shkurte Fejza', 'Sinan Hoxha', 'Ilir Shaqiri', 'Mahmut Ferati', 'Adelina Ismaili',
 ]
