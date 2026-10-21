@@ -144,6 +144,28 @@ export function supabaseEngineStore(client: SupabaseClient): EngineStore {
       async listByReviewStatus(status, limit) {
         return (check(await db().from('occurrences').select('*').eq('review_status', status).order('start_date').limit(limit)) as Row[]).map(toOccurrence)
       },
+      async deletePendingEndedBefore(date) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('engine store: bad cutoff date')
+        // Last day = end_date, or start_date for single-day events. Observations keep
+        // their row (FK on delete set null); review actions of a pending row go with it.
+        const res = await db()
+          .from('occurrences')
+          .delete({ count: 'exact' })
+          .eq('review_status', 'needs_review')
+          .or(`end_date.lt.${date},and(end_date.is.null,start_date.lt.${date})`)
+        if (res.error) throw new Error(`engine store: ${res.error.message}`)
+        return res.count ?? 0
+      },
+    },
+
+    settings: {
+      async get(key) {
+        const rows = check(await db().from('settings').select('value, updated_at, updated_by').eq('key', key).limit(1)) as { value: unknown; updated_at: string; updated_by: string | null }[]
+        return rows[0] ?? null
+      },
+      async set(key, value, actor) {
+        check(await db().from('settings').upsert({ key, value, updated_at: new Date().toISOString(), updated_by: actor }, { onConflict: 'key' }))
+      },
     },
 
     venues: {

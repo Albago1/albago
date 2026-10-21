@@ -8,6 +8,7 @@ export * from './primitives'
 export * from './occurrence'
 export * from './observation'
 export * from './goal'
+export * from './settings'
 
 /** Contract major version. Only additive changes within v1. */
 export const CONTRACT_VERSION = '1' as const

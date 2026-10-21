@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron/auth'
-import { runDiscovery } from '@/integrations/albago/runner'
+import { expireEnded, runDiscovery } from '@/integrations/albago/runner'
 
 /**
  * Event Engine rotation. Scheduled several times a day (vercel.json — one
- * daily entry per slot, so it works on the Hobby plan). Each call researches
- * the most overdue target (a city or a batch of Albanian artists) inside the
+ * daily entry per slot, so it works on the Hobby plan). Each call first
+ * removes pending suggestions whose event is over (the expiry setting), then
+ * researches the most overdue target (a city or a batch of Albanian artists) inside the
  * free-tier caps; findings wait in /admin/engine for review. Missed or
  * duplicate invocations are harmless: the runner skips while a run is active
  * and only picks targets that are due.
@@ -20,6 +21,14 @@ export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
+  // Housekeeping first, independent of discovery (runs even when search is paused or over budget).
+  try {
+    const expiry = await expireEnded()
+    if (expiry.removed) console.log(`[cron/engine] removed ${expiry.removed} ended suggestion(s) (before ${expiry.cutoff})`)
+  } catch (err) {
+    console.error('[cron/engine] expiry failed:', err)
+  }
+
   try {
     const outcome = await runDiscovery({ triggeredBy: null })
     if (!outcome.ran) {

@@ -2,7 +2,11 @@
 
 import { Fragment, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ExternalLink, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { Check, ExternalLink, Eye, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
+import EventCard, { type PublicEvent } from '@/components/events/EventCard'
+import EventPagePreview, { type EventPreviewData } from '@/components/events/EventPagePreview'
+import { albagoPriceFields } from '@/integrations/albago/adapter'
+import { canonicalCityName, citySlug } from '@/lib/citySlug'
 
 export type ReviewCard = {
   id: string
@@ -30,6 +34,13 @@ export type ReviewCard = {
   provenance: Record<string, string>
   /** Reasons AlbaGo would still hold it back after approval (empty = would publish). */
   wouldPublish: string[]
+  /** AlbaGo category the event would be listed under (null = AlbaGo does not list this type). */
+  albagoCategory: string | null
+  countryName: string | null
+  description: string | null
+  organizer: string | null
+  /** The event is over (only shown when automatic removal is switched off). */
+  ended: boolean
 }
 
 export type RunSummary = { id: string; goal: string; status: string; startedAt: string; stats: Record<string, number> }
@@ -58,6 +69,56 @@ function priceEdit(card: ReviewCard, e: Edits): ReviewCard['price'] | undefined 
   return { state: 'unknown', min: null, max: null, currency: null, note: null }
 }
 
+/** The price AlbaGo would show: the reviewer's edit when valid, else the engine's. */
+function previewPrice(card: ReviewCard, e: Edits): ReviewCard['price'] {
+  const edited = priceEdit(card, e)
+  if (!edited) return card.price
+  if (edited.state === 'paid' && (edited.min == null || !Number.isFinite(edited.min))) return { state: 'unknown', min: null, max: null, currency: null, note: null }
+  return edited
+}
+
+/** The listing card exactly as AlbaGo would render it, from the current edits. */
+function previewEvent(card: ReviewCard, e: Edits): PublicEvent {
+  return {
+    id: card.id,
+    title: e.title.trim() || card.title,
+    slug: card.albagoSlug ?? 'preview',
+    place_id: null,
+    category: card.albagoCategory ?? 'other',
+    description: card.description ?? '',
+    date: e.start_date || card.date,
+    end_date: card.endDate,
+    time: e.start_time,
+    ...albagoPriceFields(previewPrice(card, e) as Parameters<typeof albagoPriceFields>[0]),
+    highlight: false,
+    status: 'published',
+    location_slug: citySlug(e.locality || card.locality || ''),
+    country: card.countryName ?? '',
+    region: null,
+    banner_url: null,
+  }
+}
+
+/** The full event page, as the admin moderation queue previews it. */
+function previewPage(card: ReviewCard, e: Edits): EventPreviewData {
+  const ev = previewEvent(card, e)
+  return {
+    title: ev.title,
+    category: ev.category,
+    date: ev.date,
+    time: ev.time || null,
+    end_time: card.endTime,
+    price: ev.price,
+    description: card.description,
+    banner_url: null,
+    venue_name: card.venue,
+    address: card.address,
+    cityLabel: canonicalCityName(e.locality || card.locality || ''),
+    country: card.countryName,
+    organizer_name: card.organizer,
+  }
+}
+
 const STATUS_TONE: Record<string, string> = {
   stated: 'text-emerald-300',
   derived: 'text-sky-300',
@@ -73,7 +134,7 @@ function host(url: string): string {
   }
 }
 
-export default function EngineReviewClient({ initialCards, recentRuns, discovery }: { initialCards: ReviewCard[]; recentRuns: RunSummary[]; discovery?: ReactNode }) {
+export default function EngineReviewClient({ initialCards, recentRuns, panels }: { initialCards: ReviewCard[]; recentRuns: RunSummary[]; panels?: ReactNode }) {
   const router = useRouter()
   // Cards handled in this session, keyed by id:version — every approval bumps
   // the version, so a card that comes back after a refresh (held back) shows again.
@@ -81,6 +142,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, discovery
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string; href?: string } | null>(null)
   const [edits, setEdits] = useState<Record<string, Edits>>({})
+  const [pagePreview, setPagePreview] = useState<string | null>(null)
 
   const editsFor = (c: ReviewCard): Edits =>
     edits[c.id] ?? {
@@ -139,7 +201,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, discovery
   const stageCount = (stage: ReviewCard['stage']) => visible.filter((c) => c.stage === stage).length
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-6xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-flame-300/80">Event Engine</p>
@@ -150,7 +212,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, discovery
         </div>
       </div>
 
-      {discovery}
+      {panels}
 
       {notice && (
         <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${notice.tone === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-red-500/30 bg-red-500/10 text-red-100'}`}>
@@ -197,7 +259,8 @@ export default function EngineReviewClient({ initialCards, recentRuns, discovery
                   {STAGE_HEADING[c.stage].hint && <p className="mt-0.5 text-xs text-white/45">{STAGE_HEADING[c.stage].hint}</p>}
                 </li>
               )}
-              <li className={`rounded-3xl border p-5 ${approved ? 'border-sky-400/25 bg-sky-500/[0.04]' : published ? 'border-emerald-400/20 bg-emerald-500/[0.03]' : 'border-white/10 bg-white/[0.03]'}`}>
+              <li className={`grid gap-6 rounded-3xl border p-5 lg:grid-cols-[minmax(0,1fr)_17rem] ${approved ? 'border-sky-400/25 bg-sky-500/[0.04]' : published ? 'border-emerald-400/20 bg-emerald-500/[0.03]' : 'border-white/10 bg-white/[0.03]'}`}>
+                <div className="min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <input
@@ -212,6 +275,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, discovery
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                  {c.ended && <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">Ended</span>}
                   {approved && <span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-200">Approved</span>}
                   {published && c.albagoSlug && (
                     <a href={`/events/${c.albagoSlug}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/25">
@@ -320,12 +384,60 @@ export default function EngineReviewClient({ initialCards, recentRuns, discovery
                     <X className="h-4 w-4" /> {published ? 'Reject & unpublish' : 'Reject'}
                   </button>
                 </div>
+                </div>
+
+                <aside className="mx-auto w-full max-w-[17rem] lg:mx-0">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                    {c.albagoCategory ? 'On AlbaGo' : 'Not listed on AlbaGo'}
+                  </p>
+                  {/* The real listing card, non-interactive: it is a picture of the result. */}
+                  <div inert aria-hidden="true" className={c.albagoCategory ? '' : 'opacity-40 grayscale'}>
+                    <EventCard event={previewEvent(c, e)} venueName={c.venue} cityLabel={canonicalCityName(e.locality || c.locality || '')} isAuthenticated={false} initialSaved={false} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPagePreview(c.id)}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/[0.06]"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Full event page
+                  </button>
+                </aside>
               </li>
               </Fragment>
             )
           })}
         </ul>
       )}
+
+      {pagePreview &&
+        (() => {
+          const c = visible.find((x) => x.id === pagePreview)
+          if (!c) return null
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-8"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Preview event page"
+              onClick={() => setPagePreview(null)}
+            >
+              <div className="w-full max-w-2xl" onClick={(ev) => ev.stopPropagation()}>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Page preview — this is what visitors will see</p>
+                  <button
+                    type="button"
+                    onClick={() => setPagePreview(null)}
+                    aria-label="Close preview"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition hover:bg-white/[0.12] hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <EventPagePreview event={previewPage(c, editsFor(c))} />
+              </div>
+            </div>
+          )
+        })()}
     </div>
   )
 }

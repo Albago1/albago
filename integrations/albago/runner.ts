@@ -1,4 +1,4 @@
-import type { DiscoverReport } from '@/engine/server'
+import type { DiscoverReport, ExpirySettingsV1 } from '@/engine/server'
 import { ALBANIAN_RELEVANCE, ARTIST_SEED, BLOCKED_HOSTS } from './goals'
 import { freeTierLimits, pickNext, planRotation, runInfo, usage, type PlanEntry, type Usage } from './rotation'
 import { albagoEngine } from './wiring'
@@ -60,6 +60,25 @@ export async function runDiscovery(opts: { goalId?: string; triggeredBy: string 
   const goal = { ...entry.goal, budget: { ...entry.goal.budget, max_searches: Math.min(entry.goal.budget.max_searches, searchesLeft) } }
   const report = await c.engine.discover(goal, { triggeredBy: opts.triggeredBy, blockedHosts: BLOCKED_HOSTS })
   return { ran: true, goalId: entry.id, label: entry.label, report }
+}
+
+/** Housekeeping: delete pending suggestions whose event is over (per the expiry setting). */
+export async function expireEnded() {
+  return albagoEngine().maintenance.expireEnded()
+}
+
+export async function engineSettings() {
+  const m = albagoEngine().maintenance
+  const [expiry, lastRun] = await Promise.all([m.getExpiry(), m.lastExpiryRun()])
+  return { expiry, lastRun, cutoff: m.cutoffFor(expiry) }
+}
+
+/** Save the expiry setting and apply it right away, so the page reflects it at once. */
+export async function saveExpiry(next: ExpirySettingsV1, actor: string | null) {
+  const m = albagoEngine().maintenance
+  const expiry = await m.setExpiry(next, actor)
+  const run = await m.expireEnded()
+  return { expiry, removed: run.removed, cutoff: run.cutoff }
 }
 
 /** Human decision on a learned artist. */

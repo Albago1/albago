@@ -3,10 +3,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { toContract, type ReviewItem } from '@/engine/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { albagoEngine } from '@/integrations/albago/wiring'
-import { deliveryDecision } from '@/integrations/albago/policy'
-import { artistCandidates, discoveryOverview } from '@/integrations/albago/runner'
+import { ALBAGO_CATEGORY, deliveryDecision } from '@/integrations/albago/policy'
+import { artistCandidates, discoveryOverview, engineSettings } from '@/integrations/albago/runner'
 import EngineReviewClient, { type ReviewCard, type RunSummary } from './EngineReviewClient'
 import DiscoveryPanel from './DiscoveryPanel'
+import SettingsPanel from './SettingsPanel'
+
+const COUNTRY_NAMES = new Intl.DisplayNames(['en'], { type: 'region' })
+const lastDay = (o: ReviewItem['occurrence']) => o.end.date ?? o.start.date
 
 export const metadata: Metadata = { title: 'Admin · Event Engine' }
 
@@ -16,12 +20,13 @@ export const dynamic = 'force-dynamic'
 
 export default async function EngineReviewPage() {
   const engine = albagoEngine()
-  const [queue, verified, runs, overview, candidates] = await Promise.all([
+  const [queue, verified, runs, overview, candidates, settings] = await Promise.all([
     engine.review.queue(60),
     engine.review.queue(60, 'verified'),
     engine.runs.recent(6),
     discoveryOverview(),
     artistCandidates(),
+    engineSettings(),
   ])
   const targetLabels = new Map(overview.plan.map((p) => [p.id, p.label]))
 
@@ -41,8 +46,12 @@ export default async function EngineReviewPage() {
     for (const r of data ?? []) albagoSlugs.set(r.engine_occurrence_id as string, r.slug as string)
   }
   const today = new Date().toISOString().slice(0, 10)
-  const approved = verified.filter((v) => !albagoSlugs.has(v.occurrence.id))
-  const published = verified.filter((v) => albagoSlugs.has(v.occurrence.id) && (v.occurrence.end.date ?? v.occurrence.start.date) >= today)
+  // With automatic removal on, nothing that is over shows here — even between
+  // two clean-up runs. With it off, ended events stay, marked "Ended".
+  const current = (item: ReviewItem) => !settings.expiry.enabled || lastDay(item.occurrence) >= settings.cutoff
+  const approved = verified.filter((v) => !albagoSlugs.has(v.occurrence.id) && current(v))
+  const published = verified.filter((v) => albagoSlugs.has(v.occurrence.id) && lastDay(v.occurrence) >= today)
+  const pending = queue.filter(current)
 
   const toCard = (item: ReviewItem, stage: ReviewCard['stage']): ReviewCard => {
     const o = item.occurrence
@@ -75,9 +84,14 @@ export default async function EngineReviewPage() {
       possibleDuplicates: item.possibleDuplicates.length,
       provenance: Object.fromEntries(Object.entries(o.provenance).map(([k, v]) => [k, v.status])),
       wouldPublish: asVerified.deliver ? [] : asVerified.reasons.filter((r) => r !== 'not verified'),
+      albagoCategory: ALBAGO_CATEGORY[o.event_type] ?? null,
+      countryName: o.location.country_code ? (COUNTRY_NAMES.of(o.location.country_code) ?? o.location.country_code) : null,
+      description: o.description,
+      organizer: o.organizer_name,
+      ended: lastDay(o) < today,
     }
   }
-  const cards = [...approved.map((i) => toCard(i, 'approved')), ...queue.map((i) => toCard(i, 'review')), ...published.map((i) => toCard(i, 'published'))]
+  const cards = [...approved.map((i) => toCard(i, 'approved')), ...pending.map((i) => toCard(i, 'review')), ...published.map((i) => toCard(i, 'published'))]
 
   const recentRuns: RunSummary[] = runs.map((r) => {
     const goal = (
@@ -100,7 +114,16 @@ export default async function EngineReviewPage() {
 
   return (
     <div className="px-4 py-6 sm:px-6">
-      <EngineReviewClient initialCards={cards} recentRuns={recentRuns} discovery={<DiscoveryPanel overview={overview} candidates={candidates} />} />
+      <EngineReviewClient
+        initialCards={cards}
+        recentRuns={recentRuns}
+        panels={
+          <>
+            <DiscoveryPanel overview={overview} candidates={candidates} />
+            <SettingsPanel settings={{ expiry: settings.expiry, lastRun: settings.lastRun }} />
+          </>
+        }
+      />
     </div>
   )
 }

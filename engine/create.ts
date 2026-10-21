@@ -5,6 +5,7 @@ import type { EngineDeps } from './ports'
 import { discover, type DiscoverOptions } from './services/discover'
 import { observe, type ObserveContext } from './services/observe'
 import { createEntities } from './services/entities'
+import { createMaintenance } from './services/maintenance'
 import { createReview, toContract } from './services/review'
 
 /**
@@ -21,6 +22,8 @@ export function createEngine(deps: EngineDeps) {
     review,
     /** Performers/organizers and their confirmed or candidate affiliations. */
     entities: createEntities(deps),
+    /** Housekeeping and runtime settings (auto-removal of ended suggestions). */
+    maintenance: createMaintenance(deps),
     occurrences: {
       get: async (id: string) => {
         const o = await deps.store.occurrences.get(id)

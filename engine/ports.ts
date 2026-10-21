@@ -147,6 +147,12 @@ export type EngineStore = {
     findCandidates(q: { start_date: string; country_code: string | null; locality: string | null }): Promise<OccurrenceRecord[]>
     findBySourceUrl(normalizedUrl: string): Promise<OccurrenceRecord | null>
     listByReviewStatus(status: OccurrenceRecord['review_status'], limit: number): Promise<OccurrenceRecord[]>
+    /** Delete pending (needs_review) occurrences whose last day is before `date`; returns how many. */
+    deletePendingEndedBefore(date: string): Promise<number>
+  }
+  settings: {
+    get(key: string): Promise<{ value: unknown; updated_at: string; updated_by: string | null } | null>
+    set(key: string, value: unknown, actor: string | null): Promise<void>
   }
   venues: {
     findInLocality(countryCode: string | null, locality: string | null): Promise<VenueRecord[]>

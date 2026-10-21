@@ -16,3 +16,4 @@ export { observe, type ObserveContext, type ObserveOutcome } from './services/ob
 export { discover, describeGoal, type DiscoverOptions, type DiscoverReport } from './services/discover'
 export { applyEdits, toContract, type ReviewEdits, type ReviewItem } from './services/review'
 export { cleanEntityName, createEntities, type Entities } from './services/entities'
+export { createMaintenance, type Maintenance } from './services/maintenance'

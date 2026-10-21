@@ -25,14 +25,23 @@ function slugify(title: string): string {
   return albagoLocationSlug(title).slice(0, 70).replace(/-+$/, '') || 'event'
 }
 
-function priceText(o: CanonicalOccurrenceV1): string | null {
-  const p = o.price
+function priceText(p: CanonicalOccurrenceV1['price']): string | null {
   if (p.state === 'free') return 'Free'
   if (p.state === 'paid' && p.min != null && p.currency) {
     const fmt = (n: number) => new Intl.NumberFormat('en', { style: 'currency', currency: p.currency!, maximumFractionDigits: 2 }).format(n)
     return p.max != null && p.max > p.min ? `${fmt(p.min)} – ${fmt(p.max)}` : fmt(p.min)
   }
   return null // unknown price: AlbaGo shows "Price not announced", never "Unknown"
+}
+
+/** AlbaGo's three price columns for an engine price. Shared by delivery and the review preview. */
+export function albagoPriceFields(p: CanonicalOccurrenceV1['price']) {
+  return {
+    price: priceText(p),
+    price_from_cents: p.state === 'paid' && p.min != null ? Math.round(p.min * 100) : p.state === 'free' ? 0 : null,
+    // NOT NULL in public.events; 'EUR' is the column's own default.
+    price_currency: p.currency ?? 'EUR',
+  }
 }
 
 /** The public.events row for a verified occurrence. Pure — unit-tested. */
@@ -59,10 +68,7 @@ export function toAlbagoEventRow(o: CanonicalOccurrenceV1, verifiedAt: string | 
     organizer_name: o.organizer_name,
     tags: o.tags,
     language: o.language,
-    price: priceText(o),
-    price_from_cents: o.price.state === 'paid' && o.price.min != null ? Math.round(o.price.min * 100) : o.price.state === 'free' ? 0 : null,
-    // NOT NULL in public.events; 'EUR' is the column's own default.
-    price_currency: o.price.currency ?? 'EUR',
+    ...albagoPriceFields(o.price),
     ticket_url: o.ticket_url,
     official_source_url: o.source_urls[0] ?? null,
     last_verified_at: verifiedAt,

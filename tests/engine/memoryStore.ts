@@ -11,6 +11,7 @@ export function memoryStore() {
   const sources = new Map<string, { id: string; status: string; normalized_url: string }>()
   const reviewActions: unknown[] = []
   const entities = new Map<string, EntityRecord>()
+  const settings = new Map<string, { value: unknown; updated_at: string; updated_by: string | null }>()
   const nowIso = () => new Date().toISOString()
 
   const store: EngineStore = {
@@ -85,6 +86,24 @@ export function memoryStore() {
       async listByReviewStatus(status, limit) {
         return [...occurrences.values()].filter((o) => o.review_status === status).slice(0, limit)
       },
+      async deletePendingEndedBefore(date) {
+        let removed = 0
+        for (const o of [...occurrences.values()]) {
+          if (o.review_status !== 'needs_review' || (o.end.date ?? o.start.date) >= date) continue
+          occurrences.delete(o.id)
+          for (const ob of observations.values()) if (ob.occurrence_id === o.id) observations.set(ob.id, { ...ob, occurrence_id: null })
+          removed++
+        }
+        return removed
+      },
+    },
+    settings: {
+      async get(key) {
+        return settings.get(key) ?? null
+      },
+      async set(key, value, actor) {
+        settings.set(key, { value, updated_at: nowIso(), updated_by: actor })
+      },
     },
     venues: {
       async findInLocality(cc, loc) {
@@ -125,5 +144,5 @@ export function memoryStore() {
       },
     },
   }
-  return { store, observations, occurrences, venues, reviewActions, entities, runs, sources }
+  return { store, observations, occurrences, venues, reviewActions, entities, runs, sources, settings }
 }
