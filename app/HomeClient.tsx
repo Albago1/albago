@@ -35,6 +35,7 @@ import { fetchSavedEventIds } from '@/lib/savedEvents'
 import { aiPosterUrl } from '@/lib/eventArt'
 import HeroSpotlight from '@/components/home/HeroSpotlight'
 import type { Place } from '@/types/place'
+import { isOwnImage } from '@/lib/ownImage'
 
 const categories = [
   { labelKey: 'category_nightlife', value: 'nightlife', icon: Moon },
@@ -1358,7 +1359,7 @@ export default function HomeClient() {
                           alt={place.name}
                           fill
                           sizes="240px"
-                          unoptimized={!place.imageUrl.includes('.supabase.co')}
+                          unoptimized={!isOwnImage(place.imageUrl)}
                           className="object-cover transition duration-500 ease-out group-hover:scale-105"
                         />
                       ) : (

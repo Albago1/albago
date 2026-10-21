@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CanonicalOccurrenceV1 } from '@/engine'
 import { ALBAGO_CATEGORY, deliveryDecision } from './policy'
+import { posterUrl } from './poster'
 
 /**
  * AlbaGo OutputAdapter: verified canonical occurrence → public.events row.
@@ -45,7 +46,7 @@ export function albagoPriceFields(p: CanonicalOccurrenceV1['price']) {
 }
 
 /** The public.events row for a verified occurrence. Pure — unit-tested. */
-export function toAlbagoEventRow(o: CanonicalOccurrenceV1, verifiedAt: string | null) {
+export function toAlbagoEventRow(o: CanonicalOccurrenceV1, verifiedAt: string | null, opts: { sharedImages?: ReadonlySet<string> } = {}) {
   const category = ALBAGO_CATEGORY[o.event_type]!
   return {
     engine_occurrence_id: o.id,
@@ -73,8 +74,8 @@ export function toAlbagoEventRow(o: CanonicalOccurrenceV1, verifiedAt: string | 
     official_source_url: o.source_urls[0] ?? null,
     last_verified_at: verifiedAt,
     origin: 'imported',
-    // Images: source posters have rights 'unknown' — not hotlinked or copied (media class 4 decision).
-    banner_url: null,
+    // The organizer's own poster, rendered from their site (never copied; credited on the event page).
+    banner_url: posterUrl(o.media, opts.sharedImages),
   }
 }
 
@@ -86,7 +87,15 @@ export async function deliverToAlbago(client: SupabaseClient, o: CanonicalOccurr
 
   const existing = await client.from('events').select('id, slug, engine_version').eq('engine_occurrence_id', o.id).maybeSingle()
   if (existing.error) throw new Error(`albago adapter: ${existing.error.message}`)
-  const row = toAlbagoEventRow(o, verifiedAt)
+  // A picture several engine events share is the source site's generic image, not this event's poster.
+  const candidate = posterUrl(o.media)
+  const sharedImages = new Set<string>()
+  if (candidate) {
+    const original = o.media.find((m) => posterUrl([m]) === candidate)?.url ?? candidate
+    const { count } = await client.schema('engine').from('occurrences').select('id', { count: 'exact', head: true }).contains('media', [{ url: original }])
+    if ((count ?? 0) > 1) sharedImages.add(original)
+  }
+  const row = toAlbagoEventRow(o, verifiedAt, { sharedImages })
 
   if (existing.data) {
     if ((existing.data.engine_version ?? 0) >= o.version) {

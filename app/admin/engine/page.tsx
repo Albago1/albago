@@ -4,6 +4,7 @@ import { toContract, type ReviewItem } from '@/engine/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { albagoEngine } from '@/integrations/albago/wiring'
 import { ALBAGO_CATEGORY, deliveryDecision } from '@/integrations/albago/policy'
+import { posterUrl, sharedImageUrls } from '@/integrations/albago/poster'
 import { artistCandidates, discoveryOverview, engineSettings } from '@/integrations/albago/runner'
 import EngineReviewClient, { type ReviewCard, type RunSummary } from './EngineReviewClient'
 import DiscoveryPanel from './DiscoveryPanel'
@@ -52,6 +53,8 @@ export default async function EngineReviewPage() {
   const approved = verified.filter((v) => !albagoSlugs.has(v.occurrence.id) && current(v))
   const published = verified.filter((v) => albagoSlugs.has(v.occurrence.id) && lastDay(v.occurrence) >= today)
   const pending = queue.filter(current)
+  // A picture several events share is the source site's generic image, not a poster.
+  const shared = sharedImageUrls([...queue, ...verified].map((i) => ({ id: i.occurrence.id, media: i.occurrence.media })))
 
   const toCard = (item: ReviewItem, stage: ReviewCard['stage']): ReviewCard => {
     const o = item.occurrence
@@ -89,6 +92,7 @@ export default async function EngineReviewPage() {
       description: o.description,
       organizer: o.organizer_name,
       ended: lastDay(o) < today,
+      poster: posterUrl(o.media, shared),
     }
   }
   const cards = [...approved.map((i) => toCard(i, 'approved')), ...pending.map((i) => toCard(i, 'review')), ...published.map((i) => toCard(i, 'published'))]

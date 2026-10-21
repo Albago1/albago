@@ -11,6 +11,7 @@ import {
 import { CATEGORY_GRADIENTS, CATEGORY_ICONS, getCategoryTone } from './categoryMeta'
 import { formatEventDateLabel, formatEventTimeLabel } from '@/lib/dateFilters'
 import { displayPrice } from '@/lib/ticketDisplay'
+import { isOwnImage } from '@/lib/ownImage'
 
 /**
  * Plain-data replica of the public event page (phase-29 layout: image-led
@@ -108,7 +109,7 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
               alt={event.title}
               fill
               sizes="(max-width: 768px) 100vw, 640px"
-              unoptimized={!heroImage.includes('.supabase.co')}
+              unoptimized={!isOwnImage(heroImage)}
               className="object-cover"
             />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/50 to-ink-950/75" />
@@ -248,7 +249,7 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
                   alt=""
                   fill
                   sizes="200px"
-                  unoptimized={!url.includes('.supabase.co')}
+                  unoptimized={!isOwnImage(url)}
                   className="object-cover"
                 />
               </div>
@@ -280,7 +281,7 @@ export default function EventPagePreview({ event }: { event: EventPreviewData })
                       alt=""
                       fill
                       sizes="140px"
-                      unoptimized={!url.includes('.supabase.co')}
+                      unoptimized={!isOwnImage(url)}
                       className="object-cover"
                     />
                   </div>

@@ -37,6 +37,7 @@ import type { ShareEventData } from '@/lib/share/types'
 import { createClient } from '@/lib/supabase/server'
 import { getLocationBySlug } from '@/lib/locations'
 import { displayPrice, formatPriceFrom, safeExternalUrl } from '@/lib/ticketDisplay'
+import { imageCredit, ownImageHosts } from '@/lib/imageCredit'
 import {
   buildLocationViewHref,
   buildMapHref,
@@ -59,6 +60,7 @@ import {
 import { getEventTimezone } from '@/lib/timezone'
 import { fetchSimilarEvents } from '@/lib/similarEvents'
 import { eventSchema, jsonLdScript, type EventForSchema } from '@/lib/seo/jsonLd'
+import { isOwnImage } from '@/lib/ownImage'
 
 type Params = { slug: string }
 
@@ -619,6 +621,8 @@ export default async function EventDetailPage(
   // Hero backdrop ladder: real event photo → cached AI poster art → brand gradient.
   const heroImage =
     eventImages[0] ?? (await fetchAiPosterUrl(event.slug)) ?? null
+  // Organizer posters are shown from their own site — credit the source.
+  const heroCredit = imageCredit(heroImage, event.official_source_url, ownImageHosts())
 
   const schemaEvent: EventForSchema = {
     slug: event.slug,
@@ -704,7 +708,7 @@ export default async function EventDetailPage(
                 fill
                 priority
                 sizes="100vw"
-                unoptimized={!heroImage.includes('.supabase.co')}
+                unoptimized={!isOwnImage(heroImage)}
                 className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/45 to-ink-950/70" />
@@ -777,6 +781,18 @@ export default async function EventDetailPage(
               <h1 className="display-text mt-5 text-5xl leading-[0.95] tracking-tight sm:text-6xl">
                 <LocalizedEventText base={event.title} i18n={event.title_i18n} asText />
               </h1>
+
+              {heroCredit && (
+                <a
+                  href={heroCredit.href}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="mt-3 inline-flex items-center gap-1 text-[11px] text-white/45 transition hover:text-white/75"
+                >
+                  Image: {heroCredit.label}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </div>
 
             {/* Action panel — right column spanning both rows so the sticky card

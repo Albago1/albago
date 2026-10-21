@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import PhotoLightbox from './events/PhotoLightbox'
+import { isOwnImage } from '@/lib/ownImage'
 
 type Props = {
   urls: string[]
@@ -37,7 +38,7 @@ export default function EventGallery({ urls, alt }: Props) {
             fill
             sizes="(max-width: 768px) 100vw, 720px"
             priority
-            unoptimized={!hero.includes('.supabase.co')}
+            unoptimized={!isOwnImage(hero)}
             onError={() => markFailed(hero)}
             className="cursor-zoom-in object-cover transition group-hover:opacity-95"
           />
@@ -58,7 +59,7 @@ export default function EventGallery({ urls, alt }: Props) {
                   alt={`${alt} — photo ${i + 2}`}
                   fill
                   sizes="(max-width: 768px) 25vw, 180px"
-                  unoptimized={!url.includes('.supabase.co')}
+                  unoptimized={!isOwnImage(url)}
                   onError={() => markFailed(url)}
                   className="cursor-zoom-in object-cover transition hover:opacity-90"
                 />

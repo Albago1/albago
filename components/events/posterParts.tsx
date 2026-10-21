@@ -17,6 +17,7 @@ import {
   recurrenceLabel,
 } from '@/lib/recurrence'
 import { displayPrice, formatPriceFrom } from '@/lib/ticketDisplay'
+import { isOwnImage } from '@/lib/ownImage'
 
 // Shared building blocks for the poster-style event surfaces (EventCard,
 // EventWideCard, EventSpotlight) so all three read as one family.
@@ -117,7 +118,7 @@ export function PosterArt({
         fill
         sizes={sizes}
         priority={priority}
-        unoptimized={!src.includes('.supabase.co')}
+        unoptimized={!isOwnImage(src)}
         onError={onFail}
         className={`object-cover ${className}`}
       />
@@ -146,7 +147,7 @@ export function PosterGlow({ src, className = '' }: { src: string | null; classN
           alt=""
           fill
           sizes="96px"
-          unoptimized={!src.includes('.supabase.co')}
+          unoptimized={!isOwnImage(src)}
           className="object-cover"
         />
       ) : (

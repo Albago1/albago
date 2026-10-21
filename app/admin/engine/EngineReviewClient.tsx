@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ExternalLink, Eye, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { Check, ExternalLink, Eye, ImageOff, Link2, Loader2, Sparkles, TriangleAlert, X } from 'lucide-react'
 import EventCard, { type PublicEvent } from '@/components/events/EventCard'
 import EventPagePreview, { type EventPreviewData } from '@/components/events/EventPagePreview'
 import { albagoPriceFields } from '@/integrations/albago/adapter'
@@ -41,11 +41,13 @@ export type ReviewCard = {
   organizer: string | null
   /** The event is over (only shown when automatic removal is switched off). */
   ended: boolean
+  /** The organizer's poster AlbaGo would show (loaded from their site), or null. */
+  poster: string | null
 }
 
 export type RunSummary = { id: string; goal: string; status: string; startedAt: string; stats: Record<string, number> }
 
-type Edits = { title: string; start_date: string; start_time: string; locality: string; price_state: string; price_amount: string; price_currency: string }
+type Edits = { title: string; start_date: string; start_time: string; locality: string; price_state: string; price_amount: string; price_currency: string; picture: string }
 
 const CURRENCIES = ['ALL', 'EUR', 'USD', 'GBP', 'CHF']
 
@@ -95,7 +97,7 @@ function previewEvent(card: ReviewCard, e: Edits): PublicEvent {
     location_slug: citySlug(e.locality || card.locality || ''),
     country: card.countryName ?? '',
     region: null,
-    banner_url: null,
+    banner_url: pictureLink(e.picture),
   }
 }
 
@@ -110,7 +112,7 @@ function previewPage(card: ReviewCard, e: Edits): EventPreviewData {
     end_time: card.endTime,
     price: ev.price,
     description: card.description,
-    banner_url: null,
+    banner_url: pictureLink(e.picture),
     venue_name: card.venue,
     address: card.address,
     cityLabel: canonicalCityName(e.locality || card.locality || ''),
@@ -124,6 +126,16 @@ const STATUS_TONE: Record<string, string> = {
   derived: 'text-sky-300',
   missing: 'text-white/35',
   conflicting: 'text-amber-300',
+}
+
+/** A picture link the reviewer pasted: an absolute web address, or nothing. */
+function pictureLink(raw: string): string | null {
+  try {
+    const u = new URL(raw.trim())
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString().replace(/^http:/, 'https:') : null
+  } catch {
+    return null
+  }
 }
 
 function host(url: string): string {
@@ -153,6 +165,7 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
       price_state: c.price.state,
       price_amount: c.price.min != null ? String(c.price.min) : '',
       price_currency: c.price.currency ?? 'ALL',
+      picture: c.poster ?? '',
     }
 
   async function act(card: ReviewCard, action: 'verify' | 'reject') {
@@ -167,6 +180,11 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
         if (e.start_date && e.start_date !== card.date) changed.start_date = e.start_date
         if (e.start_time !== (card.time ?? '')) changed.start_time = e.start_time
         if (e.locality.trim() !== (card.locality ?? '')) changed.locality = e.locality.trim()
+        if (e.picture.trim() !== (card.poster ?? '')) {
+          const link = e.picture.trim() ? pictureLink(e.picture) : null
+          if (e.picture.trim() && !link) throw new Error('The picture link must start with https://')
+          changed.media = link ? [{ url: link, role: 'poster', rights: 'unknown' }] : []
+        }
         const price = priceEdit(card, e)
         if (price) {
           if (price.state === 'paid' && (price.min == null || !Number.isFinite(price.min) || price.min < 0)) throw new Error('Enter the ticket price as a number.')
@@ -394,6 +412,25 @@ export default function EngineReviewClient({ initialCards, recentRuns, panels }:
                   <div inert aria-hidden="true" className={c.albagoCategory ? '' : 'opacity-40 grayscale'}>
                     <EventCard event={previewEvent(c, e)} venueName={c.venue} cityLabel={canonicalCityName(e.locality || c.locality || '')} isAuthenticated={false} initialSaved={false} />
                   </div>
+                  {pictureLink(e.picture) ? (
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/45">
+                      <span className="truncate">Picture from {host(pictureLink(e.picture)!)}</span>
+                      <button type="button" onClick={() => setE({ picture: '' })} className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-white/70 transition hover:bg-white/[0.08] hover:text-white">
+                        <ImageOff className="h-3.5 w-3.5" /> Remove picture
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] text-white/45 focus-within:border-white/25">
+                      <Link2 className="h-3.5 w-3.5 shrink-0" />
+                      <input
+                        value={e.picture}
+                        onChange={(ev) => setE({ picture: ev.target.value })}
+                        placeholder="Paste a picture link (https://…)"
+                        aria-label="Picture link"
+                        className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/35"
+                      />
+                    </label>
+                  )}
                   <button
                     type="button"
                     onClick={() => setPagePreview(c.id)}

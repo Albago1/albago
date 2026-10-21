@@ -23,6 +23,7 @@ import {
   recurrenceLabel,
 } from '@/lib/recurrence'
 import { displayPrice } from '@/lib/ticketDisplay'
+import { isOwnImage } from '@/lib/ownImage'
 
 export type MapCardEvent = {
   id: string
@@ -128,7 +129,7 @@ export default function MapEventCard({
             alt={event.title}
             fill
             sizes="(max-width: 767px) 100vw, 400px"
-            unoptimized={!mediaSrc.includes('.supabase.co')}
+            unoptimized={!isOwnImage(mediaSrc)}
             className="object-cover"
             onError={handleMediaError}
           />

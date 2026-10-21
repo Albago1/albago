@@ -31,6 +31,8 @@ export type ReviewEdits = Partial<{
   ticket_url: string | null
   description: string | null
   status: OccurrenceRecord['status']
+  /** Replace the event's pictures (e.g. remove a wrong poster, or add one the reviewer found). */
+  media: OccurrenceRecord['media']
 }>
 
 export function toContract(o: OccurrenceRecord): CanonicalOccurrenceV1 {
@@ -87,6 +89,7 @@ export function applyEdits(o: OccurrenceRecord, edits: ReviewEdits): { next: Occ
   set('ticket_url', o.ticket_url, edits.ticket_url, () => (next.ticket_url = edits.ticket_url ?? null))
   set('description', o.description, edits.description, () => (next.description = edits.description ?? null))
   set('status', o.status, edits.status, () => (next.status = edits.status!))
+  set('media', o.media, edits.media, () => (next.media = edits.media!))
   return { next, changes }
 }
 

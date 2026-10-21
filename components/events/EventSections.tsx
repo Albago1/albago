@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import PhotoLightbox from './PhotoLightbox'
+import { isOwnImage } from '@/lib/ownImage'
 
 export type EventSection = {
   title: string
@@ -66,7 +67,7 @@ export default function EventSections({ sections }: Props) {
                     alt={`${section.title || 'Section'} — photo ${i + 1}`}
                     fill
                     sizes="(max-width: 768px) 50vw, 240px"
-                    unoptimized={!url.includes('.supabase.co')}
+                    unoptimized={!isOwnImage(url)}
                     className="cursor-zoom-in object-cover transition hover:opacity-90"
                   />
                 </button>

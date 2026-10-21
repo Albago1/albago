@@ -74,9 +74,12 @@ describe('AlbaGo event row', () => {
       origin: 'imported',
       official_source_url: 'https://gowild.al/event/devils-paradise',
       last_verified_at: '2026-10-04T12:00:00Z',
-      banner_url: null,
+      // The organizer's poster, shown from their site (decision 2026-10-21; credited on the event page).
+      banner_url: 'https://gowild.al/p.jpg',
       description: '',
     })
+    // …unless the picture is one several events share (the site's generic image).
+    expect(toAlbagoEventRow(occ(), null, { sharedImages: new Set(['https://gowild.al/p.jpg']) }).banner_url).toBeNull()
   })
 
   it('never writes "Unknown" for an unknown price, and marks free events', () => {
