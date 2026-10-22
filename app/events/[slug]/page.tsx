@@ -466,6 +466,8 @@ export async function generateMetadata(
   return {
     title: `${event.title} — AlbaGo`,
     description,
+    // The event's tags as search keywords (e.g. full fighter names, local-language terms).
+    ...(event.tags && event.tags.length > 0 ? { keywords: event.tags } : {}),
     openGraph: {
       title: event.title,
       description,
