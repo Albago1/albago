@@ -117,7 +117,8 @@ type EventsClientProps = {
   initialPlaceNames?: Array<[string, string]> | null
 }
 
-// Below this many events, the desktop "All" view is one grid, not category rows.
+// Below this many events, the desktop "All" view shows each category as a grid
+// section instead of a swipe row (rows would leave a wide screen mostly empty).
 const COMPACT_GRID_LIMIT = 12
 
 export default function EventsClient({
@@ -468,8 +469,9 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
   }, [activeCategory, sortedEvents])
 
   // With a small catalog, a row per category leaves most of a wide screen
-  // empty — desktop shows one grid instead (the chips still filter it). Phones
-  // keep the swipe rows; category rows return everywhere once there's enough.
+  // empty — desktop shows each category as a grid section instead (still
+  // grouped, never mixed). Phones keep the swipe rows; rows return on desktop
+  // once there's enough.
   const compactGrid = eventGroups !== null && sortedEvents.length < COMPACT_GRID_LIMIT
 
   const isAllCities = activeLocationSlug === 'all'
@@ -477,6 +479,21 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
   const headerCity = isAllCities ? t('filter_worldwide') : activeLocation.label
   const headerCountry = isAllCities ? '' : activeLocation.country
 
+
+  const categoryHeading = (category: string, count?: number) => {
+    const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
+    return (
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+          <Icon className="h-5 w-5 text-flame-300" />
+        </span>
+        <h2 id={`events-group-${category}`} className="display-text truncate text-2xl text-white sm:text-3xl">
+          {categoryLabel(category, t)}
+        </h2>
+        {count != null && <span className="shrink-0 text-sm text-white/40">{count}</span>}
+      </div>
+    )
+  }
 
   const renderEventCard = (event: PublicEvent) => (
     <motion.div
@@ -657,24 +674,11 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
           {!isLoading && !errorMessage && eventGroups && (
             <div className={`space-y-12${compactGrid ? ' lg:hidden' : ''}`}>
               {eventGroups.map(({ category, events: groupEvents }) => {
-                const Icon = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.all
                 return (
                   <section key={category} aria-labelledby={`events-group-${category}`}>
                     <EventRow
                       labelledBy={`events-group-${category}`}
-                      heading={
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                            <Icon className="h-5 w-5 text-flame-300" />
-                          </span>
-                          <h2
-                            id={`events-group-${category}`}
-                            className="display-text truncate text-2xl text-white sm:text-3xl"
-                          >
-                            {categoryLabel(category, t)}
-                          </h2>
-                        </div>
-                      }
+                      heading={categoryHeading(category)}
                     >
                       {groupEvents.map((event) => (
                         <div
@@ -692,11 +696,23 @@ function EventsContent({ initialEvents, initialPlaceNames }: EventsClientProps) 
             </div>
           )}
 
-          {!isLoading && !errorMessage && (!eventGroups || compactGrid) && (
-            <motion.div
-              layout
-              className={`${compactGrid ? 'hidden lg:grid' : 'grid'} gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-3`}
-            >
+          {/* Desktop, small catalog: one grid section per category — grouped, never mixed. */}
+          {!isLoading && !errorMessage && eventGroups && compactGrid && (
+            <div className="hidden space-y-12 lg:block">
+              {eventGroups.map(({ category, events: groupEvents }) => (
+                <section key={category} aria-labelledby={`events-group-${category}`}>
+                  <div className="mb-5">{categoryHeading(category, groupEvents.length)}</div>
+                  <motion.div layout className="grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
+                    <AnimatePresence mode="popLayout">{groupEvents.map((event) => renderEventCard(event))}</AnimatePresence>
+                  </motion.div>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {/* One category chosen: a single grid of that category. */}
+          {!isLoading && !errorMessage && !eventGroups && (
+            <motion.div layout className="grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
               <AnimatePresence mode="popLayout">
                 {sortedEvents.map((event) => renderEventCard(event))}
               </AnimatePresence>
