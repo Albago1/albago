@@ -31,7 +31,7 @@ import EventWeatherCard from '@/components/events/EventWeatherCard'
 import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import SeatSalePanel from '@/components/seats/SeatSalePanel'
 import StadiumGuide from '@/components/seats/StadiumGuide'
-import { officialGuideFor } from '@/lib/seats/officialGuides'
+import { freshSnapshot, officialGuideFor } from '@/lib/seats/officialGuides'
 import type { PublicSeatSale } from '@/lib/seats/types'
 import { venueMapFor } from '@/lib/seats/venueMaps'
 import ShareEventButton from '@/components/share/ShareEventButton'
@@ -971,7 +971,7 @@ export default async function EventDetailPage(
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
 
               {/* Sold only on the official shop: AlbaGo's stadium guide links into it. */}
-              {!seatSale && !hasEnded && seatGuide && <StadiumGuide eventId={event.id} guide={seatGuide} />}
+              {!seatSale && !hasEnded && seatGuide && <StadiumGuide eventId={event.id} guide={seatGuide} seen={freshSnapshot(seatGuide) ?? null} />}
 
               {seatSale && (
                 <SeatSalePanel
