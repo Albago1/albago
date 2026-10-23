@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { ArrowUpRight, Check, MousePointerClick, X } from 'lucide-react'
+import { ArrowUpRight, Check, Expand, MousePointerClick, X } from 'lucide-react'
 import { GuideMap, type BlockSide } from '@/components/seats/GuideMap'
 import { allBlocks, venueMapById, type MapBlock } from '@/lib/seats/venueMaps'
 import { sideOfBlock, type GuideSide, type OfficialSeatGuide } from '@/lib/seats/officialGuides'
@@ -21,6 +22,9 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 type Lang = 'en' | 'sq' | 'de' | 'es'
 type Snapshot = { at: string; blocks: string[] }
 
+/** ?map=1 in the URL = the full-screen map is open (Back closes it). */
+const MAP_PARAM = 'map'
+
 const COPY: Record<Lang, {
   title: string
   sub: (promoter: string) => string
@@ -33,7 +37,11 @@ const COPY: Record<Lang, {
   ringWhere: string
   tier: [string, string]
   blocksFree: (n: number) => string
+  /** Short form for the fighter cards. */
+  blocksShort: (n: number) => string
   sold: string
+  expand: string
+  zoom: { zoomIn: string; zoomOut: string; reset: string }
   block: (b: string) => string
   freeHere: (when: string) => string
   soldHere: (when: string) => string
@@ -63,7 +71,10 @@ const COPY: Record<Lang, {
     ringWhere: 'On the floor, around the ring — closest to the action.',
     tier: ['lower tier', 'upper tier'],
     blocksFree: (n) => (n === 1 ? '1 block with seats' : `${n} blocks with seats`),
+    blocksShort: (n) => (n === 1 ? '1 block free' : `${n} blocks free`),
     sold: 'Sold out',
+    expand: 'Full screen',
+    zoom: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', reset: 'Show the whole arena' },
     block: (b) => `Block ${b}`,
     freeHere: (w) => `Seats free here on ${w}.`,
     soldHere: (w) => `Sold out on ${w} — returns happen, check live.`,
@@ -93,7 +104,10 @@ const COPY: Record<Lang, {
     ringWhere: 'Në parter, rreth ringut — sa më afër aksionit.',
     tier: ['kati i poshtëm', 'kati i sipërm'],
     blocksFree: (n) => (n === 1 ? '1 bllok me vende' : `${n} blloqe me vende`),
+    blocksShort: (n) => (n === 1 ? '1 bllok i lirë' : `${n} blloqe të lira`),
     sold: 'Shitur',
+    expand: 'Ekran i plotë',
+    zoom: { zoomIn: 'Zmadho', zoomOut: 'Zvogëlo', reset: 'Shfaq gjithë arenën' },
     block: (b) => `Blloku ${b}`,
     freeHere: (w) => `Kishte vende të lira këtu më ${w}.`,
     soldHere: (w) => `Shitur më ${w} — ndonjëherë kthehen, kontrollo live.`,
@@ -124,7 +138,10 @@ const COPY: Record<Lang, {
     ringWhere: 'Im Innenraum, rund um den Ring — am nächsten am Geschehen.',
     tier: ['Unterrang', 'Oberrang'],
     blocksFree: (n) => (n === 1 ? '1 Block mit Plätzen' : `${n} Blöcke mit Plätzen`),
+    blocksShort: (n) => (n === 1 ? '1 Block frei' : `${n} Blöcke frei`),
     sold: 'Ausverkauft',
+    expand: 'Vollbild',
+    zoom: { zoomIn: 'Vergrößern', zoomOut: 'Verkleinern', reset: 'Ganze Arena zeigen' },
     block: (b) => `Block ${b}`,
     freeHere: (w) => `Hier waren am ${w} Plätze frei.`,
     soldHere: (w) => `Am ${w} ausverkauft — Rückläufer gibt es, live prüfen.`,
@@ -154,7 +171,10 @@ const COPY: Record<Lang, {
     ringWhere: 'En la pista, alrededor del ring — lo más cerca de la acción.',
     tier: ['grada baja', 'grada alta'],
     blocksFree: (n) => (n === 1 ? '1 bloque con asientos' : `${n} bloques con asientos`),
+    blocksShort: (n) => (n === 1 ? '1 bloque libre' : `${n} bloques libres`),
     sold: 'Agotado',
+    expand: 'Pantalla completa',
+    zoom: { zoomIn: 'Acercar', zoomOut: 'Alejar', reset: 'Ver todo el estadio' },
     block: (b) => `Bloque ${b}`,
     freeHere: (w) => `Había asientos libres aquí el ${w}.`,
     soldHere: (w) => `Agotado el ${w} — a veces vuelven, compruébalo en vivo.`,
@@ -216,6 +236,55 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
   const [focus, setFocus] = useState<0 | 1 | null>(null)
   const [picked, setPicked] = useState<{ b: MapBlock; side: BlockSide } | null>(null)
 
+  // Full-screen map, in step with the browser's Back button (?map=1).
+  const [full, setFull] = useState(false)
+  const pushed = useRef(false)
+  const openFull = () => {
+    const url = new URL(window.location.href)
+    url.searchParams.set(MAP_PARAM, '1')
+    window.history.pushState(null, '', url)
+    pushed.current = true
+    setFull(true)
+  }
+  const closeFull = useCallback(() => {
+    setFull(false)
+    if (pushed.current) {
+      pushed.current = false
+      window.history.back()
+    }
+  }, [])
+  useEffect(() => {
+    // A reload while open leaves ?map=1 behind; start closed and drop it.
+    const url = new URL(window.location.href)
+    if (url.searchParams.has(MAP_PARAM)) {
+      url.searchParams.delete(MAP_PARAM)
+      window.history.replaceState(null, '', url)
+    }
+    const onPop = () => {
+      if (!new URLSearchParams(window.location.search).has(MAP_PARAM)) {
+        pushed.current = false
+        setFull(false)
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+  // While open: the page behind stays put, Escape closes.
+  useEffect(() => {
+    if (!full) return
+    const html = document.documentElement
+    const before = html.style.overflow
+    html.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeFull()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      html.style.overflow = before
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [full, closeFull])
+
   const sideName = useCallback((s: BlockSide) => (s === 'ring' ? c.ringside : c.side(guide.sides[s])), [c, guide.sides])
   const describe = useCallback(
     (b: MapBlock, s: BlockSide) => {
@@ -255,11 +324,126 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
   const pickedFree = picked && free ? free.has(picked.b.label!) : null
   const pickedColor = picked ? (picked.side === 'ring' ? guide.ringside.color : guide.sides[picked.side].color) : null
 
-  return (
-    <section aria-labelledby="stadium-guide-title" className="mb-5 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.01]">
-      <div className="px-5 pt-5">
+  const mapProps = {
+    map,
+    guide,
+    free,
+    focus,
+    activeLabel: picked?.b.label ?? null,
+    labels: { floor: c.floor, ring: 'Ring', title: c.title },
+    describe,
+    onBlock,
+  }
+
+  const legend = (
+    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11px] font-semibold text-white/70">
+      {guide.sides.map((s) => (
+        <span key={s.key} className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: s.color }} />
+          {c.side(s)}
+        </span>
+      ))}
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: guide.ringside.color }} />
+        {c.ringside}
+      </span>
+      {seen && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-[3px] border border-white/25 bg-[#08080b]" />
+          {c.sold}
+        </span>
+      )}
+    </div>
+  )
+
+  // The block or side in focus, with its official shop — inline and full screen.
+  const detail =
+    picked && pickedColor ? (
+      <div className="rounded-2xl border border-white/10 bg-ink-950/60 p-4" aria-live="polite">
         <div className="flex items-start justify-between gap-3">
-          <h2 id="stadium-guide-title" className="font-display text-2xl leading-none text-white">
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-base font-semibold text-white">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: pickedColor }} />
+              {c.block(picked.b.label!)}
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={{ backgroundColor: `color-mix(in srgb, ${pickedColor} 18%, transparent)`, color: `color-mix(in srgb, ${pickedColor} 55%, white)` }}
+              >
+                {picked.side === 'ring' ? c.ringside : `${guide.sides[picked.side].flag} ${c.side(guide.sides[picked.side])}`}
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-white/60">
+              {picked.side === 'ring' ? c.ringWhere : `${guide.sides[picked.side].stand ?? c.rest} · ${c.tier[picked.b.tier] ?? ''}`}
+            </p>
+            {pickedFree !== null && (
+              <p className={`mt-1.5 flex items-start gap-1.5 text-xs font-medium ${pickedFree ? 'text-emerald-200' : 'text-white/50'}`}>
+                {pickedFree ? (
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" strokeWidth={3} />
+                ) : (
+                  <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-[3px] border border-white/25 bg-[#08080b]" />
+                )}
+                {pickedFree ? c.freeHere(when) : c.soldHere(when)}
+              </p>
+            )}
+          </div>
+          <button type="button" onClick={() => setPicked(null)} aria-label={c.close} className="rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <a
+          href={shopOf(picked.side)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => openShop(picked.side, picked.b.label)}
+          className={
+            pickedFree === false
+              ? 'mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.06]'
+              : `mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 ${picked.side === 'ring' ? 'text-ink-950' : 'text-white'}`
+          }
+          style={pickedFree === false ? undefined : ctaStyle(pickedColor)}
+        >
+          {picked.side === 'ring' ? c.ctaRing : pickedFree === false ? c.check : c.cta}
+          <ArrowUpRight className="h-4 w-4" />
+        </a>
+      </div>
+    ) : focus !== null ? (
+      <div className="rounded-2xl border border-white/10 bg-ink-950/60 p-4" aria-live="polite">
+        <p className="flex items-center gap-2 text-base font-semibold text-white">
+          <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: guide.sides[focus].color }} />
+          {guide.sides[focus].flag} {c.side(guide.sides[focus])}
+        </p>
+        <p className="mt-1 text-sm text-white/60">
+          {c.intro(guide.sides[focus])}
+          {freeCount && ` ${freeCount[focus] > 0 ? c.blocksFree(freeCount[focus]) : c.sold} · ${when}.`}
+        </p>
+        <a
+          href={guide.sides[focus].shop}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => openShop(focus)}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5"
+          style={ctaStyle(guide.sides[focus].color)}
+        >
+          {c.cta}
+          <ArrowUpRight className="h-4 w-4" />
+        </a>
+        <p className="mt-2 text-center text-xs text-white/45">{c.orTap}</p>
+      </div>
+    ) : (
+      <p className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 px-4 py-3 text-sm text-white/55">
+        <MousePointerClick className="h-4 w-4 text-flame-300" />
+        {c.hint}
+      </p>
+    )
+
+  return (
+    <section
+      aria-labelledby="stadium-guide-title"
+      className="-mx-3 mb-5 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.01] sm:mx-0"
+    >
+      <div className="px-4 pt-5 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h2 id="stadium-guide-title" className="whitespace-nowrap font-display text-2xl leading-none text-white">
             {c.title}
           </h2>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80">
@@ -273,7 +457,7 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
         <p className="mt-2 text-sm leading-relaxed text-white/60">{c.sub(guide.promoter)}</p>
 
         {/* Face-off: whose side are you on? */}
-        <div className="relative mt-4 grid grid-cols-2 gap-2.5">
+        <div className="relative mt-4 grid grid-cols-2 gap-2">
           {guide.sides.map((s, i) => {
             const on = focus === i
             const off = focus !== null && !on
@@ -298,7 +482,7 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
                 )}
                 <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${s.color} 0%, color-mix(in srgb, ${s.color} 45%, transparent) 38%, transparent 72%)` }} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/20" />
-                <div className="absolute inset-x-0 bottom-0 p-3">
+                <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">{c.role[s.role]}</p>
                   <p className="mt-0.5 font-display text-[1.6rem] leading-none text-white">
                     <span className="mr-1 text-xl">{s.flag}</span>
@@ -306,7 +490,7 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
                   </p>
                   <p className="mt-1 text-[11px] font-semibold text-white/80">{s.record}</p>
                   <p className="mt-2 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
-                    {freeCount ? (freeCount[i] > 0 ? c.blocksFree(freeCount[i]) : c.sold) : (s.stand ?? c.rest)}
+                    {freeCount ? (freeCount[i] > 0 ? c.blocksShort(freeCount[i]) : c.sold) : (s.stand ?? c.rest)}
                   </p>
                 </div>
                 {on && (
@@ -322,127 +506,26 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
           </span>
         </div>
 
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11px] font-semibold text-white/70">
-          {guide.sides.map((s) => (
-            <span key={s.key} className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: s.color }} />
-              {c.side(s)}
-            </span>
-          ))}
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: guide.ringside.color }} />
-            {c.ringside}
-          </span>
-          {seen && (
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px] border border-white/25 bg-[#08080b]" />
-              {c.sold}
-            </span>
-          )}
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div className="min-w-0">{legend}</div>
+          <button
+            type="button"
+            onClick={openFull}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:border-white/40 hover:bg-white/10"
+          >
+            <Expand className="h-3.5 w-3.5" />
+            {c.expand}
+          </button>
         </div>
       </div>
 
-      {/* The arena */}
-      <div className="mt-2 px-1.5">
-        <GuideMap
-          map={map}
-          guide={guide}
-          free={free}
-          focus={focus}
-          activeLabel={picked?.b.label ?? null}
-          labels={{ floor: c.floor, ring: 'Ring', title: c.title }}
-          describe={describe}
-          onBlock={onBlock}
-        />
+      {/* The arena — a picture inline (the page scrolls over it); full screen to zoom in */}
+      <div className="mt-2 px-1">
+        <GuideMap {...mapProps} />
       </div>
 
-      <div className="px-5 pb-5 pt-2">
-        {picked && pickedColor ? (
-          // A block: where it is, whether it had seats, and its side's shop.
-          <div className="rounded-2xl border border-white/10 bg-ink-950/60 p-4" aria-live="polite">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="flex flex-wrap items-center gap-2 text-base font-semibold text-white">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: pickedColor }} />
-                  {c.block(picked.b.label!)}
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                    style={{ backgroundColor: `color-mix(in srgb, ${pickedColor} 18%, transparent)`, color: `color-mix(in srgb, ${pickedColor} 55%, white)` }}
-                  >
-                    {picked.side === 'ring' ? c.ringside : `${guide.sides[picked.side].flag} ${c.side(guide.sides[picked.side])}`}
-                  </span>
-                </p>
-                <p className="mt-1 text-sm text-white/60">
-                  {picked.side === 'ring'
-                    ? c.ringWhere
-                    : `${guide.sides[picked.side].stand ?? c.rest} · ${c.tier[picked.b.tier] ?? ''}`}
-                </p>
-                {pickedFree !== null && (
-                  <p className={`mt-1.5 flex items-start gap-1.5 text-xs font-medium ${pickedFree ? 'text-emerald-200' : 'text-white/50'}`}>
-                    {pickedFree ? (
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" strokeWidth={3} />
-                    ) : (
-                      <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-[3px] border border-white/25 bg-[#08080b]" />
-                    )}
-                    {pickedFree ? c.freeHere(when) : c.soldHere(when)}
-                  </p>
-                )}
-              </div>
-              <button type="button" onClick={() => setPicked(null)} aria-label={c.close} className="rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <a
-              href={shopOf(picked.side)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => openShop(picked.side, picked.b.label)}
-              className={
-                pickedFree === false
-                  ? 'mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.06]'
-                  : `mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 ${picked.side === 'ring' ? 'text-ink-950' : 'text-white'}`
-              }
-              style={pickedFree === false ? undefined : ctaStyle(pickedColor)}
-            >
-              {picked.side === 'ring'
-                ? c.ctaRing
-                : pickedFree === false
-                  ? c.check
-                  : c.cta}
-              <ArrowUpRight className="h-4 w-4" />
-            </a>
-          </div>
-        ) : focus !== null ? (
-          // A side: who sits there and that side's shop.
-          <div className="rounded-2xl border border-white/10 bg-ink-950/60 p-4" aria-live="polite">
-            <p className="flex items-center gap-2 text-base font-semibold text-white">
-              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: guide.sides[focus].color }} />
-              {guide.sides[focus].flag} {c.side(guide.sides[focus])}
-            </p>
-            <p className="mt-1 text-sm text-white/60">
-              {c.intro(guide.sides[focus])}
-              {freeCount && ` ${freeCount[focus] > 0 ? c.blocksFree(freeCount[focus]) : c.sold} · ${when}.`}
-            </p>
-            <a
-              href={guide.sides[focus].shop}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => openShop(focus)}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5"
-              style={ctaStyle(guide.sides[focus].color)}
-            >
-              {c.cta}
-              <ArrowUpRight className="h-4 w-4" />
-            </a>
-            <p className="mt-2 text-center text-xs text-white/45">{c.orTap}</p>
-          </div>
-        ) : (
-          <p className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 px-4 py-3 text-sm text-white/55">
-            <MousePointerClick className="h-4 w-4 text-flame-300" />
-            {c.hint}
-          </p>
-        )}
+      <div className="px-4 pb-5 pt-3 sm:px-5">
+        {detail}
 
         {/* Facts + both sides' official shops */}
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/45">
@@ -471,6 +554,52 @@ export default function StadiumGuide({ eventId, guide, seen }: { eventId: string
           {seen && ` ${c.seenNote}`}
         </p>
       </div>
+
+      {/* Full screen: the same map with pinch / drag / wheel zoom */}
+      {full &&
+        createPortal(
+          <div role="dialog" aria-modal="true" aria-label={c.title} className="fixed inset-0 z-[110] flex flex-col bg-ink-950">
+            <div className="flex flex-shrink-0 items-center gap-2 border-b border-white/10 px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
+              <button
+                type="button"
+                onClick={closeFull}
+                aria-label={c.close}
+                autoFocus
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-white/80 transition hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <p className="min-w-0 truncate font-display text-xl text-white">{c.title}</p>
+              <div className="ml-auto flex gap-1.5">
+                {guide.sides.map((s, i) => {
+                  const on = focus === i
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => chooseSide(i as 0 | 1)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition ${on ? 'text-white' : 'border-white/15 text-white/70 hover:text-white'}`}
+                      style={on ? { borderColor: s.color, backgroundColor: `color-mix(in srgb, ${s.color} 25%, transparent)` } : undefined}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                      {s.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="relative min-h-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.04),transparent_65%)]">
+              <GuideMap {...mapProps} zoomable={c.zoom} />
+            </div>
+            <div className="flex-shrink-0 border-t border-white/10 bg-ink-950/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+              <div className="mb-3">{legend}</div>
+              {/* Steady height, so the map above doesn't resize (and lose its framing) as the card changes */}
+              <div className="flex min-h-[12.5rem] flex-col justify-center">{detail}</div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </section>
   )
 }

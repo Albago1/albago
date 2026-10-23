@@ -1,13 +1,17 @@
 'use client'
 
-import { memo, useId, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { allBlocks, pointOn, SIDES, type MapBlock, type Pt, type VenueMap } from '@/lib/seats/venueMaps'
 import { memberOf, sideOfBlock, type OfficialSeatGuide } from '@/lib/seats/officialGuides'
+import { usePanZoom, type Box } from './usePanZoom'
+import { ZoomControls } from './ZoomControls'
 
 /**
  * The stadium guide's map: the arena split into the two fighters' sides,
  * a white line where one side ends and the other begins, blocks with free
- * seats in their side's colour and sold-out blocks black.
+ * seats in their side's colour and sold-out blocks black. Inline it is a
+ * static picture (the page scrolls over it); `zoomable` fills its box with
+ * pinch / drag / wheel zoom for the full-screen view.
  */
 
 export type BlockSide = 0 | 1 | 'ring'
@@ -23,9 +27,29 @@ type Props = {
   labels: { floor: string; ring: string; title: string }
   describe: (b: MapBlock, side: BlockSide) => string
   onBlock: (b: MapBlock, side: BlockSide) => void
+  /** Fill the parent box with pan + zoom (the parent must be positioned). */
+  zoomable?: { zoomIn: string; zoomOut: string; reset: string }
 }
 
 const SOLD_FILL = '#08080b'
+
+/** Camera showing `box` within the home view. */
+const camOn = (box: Box, home: Box) => ({
+  cx: box.x + box.w / 2,
+  cy: box.y + box.h / 2,
+  k: Math.max(1, Math.min(home.w / box.w, home.h / box.h)),
+})
+
+/** A box around a side's blocks, with a little air, to fly the camera to. */
+function sideBox(blocks: MapBlock[], guide: OfficialSeatGuide, side: 0 | 1): Box {
+  const own = blocks.filter((b) => sideOfBlock(guide, b) === side)
+  const x0 = Math.min(...own.map((b) => b.box.x0))
+  const y0 = Math.min(...own.map((b) => b.box.y0))
+  const x1 = Math.max(...own.map((b) => b.box.x1))
+  const y1 = Math.max(...own.map((b) => b.box.y1))
+  const m = 6
+  return { x: x0 - m, y: y0 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m }
+}
 
 /** Lines across the bowl where one side's blocks meet the other's, one per boundary (lower + upper tier joined). */
 function dividers(map: VenueMap, guide: OfficialSeatGuide): Pt[][] {
@@ -59,7 +83,7 @@ function dividers(map: VenueMap, guide: OfficialSeatGuide): Pt[][] {
 
 const ptsAttr = (pts: Pt[]) => pts.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ')
 
-export const GuideMap = memo(function GuideMap({ map, guide, free, focus, activeLabel, labels, describe, onBlock }: Props) {
+export const GuideMap = memo(function GuideMap({ map, guide, free, focus, activeLabel, labels, describe, onBlock, zoomable }: Props) {
   const uid = useId().replace(/:/g, '')
   const blocks = allBlocks(map)
   const lines = useMemo(() => dividers(map, guide), [map, guide])
@@ -72,14 +96,41 @@ export const GuideMap = memo(function GuideMap({ map, guide, free, focus, active
   const w = map.viewBox.w
   const h = map.viewBox.h
 
+  // Pan + zoom (wired to the svg only when zoomable). A chosen side flies into view.
+  const content = useMemo<Box>(() => ({ x: 0, y: 0, w, h }), [w, h])
+  const boxes = useMemo(() => [sideBox(blocks, guide, 0), sideBox(blocks, guide, 1)], [blocks, guide])
+  const pz = usePanZoom({
+    content,
+    maxZoom: 8,
+    maxPxPerUnit: 9,
+    pad: 0.02,
+    initial: (home) => (focus === null ? null : camOn(boxes[focus], home)),
+  })
+  const { focusBox, reset, suppressClick } = pz
+  const firstFocus = useRef(true)
+  useEffect(() => {
+    if (!zoomable) return
+    if (firstFocus.current) {
+      firstFocus.current = false
+      return
+    }
+    if (focus === null) reset()
+    else focusBox(boxes[focus])
+  }, [focus, zoomable, boxes, focusBox, reset])
+
   const hoverAt = (text: string) => (e: React.PointerEvent) => {
     const box = frame.current?.getBoundingClientRect()
     if (e.pointerType === 'mouse' && box) setTip({ text, x: e.clientX - box.left, y: e.clientY - box.top })
   }
 
   return (
-    <div ref={frame} className="relative" onPointerLeave={() => setTip(null)}>
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-auto w-full select-none" style={{ aspectRatio: `${w} / ${h}` }} role="group" aria-label={labels.title}>
+    <div ref={frame} className={zoomable ? 'absolute inset-0' : 'relative'} onPointerLeave={() => setTip(null)}>
+      <svg
+        {...(zoomable ? pz.svgProps : { viewBox: `0 0 ${w} ${h}`, style: { aspectRatio: `${w} / ${h}` } })}
+        className={zoomable ? `h-full w-full select-none ${pz.zoom > 1.01 ? 'cursor-grab active:cursor-grabbing' : ''}` : 'h-auto w-full select-none'}
+        role="group"
+        aria-label={labels.title}
+      >
         <defs>
           {guide.sides.map((s, i) => (
             <radialGradient key={s.key} id={`${uid}-glow${i}`}>
@@ -146,7 +197,9 @@ export const GuideMap = memo(function GuideMap({ map, guide, free, focus, active
               opacity={dim ? 0.16 : 1}
               style={{ transition: 'opacity 250ms' }}
               className="cursor-pointer outline-none focus-visible:[&>path]:stroke-white focus-visible:[&>rect]:stroke-white"
-              onClick={() => onBlock(b, side)}
+              onClick={() => {
+                if (!(zoomable && suppressClick.current)) onBlock(b, side)
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
@@ -247,6 +300,9 @@ export const GuideMap = memo(function GuideMap({ map, guide, free, focus, active
         >
           {tip.text}
         </div>
+      )}
+      {zoomable && (
+        <ZoomControls onIn={() => pz.zoomBy(2)} onOut={() => pz.zoomBy(0.5)} onReset={reset} canOut={pz.zoom > 1.01} labels={zoomable} />
       )}
     </div>
   )

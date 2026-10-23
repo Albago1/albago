@@ -1,12 +1,12 @@
 'use client'
 
 import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { Maximize2, Minus, Plus } from 'lucide-react'
 import { blockKey, freeInBlock, seatKeyOf } from '@/lib/seats/pick'
 import { layoutBlock, type BlockLayout } from '@/lib/seats/seatLayout'
 import type { FreeRun, PublicSeat, PublicSeatBlock } from '@/lib/seats/types'
 import { allBlocks, findBlock, type MapBlock, type VenueMap } from '@/lib/seats/venueMaps'
 import { usePanZoom, type Box } from './usePanZoom'
+import { ZoomControls } from './ZoomControls'
 
 // Stadium map for seat sales (phase 43) — one continuous map, the way the big
 // ticket shops do it. Zoomed out it shows every block, AlbaGo's coloured by
@@ -753,35 +753,6 @@ export default function StadiumMap({
           </>
         )}
       </div>
-    </div>
-  )
-}
-
-export function ZoomControls({
-  onIn,
-  onOut,
-  onReset,
-  canOut,
-  labels,
-}: {
-  onIn: () => void
-  onOut: () => void
-  onReset: () => void
-  canOut: boolean
-  labels: { zoomIn: string; zoomOut: string; reset: string }
-}) {
-  const btn = 'flex h-10 w-10 items-center justify-center text-white/80 transition hover:bg-white/10 disabled:opacity-30'
-  return (
-    <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-xl border border-white/15 bg-ink-950/85 backdrop-blur">
-      <button type="button" onClick={onIn} aria-label={labels.zoomIn} className={btn}>
-        <Plus className="h-4 w-4" />
-      </button>
-      <button type="button" onClick={onOut} disabled={!canOut} aria-label={labels.zoomOut} className={`${btn} border-t border-white/10`}>
-        <Minus className="h-4 w-4" />
-      </button>
-      <button type="button" onClick={onReset} disabled={!canOut} aria-label={labels.reset} className={`${btn} border-t border-white/10`}>
-        <Maximize2 className="h-3.5 w-3.5" />
-      </button>
     </div>
   )
 }
