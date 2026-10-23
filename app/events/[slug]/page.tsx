@@ -30,6 +30,8 @@ import LocalizedEventText from '@/components/events/LocalizedEventText'
 import EventWeatherCard from '@/components/events/EventWeatherCard'
 import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import SeatSalePanel from '@/components/seats/SeatSalePanel'
+import StadiumGuide from '@/components/seats/StadiumGuide'
+import { officialGuideFor } from '@/lib/seats/officialGuides'
 import type { PublicSeatSale } from '@/lib/seats/types'
 import { venueMapFor } from '@/lib/seats/venueMaps'
 import ShareEventButton from '@/components/share/ShareEventButton'
@@ -538,7 +540,11 @@ export default async function EventDetailPage(
   // free-ticket tiers (TIX-1) supersede the external ticket link and the
   // static price row — never two CTAs.
   const salesOpen = !hasEnded && event.listing_status !== 'cancelled'
-  const seatSale = salesOpen ? await fetchSeatSale(event.id) : null
+  const seatGuide = officialGuideFor(event.id)
+  const rawSeatSale = salesOpen ? await fetchSeatSale(event.id) : null
+  // A paused (draft) sale stays hidden when the event has an official stadium
+  // guide — admins then see exactly what the public sees.
+  const seatSale = rawSeatSale && !(rawSeatSale.mode === 'draft' && seatGuide) ? rawSeatSale : null
   const ticketTiers = salesOpen && !seatSale ? await fetchTicketTiers(event.id) : []
   const hasNativeTickets = ticketTiers.length > 0 || !!seatSale
 
@@ -963,6 +969,9 @@ export default async function EventDetailPage(
                 ))}
 
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
+
+              {/* Sold only on the official shop: AlbaGo's stadium guide links into it. */}
+              {!seatSale && !hasEnded && seatGuide && <StadiumGuide eventId={event.id} guide={seatGuide} />}
 
               {seatSale && (
                 <SeatSalePanel
