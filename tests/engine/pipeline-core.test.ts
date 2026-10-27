@@ -103,6 +103,9 @@ describe('extraction → candidate', () => {
     expect(canonicalLocality('München')).toEqual({ name: 'Munich', country: 'DE' })
     expect(canonicalLocality('Tirana 1001, Albania')).toEqual({ name: 'Tirana', country: 'AL' })
     expect(canonicalLocality('Smallville')).toEqual({ name: 'Smallville', country: null })
+    expect(canonicalLocality('Prishtinë (KS)')).toEqual({ name: 'Prishtina', country: 'XK' })
+    expect(canonicalLocality('Lausanne (CH)')).toEqual({ name: 'Lausanne', country: 'CH' })
+    expect(canonicalLocality('Faches-Thumesnil (FR)')).toEqual({ name: 'Faches-Thumesnil', country: null })
   })
 })
 

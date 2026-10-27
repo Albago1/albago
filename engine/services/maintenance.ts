@@ -1,5 +1,6 @@
 import type { RelevanceCriteriaV1 } from '../contract/goal'
 import { DEFAULT_EXPIRY, ExpiryRunV1, ExpirySettingsV1 } from '../contract/settings'
+import { billingNames } from '../core/match'
 import { evaluateRelevance } from '../core/relevance'
 import type { EngineDeps } from '../ports'
 
@@ -73,7 +74,7 @@ export function createMaintenance(deps: EngineDeps) {
       for (const o of rows) {
         const before = o.relevance[criteria.id]
         if (before?.assessed_by === 'human') continue
-        const names = [...o.performers, ...(o.organizer_name ? [o.organizer_name] : [])]
+        const names = billingNames([...o.performers, ...(o.organizer_name ? [o.organizer_name] : [])])
         const verdict = evaluateRelevance(
           criteria,
           {

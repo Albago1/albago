@@ -1,6 +1,7 @@
 import type { FieldProvenanceV1 } from '../contract/primitives'
 import type { CandidateFields } from './candidate'
-import { titlesMatch, venueMatchTier } from './match'
+import { performerNamedIn, titlesMatch, venueMatchTier } from './match'
+import { foldText } from './text'
 
 /**
  * Deterministic duplicate reconciliation v1 (no ML, no embeddings).
@@ -13,8 +14,17 @@ export type ExistingOccurrence = {
   title: string
   start_time: string | null
   venue_text: string | null
+  locality?: string | null
+  performers?: string[]
   ticket_url: string | null
   source_urls: string[]
+}
+
+/** A performer billed on one side is named on the other (in its title or billing). */
+function samePerformer(c: CandidateFields, o: ExistingOccurrence): boolean {
+  const theirs = `${o.title} ${(o.performers ?? []).join(' ')}`
+  const ours = `${c.title} ${c.performers.join(' ')}`
+  return c.performers.some((p) => performerNamedIn(p, theirs)) || (o.performers ?? []).some((p) => performerNamedIn(p, ours))
 }
 
 export type ReconcileDecision = {
@@ -38,13 +48,27 @@ export function scoreMatch(c: CandidateFields, o: ExistingOccurrence, normalized
     score += 0.6
     reasons.push('same_ticket_url')
   }
-  if (titlesMatch(c.title, o.title)) {
+  const titleMatch = titlesMatch(c.title, o.title)
+  if (titleMatch) {
     score += 0.5
     reasons.push('title_match')
   }
-  if (c.venue_text && o.venue_text && venueMatchTier(c.venue_text, o.venue_text).tier === 'matched') {
+  const venueTier = c.venue_text && o.venue_text ? venueMatchTier(c.venue_text, o.venue_text).tier : null
+  if (venueTier === 'matched') {
     score += 0.3
     reasons.push('venue_match')
+  }
+  // Same day, same performer: a tour-date row ("Yll Limani in New York") and
+  // the ticket page ("Yll Limani Live") are one concert — unless the venues or
+  // the start times differ (a second show that day stays reviewable).
+  const timesDiffer = c.start_time != null && o.start_time != null && c.start_time !== o.start_time
+  if (!timesDiffer && samePerformer(c, o)) {
+    score += titleMatch ? 0.2 : 0.5
+    reasons.push('same_performer')
+    if (venueTier !== 'none' && c.locality && o.locality && foldText(c.locality) === foldText(o.locality)) {
+      score += 0.2
+      reasons.push('same_city')
+    }
   }
   if (c.start_time && o.start_time) {
     if (c.start_time === o.start_time) {

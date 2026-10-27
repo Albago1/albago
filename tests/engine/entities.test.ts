@@ -89,7 +89,7 @@ describe('entity knowledge', () => {
   it('learns performers of relevant events as candidates; a confirmed one makes a diaspora concert relevant', async () => {
     const mem = memoryStore()
     // Run 1: an event in Tirana (relevant by location) teaches the engine "Noizy".
-    const run1 = scripted([[{ tool: 'read_page', input: { url: 'https://tickets.example/tirana' } }], [{ tool: 'submit_event', input: { url: 'https://tickets.example/tirana' } }], 'done'])
+    const run1 = scripted([[{ tool: 'read_page', input: { url: 'https://tickets.example/tirana' } }], [{ tool: 'submit_page', input: { url: 'https://tickets.example/tirana' } }], 'done'])
     const engine1 = createEngine(deps(mem.store, run1))
     const r1 = await engine1.discover(goal(), { triggeredBy: null })
     expect(r1.stats.entities_proposed).toBe(1)
@@ -102,7 +102,7 @@ describe('entity knowledge', () => {
 
     // A reviewer confirms → the Zurich concert is Albanian-relevant through the performer.
     await engine1.entities.decide(candidates[0].id, 'albanian', 'confirmed', 'reviewer')
-    const run2 = scripted([[{ tool: 'read_page', input: { url: 'https://tickets.example/zurich' } }], [{ tool: 'submit_event', input: { url: 'https://tickets.example/zurich' } }], 'done'])
+    const run2 = scripted([[{ tool: 'read_page', input: { url: 'https://tickets.example/zurich' } }], [{ tool: 'submit_page', input: { url: 'https://tickets.example/zurich' } }], 'done'])
     const engine2 = createEngine(deps(mem.store, run2))
     const r2 = await engine2.discover(goal(), { triggeredBy: null })
     expect(r2.outcomes[0].outcome).toBe('new')

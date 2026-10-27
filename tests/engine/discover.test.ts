@@ -80,10 +80,10 @@ describe('discover() — AI researches, the engine controls', () => {
       [{ tool: 'web_search', input: { query: 'koncerte Tiranë tetor' } }], // over the 1-search budget
       [
         { tool: 'read_page', input: { url: 'https://www.instagram.com/someclub/' } }, // blocked host
-        { tool: 'submit_event', input: { url: 'https://venue.al/e/never-read' } }, // not read first
+        { tool: 'submit_page', input: { url: 'https://venue.al/e/never-read' } }, // not read first
       ],
       [{ tool: 'read_page', input: { url: 'https://venue.al/e/jazz' } }],
-      [{ tool: 'submit_event', input: { url: 'https://venue.al/e/jazz' } }],
+      [{ tool: 'submit_page', input: { url: 'https://venue.al/e/jazz' } }],
       [{ tool: 'propose_source', input: { url: 'https://venue.al/events', why: 'Venue program lists many events' } }],
       'Searched once, found one jazz night, proposed the venue program.',
     ])
@@ -125,6 +125,35 @@ describe('discover() — AI researches, the engine controls', () => {
     const report = await engine.discover(goal(5), { triggeredBy: null, blockedHosts: ['instagram.com'] })
     expect(report.stats).toMatchObject({ searches: 2, pages_read: 1, guard_refusals: 2 })
     expect(report.status).toBe('completed')
+  })
+
+  it('a submitted programme page becomes one suggestion per event', async () => {
+    const mem = memoryStore()
+    const at = (name: string, startDate: string) => ({
+      '@type': 'MusicEvent',
+      name,
+      startDate,
+      location: { '@type': 'Place', name: 'Hemingway Bar', address: { addressLocality: 'Tiranë', addressCountry: 'AL' } },
+    })
+    const programme = `<html><head><title>Programme</title><script type="application/ld+json">${JSON.stringify([
+      at('Jazz Night', '2026-10-10T21:00:00+02:00'),
+      at('Blues Night', '2026-10-11T21:00:00+02:00'),
+    ])}</script></head><body><p>Programme — October</p></body></html>`
+    const agent = scriptedModel([
+      [{ tool: 'web_search', input: { query: 'Hemingway Tirana programme' } }],
+      [{ tool: 'read_page', input: { url: 'https://venue.al/program' } }],
+      [{ tool: 'submit_page', input: { url: 'https://venue.al/program', kind: 'event_list' } }],
+      'Submitted the programme.',
+    ])
+    const base = deps(mem.store, agent)
+    const engine = createEngine({
+      ...base,
+      fetcher: { fetchHtml: async (url) => ({ url, finalUrl: url, status: 200, contentType: 'text/html', html: programme }) },
+    })
+    const report = await engine.discover(goal(2), { triggeredBy: null })
+    expect(report.stats).toMatchObject({ submitted: 1, listing_pages: 1, new: 2 })
+    expect(report.outcomes.map((o) => o.title)).toEqual(['Jazz Night', 'Blues Night'])
+    expect(mem.occurrences.size).toBe(2)
   })
 
   it('a failing model ends the run as failed instead of leaving it running', async () => {

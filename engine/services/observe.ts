@@ -2,7 +2,7 @@ import { CanonicalOccurrenceV1 } from '../contract/occurrence'
 import type { ObservationInputV1 } from '../contract/observation'
 import type { RelevanceCriteriaV1 } from '../contract/goal'
 import { buildCandidate, type CandidateFields } from '../core/candidate'
-import { venueMatchTier } from '../core/match'
+import { billingNames, venueMatchTier } from '../core/match'
 import { mergeIntoExisting, reconcile } from '../core/reconcile'
 import { evaluateRelevance } from '../core/relevance'
 import { normalizeImportUrl } from '../core/url'
@@ -25,7 +25,7 @@ export type ObserveContext = {
 }
 
 export type ObserveOutcome = {
-  outcome: 'new' | 'attached' | 'possible_duplicate' | 'unchanged' | 'not_event' | 'past' | 'outside_window' | 'failed'
+  outcome: 'new' | 'attached' | 'possible_duplicate' | 'unchanged' | 'not_event' | 'not_relevant' | 'past' | 'outside_window' | 'failed'
   observationId: string | null
   occurrenceId: string | null
   title: string | null
@@ -33,9 +33,22 @@ export type ObserveOutcome = {
   issues: string[]
 }
 
+/** One event cut from a page that lists several (see observePage): already extracted. */
+export type ObserveItem = {
+  extraction: ExtractionV1
+  extractor: string
+  /** The event's own page or ticket page, when the listing links to it. */
+  url: string | null
+}
+
 async function sha256(text: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Fingerprint of a piece of evidence: the same page, unchanged, is not processed twice. */
+export function evidenceHash(evidence: ObservationInputV1['evidence']): Promise<string> {
+  return sha256(JSON.stringify([evidence.title, evidence.text_excerpt, evidence.jsonld]))
 }
 
 /** JSON-LD first; the AI fills what JSON-LD lacks (or reads the page when there is none). */
@@ -105,11 +118,26 @@ function toOccurrenceRow(fields: CandidateFields, venueId: string | null, coords
   }
 }
 
-export async function observe(deps: EngineDeps, input: ObservationInputV1, ctx: ObserveContext = {}): Promise<ObserveOutcome> {
+export function observe(deps: EngineDeps, input: ObservationInputV1, ctx: ObserveContext = {}): Promise<ObserveOutcome> {
+  return intake(deps, input, ctx, null)
+}
+
+/**
+ * One item of a multi-event page. Its evidence is the item's stretch of that
+ * page; its identity is its own link (never the shared page URL, which every
+ * item has), and an item that is clearly not relevant to the caller's
+ * criteria is recorded but not queued — a programme page in Zurich lists
+ * mostly events no one asked for.
+ */
+export function observeItem(deps: EngineDeps, input: ObservationInputV1, ctx: ObserveContext, item: ObserveItem): Promise<ObserveOutcome> {
+  return intake(deps, input, ctx, item)
+}
+
+async function intake(deps: EngineDeps, input: ObservationInputV1, ctx: ObserveContext, item: ObserveItem | null): Promise<ObserveOutcome> {
   const now = deps.now?.() ?? new Date()
   const today = now.toISOString().slice(0, 10)
   const normalized = input.source_url ? normalizeImportUrl(input.source_url) : null
-  const hash = await sha256(JSON.stringify([input.evidence.title, input.evidence.text_excerpt, input.evidence.jsonld]))
+  const hash = await evidenceHash(input.evidence)
   const result = (o: Partial<ObserveOutcome> & Pick<ObserveOutcome, 'outcome'>): ObserveOutcome => ({
     observationId: null,
     occurrenceId: null,
@@ -128,7 +156,7 @@ export async function observe(deps: EngineDeps, input: ObservationInputV1, ctx: 
 
   let extracted: { x: ExtractionV1; extractor: string }
   try {
-    extracted = await extract(deps, input, input.retrieved_at.slice(0, 10))
+    extracted = item ? { x: item.extraction, extractor: item.extractor } : await extract(deps, input, input.retrieved_at.slice(0, 10))
   } catch (error) {
     const id = await deps.store.observations.insert({
       source_id: input.source_id, run_id: input.run_id, connector: input.connector, source_url: input.source_url,
@@ -147,7 +175,9 @@ export async function observe(deps: EngineDeps, input: ObservationInputV1, ctx: 
     occurrence_id: null, match: null,
   })
 
-  const candidate = buildCandidate(x, observationId, normalized ?? input.source_url)
+  // What makes this event "the same page" for dedup: the item's own link, or the page itself.
+  const identity = item ? (item.url ? normalizeImportUrl(item.url) : null) : normalized
+  const candidate = buildCandidate(x, observationId, identity ?? normalized ?? input.source_url)
   if (!candidate.ok) {
     const skip: MatchRecord = { decision: 'skipped', score: 0, reasons: [candidate.reason], candidate_ids: [], decided_by: 'rule' }
     await deps.store.observations.update(observationId, { match: skip, status: candidate.reason === 'not_event' ? 'not_event' : 'extracted' })
@@ -181,7 +211,7 @@ export async function observe(deps: EngineDeps, input: ObservationInputV1, ctx: 
   // Relevance facts → verdict under the caller's criteria.
   let relevance: OccurrenceRecord['relevance'] = {}
   if (ctx.criteria) {
-    const names = [...fields.performers, ...(fields.organizer_name ? [fields.organizer_name] : [])]
+    const names = billingNames([...fields.performers, ...(fields.organizer_name ? [fields.organizer_name] : [])])
     const affiliated = names.length ? await deps.store.entities.findAffiliated(names, ctx.criteria.affiliation) : []
     const verdict = evaluateRelevance(
       ctx.criteria,
@@ -202,6 +232,10 @@ export async function observe(deps: EngineDeps, input: ObservationInputV1, ctx: 
       now.toISOString(),
     )
     relevance = { [ctx.criteria.id]: verdict }
+    if (item && verdict.verdict === 'not_relevant') {
+      await deps.store.observations.update(observationId, { match: { decision: 'skipped', score: 0, reasons: ['not_relevant'], candidate_ids: [], decided_by: 'rule' } })
+      return result({ outcome: 'not_relevant', observationId, title: fields.title, start_date: fields.start_date, issues })
+    }
   }
 
   // Reconcile against what the engine already believes.
@@ -212,8 +246,11 @@ export async function observe(deps: EngineDeps, input: ObservationInputV1, ctx: 
   })
   const decision = reconcile(
     fields,
-    existing.map((o) => ({ id: o.id, title: o.title, start_time: o.start.time, venue_text: o.venue.name, ticket_url: o.ticket_url, source_urls: o.source_urls })),
-    normalized,
+    existing.map((o) => ({
+      id: o.id, title: o.title, start_time: o.start.time, venue_text: o.venue.name, locality: o.location.locality,
+      performers: o.performers, ticket_url: o.ticket_url, source_urls: o.source_urls,
+    })),
+    identity,
   )
   const match: MatchRecord = { decision: decision.decision, score: decision.score, reasons: decision.reasons, candidate_ids: decision.candidate_ids, decided_by: 'rule' }
 

@@ -4,6 +4,7 @@ import type { ObservationInputV1 } from './contract/observation'
 import type { EngineDeps } from './ports'
 import { discover, type DiscoverOptions } from './services/discover'
 import { observe, type ObserveContext } from './services/observe'
+import { observePage, type PageInput, type PageKindHint } from './services/observePage'
 import { createEntities } from './services/entities'
 import { createMaintenance } from './services/maintenance'
 import { createReview, toContract } from './services/review'
@@ -17,6 +18,8 @@ export function createEngine(deps: EngineDeps) {
   return {
     /** Feed one piece of fetched evidence through the full pipeline. */
     observe: (input: ObservationInputV1, ctx?: ObserveContext) => observe(deps, input, ctx),
+    /** Feed one fetched page: one event, or a list cut into one observation per event. */
+    observePage: (page: PageInput, ctx?: ObserveContext, hint?: PageKindHint) => observePage(deps, page, ctx, hint),
     /** Run the AI research lane for a goal (validated against the contract first). */
     discover: (goal: DiscoveryGoalV1, opts: DiscoverOptions) => discover(deps, GoalSchema.parse(goal), opts),
     review,
