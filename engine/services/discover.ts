@@ -89,7 +89,7 @@ export function describeGoal(goal: DiscoveryGoalV1, window: { from: string; to: 
   return lines.filter(Boolean).join('\n')
 }
 
-const SYSTEM = `You are an event researcher. You find real, upcoming events that match a goal, using web search and by reading pages. You hand each event page you find to the engine with submit_event; the engine verifies and stores it.
+const SYSTEM = `You are an event researcher. You find real, upcoming events that match a goal, using web search and by reading pages. You hand each event page, or page listing events, that you find to the engine with submit_page; the engine verifies and stores it.
 
 How to work:
 1. Plan several different searches: vary the language (local language first), the event type, the venue or organizer names you learn, and the dates ("this weekend", month names). Do not repeat a query.
