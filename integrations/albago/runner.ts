@@ -1,4 +1,4 @@
-import type { DiscoverReport, ExpirySettingsV1 } from '@/engine/server'
+import { DEFAULT_INTERVAL_HOURS, scopeCountry, type DiscoverReport, type ExpirySettingsV1, type MonitorReport, type RunRecord, type SourceRecord, type SourceScorecard } from '@/engine/server'
 import { ALBANIAN_RELEVANCE, ARTIST_SEED, BLOCKED_HOSTS } from './goals'
 import { freeTierLimits, pickNext, planRotation, runInfo, usage, type PlanEntry, type Usage } from './rotation'
 import { albagoEngine } from './wiring'
@@ -29,7 +29,8 @@ async function context() {
   // The seed list is configuration: make sure it is in the engine (idempotent, one read when unchanged).
   await engine.entities.ensureAffiliated('performer', ARTIST_SEED, AFFILIATION, 'config')
   const [runs, artists] = await Promise.all([engine.runs.recent(400), engine.entities.affiliated('performer', AFFILIATION)])
-  const infos = runs.map(runInfo)
+  // Only research runs spend searches and count against the research caps.
+  const infos = runs.filter((r) => r.lane === 'research').map(runInfo)
   const now = Date.now()
   return { engine, infos, artists, now, usage: usage(infos, now), limits: freeTierLimits(process.env), plan: planRotation(artists, infos, now) }
 }
@@ -97,6 +98,117 @@ export async function decideArtist(id: string, decision: 'confirm' | 'reject', a
   await engine.entities.decide(id, AFFILIATION, decision === 'confirm' ? 'confirmed' : 'rejected', actor)
   // A confirmed artist makes their events Albanian-relevant right away.
   if (decision === 'confirm') await engine.maintenance.reassessRelevance(ALBANIAN_RELEVANCE)
+}
+
+// ---------------------------------------------------------------------------
+// Known websites (monitoring lane): approved once, re-read on a schedule.
+// No searches; each page costs at most two free AI calls, and an unchanged
+// page or one with structured event data costs none.
+// ---------------------------------------------------------------------------
+
+/** How far ahead monitored pages are read; an unchanged page is re-read in full every 14 days. */
+const MONITOR_HORIZON_DAYS = 120
+const MONITOR_RECHECK_DAYS = 14
+
+export function monitorLimits(env: Record<string, string | undefined> = {}) {
+  return {
+    /** Pages per day across the monitoring slots (protects the free Gemini quota). */
+    dailyPages: Number(env.ENGINE_MONITOR_DAILY_PAGES || 24),
+    /** Pages per run: fits one 300 s function with paced AI calls. */
+    perRun: 8,
+  }
+}
+
+function monitorUsage(runs: RunRecord[], now: number) {
+  const d = new Date(now)
+  const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  const lane = runs.filter((r) => r.lane === 'monitoring')
+  return {
+    pagesToday: lane.filter((r) => Date.parse(r.started_at) >= dayStart).reduce((n, r) => n + Number(r.stats?.sources ?? 0), 0),
+    // A run still marked running after 8 minutes was killed with its function; ignore it.
+    running: lane.some((r) => r.status === 'running' && now - Date.parse(r.started_at) < 8 * 60_000),
+  }
+}
+
+export type MonitorOutcome = { ran: true; report: MonitorReport } | { ran: false; reason: 'monitor_running' | 'daily_page_limit' | 'nothing_due' }
+
+/** Re-read the most overdue approved websites (cron 3× a day, or the admin button). */
+export async function runMonitoring(opts: { triggeredBy: string | null }): Promise<MonitorOutcome> {
+  const engine = albagoEngine()
+  const [runs, sources] = await Promise.all([engine.runs.recent(100), engine.sources.overview()])
+  const usage = monitorUsage(runs, Date.now())
+  const limits = monitorLimits(process.env)
+  if (usage.running) return { ran: false, reason: 'monitor_running' }
+  const left = limits.dailyPages - usage.pagesToday
+  if (left <= 0) return { ran: false, reason: 'daily_page_limit' }
+  if (!sources.some((s) => s.due)) return { ran: false, reason: 'nothing_due' }
+  await engine.entities.ensureAffiliated('performer', ARTIST_SEED, AFFILIATION, 'config')
+  const report = await engine.sources.monitor({
+    criteria: ALBANIAN_RELEVANCE,
+    horizonDays: MONITOR_HORIZON_DAYS,
+    maxSources: Math.min(limits.perRun, left),
+    timeBudgetMs: 200_000,
+    recheckDays: MONITOR_RECHECK_DAYS,
+    triggeredBy: opts.triggeredBy,
+  })
+  return { ran: true, report }
+}
+
+export type SourceRow = {
+  id: string
+  label: string
+  url: string
+  status: SourceRecord['status']
+  statusReason: string | null
+  why: string | null
+  foundBy: string | null
+  intervalHours: number
+  lastChecked: string | null
+  lastStatus: SourceRecord['last_status']
+  lastError: string | null
+  due: boolean
+  card: SourceScorecard
+  verified: number
+}
+
+export async function sourcesOverview() {
+  const engine = albagoEngine()
+  const [rows, runs] = await Promise.all([engine.sources.overview(), engine.runs.recent(100)])
+  const sources: SourceRow[] = rows.map((s) => {
+    const ev = s.evaluation as { proposed_because?: string; goal?: string }
+    return {
+      id: s.id,
+      label: s.label ?? s.url,
+      url: s.url,
+      status: s.status,
+      statusReason: s.status_reason,
+      why: ev.proposed_because ?? null,
+      foundBy: ev.goal ?? null,
+      intervalHours: s.check_interval_hours ?? DEFAULT_INTERVAL_HOURS,
+      lastChecked: s.last_checked_at,
+      lastStatus: s.last_status,
+      lastError: s.last_error,
+      due: s.due,
+      card: s.card,
+      verified: s.verified,
+    }
+  })
+  return { sources, limits: monitorLimits(process.env), usage: monitorUsage(runs, Date.now()) }
+}
+
+/** Read a registered website now and show what the engine would take from it. Nothing is saved. */
+export async function testSource(id: string) {
+  const engine = albagoEngine()
+  const source = await engine.sources.get(id)
+  return engine.sources.preview(source.url, ALBANIAN_RELEVANCE, MONITOR_HORIZON_DAYS, scopeCountry(source.scope))
+}
+
+export async function decideSource(id: string, decision: 'approve' | 'reject' | 'pause', actor: string | null, reason: string | null = null) {
+  await albagoEngine().sources.decide(id, decision, actor, reason)
+}
+
+export async function setSourceInterval(id: string, hours: number) {
+  await albagoEngine().sources.setInterval(id, hours)
 }
 
 export async function artistCandidates(limit = 40) {

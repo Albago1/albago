@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { EngineStore, EntityRecord, ObservationRow, OccurrenceRecord, RunRecord, VenueRecord } from '@/engine'
+import type { EngineStore, EntityRecord, ObservationRow, OccurrenceRecord, RunRecord, SourceRecord, VenueRecord } from '@/engine'
 
 /**
  * EngineStore over the `engine` Postgres schema (service-role client only).
@@ -98,11 +98,39 @@ export function supabaseEngineStore(client: SupabaseClient): EngineStore {
       async propose(input) {
         return insertedId(await db().from('sources').insert({ ...input, status: 'proposed' }).select('id').single())
       },
+      async list() {
+        return check(await db().from('sources').select('*').order('created_at', { ascending: false }).limit(1000)) as SourceRecord[]
+      },
+      async get(id) {
+        return (check(await db().from('sources').select('*').eq('id', id).maybeSingle()) as SourceRecord | null) ?? null
+      },
+      async update(id, patch) {
+        check(await db().from('sources').update(patch).eq('id', id))
+      },
+      async verifiedCounts() {
+        const links = check(
+          await db().from('observations').select('source_id, occurrence_id').not('source_id', 'is', null).not('occurrence_id', 'is', null).limit(20000),
+        ) as { source_id: string; occurrence_id: string }[]
+        const ids = [...new Set(links.map((l) => l.occurrence_id))]
+        const verified = new Set<string>()
+        for (let i = 0; i < ids.length; i += 200) {
+          const rows = check(await db().from('occurrences').select('id').in('id', ids.slice(i, i + 200)).eq('review_status', 'verified')) as { id: string }[]
+          for (const r of rows) verified.add(r.id)
+        }
+        const per: Record<string, Set<string>> = {}
+        for (const l of links) if (verified.has(l.occurrence_id)) (per[l.source_id] ??= new Set()).add(l.occurrence_id)
+        return Object.fromEntries(Object.entries(per).map(([k, v]) => [k, v.size]))
+      },
     },
 
     observations: {
       async findByUrlAndHash(normalizedUrl, contentHash) {
-        return (check(await db().from('observations').select('*').eq('normalized_url', normalizedUrl).eq('content_hash', contentHash).maybeSingle()) as ObservationRow | null) ?? null
+        // Newest first, one row: a page recorded twice must never break this lookup.
+        return (
+          (check(
+            await db().from('observations').select('*').eq('normalized_url', normalizedUrl).eq('content_hash', contentHash).order('retrieved_at', { ascending: false }).limit(1).maybeSingle(),
+          ) as ObservationRow | null) ?? null
+        )
       },
       async insert(row) {
         return insertedId(await db().from('observations').insert(row).select('id').single())

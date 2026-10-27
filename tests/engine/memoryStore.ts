@@ -1,4 +1,4 @@
-import type { EngineStore, EntityRecord, ObservationRow, OccurrenceRecord, RunRecord, VenueRecord } from '@/engine'
+import type { EngineStore, EntityRecord, ObservationRow, OccurrenceRecord, RunRecord, SourceRecord, VenueRecord } from '@/engine'
 
 /** In-memory EngineStore for pipeline tests — same contract as the Supabase store. */
 export function memoryStore() {
@@ -8,7 +8,7 @@ export function memoryStore() {
   const observations = new Map<string, ObservationRow>()
   const occurrences = new Map<string, OccurrenceRecord>()
   const venues = new Map<string, VenueRecord>()
-  const sources = new Map<string, { id: string; status: string; normalized_url: string }>()
+  const sources = new Map<string, SourceRecord>()
   const reviewActions: unknown[] = []
   const entities = new Map<string, EntityRecord>()
   const settings = new Map<string, { value: unknown; updated_at: string; updated_by: string | null }>()
@@ -37,8 +37,35 @@ export function memoryStore() {
       },
       async propose(input) {
         const sid = id()
-        sources.set(sid, { id: sid, status: 'proposed', normalized_url: input.normalized_url })
+        sources.set(sid, {
+          ...input,
+          id: sid,
+          evaluation: (input.evaluation as Record<string, unknown>) ?? {},
+          status: 'proposed',
+          status_reason: null,
+          check_interval_hours: null,
+          last_checked_at: null,
+          last_status: null,
+          last_error: null,
+          created_at: nowIso(),
+        })
         return sid
+      },
+      async list() {
+        return [...sources.values()]
+      },
+      async get(sid) {
+        return sources.get(sid) ?? null
+      },
+      async update(sid, patch) {
+        sources.set(sid, { ...sources.get(sid)!, ...patch })
+      },
+      async verifiedCounts() {
+        const per: Record<string, Set<string>> = {}
+        for (const o of observations.values()) {
+          if (o.source_id && o.occurrence_id && occurrences.get(o.occurrence_id)?.review_status === 'verified') (per[o.source_id] ??= new Set()).add(o.occurrence_id)
+        }
+        return Object.fromEntries(Object.entries(per).map(([k, v]) => [k, v.size]))
       },
     },
     observations: {

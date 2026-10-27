@@ -1,0 +1,40 @@
+-- Copy 29 of the old crawler's 31 websites (public.crawl_sources) into the
+-- engine's registry as SUGGESTIONS (status 'proposed') — nothing is monitored until an
+-- admin approves each one in /admin/engine. 28 of the old addresses had the
+-- site's name pasted into them ("https://tirana.al/ — Tirana Municipality"),
+-- which is why the old crawler found nothing; they are fixed here.
+-- The other 2 (tkob.gov.al, visit-tirana.com/events) are already in the engine. Data only: no table changes.
+insert into engine.sources (connector, url, normalized_url, label, scope, status, evaluation)
+select 'website_html', v.url, v.normalized_url, v.label, '{"country_codes":["AL"],"localities":["Tirana"]}'::jsonb, 'proposed', v.evaluation
+from (values
+  ('https://teatrimetropol.al/', 'https://teatrimetropol.al/', 'teatrimetropol.al', '{"proposed_because":"From the old crawler: Metropol Theatre, Tirana.","imported_from":"crawl_sources","crawl_source_id":"9289ee8b-7a76-42b9-be29-9977a12cc6d1"}'::jsonb),
+  ('https://nouvellevague.al/', 'https://nouvellevague.al/', 'nouvellevague.al', '{"proposed_because":"From the old crawler: Nouvelle Vague, Tirana.","imported_from":"crawl_sources","crawl_source_id":"347d87cb-7a3e-4ee4-806d-6afbe199e905"}'::jsonb),
+  ('https://tirana.al/', 'https://tirana.al/', 'tirana.al', '{"proposed_because":"From the old crawler: Tirana Municipality, Tirana.","imported_from":"crawl_sources","crawl_source_id":"aebcd331-be82-4df4-9b52-1cba2dd95170"}'::jsonb),
+  ('https://cod.al/', 'https://cod.al/', 'cod.al', '{"proposed_because":"From the old crawler: COD Center, Tirana.","imported_from":"crawl_sources","crawl_source_id":"ce5a3c06-5cd5-41e3-af57-b20021a736a4"}'::jsonb),
+  ('https://dajtiekspres.com/', 'https://dajtiekspres.com/', 'dajtiekspres.com', '{"proposed_because":"From the old crawler: Dajti Ekspres, Tirana.","imported_from":"crawl_sources","crawl_source_id":"956216d2-02b5-48e0-ad17-59002fba5762"}'::jsonb),
+  ('https://dua.com/fest/', 'https://dua.com/fest', 'dua.com', '{"proposed_because":"From the old crawler: Dua Fest, Tirana.","imported_from":"crawl_sources","crawl_source_id":"a2b66d88-7c6f-4809-a78f-66042e5ca328"}'::jsonb),
+  ('https://tiranaekspres.com/', 'https://tiranaekspres.com/', 'tiranaekspres.com', '{"proposed_because":"From the old crawler: Tirana Ekspres, Tirana.","imported_from":"crawl_sources","crawl_source_id":"4d6c3aef-65d7-401f-b043-f898878c8eba"}'::jsonb),
+  ('https://www.kinemamillennium.com/', 'https://www.kinemamillennium.com/', 'kinemamillennium.com', '{"proposed_because":"From the old crawler: Millennium Cinema, Tirana.","imported_from":"crawl_sources","crawl_source_id":"e84db08d-7d43-45b8-bde7-142da391bc3d"}'::jsonb),
+  ('https://bunkart.al/', 'https://bunkart.al/', 'bunkart.al', '{"proposed_because":"From the old crawler: BunkArt, Tirana.","imported_from":"crawl_sources","crawl_source_id":"e7b2fadd-1e95-4a2f-b9fc-2789268007b6"}'::jsonb),
+  ('https://galeriakombetare.gov.al/', 'https://galeriakombetare.gov.al/', 'galeriakombetare.gov.al', '{"proposed_because":"From the old crawler: National Gallery, Tirana.","imported_from":"crawl_sources","crawl_source_id":"f2a1f25d-d650-4971-91dd-f56a3036c8b6"}'::jsonb),
+  ('https://arturbina.al/', 'https://arturbina.al/', 'arturbina.al', '{"proposed_because":"From the old crawler: ArTurbina, Tirana.","imported_from":"crawl_sources","crawl_source_id":"5a288217-e075-4a1c-a9ef-07df9108cc39"}'::jsonb),
+  ('https://tullacenter.com/', 'https://tullacenter.com/', 'tullacenter.com', '{"proposed_because":"From the old crawler: Tulla Center, Tirana.","imported_from":"crawl_sources","crawl_source_id":"50886ea1-86b4-4d10-995c-1bbf42e4b6a5"}'::jsonb),
+  ('https://tiranafilmfestival.com/', 'https://tiranafilmfestival.com/', 'tiranafilmfestival.com', '{"proposed_because":"From the old crawler: Tirana International Film Festival, Tirana.","imported_from":"crawl_sources","crawl_source_id":"7f2f2aaa-e7c9-4127-8287-8afb67285a97"}'::jsonb),
+  ('https://teatrikombetar.gov.al/', 'https://teatrikombetar.gov.al/', 'teatrikombetar.gov.al', '{"proposed_because":"From the old crawler: National Theatre, Tirana.","imported_from":"crawl_sources","crawl_source_id":"faeec3f4-53c4-4210-9ca3-d580ef4b2a0c"}'::jsonb),
+  ('https://radiobar.al/', 'https://radiobar.al/', 'radiobar.al', '{"proposed_because":"From the old crawler: Radio Bar, Tirana.","imported_from":"crawl_sources","crawl_source_id":"e6d98be0-3c0e-4afd-8ba0-48cb0f59fe6a"}'::jsonb),
+  ('https://pallatikongreseve.al/', 'https://pallatikongreseve.al/', 'pallatikongreseve.al', '{"proposed_because":"From the old crawler: Palace Congresses, Tirana.","imported_from":"crawl_sources","crawl_source_id":"aea8bd4c-9076-4eeb-a2de-5a7d41d1fb29"}'::jsonb),
+  ('https://hemingwaybar.al/', 'https://hemingwaybar.al/', 'hemingwaybar.al', '{"proposed_because":"From the old crawler: Hemingway Bar, Tirana.","imported_from":"crawl_sources","crawl_source_id":"13916498-e708-401e-84ac-6eeebd4587d1"}'::jsonb),
+  ('https://tiranaphotofestival.org/', 'https://tiranaphotofestival.org/', 'tiranaphotofestival.org', '{"proposed_because":"From the old crawler: Tirana Photo Festival, Tirana.","imported_from":"crawl_sources","crawl_source_id":"e824625f-8ed3-45fd-ae6c-10f8c3d0ac7d"}'::jsonb),
+  ('https://tkob.gov.al/?post_type=event', 'https://tkob.gov.al/?post_type=event', 'tkob.gov.al', '{"proposed_because":"From the old crawler: Opera events, Tirana.","imported_from":"crawl_sources","crawl_source_id":"ab291043-c573-4a9f-8908-091d7a908a13"}'::jsonb),
+  ('https://piramida.al/', 'https://piramida.al/', 'piramida.al', '{"proposed_because":"From the old crawler: Piramida Tirana, Tirana.","imported_from":"crawl_sources","crawl_source_id":"27d9d678-d80b-472b-bec7-b2949971a05d"}'::jsonb),
+  ('https://www.kinemaagimi.com/', 'https://www.kinemaagimi.com/', 'kinemaagimi.com', '{"proposed_because":"From the old crawler: Agimi Cinema, Tirana.","imported_from":"crawl_sources","crawl_source_id":"36cc015a-a9d2-4f1c-a889-c0908bc05c30"}'::jsonb),
+  ('https://destil.al/', 'https://destil.al/', 'destil.al', '{"proposed_because":"From the old crawler: Destil Creative Hub, Tirana.","imported_from":"crawl_sources","crawl_source_id":"010556b7-25e4-4c91-a619-5f8f64dab5e5"}'::jsonb),
+  ('https://visit-tirana.com/', 'https://visit-tirana.com/', 'visit-tirana.com', '{"proposed_because":"From the old crawler: Visit Tirana, Tirana.","imported_from":"crawl_sources","crawl_source_id":"4eb94183-d800-4cef-a6b7-6fccad4d9ec5"}'::jsonb),
+  ('https://bunkart.al/bunkart2/', 'https://bunkart.al/bunkart2', 'bunkart.al', '{"proposed_because":"From the old crawler: BunkArt 2, Tirana.","imported_from":"crawl_sources","crawl_source_id":"37bb7181-e94a-4dde-84e8-1337377063fd"}'::jsonb),
+  ('https://reja.al/', 'https://reja.al/', 'reja.al', '{"proposed_because":"From the old crawler: Reja Cloud, Tirana.","imported_from":"crawl_sources","crawl_source_id":"46f3209e-1834-4df3-80c4-312d76100c3d"}'::jsonb),
+  ('https://pallatiirinise.al/', 'https://pallatiirinise.al/', 'pallatiirinise.al', '{"proposed_because":"From the old crawler: Pallati Rinise, Tirana.","imported_from":"crawl_sources","crawl_source_id":"4ac79017-5b15-4e11-9553-f4f53ea49696"}'::jsonb),
+  ('https://gowild.al/', 'https://gowild.al/', 'gowild.al', '{"proposed_because":"From the old crawler (ticketing), Tirana.","imported_from":"crawl_sources","crawl_source_id":"59d1b1f1-7ebd-4199-af91-82d4be3b942c"}'::jsonb),
+  ('https://event.bna.al/en/eventet', 'https://event.bna.al/en/eventet', 'event.bna.al', '{"proposed_because":"From the old crawler (promoter), Tirana.","imported_from":"crawl_sources","crawl_source_id":"812dd7fc-aec1-44dd-9bbc-cb23912bb5af"}'::jsonb),
+  ('https://enterevents.al/events', 'https://enterevents.al/events', 'enterevents.al', '{"proposed_because":"From the old crawler (ticketing), Tirana.","imported_from":"crawl_sources","crawl_source_id":"bda7174b-e2df-49d4-b3d0-82add3a6f2a4"}'::jsonb)
+) as v(url, normalized_url, label, evaluation)
+on conflict (normalized_url) do nothing;

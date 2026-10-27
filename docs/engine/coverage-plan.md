@@ -6,7 +6,14 @@
 - **The dry run found two rules,** both added:
   - a date must state its day: "November 2026" is not a date;
   - "Elina Duni & Rob Luft" counts as Elina Duni.
-- Stages 2–4 are not started.
+- **Stage 1 is live** (PR #10, 2026-10-27).
+- **Stage 2 is built** (2026-10-27). It differs from the plan below in three ways:
+  - **No new column.** The page fingerprint the engine already keeps does the "unchanged" check.
+  - **A daily page cap instead of an AI-call cap.** It is set by `ENGINE_MONITOR_DAILY_PAGES`, default 24 pages. Each page costs at most 2 AI calls.
+  - **An unchanged page is still read in full every 14 days,** so events that were too far ahead last time are picked up.
+
+  The only database change is the one-time copy of the old sites, applied after your yes.
+- Stages 3–4 are not started.
 
 **Date:** 2026-10-27
 **Goal:** Find many more real Albanian events every month, still at zero cost. Four stages:
