@@ -23,6 +23,7 @@ export {
   createSources,
   isDue,
   scorecard,
+  scopeCountry,
   DEFAULT_INTERVAL_HOURS,
   PAUSE_AFTER_ERRORS,
   type MonitorOptions,

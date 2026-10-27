@@ -1,4 +1,4 @@
-import { DEFAULT_INTERVAL_HOURS, type DiscoverReport, type ExpirySettingsV1, type MonitorReport, type RunRecord, type SourceRecord, type SourceScorecard } from '@/engine/server'
+import { DEFAULT_INTERVAL_HOURS, scopeCountry, type DiscoverReport, type ExpirySettingsV1, type MonitorReport, type RunRecord, type SourceRecord, type SourceScorecard } from '@/engine/server'
 import { ALBANIAN_RELEVANCE, ARTIST_SEED, BLOCKED_HOSTS } from './goals'
 import { freeTierLimits, pickNext, planRotation, runInfo, usage, type PlanEntry, type Usage } from './rotation'
 import { albagoEngine } from './wiring'
@@ -196,9 +196,11 @@ export async function sourcesOverview() {
   return { sources, limits: monitorLimits(process.env), usage: monitorUsage(runs, Date.now()) }
 }
 
-/** Read a page now and show what the engine would take from it. Nothing is saved. */
-export function testSource(url: string) {
-  return albagoEngine().sources.preview(url, ALBANIAN_RELEVANCE, MONITOR_HORIZON_DAYS)
+/** Read a registered website now and show what the engine would take from it. Nothing is saved. */
+export async function testSource(id: string) {
+  const engine = albagoEngine()
+  const source = await engine.sources.get(id)
+  return engine.sources.preview(source.url, ALBANIAN_RELEVANCE, MONITOR_HORIZON_DAYS, scopeCountry(source.scope))
 }
 
 export async function decideSource(id: string, decision: 'approve' | 'reject' | 'pause', actor: string | null, reason: string | null = null) {

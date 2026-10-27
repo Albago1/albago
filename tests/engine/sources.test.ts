@@ -157,6 +157,33 @@ describe('known websites — the monitoring lane', () => {
     expect((await engine.sources.overview())[0].verified).toBe(1)
   })
 
+  it('a one-country site supplies the country only when an event names neither country nor city', async () => {
+    // Shaped like letsgo.al: rows give the venue but never say "Albania".
+    clock = new Date('2026-10-04T07:00:00Z')
+    const square = { '@type': 'Place', name: 'Sheshi Skënderbej' }
+    const prishtina = { '@type': 'Place', name: 'Palace of Youth', address: { addressLocality: 'Prishtinë' } }
+    const brno = { '@type': 'Place', name: 'Fléda', address: { addressLocality: 'Brno' } }
+    const { mem, engine } = setup({
+      'https://tickets.al/events': programme([
+        { '@type': 'MusicEvent', name: 'Food Fest', startDate: '2026-10-10T18:00:00+02:00', location: square },
+        { '@type': 'MusicEvent', name: 'Rock Night', startDate: '2026-10-11T20:00:00+02:00', location: prishtina },
+        { '@type': 'MusicEvent', name: 'Tour Stop', startDate: '2026-10-12T20:00:00+02:00', location: brno },
+      ]),
+    })
+    const id = await mem.store.sources.propose({ connector: 'website_html', url: 'https://tickets.al/events', normalized_url: 'https://tickets.al/events', label: 'tickets.al', scope: { country_codes: ['AL'], localities: ['Tirana'] }, discovered_by_run: null, evaluation: {} })
+    await engine.sources.decide(id, 'approve', null)
+    // 2 of the 3 events name a city, so the JSON-LD is used as it is (no AI).
+    await engine.sources.monitor(options())
+
+    const byTitle = Object.fromEntries([...mem.occurrences.values()].map((o) => [o.title, o]))
+    expect(byTitle['Food Fest'].location.country_code).toBe('AL')
+    expect(byTitle['Food Fest'].provenance.country_code.status).toBe('derived')
+    expect(byTitle['Food Fest'].relevance.albanian.verdict).toBe('relevant')
+    expect(byTitle['Rock Night'].location).toMatchObject({ locality: 'Prishtina', country_code: 'XK' }) // the city wins
+    // A city the engine doesn't know: no country is guessed, and it isn't Albanian.
+    expect(byTitle['Tour Stop']).toBeUndefined()
+  })
+
   it('check interval is 6 hours to 30 days', async () => {
     const { mem, engine } = setup({})
     const id = await addSource(engine, mem, 'https://venue.al/program')

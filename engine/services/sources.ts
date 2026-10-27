@@ -100,6 +100,12 @@ function pageInput(page: DistilledPage, finalUrl: string, retrievedAt: string, s
   }
 }
 
+/** The one country a source covers, from its registry scope (none when it covers several). */
+export function scopeCountry(scope: unknown): string | undefined {
+  const codes = (scope as { country_codes?: unknown } | null)?.country_codes
+  return Array.isArray(codes) && codes.length === 1 && typeof codes[0] === 'string' ? codes[0] : undefined
+}
+
 function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
@@ -214,7 +220,7 @@ export function createSources(deps: EngineDeps) {
       result = await observePage(
         deps,
         { input: pageInput(page, fetched.finalUrl, at, source.id, runId, 'monitor'), links: page.links },
-        { criteria: opts.criteria, window: { from: today, to: addDays(today, opts.horizonDays) } },
+        { criteria: opts.criteria, window: { from: today, to: addDays(today, opts.horizonDays) }, defaultCountry: scopeCountry(source.scope) },
         'event_list',
         { force },
       )
@@ -261,6 +267,8 @@ export function createSources(deps: EngineDeps) {
       return sources.map((s) => ({ ...s, card: scorecard(s), verified: verified[s.id] ?? 0, due: isDue(s, t) }))
     },
 
+    get,
+
     /** A human decision: approve (monitor it), reject (never propose again), or pause. */
     async decide(id: string, decision: 'approve' | 'reject' | 'pause', actor: string | null, reason: string | null = null): Promise<void> {
       const s = await get(id)
@@ -281,7 +289,7 @@ export function createSources(deps: EngineDeps) {
     },
 
     /** Read a page now and show what the engine would take from it. Nothing is saved. */
-    async preview(url: string, criteria: RelevanceCriteriaV1 | undefined, horizonDays: number): Promise<SourcePreview> {
+    async preview(url: string, criteria: RelevanceCriteriaV1 | undefined, horizonDays: number, defaultCountry?: string): Promise<SourcePreview> {
       if (!normalizeImportUrl(url)) return { ok: false, reason: 'bad_url' }
       const fetched = await deps.fetcher.fetchHtml(url).catch(() => null)
       if (!fetched) return { ok: false, reason: 'unreadable' }
@@ -291,7 +299,7 @@ export function createSources(deps: EngineDeps) {
       const result = await observePage(
         dry.deps,
         { input: pageInput(page, fetched.finalUrl, at, null, null, 'preview'), links: page.links },
-        { criteria, window: { from: at.slice(0, 10), to: addDays(at.slice(0, 10), horizonDays) } },
+        { criteria, window: { from: at.slice(0, 10), to: addDays(at.slice(0, 10), horizonDays) }, defaultCountry },
         'event_list',
       )
       const events: PreviewEvent[] = []

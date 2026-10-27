@@ -110,7 +110,7 @@ export default function SourcesPanel({ sources, limits, usage }: SourcesPanelPro
   async function test(s: SourceRow) {
     setTests((t) => ({ ...t, [s.id]: 'loading' }))
     try {
-      const res = await fetch('/api/admin/engine/sources/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: s.url }) })
+      const res = await fetch('/api/admin/engine/sources/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.id }) })
       const body = await res.json()
       if (!res.ok || !body.ok) throw new Error(body.message ?? body.error ?? 'failed')
       setTests((t) => ({ ...t, [s.id]: body.preview as SourcePreview }))

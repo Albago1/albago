@@ -3,6 +3,7 @@ import type { ObservationInputV1 } from '../contract/observation'
 import type { RelevanceCriteriaV1 } from '../contract/goal'
 import { buildCandidate, type CandidateFields } from '../core/candidate'
 import { billingNames, venueMatchTier } from '../core/match'
+import { timezoneForCountry } from '../core/places'
 import { mergeIntoExisting, reconcile } from '../core/reconcile'
 import { evaluateRelevance } from '../core/relevance'
 import { normalizeImportUrl } from '../core/url'
@@ -22,6 +23,12 @@ export type ObserveContext = {
   criteria?: RelevanceCriteriaV1
   /** Inclusive window; events outside it are recorded but not turned into occurrences. */
   window?: { from: string; to: string }
+  /**
+   * The one country the source covers (a Tirana venue, a Prishtina theatre).
+   * Used only when the page names neither a country nor a city — then the
+   * country is DERIVED from the source, never presented as stated.
+   */
+  defaultCountry?: string
 }
 
 export type ObserveOutcome = {
@@ -184,6 +191,12 @@ async function intake(deps: EngineDeps, input: ObservationInputV1, ctx: ObserveC
     return result({ outcome: 'not_event', observationId, title: x.title, issues: [...candidate.issues, candidate.reason] })
   }
   const { fields, provenance, issues } = candidate
+  if (!fields.country_code && !fields.locality && ctx.defaultCountry) {
+    fields.country_code = ctx.defaultCountry
+    fields.timezone = timezoneForCountry(ctx.defaultCountry)
+    provenance.country_code = { status: 'derived', observation_id: observationId, agree: 1 }
+    issues.push('country_from_source')
+  }
 
   const skip = async (reason: 'past_event' | 'outside_window', outcome: 'past' | 'outside_window') => {
     await deps.store.observations.update(observationId, { match: { decision: 'skipped', score: 0, reasons: [reason], candidate_ids: [], decided_by: 'rule' } })
