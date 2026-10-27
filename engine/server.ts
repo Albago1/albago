@@ -14,8 +14,22 @@ export * from './extract/llm'
 export { coerceListing, readListing, MAX_LISTING_ITEMS, type ListingItem, type ListingReading } from './extract/listing'
 export { createEngine, type Engine } from './create'
 export { observe, type ObserveContext, type ObserveOutcome } from './services/observe'
-export { observePage, type ObservePageResult, type PageInput, type PageKindHint } from './services/observePage'
+export { observePage, type ObservePageOptions, type ObservePageResult, type PageInput, type PageKindHint } from './services/observePage'
 export { discover, describeGoal, type DiscoverOptions, type DiscoverReport } from './services/discover'
 export { applyEdits, toContract, type ReviewEdits, type ReviewItem } from './services/review'
 export { cleanEntityName, createEntities, type Entities } from './services/entities'
 export { createMaintenance, type Maintenance } from './services/maintenance'
+export {
+  createSources,
+  isDue,
+  scorecard,
+  DEFAULT_INTERVAL_HOURS,
+  PAUSE_AFTER_ERRORS,
+  type MonitorOptions,
+  type MonitorReport,
+  type PreviewEvent,
+  type SourcePreview,
+  type SourceScorecard,
+  type Sources,
+  type SourceVisit,
+} from './services/sources'

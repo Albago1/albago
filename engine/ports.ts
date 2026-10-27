@@ -109,6 +109,29 @@ export type EntityRecord = {
   affiliations: Record<string, AffiliationClaim>
 }
 
+/**
+ * A website the engine may re-read on its own (monitoring lane). Proposed by
+ * the research agent or an import; a human approves it once (`active`).
+ */
+export type SourceRecord = {
+  id: string
+  connector: string
+  url: string
+  normalized_url: string
+  label: string | null
+  scope: unknown
+  status: 'proposed' | 'active' | 'paused' | 'rejected'
+  status_reason: string | null
+  /** Why it was proposed, plus the monitoring scorecard (see services/sources.ts). */
+  evaluation: Record<string, unknown>
+  check_interval_hours: number | null
+  discovered_by_run: string | null
+  last_checked_at: string | null
+  last_status: 'ok' | 'empty' | 'error' | null
+  last_error: string | null
+  created_at: string
+}
+
 export type RunRecord = {
   id: string
   lane: 'research' | 'monitoring' | 'direct' | 'manual'
@@ -131,6 +154,12 @@ export type EngineStore = {
   sources: {
     findByNormalizedUrl(normalizedUrl: string): Promise<{ id: string; status: string } | null>
     propose(input: { connector: string; url: string; normalized_url: string; label: string | null; scope: unknown; discovered_by_run: string | null; evaluation: unknown }): Promise<string>
+    /** Every registered source (a registry is small: tens to a few hundred). */
+    list(): Promise<SourceRecord[]>
+    get(id: string): Promise<SourceRecord | null>
+    update(id: string, patch: Partial<Pick<SourceRecord, 'status' | 'status_reason' | 'check_interval_hours' | 'last_checked_at' | 'last_status' | 'last_error' | 'evaluation'>>): Promise<void>
+    /** Per source: how many distinct occurrences it fed that a human verified. */
+    verifiedCounts(): Promise<Record<string, number>>
   }
   observations: {
     findByUrlAndHash(normalizedUrl: string, contentHash: string): Promise<ObservationRow | null>

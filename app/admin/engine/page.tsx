@@ -5,10 +5,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { albagoEngine } from '@/integrations/albago/wiring'
 import { ALBAGO_CATEGORY, deliveryDecision } from '@/integrations/albago/policy'
 import { posterUrl, sharedImageUrls } from '@/integrations/albago/poster'
-import { artistCandidates, discoveryOverview, engineSettings } from '@/integrations/albago/runner'
+import { artistCandidates, discoveryOverview, engineSettings, sourcesOverview } from '@/integrations/albago/runner'
 import EngineReviewClient, { type ReviewCard, type RunSummary } from './EngineReviewClient'
 import DiscoveryPanel from './DiscoveryPanel'
 import SettingsPanel from './SettingsPanel'
+import SourcesPanel from './SourcesPanel'
 
 const COUNTRY_NAMES = new Intl.DisplayNames(['en'], { type: 'region' })
 const lastDay = (o: ReviewItem['occurrence']) => o.end.date ?? o.start.date
@@ -36,13 +37,14 @@ export const dynamic = 'force-dynamic'
 
 export default async function EngineReviewPage() {
   const engine = albagoEngine()
-  const [queue, verified, runs, overview, candidates, settings] = await Promise.all([
+  const [queue, verified, runs, overview, candidates, settings, known] = await Promise.all([
     engine.review.queue(60),
     engine.review.queue(60, 'verified'),
     engine.runs.recent(6),
     discoveryOverview(),
     artistCandidates(),
     engineSettings(),
+    sourcesOverview(),
   ])
   const targetLabels = new Map(overview.plan.map((p) => [p.id, p.label]))
 
@@ -123,9 +125,15 @@ export default async function EngineReviewPage() {
       } | null
     )?.goal
     const performers = goal?.expansion?.entities?.performers ?? []
+    const label =
+      r.lane === 'monitoring'
+        ? `Known websites (${r.stats?.sources ?? 0} read)`
+        : performers.length
+          ? `Artists: ${performers.join(', ')}`
+          : (targetLabels.get(goal?.id ?? '') ?? goal?.id ?? 'run')
     return {
       id: r.id,
-      goal: performers.length ? `Artists: ${performers.join(', ')}` : (targetLabels.get(goal?.id ?? '') ?? goal?.id ?? 'run'),
+      goal: label,
       status: r.status,
       startedAt: r.started_at,
       stats: r.stats ?? {},
@@ -140,6 +148,7 @@ export default async function EngineReviewPage() {
         panels={
           <>
             <DiscoveryPanel overview={overview} candidates={candidates} />
+            <SourcesPanel sources={known.sources} limits={known.limits} usage={known.usage} />
             <SettingsPanel settings={{ expiry: settings.expiry, lastRun: settings.lastRun }} />
           </>
         }

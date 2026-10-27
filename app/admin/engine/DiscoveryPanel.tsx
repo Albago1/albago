@@ -30,14 +30,14 @@ const GROUPS: Array<{ kind: PlanItem['kind']; label: string }> = [
   { kind: 'artists', label: 'Artist watch' },
 ]
 
-function ago(ts: number | null): string {
+export function ago(ts: number | null): string {
   if (ts == null) return 'never'
   const days = Math.floor((Date.now() - ts) / 86_400_000)
   if (days <= 0) return 'today'
   return days === 1 ? '1 day ago' : `${days} days ago`
 }
 
-function Meter({ label, used, max }: { label: string; used: number; max: number }) {
+export function Meter({ label, used, max }: { label: string; used: number; max: number }) {
   const pct = Math.min(100, Math.round((used / Math.max(max, 1)) * 100))
   return (
     <div className="min-w-[9rem] flex-1">

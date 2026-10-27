@@ -44,25 +44,39 @@ export type ObservePageResult = {
   issues: string[]
 }
 
+export type ObservePageOptions = {
+  /**
+   * Read the items of a page even when the page is unchanged: items that were
+   * outside the window last time may be inside it now. Items already seen
+   * stay unchanged, so nothing is duplicated.
+   */
+  force?: boolean
+}
+
 type Item = { x: ExtractionV1; extractor: string; url: string | null; evidence: ObservationInputV1['evidence'] }
 
-export async function observePage(deps: EngineDeps, page: PageInput, ctx: ObserveContext = {}, hint: PageKindHint = 'auto'): Promise<ObservePageResult> {
+export async function observePage(
+  deps: EngineDeps,
+  page: PageInput,
+  ctx: ObserveContext = {},
+  hint: PageKindHint = 'auto',
+  opts: ObservePageOptions = {},
+): Promise<ObservePageResult> {
   const { input } = page
   const normalized = input.source_url ? normalizeImportUrl(input.source_url) : null
   const pageHash = await evidenceHash(input.evidence)
-  if (normalized) {
-    const seen = await deps.store.observations.findByUrlAndHash(normalized, pageHash)
-    if (seen) {
-      const outcome: ObserveOutcome = { outcome: 'unchanged', observationId: seen.id, occurrenceId: seen.occurrence_id, title: seen.extracted?.title ?? null, start_date: seen.extracted?.start_date ?? null, issues: [] }
-      return { kind: 'unchanged', outcomes: [outcome], skipped: { past: 0, outside_window: 0 }, issues: [] }
-    }
+  const seen = normalized ? await deps.store.observations.findByUrlAndHash(normalized, pageHash) : null
+  if (seen && !opts.force) {
+    const outcome: ObserveOutcome = { outcome: 'unchanged', observationId: seen.id, occurrenceId: seen.occurrence_id, title: seen.extracted?.title ?? null, start_date: seen.extracted?.start_date ?? null, issues: [] }
+    return { kind: 'unchanged', outcomes: [outcome], skipped: { past: 0, outside_window: 0 }, issues: [] }
   }
+  const recorded = seen != null
 
   const ldEvents = findJsonLdEvents(input.evidence.jsonld)
   if (ldEvents.length >= 2) {
     const items = jsonLdItems(ldEvents, input, normalized)
-    if (items.filter((i) => i.x.locality).length * 2 < items.length) return listFromAi(deps, page, ctx, normalized, pageHash, false)
-    await recordPage(deps, input, normalized, pageHash, 'jsonld@1', items.length)
+    if (items.filter((i) => i.x.locality).length * 2 < items.length) return listFromAi(deps, page, ctx, normalized, pageHash, recorded)
+    if (!recorded) await recordPage(deps, input, normalized, pageHash, 'jsonld@1', items.length)
     return { kind: 'list', ...(await observeItems(deps, input, ctx, items)), issues: [] }
   }
 
@@ -75,7 +89,7 @@ export async function observePage(deps: EngineDeps, page: PageInput, ctx: Observ
     return listFromAi(deps, page, ctx, normalized, pageHash, true)
   }
 
-  return listFromAi(deps, page, ctx, normalized, pageHash, false)
+  return listFromAi(deps, page, ctx, normalized, pageHash, recorded)
 }
 
 function jsonLdItems(nodes: Record<string, unknown>[], input: ObservationInputV1, normalized: string | null): Item[] {
