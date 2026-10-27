@@ -122,6 +122,33 @@ export function titlesMatch(a: string, b: string): boolean {
   return jaccard(ta, tb) >= 0.6
 }
 
+/**
+ * Is this performer named in that text (a title or another billing)? Every
+ * word of the name must appear. One short word ("Besa", "Fifi") is not proof
+ * of identity, so a one-word name counts only from 5 letters up.
+ */
+export function performerNamedIn(name: string, text: string): boolean {
+  const n = tokenize(name)
+  if (n.length === 0 || (n.length === 1 && n[0].length < 5)) return false
+  return isSubset(n, tokenize(text))
+}
+
+/**
+ * The names in a billing: "Elina Duni & Rob Luft" → itself, "Elina Duni",
+ * "Rob Luft". The whole string stays, so a duo known by its joint name
+ * ("Endri & Stefi Prifti") still matches.
+ */
+export function billingNames(names: string[]): string[] {
+  const out = new Set<string>()
+  for (const name of names) {
+    out.add(name)
+    for (const part of name.split(/\s*(?:&|\+|,|\/|\band\b|\bund\b|\bdhe\b|\bx\b|\bfeat\b\.?|\bft\.|\bwith\b|\bb2b\b|\bvs\b\.?)\s*/i)) {
+      if (part.trim().length >= 2) out.add(part.trim())
+    }
+  }
+  return [...out]
+}
+
 // ---------------------------------------------------------------------------
 // City matching — pure logic, exported for the scripted tests.
 // ---------------------------------------------------------------------------

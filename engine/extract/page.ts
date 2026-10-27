@@ -157,6 +157,36 @@ export function pageImage(html: string, baseUrl: string): string | null {
   )
 }
 
+/** A link as a reader sees it: its words and where it goes. */
+export type PageLink = { text: string; url: string }
+
+/**
+ * The page's links with their visible words, resolved to absolute http(s)
+ * URLs (first occurrence wins). A page listing many events names each event's
+ * own page this way; readers may only pick links from this list.
+ */
+export function pageLinks(html: string, baseUrl: string, max = 120): PageLink[] {
+  const out: PageLink[] = []
+  const seen = new Set<string>()
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"'#][^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    let url: string
+    try {
+      const u = new URL(decodeEntities(m[1].trim()), baseUrl)
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') continue
+      u.hash = ''
+      url = u.toString()
+    } catch {
+      continue
+    }
+    const text = visibleText(m[2]).slice(0, 120)
+    if (!text || seen.has(url)) continue
+    seen.add(url)
+    out.push({ text, url })
+    if (out.length >= max) break
+  }
+  return out
+}
+
 export type DistilledPage = {
   title: string | null
   description: string | null
@@ -164,6 +194,7 @@ export type DistilledPage = {
   /** Visible text, whitespace-collapsed, capped. */
   text: string
   imageUrl: string | null
+  links: PageLink[]
 }
 
 /** Reduce raw HTML to the evidence the engine keeps and reasons over. */
@@ -175,5 +206,6 @@ export function distillPage(html: string, baseUrl: string, maxText = 20_000): Di
     jsonld: parseJsonLdBlocks(html),
     text: visibleText(html).slice(0, maxText),
     imageUrl: pageImage(html, baseUrl),
+    links: pageLinks(html, baseUrl),
   }
 }

@@ -1,10 +1,12 @@
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai'
 import type { DiscoveryGoalV1 } from '../contract/goal'
 import { normalizeImportUrl, sourceNameFromUrl } from '../core/url'
+import { findJsonLdEvents } from '../extract/jsonld'
 import { distillPage, type DistilledPage } from '../extract/page'
 import type { EngineDeps } from '../ports'
 import { createEntities } from './entities'
-import { observe, type ObserveOutcome } from './observe'
+import type { ObserveOutcome } from './observe'
+import { observePage } from './observePage'
 
 /**
  * AI Discovery Agent — the research lane. Given a goal (configuration, not
@@ -13,7 +15,8 @@ import { observe, type ObserveOutcome } from './observe'
  * every limit and guard lives in the tools, not in the prompt.
  *
  * - A search result is a LEAD. Only a page the engine fetched itself can be
- *   submitted, and `observe` re-reads that evidence with its own checks.
+ *   submitted, and `observePage` re-reads that evidence with its own checks
+ *   (a page that lists several events is cut into one observation per event).
  * - Budgets (searches, page reads, minutes) are enforced per tool call.
  * - Hosts the deployment marks as not collectable are refused by the tool.
  */
@@ -92,8 +95,8 @@ How to work:
 1. Plan several different searches: vary the language (local language first), the event type, the venue or organizer names you learn, and the dates ("this weekend", month names). Do not repeat a query.
 2. Reading beats searching: after every search, read the 1–3 most promising results before searching again (the engine enforces this). Budget roughly two page reads per search.
    Prefer primary sources: venue, organizer, festival and ticketing pages. Programme/agenda pages of venues and institutions are valuable — read them and follow their event_links. Aggregators and news roundups are good for finding names and links, then go to the primary page.
-3. ALWAYS read_page before submit_event. Submit only pages that announce ONE specific event with a date inside the goal window. A listing/agenda page is for finding links to individual event pages — use the links read_page returns.
-4. Submit each distinct event page once. Results marked known:true are already in the engine — skip them unless you are checking for changes.
+3. ALWAYS read_page before submit_page. Submit pages that announce ONE specific event, AND pages that LIST several dated events — an artist's tour dates, a venue or festival programme, a ticket-shop or calendar list. The engine cuts a list into its events, keeps those inside the goal window and verifies each one; pass kind "event_list" for a list (structured_events of 2 or more also means a list). Submitting a list is one step instead of reading every event page.
+4. Submit each page once. Results marked known:true are already in the engine — skip them unless you are checking for changes.
 5. When a website regularly lists many relevant events (a venue program, a ticketing category, an events calendar), call propose_source once with a short reason.
 6. Never invent events, dates or URLs, and never claim a site lacks information unless you read it. Social networks are not collected — do not target them. If a tool says the budget is exhausted, stop and write your summary.
 7. Use the budget. Stopping early leaves events unfound: keep trying new angles (another language, event type, venue, promoter or ticketing site you learned about) until the searches or page reads are nearly used up or the time runs short.
@@ -107,7 +110,7 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
   const deadline = startedAt + goal.budget.max_minutes * 60_000
   const blocked = new Set((opts.blockedHosts ?? []).map((h) => h.toLowerCase().replace(/^www\./, '')))
 
-  const stats = { searches: 0, pages_read: 0, submitted: 0, new: 0, attached: 0, possible_duplicate: 0, unchanged: 0, not_event: 0, past: 0, outside_window: 0, failed: 0, refused: 0, guard_refusals: 0, sources_proposed: 0, entities_proposed: 0, input_tokens: 0, output_tokens: 0 }
+  const stats = { searches: 0, pages_read: 0, submitted: 0, listing_pages: 0, new: 0, attached: 0, possible_duplicate: 0, unchanged: 0, not_event: 0, not_relevant: 0, past: 0, outside_window: 0, failed: 0, refused: 0, guard_refusals: 0, sources_proposed: 0, entities_proposed: 0, input_tokens: 0, output_tokens: 0 }
   const log: Array<Record<string, unknown>> = []
   const outcomes: Array<ObserveOutcome & { url: string }> = []
   const proposedSources: string[] = []
@@ -204,7 +207,7 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
         log.push({ t: 'read', url })
         return {
           title: page.title,
-          has_structured_event_data: page.jsonld.some((b) => JSON.stringify(b).includes('Event')),
+          structured_events: findJsonLdEvents(page.jsonld).length,
           text_start: page.text.slice(0, 2500),
           event_links: eventLinks(fetched.html, fetched.finalUrl).slice(0, 20),
           ...remaining(),
@@ -212,41 +215,65 @@ export async function discover(deps: EngineDeps, goal: DiscoveryGoalV1, opts: Di
       },
     }),
 
-    submit_event: tool({
-      description: 'Hand ONE event page you have already read to the engine for verification. Returns what the engine decided.',
-      inputSchema: jsonSchema<{ url: string }>({
+    submit_page: tool({
+      description:
+        'Hand a page you have already read to the engine: ONE event page, or a page that LISTS several events (tour dates, a venue programme, a ticket-shop list). The engine cuts a list into its events and verifies each. Returns what the engine decided.',
+      inputSchema: jsonSchema<{ url: string; kind?: 'one_event' | 'event_list' }>({
         type: 'object',
-        properties: { url: { type: 'string', description: 'The URL you passed to read_page.' } },
+        properties: {
+          url: { type: 'string', description: 'The URL you passed to read_page.' },
+          kind: { type: 'string', enum: ['one_event', 'event_list'], description: 'event_list when the page lists several dated events.' },
+        },
         required: ['url'],
         additionalProperties: false,
       }),
-      execute: async ({ url }: { url: string }) => {
+      execute: async ({ url, kind }: { url: string; kind?: 'one_event' | 'event_list' }) => {
         const read = pages.get(url)
         if (!read) return { error: 'read_page this URL first' }
         stats.submitted++
-        const outcome = await observe(
+        const result = await observePage(
           deps,
           {
-            connector: 'research_agent',
-            source_id: null,
-            source_url: read.finalUrl,
-            retrieved_at: read.retrievedAt,
-            evidence: {
-              title: read.page.title,
-              text_excerpt: read.page.text,
-              jsonld: read.page.jsonld.slice(0, 50),
-              meta: read.page.description ? { description: read.page.description } : {},
-              media: read.page.imageUrl ? [{ url: read.page.imageUrl, role: 'poster', rights: 'unknown' }] : [],
+            input: {
+              connector: 'research_agent',
+              source_id: null,
+              source_url: read.finalUrl,
+              retrieved_at: read.retrievedAt,
+              evidence: {
+                title: read.page.title,
+                text_excerpt: read.page.text,
+                jsonld: read.page.jsonld.slice(0, 50),
+                meta: read.page.description ? { description: read.page.description } : {},
+                media: read.page.imageUrl ? [{ url: read.page.imageUrl, role: 'poster', rights: 'unknown' }] : [],
+              },
+              lead: { query: read.query, snippet: null },
+              run_id: runId,
             },
-            lead: { query: read.query, snippet: null },
-            run_id: runId,
+            links: read.page.links,
           },
           { criteria: goal.relevance, window },
+          kind === 'event_list' ? 'event_list' : 'auto',
         )
-        stats[outcome.outcome]++
-        outcomes.push({ ...outcome, url: read.finalUrl })
-        log.push({ t: 'submit', url: read.finalUrl, outcome: outcome.outcome, title: outcome.title, date: outcome.start_date })
-        return { outcome: outcome.outcome, title: outcome.title, start_date: outcome.start_date, issues: outcome.issues.slice(0, 5) }
+        if (result.kind === 'list') stats.listing_pages++
+        stats.past += result.skipped.past
+        stats.outside_window += result.skipped.outside_window
+        for (const o of result.outcomes) {
+          stats[o.outcome]++
+          outcomes.push({ ...o, url: read.finalUrl })
+          log.push({ t: 'submit', url: read.finalUrl, outcome: o.outcome, title: o.title, date: o.start_date, ...(result.kind === 'list' ? { list: true } : {}) })
+        }
+        if (result.kind !== 'list') {
+          const o = result.outcomes[0]
+          return { outcome: o.outcome, title: o.title, start_date: o.start_date, issues: o.issues.slice(0, 5) }
+        }
+        const counts: Record<string, number> = { ...result.skipped }
+        for (const o of result.outcomes) counts[o.outcome] = (counts[o.outcome] ?? 0) + 1
+        return {
+          list: true,
+          events_on_page: result.outcomes.length + result.skipped.past + result.skipped.outside_window,
+          outcomes: counts,
+          events: result.outcomes.slice(0, 10).map((o) => `${o.start_date ?? '?'} ${o.title ?? '(untitled)'} → ${o.outcome}`),
+        }
       },
     }),
 

@@ -105,8 +105,9 @@ const ADMIN_PREFIX = /^(bashkia|komuna|qarku|qendër|qender|njësia administrati
 /** Canonical locality name + its country when known; otherwise the cleaned input, country null. */
 export function canonicalLocality(raw: string | null | undefined): { name: string; country: string | null } | null {
   if (!raw) return null
-  // Sources write "Tiranë, Albania" or "Tirana 1001": keep the first segment, drop postcodes.
-  const first = raw.split(/[,|/]/)[0].replace(/\b\d{3,6}\b/g, '').replace(/\s+/g, ' ').trim()
+  // Sources write "Tiranë, Albania", "Tirana 1001" or "Lausanne (CH)": keep the
+  // first segment, drop postcodes and a trailing bracketed qualifier.
+  const first = raw.split(/[,|/]/)[0].replace(/\s*\([^)]{1,40}\)\s*$/, '').replace(/\b\d{3,6}\b/g, '').replace(/\s+/g, ' ').trim()
   if (!first) return null
   const exact = BY_VARIANT.get(foldText(first))
   if (exact) return { name: exact.name, country: exact.country }

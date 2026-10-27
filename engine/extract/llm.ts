@@ -32,19 +32,35 @@ Rules:
 10. cultural_occasion: a named holiday/celebration the event marks, as written, else null.
 11. status: scheduled, cancelled, postponed or rescheduled — only if stated, else null.
 12. is_event: false for listings of many events, profiles, shops, news without one specific event, login walls.
+13. lists_events: true when the page lists SEVERAL dated events (a tour-dates page, a venue programme, a ticket-shop list), else false.
 
 Return ONLY JSON with exactly these keys:
-{"is_event":bool,"title":"","description":"","language":"","event_type":"","tags":[],"start_date":"","start_time":"","end_date":"","end_time":"","status":"","venue_name":"","address":"","locality":"","country":"","organizer_name":"","performers":[],"promotion_languages":[],"audience_statements":[],"cultural_occasion":"","price_text":"","ticket_url":"","quotes":{"start_date":"","start_time":"","venue_name":"","locality":"","price_text":""}}`
+{"is_event":bool,"lists_events":bool,"title":"","description":"","language":"","event_type":"","tags":[],"start_date":"","start_time":"","end_date":"","end_time":"","status":"","venue_name":"","address":"","locality":"","country":"","organizer_name":"","performers":[],"promotion_languages":[],"audience_statements":[],"cultural_occasion":"","price_text":"","ticket_url":"","quotes":{"start_date":"","start_time":"","venue_name":"","locality":"","price_text":""}}`
 
 const s = (v: unknown, max = 500): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
 const arr = (v: unknown, max = 20): string[] =>
   Array.isArray(v) ? v.map((x) => s(x, 200)).filter((x): x is string => !!x).slice(0, max) : []
 
+/** The form quotes are compared in: folded accents and case, one space, plain double quotes. */
+export function quoteNorm(t: string): string {
+  return foldText(t).replace(/[\s ]+/g, ' ').replace(/[“”"«»]/g, '"').trim()
+}
+
 /** Whitespace/accent/case-insensitive "does the page really say this". */
 export function quoteFoundIn(quote: string | null, haystack: string): boolean {
   if (!quote || quote.trim().length < 2) return false
-  const norm = (t: string) => foldText(t).replace(/[\s ]+/g, ' ').replace(/[“”"«»]/g, '"').trim()
-  return norm(haystack).includes(norm(quote))
+  return quoteNorm(haystack).includes(quoteNorm(quote))
+}
+
+/**
+ * Does the quoted date state the DAY of `isoDate`? "November 2026" doesn't:
+ * a model asked for a date then picks one (the 1st, or Flag Day) — a guess.
+ * The day must appear as its own number ("Sat 28 Nov", "28.11.", "Nov 28th").
+ */
+export function quoteStatesDay(quote: string | null, isoDate: string): boolean {
+  const day = Number(isoDate.slice(8, 10))
+  if (!quote || !day) return false
+  return quote.includes(isoDate) || new RegExp(`(^|\\D)0?${day}(?!\\d)`).test(quote)
 }
 
 /** Turn raw model JSON into a validated extraction, enforcing quotes. Pure — unit-tested. */
@@ -58,6 +74,8 @@ export function coerceModelExtraction(raw: unknown, evidenceText: string): Extra
   const quotes = (typeof r.quotes === 'object' && r.quotes ? r.quotes : {}) as Record<string, unknown>
 
   x.is_event = r.is_event === true
+  // A list of several events is read again by the listing reader (observePage).
+  if (!x.is_event && r.lists_events === true) x.issues.push('page_lists_events')
   x.title = s(r.title, 300)
   x.description = s(r.description, 2000)
   x.language = s(r.language, 5)
@@ -81,7 +99,10 @@ export function coerceModelExtraction(raw: unknown, evidenceText: string): Extra
   for (const field of QUOTED_FIELDS) {
     const value = s(r[field], field === 'price_text' ? 500 : 200)
     if (!value) continue
-    if (quoteFoundIn(s(quotes[field], 200), evidenceText)) {
+    const quote = s(quotes[field], 200)
+    if (field === 'start_date' && quoteFoundIn(quote, evidenceText) && !quoteStatesDay(quote, value)) {
+      x.issues.push('start_date_without_day')
+    } else if (quoteFoundIn(quote, evidenceText)) {
       ;(x as Record<QuotedField, string | null>)[field] = value
       x.field_status[field] = 'stated'
     } else {
