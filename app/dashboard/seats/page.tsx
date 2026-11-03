@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import LandingNavbar from '@/components/layout/LandingNavbar'
 import MySeatsClient, { type MySeatCard } from '@/components/seats/MySeatsClient'
-import { sellerWhatsApp } from '@/lib/seats/sellerContact'
+import { sellerOptions } from '@/lib/seats/sellerContact'
 import { cityLabelFromSlug } from '@/lib/tickets/ticketLabels'
 import type { PublicSeatSale, SeatReservationRow } from '@/lib/seats/types'
 
@@ -71,7 +71,7 @@ export default async function MySeatsPage({
   ])
   const events = new Map(((eventData as unknown as EventRow[] | null) ?? []).map((e) => [e.id, e]))
   const saleByEvent = new Map(sales)
-  const waByEvent = await sellerWhatsApp(eventIds)
+  const sellerByEvent = await sellerOptions(eventIds)
 
   const cards: MySeatCard[] = reservations.map((r) => {
     const ev = events.get(r.event_id) ?? null
@@ -81,7 +81,7 @@ export default async function MySeatsPage({
       deliverBy: sale?.deliver_by ?? null,
       sellerName: sale?.seller_name ?? null,
       eventId: r.event_id,
-      whatsapp: !!waByEvent.get(r.event_id)?.set,
+      whatsapp: !!sellerByEvent.get(r.event_id)?.whatsappSet,
       event: ev
         ? {
             slug: ev.slug,

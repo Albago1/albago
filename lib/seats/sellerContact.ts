@@ -1,22 +1,42 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export type SellerWhatsApp = { set: boolean; public: boolean }
+export type SellerOptions = {
+  /** WhatsApp set up at all (buyers with a reservation can use it). */
+  whatsappSet: boolean
+  /** …and offered to everyone before they buy. */
+  whatsappPublic: boolean
+  /** Payment methods buyers can expect. */
+  bank: boolean
+  paypal: boolean
+}
 
 /**
- * Whether each sale's seller has WhatsApp set up (and for everyone, or only
- * for buyers) — never the number itself, which stays in the admin-only
- * seat_payment_settings and is only used by /api/seats/whatsapp.
+ * What each sale's seller offers — WhatsApp, bank transfer, PayPal — as
+ * yes/no only. The number, name and IBAN stay in the admin-only
+ * seat_payment_settings; only /api/seats/whatsapp and /api/seats/[id]/pay
+ * ever touch them.
  */
-export async function sellerWhatsApp(eventIds: string[]): Promise<Map<string, SellerWhatsApp>> {
-  const out = new Map<string, SellerWhatsApp>()
+export async function sellerOptions(eventIds: string[]): Promise<Map<string, SellerOptions>> {
+  const out = new Map<string, SellerOptions>()
   if (eventIds.length === 0) return out
   const { data } = await createAdminClient()
     .from('seat_payment_settings')
-    .select('event_id, whatsapp, whatsapp_public')
+    .select('event_id, whatsapp, whatsapp_public, iban, paypal_me')
     .in('event_id', eventIds)
-  for (const row of (data ?? []) as Array<{ event_id: string; whatsapp: string | null; whatsapp_public: boolean }>) {
-    out.set(row.event_id, { set: !!row.whatsapp, public: !!row.whatsapp && row.whatsapp_public })
+  for (const row of (data ?? []) as Array<{
+    event_id: string
+    whatsapp: string | null
+    whatsapp_public: boolean
+    iban: string | null
+    paypal_me: string | null
+  }>) {
+    out.set(row.event_id, {
+      whatsappSet: !!row.whatsapp,
+      whatsappPublic: !!row.whatsapp && row.whatsapp_public,
+      bank: !!row.iban,
+      paypal: !!row.paypal_me,
+    })
   }
   return out
 }
