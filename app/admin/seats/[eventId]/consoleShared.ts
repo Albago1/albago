@@ -64,6 +64,7 @@ const ERROR_TEXT: Record<string, string> = {
   bad_bic: 'That BIC is not valid (8 or 11 letters/digits). It is optional — leave it empty.',
   bad_paypal: 'Use just your PayPal.me name (letters and digits), e.g. from paypal.me/YourName.',
   bad_bank: 'A bank account needs both the account holder name and the IBAN.',
+  bad_whatsapp: 'Write the WhatsApp number with the country code, e.g. +49 151 23456789.',
 }
 
 export function errorText(code: string | undefined): string {

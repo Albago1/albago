@@ -32,6 +32,7 @@ import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import SeatSalePanel from '@/components/seats/SeatSalePanel'
 import FightPoll from '@/components/polls/FightPoll'
 import { isPollClosed, pollForEvent } from '@/lib/polls'
+import { sellerWhatsApp } from '@/lib/seats/sellerContact'
 import type { PublicSeatSale } from '@/lib/seats/types'
 import { venueMapFor } from '@/lib/seats/venueMaps'
 import ShareEventButton from '@/components/share/ShareEventButton'
@@ -541,6 +542,8 @@ export default async function EventDetailPage(
   // static price row — never two CTAs.
   const salesOpen = !hasEnded && event.listing_status !== 'cancelled'
   const seatSale = salesOpen ? await fetchSeatSale(event.id) : null
+  // Seller's WhatsApp for questions — only whether it's on, never the number.
+  const sellerWa = seatSale ? (await sellerWhatsApp([event.id])).get(event.id) : undefined
   const poll = pollForEvent(event.id)
   const ticketTiers = salesOpen && !seatSale ? await fetchTicketTiers(event.id) : []
   const hasNativeTickets = ticketTiers.length > 0 || !!seatSale
@@ -987,6 +990,7 @@ export default async function EventDetailPage(
                   defaultEmail={user?.email ?? null}
                   city={event.location_slug}
                   country={event.country}
+                  whatsapp={!!sellerWa?.public}
                 />
               )}
 

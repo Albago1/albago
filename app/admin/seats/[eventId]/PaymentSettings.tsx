@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Landmark, Loader2, Lock, Wallet } from 'lucide-react'
+import { CheckCircle2, Landmark, Loader2, Lock, MessageCircle, Wallet } from 'lucide-react'
 import { consoleCall, errorText, type ConsoleData } from './consoleShared'
 
 const INPUT =
@@ -20,6 +20,8 @@ export default function PaymentSettings({ data }: { data: ConsoleData }) {
   const [iban, setIban] = useState('')
   const [bic, setBic] = useState(p?.bic ?? '')
   const [paypal, setPaypal] = useState(p?.paypalMe ?? '')
+  const [whatsapp, setWhatsapp] = useState(p?.whatsapp ? `+${p.whatsapp}` : '')
+  const [waPublic, setWaPublic] = useState(p?.whatsappPublic ?? true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -28,7 +30,7 @@ export default function PaymentSettings({ data }: { data: ConsoleData }) {
     setBusy(true)
     setError(null)
     setSaved(false)
-    const body: Record<string, unknown> = { op: 'payment', paypalMe: paypal }
+    const body: Record<string, unknown> = { op: 'payment', paypalMe: paypal, whatsapp, whatsappPublic: waPublic }
     if (clearBank) Object.assign(body, { bankHolder: '', iban: '', bic: '' })
     else {
       body.bankHolder = holder
@@ -53,7 +55,7 @@ export default function PaymentSettings({ data }: { data: ConsoleData }) {
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
       <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/40">
-        <Lock className="h-3.5 w-3.5" /> Payment details · private
+        <Lock className="h-3.5 w-3.5" /> Payment &amp; contact · private
       </h2>
       <p className="mt-1.5 text-xs leading-relaxed text-white/50">
         Buyers with a reservation get a QR code to scan in their banking app, and a PayPal button. Your name and IBAN are
@@ -98,6 +100,31 @@ export default function PaymentSettings({ data }: { data: ConsoleData }) {
             Buyers are asked to choose “goods and services” and put their reference in the note.
           </span>
         </label>
+
+        <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-white sm:col-span-2">
+          <MessageCircle className="h-4 w-4 text-emerald-300" /> WhatsApp
+        </p>
+        <label>
+          <span className="mb-1 block text-xs text-white/60">Your WhatsApp number, with country code</span>
+          <input
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            className={`${INPUT} font-mono`}
+            autoComplete="off"
+            inputMode="tel"
+            placeholder="+49 151 23456789 — empty = no WhatsApp buttons"
+          />
+          <span className="mt-1 block text-[11px] text-white/40">
+            Never written on the page — buttons go through AlbaGo. WhatsApp shows the number once a chat opens.
+          </span>
+        </label>
+        <label className="flex items-start gap-2 self-center text-sm text-white/75">
+          <input type="checkbox" checked={waPublic} onChange={(e) => setWaPublic(e.target.checked)} className="mt-1 accent-flame-500" />
+          <span>
+            Anyone can ask questions before buying
+            <span className="block text-[11px] text-white/40">Off: only buyers with a reservation get the button.</span>
+          </span>
+        </label>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -108,7 +135,7 @@ export default function PaymentSettings({ data }: { data: ConsoleData }) {
           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-flame-500 px-5 text-sm font-semibold text-white transition hover:bg-flame-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-          Save payment details
+          Save payment &amp; contact
         </button>
         {p?.ibanMasked && (
           <button

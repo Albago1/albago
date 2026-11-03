@@ -11,6 +11,10 @@ export type SeatPaymentSettings = {
   iban: string | null
   bic: string | null
   paypal_me: string | null
+  /** Seller WhatsApp, international digits (lib/seats/whatsapp). */
+  whatsapp: string | null
+  /** false = only buyers with a reservation get the WhatsApp button. */
+  whatsapp_public: boolean
   updated_at: string
 }
 
@@ -20,6 +24,8 @@ export type SeatPaymentAdminView = {
   ibanMasked: string | null
   bic: string | null
   paypalMe: string | null
+  whatsapp: string | null
+  whatsappPublic: boolean
   updatedAt: string
 }
 
@@ -29,6 +35,8 @@ export function adminPaymentView(s: SeatPaymentSettings): SeatPaymentAdminView {
     ibanMasked: s.iban ? maskIban(s.iban) : null,
     bic: s.bic,
     paypalMe: s.paypal_me,
+    whatsapp: s.whatsapp ?? null,
+    whatsappPublic: s.whatsapp_public ?? true,
     updatedAt: s.updated_at,
   }
 }

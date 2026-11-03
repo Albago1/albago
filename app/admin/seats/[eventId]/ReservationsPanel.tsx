@@ -8,11 +8,13 @@ import {
   Copy,
   Download,
   Loader2,
+  MessageCircle,
   Plus,
   Search,
   TriangleAlert,
 } from 'lucide-react'
 import { effectiveStatus, seatsLine, toCsv } from '@/lib/seats/format'
+import { normalizeWhatsApp, sellerReply, waLink, type SellerReplyLang, type SellerReplyStep } from '@/lib/seats/whatsapp'
 import {
   PAYMENT_METHODS,
   type AdminReservationAction,
@@ -165,6 +167,7 @@ export default function ReservationsPanel({ data }: { data: ConsoleData }) {
             <ReservationItem
               key={r.id}
               eventId={data.event.id}
+              eventTitle={data.event.title}
               currency={data.sale.currency}
               reservation={r}
               seatsAttached={attached.has(r.id)}
@@ -198,13 +201,56 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
+const REPLY_LANGS: SellerReplyLang[] = ['sq', 'de', 'en']
+const REPLY_STEPS = new Set<ReservationStatus>(['held', 'paid', 'transfer_sent', 'delivered'])
+
+/** One tap to WhatsApp the buyer, with the message for where their order is. */
+function WhatsAppReplies({ r, eventTitle, currency }: { r: SeatReservationRow; eventTitle: string; currency: string }) {
+  const step = effectiveStatus(r.status, r.expires_at)
+  if (!REPLY_STEPS.has(step)) return null
+  const number = normalizeWhatsApp(r.phone)
+  const d = {
+    name: r.buyer_name.trim().split(/\s+/)[0] || r.buyer_name,
+    reference: r.reference,
+    event: eventTitle,
+    amount: eur(r.total_cents, currency),
+    eventimEmail: r.eventim_email,
+  }
+  return (
+    <div className="sm:col-span-2">
+      <dt className="text-[11px] text-white/40">WhatsApp reply · {STATUS_LABEL[step]}</dt>
+      <dd className="mt-1 flex flex-wrap items-center gap-1.5">
+        {number ? (
+          REPLY_LANGS.map((lang) => (
+            <a
+              key={lang}
+              href={waLink(number, sellerReply(lang, step as SellerReplyStep, d))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+            >
+              <MessageCircle className="h-3.5 w-3.5" /> {lang.toUpperCase()}
+            </a>
+          ))
+        ) : (
+          <span className="text-xs text-white/45">
+            This number has no country code, so it can’t open WhatsApp directly — search it in WhatsApp yourself.
+          </span>
+        )}
+      </dd>
+    </div>
+  )
+}
+
 function ReservationItem({
   eventId,
+  eventTitle,
   currency,
   reservation: r,
   seatsAttached,
 }: {
   eventId: string
+  eventTitle: string
   currency: string
   reservation: SeatReservationRow
   seatsAttached: boolean
@@ -279,6 +325,7 @@ function ReservationItem({
             <Field label="Buyer email" value={r.buyer_email} copy />
             <Field label="Eventim email (transfer to)" value={r.eventim_email} copy strong />
             {r.phone && <Field label="Phone" value={r.phone} copy />}
+            {r.phone && <WhatsAppReplies r={r} eventTitle={eventTitle} currency={currency} />}
             <Field label="Created" value={`${shortDateTime(r.created_at)} · ${r.source === 'manual' ? 'manual sale' : 'online'}`} />
             {r.payment_method && (
               <Field

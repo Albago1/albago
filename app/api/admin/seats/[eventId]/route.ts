@@ -14,6 +14,7 @@ import {
   normalizePaypalMe,
   type SeatPaymentSettings,
 } from '@/lib/seats/payment'
+import { normalizeWhatsApp } from '@/lib/seats/whatsapp'
 import {
   ADMIN_RESERVATION_ACTIONS,
   PAYMENT_METHODS,
@@ -41,7 +42,7 @@ export const maxDuration = 20
  *         { op: 'reservation', reservationId, action, paymentMethod?, paymentRef?, adminNote?, release?, notify? }
  *         { op: 'manual_sale', category, quantity, buyerName, buyerEmail, eventimEmail?, phone?, note?, paid, paymentMethod?, notify? }
  *         { op: 'delete_waitlist', id }
- *         { op: 'payment', bankHolder?, iban?, bic?, paypalMe? }   (private payment details)
+ *         { op: 'payment', bankHolder?, iban?, bic?, paypalMe?, whatsapp?, whatsappPublic? }   (private payment + contact)
  */
 
 type Params = { params: Promise<{ eventId: string }> }
@@ -329,6 +330,8 @@ export async function POST(request: Request, { params }: Params) {
         iban: (current as SeatPaymentSettings | null)?.iban ?? null,
         bic: (current as SeatPaymentSettings | null)?.bic ?? null,
         paypal_me: (current as SeatPaymentSettings | null)?.paypal_me ?? null,
+        whatsapp: (current as SeatPaymentSettings | null)?.whatsapp ?? null,
+        whatsapp_public: (current as SeatPaymentSettings | null)?.whatsapp_public ?? true,
       }
       const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
       if (body.bankHolder !== undefined) next.bank_holder = cleanText(body.bankHolder, 70)
@@ -347,6 +350,13 @@ export async function POST(request: Request, { params }: Params) {
         if (v && !isValidPaypalMe(v)) return bad('bad_paypal')
         next.paypal_me = v ? normalizePaypalMe(v) : null
       }
+      if (body.whatsapp !== undefined) {
+        const v = text(body.whatsapp)
+        const digits = v ? normalizeWhatsApp(v) : null
+        if (v && !digits) return bad('bad_whatsapp')
+        next.whatsapp = digits
+      }
+      if (body.whatsappPublic !== undefined) next.whatsapp_public = body.whatsappPublic === true
       if (!next.bank_holder !== !next.iban) return bad('bad_bank')
       if (!next.iban) next.bic = null
       const { error } = await supabase

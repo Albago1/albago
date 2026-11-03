@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Loader2,
+  MessageCircle,
   Minus,
   Plus,
   ShieldCheck,
@@ -51,6 +52,8 @@ type Props = {
   defaultEmail: string | null
   city: string | null
   country: string | null
+  /** The seller takes WhatsApp questions from anyone (the number stays on the server). */
+  whatsapp?: boolean
 }
 
 const ERROR_KEYS: Record<string, string> = {
@@ -97,6 +100,7 @@ export default function SeatSalePanel({
   defaultEmail,
   city,
   country,
+  whatsapp,
 }: Props) {
   const router = useRouter()
   const { t, language } = useLanguage()
@@ -415,9 +419,32 @@ export default function SeatSalePanel({
     </p>
   ) : null
 
+  // WhatsApp question goes through /api/seats/whatsapp (the number never
+  // reaches the page) and names the seats picked on the map, if any.
+  const askSeats = exact
+    ? groupSeats(pickedSeats)
+        .map((g) => `${t('seat_block')} ${g.block} · ${t('seat_row')} ${g.row} · ${t('seat_seats')} ${g.seats}`)
+        .join(' | ')
+    : ''
+  const waAskHref = `/api/seats/whatsapp?event=${eventId}&ctx=ask&lang=${language}${askSeats ? `&seats=${encodeURIComponent(askSeats)}` : ''}`
+
   const soldBy =
-    sale.seller_name || sale.public_note ? (
+    sale.seller_name || sale.public_note || whatsapp ? (
       <div className="mt-4 space-y-1 text-[11px] leading-snug text-white/40">
+        {whatsapp && (
+          <a
+            href={waAskHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() =>
+              trackInteraction('outbound_click', { entityType: 'event', entityId: eventId, source: 'seat_whatsapp_ask', meta: { seats: !!askSeats } })
+            }
+            className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            {t('seat_wa_ask')}
+          </a>
+        )}
         {sale.seller_name && <p>{fill(t('seat_sold_by'), { name: sale.seller_name })}</p>}
         {sale.public_note && <p>{sale.public_note}</p>}
       </div>
@@ -698,6 +725,7 @@ export default function SeatSalePanel({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoComplete="tel"
+              placeholder="+49 151 23456789"
               maxLength={40}
             />
           </label>
