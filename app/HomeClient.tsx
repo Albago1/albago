@@ -36,6 +36,7 @@ import { aiPosterUrl } from '@/lib/eventArt'
 import HeroSpotlight from '@/components/home/HeroSpotlight'
 import type { Place } from '@/types/place'
 import { isOwnImage } from '@/lib/ownImage'
+import { HOME_PINNED_EVENT_IDS } from '@/lib/homePins'
 
 const categories = [
   { labelKey: 'category_nightlife', value: 'nightlife', icon: Moon },
@@ -399,6 +400,7 @@ export default function HomeClient() {
         placesRes,
         eventsRes,
         globalEventsRes,
+        pinnedRes,
       ] = await Promise.all([
         supabase.from('places').select('*').eq('location_slug', activeLocationSlug),
         supabase
@@ -417,9 +419,17 @@ export default function HomeClient() {
           )
           .eq('status', 'published')
           .or(activeFilter),
+        HOME_PINNED_EVENT_IDS.length > 0
+          ? supabase.from('events').select('*').eq('status', 'published').in('id', HOME_PINNED_EVENT_IDS).or(activeFilter)
+          : Promise.resolve({ data: [] }),
       ])
 
       if (stale) return
+
+      // Pinned events lead the Featured shelf in every city (no duplicates).
+      const pinned = (pinnedRes.data ?? []).filter(isEventActive)
+      const withPins = (list: PublicEvent[]) =>
+        [...pinned, ...list.filter((e) => !pinned.some((p) => p.id === e.id))].slice(0, 6)
 
       if (placesRes.data) {
         const mapped: Place[] = placesRes.data.map((p) => {
@@ -453,7 +463,7 @@ export default function HomeClient() {
         // Keep the full rows — EventCard needs banner_url, recurrence, etc.
         const cityEvents = eventsRes.data.filter(isEventActive)
         if (cityEvents.length > 0) {
-          setFeaturedEvents(cityEvents.slice(0, 6))
+          setFeaturedEvents(withPins(cityEvents))
           setFeaturedIsFallback(false)
         } else {
           // No active events in the selected city — fall back to worldwide
@@ -467,9 +477,7 @@ export default function HomeClient() {
             .order('date', { ascending: true })
             .limit(12)
           if (stale) return
-          setFeaturedEvents(
-            (worldwideRes.data ?? []).filter(isEventActive).slice(0, 6),
-          )
+          setFeaturedEvents(withPins((worldwideRes.data ?? []).filter(isEventActive)))
           setFeaturedIsFallback(true)
         }
       }
