@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Flame,
   Globe2,
+  Lock,
   MapPin,
   Phone,
   Repeat,
@@ -542,9 +543,11 @@ export default async function EventDetailPage(
   const salesOpen = !hasEnded && event.listing_status !== 'cancelled'
   const seatGuide = officialGuideFor(event.id)
   const rawSeatSale = salesOpen ? await fetchSeatSale(event.id) : null
-  // A paused (draft) sale stays hidden when the event has an official stadium
-  // guide — admins then see exactly what the public sees.
-  const seatSale = rawSeatSale && !(rawSeatSale.mode === 'draft' && seatGuide) ? rawSeatSale : null
+  // A paused (draft) sale next to an official stadium guide: the public page
+  // stays the guide, and the seat map shows below it as the admin's private
+  // view (seat_sale_public returns a draft to admins only).
+  const privateSeatSale = rawSeatSale?.mode === 'draft' && seatGuide ? rawSeatSale : null
+  const seatSale = rawSeatSale && !privateSeatSale ? rawSeatSale : null
   const ticketTiers = salesOpen && !seatSale ? await fetchTicketTiers(event.id) : []
   const hasNativeTickets = ticketTiers.length > 0 || !!seatSale
 
@@ -973,11 +976,17 @@ export default async function EventDetailPage(
               {/* Sold only on the official shop: AlbaGo's stadium guide links into it. */}
               {!seatSale && !hasEnded && seatGuide && <StadiumGuide eventId={event.id} guide={seatGuide} seen={freshSnapshot(seatGuide) ?? null} />}
 
-              {seatSale && (
+              {privateSeatSale && (
+                <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-white/70">
+                  <Lock className="h-3 w-3" />
+                  Only you can see this — your own seats (sale paused)
+                </p>
+              )}
+              {(seatSale ?? privateSeatSale) && (
                 <SeatSalePanel
                   eventId={event.id}
                   slug={event.slug}
-                  sale={seatSale}
+                  sale={(seatSale ?? privateSeatSale)!}
                   eventTitle={event.title}
                   eventDate={event.date}
                   venueName={venue?.name ?? cityLabel}
