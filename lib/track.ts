@@ -73,7 +73,7 @@ function randomUuid(): string {
   })
 }
 
-function getSessionId(): string | null {
+export function getSessionId(): string | null {
   try {
     let sid = window.localStorage.getItem(SESSION_KEY)
     if (!sid || !UUID_RE.test(sid)) {

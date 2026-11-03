@@ -791,12 +791,12 @@ export default function SeatSalePanel({
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-white">{c.label}</span>
+                  <span className="block text-sm font-semibold leading-snug text-white">{c.label}</span>
                   <span className="block text-[11px] text-white/45">
                     {gone ? t('seat_sold_out') : fill(t('seat_left'), { n: c.available })}
                   </span>
                 </span>
-                <span className="text-sm font-semibold text-white">{money(c.price_cents)}</span>
+                <span className="flex-shrink-0 text-sm font-semibold text-white">{money(c.price_cents)}</span>
                 <ChevronRight className="h-4 w-4 flex-shrink-0 text-white/30" />
               </button>
             )

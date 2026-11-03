@@ -11,7 +11,6 @@ import {
   ExternalLink,
   Flame,
   Globe2,
-  Lock,
   MapPin,
   Phone,
   Repeat,
@@ -31,8 +30,8 @@ import LocalizedEventText from '@/components/events/LocalizedEventText'
 import EventWeatherCard from '@/components/events/EventWeatherCard'
 import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import SeatSalePanel from '@/components/seats/SeatSalePanel'
-import StadiumGuide from '@/components/seats/StadiumGuide'
-import { freshSnapshot, officialGuideFor } from '@/lib/seats/officialGuides'
+import FightPoll from '@/components/polls/FightPoll'
+import { isPollClosed, pollForEvent } from '@/lib/polls'
 import type { PublicSeatSale } from '@/lib/seats/types'
 import { venueMapFor } from '@/lib/seats/venueMaps'
 import ShareEventButton from '@/components/share/ShareEventButton'
@@ -541,13 +540,8 @@ export default async function EventDetailPage(
   // free-ticket tiers (TIX-1) supersede the external ticket link and the
   // static price row — never two CTAs.
   const salesOpen = !hasEnded && event.listing_status !== 'cancelled'
-  const seatGuide = officialGuideFor(event.id)
-  const rawSeatSale = salesOpen ? await fetchSeatSale(event.id) : null
-  // A paused (draft) sale next to an official stadium guide: the public page
-  // stays the guide, and the seat map shows below it as the admin's private
-  // view (seat_sale_public returns a draft to admins only).
-  const privateSeatSale = rawSeatSale?.mode === 'draft' && seatGuide ? rawSeatSale : null
-  const seatSale = rawSeatSale && !privateSeatSale ? rawSeatSale : null
+  const seatSale = salesOpen ? await fetchSeatSale(event.id) : null
+  const poll = pollForEvent(event.id)
   const ticketTiers = salesOpen && !seatSale ? await fetchTicketTiers(event.id) : []
   const hasNativeTickets = ticketTiers.length > 0 || !!seatSale
 
@@ -810,7 +804,7 @@ export default async function EventDetailPage(
                 travels the whole page. On mobile it sits right after the title,
                 before the editorial content. Real grid column ⇒ never overlaps
                 the title. */}
-            <aside className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+            <aside className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl lg:p-7 lg:sticky lg:top-24">
               {event.listing_status && event.listing_status !== 'confirmed' && (
                 <div
@@ -973,20 +967,11 @@ export default async function EventDetailPage(
 
               {isRecurring(event) && <UpcomingOccurrencesList event={event} />}
 
-              {/* Sold only on the official shop: AlbaGo's stadium guide links into it. */}
-              {!seatSale && !hasEnded && seatGuide && <StadiumGuide eventId={event.id} guide={seatGuide} seen={freshSnapshot(seatGuide) ?? null} />}
-
-              {privateSeatSale && (
-                <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-white/70">
-                  <Lock className="h-3 w-3" />
-                  Only you can see this — your own seats (sale paused)
-                </p>
-              )}
-              {(seatSale ?? privateSeatSale) && (
+              {seatSale && (
                 <SeatSalePanel
                   eventId={event.id}
                   slug={event.slug}
-                  sale={(seatSale ?? privateSeatSale)!}
+                  sale={seatSale}
                   eventTitle={event.title}
                   eventDate={event.date}
                   venueName={venue?.name ?? cityLabel}
@@ -1204,6 +1189,12 @@ export default async function EventDetailPage(
                     asText
                   />
                 </p>
+              </div>
+            )}
+
+            {poll && (
+              <div className={`max-w-2xl ${event.description ? 'mt-10' : ''}`}>
+                <FightPoll poll={poll} closed={hasEnded || isPollClosed(poll)} />
               </div>
             )}
 
