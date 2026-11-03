@@ -7,6 +7,7 @@ import type {
   SeatStockRow,
   SeatWaitlistRow,
 } from '@/lib/seats/types'
+import type { SeatPaymentAdminView } from '@/lib/seats/payment'
 
 export type ConsoleEvent = {
   id: string
@@ -24,6 +25,8 @@ export type ConsoleData = {
   stock: SeatStockRow[]
   reservations: SeatReservationRow[]
   waitlist: SeatWaitlistRow[]
+  /** Private payment details (admin RLS, IBAN masked); null until set. */
+  payment: SeatPaymentAdminView | null
 }
 
 export type ConsoleResult = { ok: boolean; error?: string; [key: string]: unknown }
@@ -57,6 +60,10 @@ const ERROR_TEXT: Record<string, string> = {
   bad_details: 'Check the name and email addresses.',
   bad_quantity: 'Check the number of seats.',
   network: 'Could not reach the server.',
+  bad_iban: 'That IBAN is not valid — check it for typos.',
+  bad_bic: 'That BIC is not valid (8 or 11 letters/digits). It is optional — leave it empty.',
+  bad_paypal: 'Use just your PayPal.me name (letters and digits), e.g. from paypal.me/YourName.',
+  bad_bank: 'A bank account needs both the account holder name and the IBAN.',
 }
 
 export function errorText(code: string | undefined): string {

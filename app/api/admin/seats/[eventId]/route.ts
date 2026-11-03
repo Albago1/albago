@@ -6,6 +6,15 @@ import { parseEventimSeats, suggestCategories } from '@/lib/seats/parseEventimSe
 import { sendSeatEmail } from '@/lib/seats/sendSeatEmail'
 import type { SeatEmailKind } from '@/lib/email/templates/seatReservation'
 import {
+  isValidBic,
+  isValidIban,
+  isValidPaypalMe,
+  normalizeBic,
+  normalizeIban,
+  normalizePaypalMe,
+  type SeatPaymentSettings,
+} from '@/lib/seats/payment'
+import {
   ADMIN_RESERVATION_ACTIONS,
   PAYMENT_METHODS,
   SEAT_SALE_MODES,
@@ -32,6 +41,7 @@ export const maxDuration = 20
  *         { op: 'reservation', reservationId, action, paymentMethod?, paymentRef?, adminNote?, release?, notify? }
  *         { op: 'manual_sale', category, quantity, buyerName, buyerEmail, eventimEmail?, phone?, note?, paid, paymentMethod?, notify? }
  *         { op: 'delete_waitlist', id }
+ *         { op: 'payment', bankHolder?, iban?, bic?, paypalMe? }   (private payment details)
  */
 
 type Params = { params: Promise<{ eventId: string }> }
@@ -303,6 +313,46 @@ export async function POST(request: Request, { params }: Params) {
       if (!UUID_RE.test(id)) return bad('bad_id')
       const { error } = await supabase.from('seat_waitlist').delete().eq('id', id).eq('event_id', eventId)
       if (error) return rpcFailure(error.message, 'delete_waitlist')
+      return NextResponse.json({ ok: true })
+    }
+
+    case 'payment': {
+      // Only the fields sent change; '' or null clears one. The saved IBAN
+      // never comes back to the browser, so "unchanged" means "not sent".
+      const { data: current } = await supabase
+        .from('seat_payment_settings')
+        .select('*')
+        .eq('event_id', eventId)
+        .maybeSingle()
+      const next = {
+        bank_holder: (current as SeatPaymentSettings | null)?.bank_holder ?? null,
+        iban: (current as SeatPaymentSettings | null)?.iban ?? null,
+        bic: (current as SeatPaymentSettings | null)?.bic ?? null,
+        paypal_me: (current as SeatPaymentSettings | null)?.paypal_me ?? null,
+      }
+      const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+      if (body.bankHolder !== undefined) next.bank_holder = cleanText(body.bankHolder, 70)
+      if (body.iban !== undefined) {
+        const v = text(body.iban)
+        if (v && !isValidIban(v)) return bad('bad_iban')
+        next.iban = v ? normalizeIban(v) : null
+      }
+      if (body.bic !== undefined) {
+        const v = text(body.bic)
+        if (v && !isValidBic(v)) return bad('bad_bic')
+        next.bic = v ? normalizeBic(v) : null
+      }
+      if (body.paypalMe !== undefined) {
+        const v = text(body.paypalMe)
+        if (v && !isValidPaypalMe(v)) return bad('bad_paypal')
+        next.paypal_me = v ? normalizePaypalMe(v) : null
+      }
+      if (!next.bank_holder !== !next.iban) return bad('bad_bank')
+      if (!next.iban) next.bic = null
+      const { error } = await supabase
+        .from('seat_payment_settings')
+        .upsert({ event_id: eventId, ...next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+      if (error) return rpcFailure(error.message, 'payment')
       return NextResponse.json({ ok: true })
     }
 

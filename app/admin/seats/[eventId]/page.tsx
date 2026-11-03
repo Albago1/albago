@@ -9,6 +9,7 @@ import type {
   SeatStockRow,
   SeatWaitlistRow,
 } from '@/lib/seats/types'
+import { adminPaymentView, type SeatPaymentSettings } from '@/lib/seats/payment'
 import SeatConsoleClient from './SeatConsoleClient'
 import type { ConsoleEvent } from './consoleShared'
 
@@ -29,7 +30,7 @@ export default async function SeatConsolePage({
   if (!UUID_RE.test(eventId)) notFound()
 
   const supabase = await createClient()
-  const [eventRes, saleRes, catRes, stockRes, resRes, waitRes] = await Promise.all([
+  const [eventRes, saleRes, catRes, stockRes, resRes, waitRes, payRes] = await Promise.all([
     supabase.from('events').select('id, slug, title, date, time, status').eq('id', eventId).maybeSingle(),
     supabase.from('seat_sales').select('*').eq('event_id', eventId).maybeSingle(),
     supabase.from('seat_categories').select('*').eq('event_id', eventId).order('sort_order').order('code'),
@@ -43,6 +44,7 @@ export default async function SeatConsolePage({
       .order('seat_number'),
     supabase.from('seat_reservations').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
     supabase.from('seat_waitlist').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
+    supabase.from('seat_payment_settings').select('*').eq('event_id', eventId).maybeSingle(),
   ])
 
   if (!eventRes.data || !saleRes.data) notFound()
@@ -57,6 +59,8 @@ export default async function SeatConsolePage({
           stock: (stockRes.data as SeatStockRow[] | null) ?? [],
           reservations: (resRes.data as SeatReservationRow[] | null) ?? [],
           waitlist: (waitRes.data as SeatWaitlistRow[] | null) ?? [],
+          // The full IBAN stays on the server; the console only shows it masked.
+          payment: payRes.data ? adminPaymentView(payRes.data as SeatPaymentSettings) : null,
         }}
       />
     </div>

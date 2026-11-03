@@ -56,10 +56,10 @@ function copyFor(kind: SeatEmailKind, d: SeatEmailData): Copy {
         heading: 'Your seats are reserved',
         body: [
           `We're holding ${seats} for you${d.holdUntilLabel ? ` until ${d.holdUntilLabel}` : ''}.`,
-          `Next step: payment. We'll send you the payment details by email. Keep your reference ${d.reference} — it identifies your seats.`,
+          `Next step: payment. Open your reservation to pay — scan the QR code with your banking app or use PayPal. Your reference ${d.reference} identifies your seats.`,
           `Once paid, the tickets are transferred to your Eventim account (${d.eventimEmail})${d.deliverByLabel ? ` by ${d.deliverByLabel}` : ''}.`,
         ],
-        cta: 'Track your seats',
+        cta: 'Pay now',
       }
     case 'paid':
       return {

@@ -25,6 +25,8 @@ import {
   stepIndex,
 } from '@/lib/seats/format'
 import type { ReservationStatus, SeatReservationRow } from '@/lib/seats/types'
+import { isOwnImage } from '@/lib/ownImage'
+import SeatPaymentBox from './SeatPaymentBox'
 
 export type MySeatCard = {
   reservation: SeatReservationRow
@@ -125,7 +127,7 @@ function SeatCard({ card, highlight }: { card: MySeatCard; highlight: boolean })
         <Link href={`/events/${card.event.slug}`} className="flex items-center gap-4 border-b border-white/[0.06] p-4">
           <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl bg-white/[0.06]">
             {card.event.art ? (
-              <Image src={card.event.art} alt="" fill sizes="56px" className="object-cover" />
+              <Image src={card.event.art} alt="" fill sizes="56px" unoptimized={!isOwnImage(card.event.art)} className="object-cover" />
             ) : (
               <Armchair className="absolute inset-0 m-auto h-6 w-6 text-white/30" />
             )}
@@ -201,17 +203,21 @@ function SeatCard({ card, highlight }: { card: MySeatCard; highlight: boolean })
         <div className="mt-4 rounded-2xl border border-white/10 bg-ink-950/40 p-4 text-sm text-white/75">
           {status === 'held' && (
             <>
-              <p className="flex items-start gap-2">
-                <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
-                <span>
-                  {fill(t('seat_next_payment'), { ref: r.reference })}
-                  {r.expires_at && (
-                    <span className="mt-1 block text-xs text-white/50">
-                      {fill(t('seat_held_until'), { date: dateTime(r.expires_at) })}
-                    </span>
-                  )}
-                </span>
-              </p>
+              <SeatPaymentBox
+                reservationId={r.id}
+                fallback={
+                  <p className="flex items-start gap-2">
+                    <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                    <span>{fill(t('seat_next_payment'), { ref: r.reference })}</span>
+                  </p>
+                }
+              />
+              {r.expires_at && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-white/50">
+                  <Clock className="h-3.5 w-3.5 flex-shrink-0 text-amber-300" />
+                  {fill(t('seat_held_until'), { date: dateTime(r.expires_at) })}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => void act('cancel')}

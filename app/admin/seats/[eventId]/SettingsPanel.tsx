@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
 import { SEAT_SALE_MODES, type SeatSaleMode } from '@/lib/seats/types'
 import { consoleCall, errorText, type ConsoleData } from './consoleShared'
+import PaymentSettings from './PaymentSettings'
 
 const INPUT =
   'h-10 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-flame-500/40 focus:outline-none'
@@ -104,11 +105,11 @@ export default function SettingsPanel({ data }: { data: ConsoleData }) {
             No category has a price yet, so the public panel will be empty. Set prices under Stock & prices.
           </p>
         )}
-        {mode === 'live' && (
+        {mode === 'live' && !data.payment?.ibanMasked && !data.payment?.paypalMe && (
           <p className="mt-3 flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/65">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-300" />
-            Online payment is not connected yet. Buyers get a hold plus an email saying payment details follow; you
-            collect the money and click “Mark paid” on the order.
+            No payment details yet, so buyers are told you’ll email them how to pay. Add your bank account and/or PayPal
+            below. Either way you check the money arrived and click “Mark paid” on the order.
           </p>
         )}
       </section>
@@ -193,6 +194,8 @@ export default function SettingsPanel({ data }: { data: ConsoleData }) {
         )}
         {error && <span className="text-xs text-flame-200">{error}</span>}
       </div>
+
+      <PaymentSettings data={data} />
     </div>
   )
 }
