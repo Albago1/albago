@@ -6,6 +6,7 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { languageLocales } from '@/lib/i18n/config'
 import { formatMoney } from '@/lib/seats/format'
 import type { SeatPaymentView } from '@/lib/seats/payment'
+import { withPayPalLogo } from './PayPalLogo'
 
 const fill = (text: string, values: Record<string, string | number>) =>
   text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ''))
@@ -96,9 +97,9 @@ export default function SeatPaymentBox({ reservationId, fallback }: { reservatio
             href={view.paypal}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-[#ffc439] px-5 py-3 text-sm font-bold text-[#003087] transition hover:brightness-105"
+            className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#ffc439] px-5 py-3 text-sm font-bold text-[#003087] transition hover:brightness-105"
           >
-            {fill(t('seat_pay_paypal'), { amount })}
+            {withPayPalLogo(fill(t('seat_pay_paypal'), { amount }), 'h-[18px]')}
           </a>
           <p className="mt-2 text-center text-[11px] leading-relaxed text-white/50">
             {fill(t('seat_pay_paypal_hint'), { ref: view.reference })}

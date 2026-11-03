@@ -26,6 +26,7 @@ import { blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@/lib/seats/pick'
 import { allBlocks, venueMapById } from '@/lib/seats/venueMaps'
 import type { PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
 import SeatMapPicker from './SeatMapPicker'
+import PayPalLogo from './PayPalLogo'
 import { StadiumPreview, stockOnMap } from './StadiumMap'
 
 // Seat sales on the event page (phase 43). Presentation + honest error states
@@ -448,27 +449,31 @@ export default function SeatSalePanel({
     </a>
   ) : null
 
-  // How paying works, so nobody has to sign in to find out.
-  const howToPay =
-    payMethods && (payMethods.bank || payMethods.paypal) ? (
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">{t('seat_pay_methods_title')}</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {payMethods.bank && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-white/85">
-              <Landmark className="h-3.5 w-3.5 text-flame-300" />
-              {t('seat_pay_method_bank')}
-            </span>
-          )}
-          {payMethods.paypal && (
-            <span className="inline-flex items-center rounded-full bg-[#ffc439] px-2.5 py-1 text-xs font-bold text-[#003087]">PayPal</span>
-          )}
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-white/55">
-          {fill(t('seat_pay_methods_when'), { hours: Math.round(sale.hold_minutes / 60) })}
-        </p>
+  // How paying works — and the seller's WhatsApp — so nobody has to sign in
+  // to find out. With no payment methods set, WhatsApp stands on its own.
+  const hasPayMethods = !!payMethods && (payMethods.bank || payMethods.paypal)
+  const howToPay = hasPayMethods ? (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">{t('seat_pay_methods_title')}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {payMethods?.bank && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-white/85">
+            <Landmark className="h-3.5 w-3.5 text-flame-300" />
+            {t('seat_pay_method_bank')}
+          </span>
+        )}
+        {payMethods?.paypal && (
+          <span className="inline-flex h-[30px] items-center rounded-full bg-[#ffc439] px-3.5">
+            <PayPalLogo className="h-[15px]" />
+          </span>
+        )}
       </div>
-    ) : null
+      <p className="mt-2 text-xs leading-relaxed text-white/55">
+        {fill(t('seat_pay_methods_when'), { hours: Math.round(sale.hold_minutes / 60) })}
+      </p>
+      {waButton}
+    </div>
+  ) : null
 
   const soldBy =
     sale.seller_name || sale.public_note ? (
@@ -883,7 +888,7 @@ export default function SeatSalePanel({
           {exact ? `${t('seat_continue')} · ${money(total)}` : t('seat_choose_cta')}
         </button>
         {!isAuthenticated && <p className="mt-2 text-center text-xs text-white/50">{t('seat_signin_hint')}</p>}
-        {waButton}
+        {!hasPayMethods && waButton}
         {soldBy}
 
         {pickerOpen && (
@@ -975,7 +980,7 @@ export default function SeatSalePanel({
       {!isAuthenticated && (
         <p className="mt-2 text-center text-xs text-white/50">{t('seat_signin_hint')}</p>
       )}
-      {waButton}
+      {!hasPayMethods && waButton}
       {soldBy}
     </div>
   )
