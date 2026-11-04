@@ -7,6 +7,7 @@ import { parseEventimSeats, suggestCategories } from '@/lib/seats/parseEventimSe
 import { parseEuroToCents } from '@/lib/seats/format'
 import type { SeatCategoryRow, SeatReservationRow, SeatStockRow } from '@/lib/seats/types'
 import {
+  ADJUSTABLE,
   SEAT_CHIP,
   SEAT_STATE_LABEL,
   consoleCall,
@@ -23,6 +24,29 @@ const BTN =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40'
 
 const natural = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true })
+
+type Tool = 'kept' | 'external' | 'available'
+
+const TOOLS: Array<{ id: Tool; label: string; hint: string }> = [
+  {
+    id: 'kept',
+    label: 'Keep back',
+    hint: 'Tap a seat on sale to keep it back for yourself (it leaves the shop). Tap it again to put it back on sale.',
+  },
+  {
+    id: 'external',
+    label: 'Sold elsewhere',
+    hint: 'Tap a seat you sold somewhere else (Viagogo, in person…) so it can’t be sold twice here. AlbaGo doesn’t sync with other sites — mark each one yourself.',
+  },
+  { id: 'available', label: 'Put on sale', hint: 'Tap a kept-back or sold-elsewhere seat to put it back on sale.' },
+]
+
+const STATUS_OF: Partial<Record<SeatState, Tool>> = {
+  free: 'available',
+  unpriced: 'available',
+  withdrawn: 'kept',
+  external: 'external',
+}
 
 export default function StockPanel({ data }: { data: ConsoleData }) {
   return (
@@ -158,6 +182,8 @@ function SeatMap({ data }: { data: ConsoleData }) {
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tool, setTool] = useState<Tool>('kept')
+  const [note, setNote] = useState('')
 
   const reservations = useMemo(
     () => new Map<string, SeatReservationRow>(data.reservations.map((r) => [r.id, r])),
@@ -198,15 +224,24 @@ function SeatMap({ data }: { data: ConsoleData }) {
     return m
   }, [data.stock, reservations, priced])
 
-  const toggle = async (seat: SeatStockRow, state: SeatState) => {
-    if (busyId) return
-    if (state !== 'free' && state !== 'unpriced' && state !== 'withdrawn') return
+  const external = useMemo(
+    () => data.stock.filter((s) => s.withdrawn && s.withdrawn_reason === 'external'),
+    [data.stock],
+  )
+
+  const apply = async (seat: SeatStockRow, state: SeatState) => {
+    if (busyId || !ADJUSTABLE.has(state)) return
+    const current = STATUS_OF[state]
+    // Tapping a seat that already has the tool's status puts it back on sale.
+    const status: Tool = current === tool ? 'available' : tool
+    if (status === current) return
     setBusyId(seat.id)
     setError(null)
     const result = await consoleCall(data.event.id, 'POST', {
       op: 'seat',
       seatId: seat.id,
-      withdrawn: state !== 'withdrawn',
+      status,
+      note: status === 'available' ? null : note.trim() || null,
     })
     setBusyId(null)
     if (!result.ok) {
@@ -221,9 +256,32 @@ function SeatMap({ data }: { data: ConsoleData }) {
   return (
     <section>
       <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">Seat map</h2>
-      <p className="mt-1.5 text-xs text-white/45">
-        Click a seat on sale to keep it back for yourself (it disappears from the shop); click again to put it back.
-      </p>
+      <div className="mt-3 flex flex-wrap gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-1" role="radiogroup" aria-label="What a tap does">
+        {TOOLS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={tool === t.id}
+            onClick={() => setTool(t.id)}
+            className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+              tool === t.id ? 'bg-white/[0.09] text-white' : 'text-white/50 hover:text-white/80'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-white/45">{TOOLS.find((t) => t.id === tool)?.hint}</p>
+      {tool !== 'available' && (
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={200}
+          placeholder={tool === 'external' ? 'Note (optional), e.g. Viagogo order 12345' : 'Note (optional), e.g. for my cousin'}
+          className={`${INPUT} mt-2 max-w-md`}
+        />
+      )}
       <div className="mt-3 flex flex-wrap gap-1.5">
         {[...legendCounts.entries()].map(([state, n]) => (
           <span key={state} className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${SEAT_CHIP[state]}`}>
@@ -231,6 +289,16 @@ function SeatMap({ data }: { data: ConsoleData }) {
           </span>
         ))}
       </div>
+      {external.length > 0 && (
+        <ul className="mt-2.5 space-y-0.5 text-[11px] text-fuchsia-100/70">
+          {external.map((s) => (
+            <li key={s.id}>
+              Sold elsewhere: {s.block !== '-' ? `Block ${s.block} · ` : ''}Row {s.row_label} · Seat {s.seat_number}
+              {s.withdrawn_note ? ` — ${s.withdrawn_note}` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <p className="mt-2 text-xs text-flame-200">{error}</p>}
       <div className="mt-4 space-y-5">
         {[...groups.entries()].map(([cat, rows]) => (
@@ -245,14 +313,14 @@ function SeatMap({ data }: { data: ConsoleData }) {
                   {seats.map((s) => {
                     const state = seatState(s, reservations, priced)
                     const r = s.reservation_id ? reservations.get(s.reservation_id) : undefined
-                    const clickable = state === 'free' || state === 'unpriced' || state === 'withdrawn'
+                    const clickable = ADJUSTABLE.has(state)
                     return (
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => void toggle(s, state)}
+                        onClick={() => void apply(s, state)}
                         disabled={!clickable || busyId === s.id}
-                        title={`Seat ${s.seat_number} · ${SEAT_STATE_LABEL[state]}${r ? ` · ${r.reference} · ${r.buyer_name}` : ''}`}
+                        title={`Seat ${s.seat_number} · ${SEAT_STATE_LABEL[state]}${r ? ` · ${r.reference} · ${r.buyer_name}` : ''}${s.withdrawn_note ? ` · ${s.withdrawn_note}` : ''}`}
                         className={`flex h-8 min-w-[2rem] items-center justify-center rounded-md border px-1.5 text-xs font-semibold tabular-nums transition ${SEAT_CHIP[state]} ${clickable ? '' : 'cursor-default'}`}
                       >
                         {busyId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : s.seat_number}

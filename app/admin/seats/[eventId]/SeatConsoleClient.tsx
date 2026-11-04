@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Armchair, ArrowLeft, ExternalLink } from 'lucide-react'
 import { effectiveStatus } from '@/lib/seats/format'
 import type { SeatSaleMode } from '@/lib/seats/types'
+import ActivityPanel from './ActivityPanel'
 import ReservationsPanel from './ReservationsPanel'
 import SettingsPanel from './SettingsPanel'
 import StockPanel from './StockPanel'
@@ -18,7 +19,7 @@ import { eur, type ConsoleData } from './consoleShared'
  * router.refresh(), so the server data stays the single source of truth.
  */
 
-type Tab = 'orders' | 'stock' | 'settings' | 'waitlist'
+type Tab = 'orders' | 'stock' | 'settings' | 'waitlist' | 'activity'
 
 const MODE_PILL: Record<SeatSaleMode, string> = {
   draft: 'border-white/20 bg-white/[0.06] text-white/75',
@@ -38,6 +39,7 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
     const faceByCat = new Map(categories.map((c) => [c.code, c.face_value_cents ?? 0]))
     return {
       seats: stock.filter((s) => !s.withdrawn).length,
+      soldElsewhere: stock.filter((s) => s.withdrawn && s.withdrawn_reason === 'external').length,
       seatsSold: sold.reduce((n, r) => n + r.quantity, 0),
       seatsHeld: held.reduce((n, r) => n + r.quantity, 0),
       revenue: sold.reduce((n, r) => n + r.total_cents, 0),
@@ -53,6 +55,7 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
     { id: 'stock', label: 'Stock & prices' },
     { id: 'settings', label: 'Settings' },
     { id: 'waitlist', label: 'Waitlist', badge: waitlist.length || undefined },
+    { id: 'activity', label: 'Activity' },
   ]
 
   return (
@@ -99,7 +102,7 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
       </header>
 
       <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <Kpi label="Seats sold" value={`${kpis.seatsSold} / ${kpis.seats}`} sub={`${kpis.delivered} delivered`} />
+        <Kpi label="Seats sold" value={`${kpis.seatsSold} / ${kpis.seats}`} sub={`${kpis.delivered} delivered${kpis.soldElsewhere ? ` · ${kpis.soldElsewhere} sold elsewhere` : ''}`} />
         <Kpi label="Revenue (paid)" value={eur(kpis.revenue, sale.currency)} sub={`${eur(kpis.stockFace, sale.currency)} face value of stock`} />
         <Kpi label="On hold" value={`${kpis.seatsHeld} seats`} sub={`${eur(kpis.heldValue, sale.currency)} awaiting payment`} />
         <Kpi label="To transfer" value={`${kpis.toTransfer}`} sub="paid orders not yet sent" highlight={kpis.toTransfer > 0} />
@@ -128,6 +131,7 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
         {tab === 'stock' && <StockPanel data={data} />}
         {tab === 'settings' && <SettingsPanel data={data} />}
         {tab === 'waitlist' && <WaitlistPanel data={data} />}
+        {tab === 'activity' && <ActivityPanel data={data} />}
       </div>
     </div>
   )

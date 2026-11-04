@@ -23,8 +23,9 @@ import { languageLocales } from '@/lib/i18n/config'
 import { trackInteraction } from '@/lib/track'
 import { formatMoney, groupSeats } from '@/lib/seats/format'
 import { blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@/lib/seats/pick'
+import { allowedQuantities, assignSeats, checkSelection, ruleContext } from '@/lib/seats/protection'
 import { allBlocks, venueMapById } from '@/lib/seats/venueMaps'
-import type { PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
+import type { FreeRun, PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
 import SeatMapPicker from './SeatMapPicker'
 import PayPalLogo from './PayPalLogo'
 import { StadiumPreview, stockOnMap } from './StadiumMap'
@@ -72,6 +73,9 @@ const ERROR_KEYS: Record<string, string> = {
   rate_limited: 'seat_err_rate',
   seats_taken: 'seat_err_seats_taken',
   mixed_categories: 'seat_err_mixed',
+  splits_group: 'seat_err_rule',
+  strands_seat: 'seat_err_rule',
+  quantity_not_allowed: 'seat_err_rule',
 }
 
 const fill = (text: string, values: Record<string, string | number>) =>
@@ -178,13 +182,56 @@ export default function SeatSalePanel({
     return m
   }, [activePicked])
 
+  // Single-seat protection (phase 46): today's rules, the groups of seats
+  // side by side with the quantities each may be bought in, and whether the
+  // current pick is allowed. The database enforces the same rules.
+  const rules = useMemo(() => ruleContext(sale.rules, runs, sale.max_per_order), [sale.rules, runs, sale.max_per_order])
+  const groups = useMemo(() => {
+    const price = new Map(sale.categories.map((c) => [c.code, c.price_cents]))
+    return runs
+      .filter((run) => price.has(run.category))
+      .map((run) => {
+        const allowed = allowedQuantities(run, rules)
+        return { run, price: price.get(run.category) ?? 0, allowed, restricted: allowed.length < Math.min(run.len, sale.max_per_order) }
+      })
+      .filter((g) => g.allowed.length > 0)
+      .sort(
+        (a, b) =>
+          b.price - a.price ||
+          naturalCmp(a.run.block, b.run.block) ||
+          naturalCmp(a.run.row, b.run.row) ||
+          a.run.first - b.run.first,
+      )
+  }, [runs, rules, sale.categories, sale.max_per_order])
+  const selection = checkSelection(pickedSeats, rules)
+  const orList = (qs: number[]) =>
+    qs.length <= 1 ? String(qs[0] ?? '') : `${qs.slice(0, -1).join(', ')} ${t('seat_or')} ${qs[qs.length - 1]}`
+  const ruleText = selection.ok
+    ? null
+    : selection.reason === 'not_together' || !selection.run
+      ? t('seat_rule_together')
+      : selection.allowed.length === 0
+        ? t('seat_err_rule')
+        : fill(t('seat_rule_options'), {
+            place: `${t('seat_block')} ${selection.run.block} · ${t('seat_row')} ${selection.run.row}`,
+            options: orList(selection.allowed),
+          })
+  const isGroupPick = (run: FreeRun, q: number) =>
+    pickedSeats.length === q &&
+    pickedSeats.every((s, i) => s.area === run.area && s.block === run.block && s.row === run.row && s.seat === run.first + i)
+  const chooseGroup = (run: FreeRun, q: number) => {
+    setErrorKey(null)
+    setStep('pick')
+    setPicked(assignSeats(run, q).map((seat) => seatKeyOf({ area: run.area, block: run.block, row: run.row, seat })))
+  }
+
   // Category + quantity (no venue map).
   const selected = mapFlow
     ? (sale.categories.find((c) => c.code === pickedCategory) ?? null)
     : (sale.categories.find((c) => c.code === code) ?? null)
   const maxQty = selected ? Math.max(1, selected.max_together) : 1
   const qty = Math.min(Math.max(1, quantity), maxQty)
-  const preview = !mapFlow && code ? pickSeats(runs, code, qty) : null
+  const preview = !mapFlow && code ? pickSeats(runs, code, qty, null, rules) : null
   const seatCount = mapFlow ? activePicked.length : qty
 
   const lowest = sale.categories.reduce<number | null>(
@@ -275,6 +322,13 @@ export default function SeatSalePanel({
       return
     }
     setStep('details')
+  }
+
+  // Straight from the panel to the details step (opening the picker on it).
+  const goCheckout = () => {
+    if (!exact || busy || !selection.ok) return
+    openPicker(null)
+    continueFromPicker()
   }
 
   const choose = (category: PublicSeatCategory) => {
@@ -833,33 +887,56 @@ export default function SeatSalePanel({
           </span>
         </button>
 
-        <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
-          {sale.categories.map((c, i) => {
-            const gone = c.available <= 0
+        {/* Every group of seats side by side, with the quantities it can be
+            bought in today — tap one and the seats are picked from the end. */}
+        <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">{t('seat_groups_title')}</p>
+        <div className="mt-2 space-y-2">
+          {groups.map(({ run, price, allowed, restricted }) => {
+            const last = run.first + run.len - 1
+            const range = run.len === 1 ? String(run.first) : `${run.first}–${last}`
             return (
-              <button
-                key={c.code}
-                type="button"
-                onClick={() => openPicker(c.code)}
-                disabled={gone}
-                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50 ${
-                  i > 0 ? 'border-t border-white/[0.06]' : ''
-                }`}
-              >
-                <span
-                  className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                  style={{ backgroundColor: gone ? 'rgba(255,255,255,0.25)' : colorFor(c.code) }}
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold leading-snug text-white">{c.label}</span>
-                  <span className="block text-[11px] text-white/45">
-                    {gone ? t('seat_sold_out') : fill(t('seat_left'), { n: c.available })}
-                  </span>
-                </span>
-                <span className="flex-shrink-0 text-sm font-semibold text-white">{money(c.price_cents)}</span>
-                <ChevronRight className="h-4 w-4 flex-shrink-0 text-white/30" />
-              </button>
+              <div key={`${run.area}|${run.block}|${run.row}|${run.first}`} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-semibold leading-snug text-white">
+                      <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: colorFor(run.category) }} aria-hidden />
+                      {t('seat_block')} {run.block} · {t('seat_row')} {run.row}
+                    </p>
+                    <p className="mt-0.5 pl-[18px] text-xs text-white/50">
+                      {run.len === 1 ? fill(t('seat_group_one'), { range }) : fill(t('seat_group_seats'), { range, n: run.len })}
+                    </p>
+                  </div>
+                  <p className="flex-shrink-0 text-right text-sm font-semibold text-white">{fill(t('seat_per_seat'), { price: money(price) })}</p>
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-[18px]" role="group" aria-label={t('seat_group_qty')}>
+                  {allowed.map((q) => {
+                    const on = isGroupPick(run, q)
+                    return (
+                      <button
+                        key={q}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => chooseGroup(run, q)}
+                        disabled={busy}
+                        className={`flex h-9 min-w-[2.25rem] items-center justify-center rounded-full border px-3 text-sm font-bold tabular-nums transition ${
+                          on
+                            ? 'border-flame-400 bg-flame-500 text-white shadow-glow-flame'
+                            : 'border-white/15 bg-white/[0.05] text-white/85 hover:border-white/35'
+                        }`}
+                      >
+                        {q}
+                      </button>
+                    )
+                  })}
+                </div>
+                {restricted && (
+                  <p className="mt-2 pl-[18px] text-[11px] leading-snug text-white/45">
+                    {allowed.length === 1 && allowed[0] === run.len
+                      ? fill(t('seat_rule_all'), { n: run.len })
+                      : fill(t('seat_rule_hint'), { options: orList(allowed) })}
+                  </p>
+                )}
+              </div>
             )
           })}
         </div>
@@ -877,13 +954,19 @@ export default function SeatSalePanel({
                 .map((g) => `${t('seat_block')} ${g.block} · ${t('seat_row')} ${g.row} · ${t('seat_seats')} ${g.seats}`)
                 .join(' | ')}
             </p>
+            {ruleText && <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">{ruleText}</p>}
           </div>
         )}
 
         {trust}
         {howToPay}
         {!pickerOpen && errorBox}
-        <button type="button" onClick={() => openPicker(null)} className={`mt-4 ${PRIMARY}`}>
+        <button
+          type="button"
+          onClick={() => (exact ? goCheckout() : openPicker(null))}
+          disabled={exact && !selection.ok}
+          className={`mt-4 ${PRIMARY}`}
+        >
           <Armchair className="h-4 w-4" />
           {exact ? `${t('seat_continue')} · ${money(total)}` : t('seat_choose_cta')}
         </button>
@@ -907,9 +990,10 @@ export default function SeatSalePanel({
             }}
             initialFilter={pickerFilter}
             onContinue={continueFromPicker}
-            checkout={step === 'details' && exact ? checkout(true) : null}
+            checkout={step === 'details' && exact && selection.ok ? checkout(true) : null}
             onBackFromCheckout={() => setStep('pick')}
             notice={errorKey && step === 'pick' ? t(errorKey) : null}
+            ruleNotice={exact ? ruleText : null}
             busy={busy}
           />
         )}

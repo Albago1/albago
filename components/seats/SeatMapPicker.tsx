@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { ArrowLeft, Check, ChevronRight, Minus, Plus, Sparkles, X } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import { bestKeysInBlock, blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@/lib/seats/pick'
+import { ruleContext } from '@/lib/seats/protection'
 import type { PublicSeat, PublicSeatSale } from '@/lib/seats/types'
 import { allBlocks, type VenueMap } from '@/lib/seats/venueMaps'
 import StadiumMap, { stockOnMap, type StockBlock } from './StadiumMap'
@@ -36,6 +37,8 @@ type Props = {
   onBackFromCheckout: () => void
   /** Error from the last reservation attempt (e.g. a seat just went). */
   notice: string | null
+  /** Why the current pick can't be bought (single-seat protection); blocks Continue. */
+  ruleNotice?: string | null
   busy: boolean
 }
 
@@ -59,6 +62,7 @@ export default function SeatMapPicker({
   checkout,
   onBackFromCheckout,
   notice,
+  ruleNotice = null,
   busy,
 }: Props) {
   const { t } = useLanguage()
@@ -74,6 +78,7 @@ export default function SeatMapPicker({
   const ready = useRef(false)
 
   const runs = useMemo(() => sale.runs ?? [], [sale.runs])
+  const rules = useMemo(() => ruleContext(sale.rules, runs, sale.max_per_order), [sale.rules, runs, sale.max_per_order])
   const seats = useMemo(() => sale.seats ?? [], [sale.seats])
   const all = useMemo(() => allBlocks(map), [map])
   const stock = useMemo(() => stockOnMap(map, all, sale.blocks ?? [], runs), [map, all, sale.blocks, runs])
@@ -175,7 +180,7 @@ export default function SeatMapPicker({
 
   const findBest = () => {
     if (open) {
-      const keys = bestKeysInBlock(runs, open.block.category, qty, open.block)
+      const keys = bestKeysInBlock(runs, open.block.category, qty, open.block, rules)
       if (keys.length) {
         onPickedChange(keys)
         flyTo(keys)
@@ -183,7 +188,7 @@ export default function SeatMapPicker({
       return
     }
     for (const c of bestPool) {
-      const p = pickSeats(runs, c.code, qty)
+      const p = pickSeats(runs, c.code, qty, null, rules)
       if (p) {
         const keys = p.seats.map((seat) => seatKeyOf({ area: p.area, block: p.block, row: p.row, seat }))
         onPickedChange(keys)
@@ -346,6 +351,11 @@ export default function SeatMapPicker({
               </span>
             ))}
           </div>
+          {ruleNotice && (
+            <p role="status" className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-3.5 py-2.5 text-xs text-amber-100">
+              {ruleNotice}
+            </p>
+          )}
           <div className="mt-3.5 flex items-center gap-3 lg:mt-auto lg:pt-5">
             <div className="min-w-0 flex-1">
               <p className="text-xl font-bold leading-tight text-white">{money(total)}</p>
@@ -356,7 +366,7 @@ export default function SeatMapPicker({
             <button
               type="button"
               onClick={onContinue}
-              disabled={busy}
+              disabled={busy || !!ruleNotice}
               className="inline-flex h-12 flex-shrink-0 items-center gap-1.5 rounded-full bg-flame-500 pl-6 pr-4 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 disabled:opacity-45"
             >
               {t('seat_continue')}

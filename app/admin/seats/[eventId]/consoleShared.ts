@@ -1,7 +1,9 @@
 import type {
+  FreeRun,
   PaymentMethod,
   ReservationStatus,
   SeatCategoryRow,
+  SeatAdminLogRow,
   SeatReservationRow,
   SeatSaleRow,
   SeatStockRow,
@@ -27,6 +29,11 @@ export type ConsoleData = {
   waitlist: SeatWaitlistRow[]
   /** Private payment details (admin RLS, IBAN masked); null until set. */
   payment: SeatPaymentAdminView | null
+  /** Latest admin changes to stock and rules, newest first. */
+  log: SeatAdminLogRow[]
+  /** Admin display names by user id (for the log). */
+  actors: Record<string, string>
+  viewerId: string | null
 }
 
 export type ConsoleResult = { ok: boolean; error?: string; [key: string]: unknown }
@@ -65,6 +72,12 @@ const ERROR_TEXT: Record<string, string> = {
   bad_paypal: 'Use just your PayPal.me name (letters and digits), e.g. from paypal.me/YourName.',
   bad_bank: 'A bank account needs both the account holder name and the IBAN.',
   bad_whatsapp: 'Write the WhatsApp number with the country code, e.g. +49 151 23456789.',
+  bad_dates: 'The "any quantity" date must be on or after the "relaxed" date.',
+  bad_overrides: 'One of the group limits is not valid — refresh and try again.',
+  bad_seat_status: 'Unknown seat status.',
+  splits_group: 'Those seats would split a group — start at one end of the row.',
+  strands_seat: 'That would leave one seat on its own.',
+  quantity_not_allowed: 'That number of seats is not allowed for this group.',
 }
 
 export function errorText(code: string | undefined): string {
@@ -104,6 +117,7 @@ export type SeatState =
   | 'free'
   | 'unpriced'
   | 'withdrawn'
+  | 'external'
   | 'held'
   | 'paid'
   | 'transfer_sent'
@@ -124,7 +138,7 @@ export function seatState(
     if (r.status === 'paid' || r.status === 'transfer_sent' || r.status === 'delivered') return r.status
     if (r.status === 'refunded') return 'refunded_kept'
   }
-  if (seat.withdrawn) return 'withdrawn'
+  if (seat.withdrawn) return seat.withdrawn_reason === 'external' ? 'external' : 'withdrawn'
   return pricedCategories.has(seat.category) ? 'free' : 'unpriced'
 }
 
@@ -132,6 +146,7 @@ export const SEAT_CHIP: Record<SeatState, string> = {
   free: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20',
   unpriced: 'border-white/20 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]',
   withdrawn: 'border-dashed border-white/25 bg-transparent text-white/35 hover:bg-white/[0.05]',
+  external: 'border-dashed border-fuchsia-400/45 bg-fuchsia-400/[0.07] text-fuchsia-200/80 hover:bg-fuchsia-400/[0.14]',
   held: 'border-amber-400/45 bg-amber-400/15 text-amber-100',
   paid: 'border-sky-400/45 bg-sky-400/15 text-sky-100',
   transfer_sent: 'border-violet-400/45 bg-violet-400/15 text-violet-100',
@@ -143,11 +158,66 @@ export const SEAT_STATE_LABEL: Record<SeatState, string> = {
   free: 'On sale',
   unpriced: 'No price yet',
   withdrawn: 'Kept back',
+  external: 'Sold elsewhere',
   held: 'Held',
   paid: 'Paid',
   transfer_sent: 'Transfer sent',
   delivered: 'Delivered',
   refunded_kept: 'Refunded (seat not returned)',
+}
+
+/** Seats an admin may switch between on sale / kept back / sold elsewhere. */
+export const ADJUSTABLE: ReadonlySet<SeatState> = new Set<SeatState>(['free', 'unpriced', 'withdrawn', 'external'])
+
+/** Display mirror of seat_free_runs(): seats on sale grouped into side-by-side
+ *  runs, for the protection preview. The database stays the authority. */
+export function freeRunsOf(
+  stock: SeatStockRow[],
+  reservations: Map<string, SeatReservationRow>,
+  pricedCategories: Set<string>,
+  now = Date.now(),
+): FreeRun[] {
+  const byRow = new Map<string, SeatStockRow[]>()
+  for (const s of stock) {
+    if (seatState(s, reservations, pricedCategories, now) !== 'free') continue
+    const key = JSON.stringify([s.category, s.area, s.block, s.row_label])
+    byRow.set(key, [...(byRow.get(key) ?? []), s])
+  }
+  const runs: FreeRun[] = []
+  for (const seats of byRow.values()) {
+    const sorted = [...seats].sort((a, b) => a.seat_number - b.seat_number)
+    for (const s of sorted) {
+      const last = runs[runs.length - 1]
+      if (
+        last &&
+        last.category === s.category &&
+        last.area === s.area &&
+        last.block === s.block &&
+        last.row === s.row_label &&
+        last.first + last.len === s.seat_number
+      ) {
+        last.len++
+      } else {
+        runs.push({ category: s.category, area: s.area, block: s.block, row: s.row_label, first: s.seat_number, len: 1 })
+      }
+    }
+  }
+  return runs
+}
+
+/** "Block 12 · Row 18 · Seats 14–17" */
+export function runLabel(run: FreeRun): string {
+  const seats = run.len === 1 ? `Seat ${run.first}` : `Seats ${run.first}–${run.first + run.len - 1}`
+  return `${run.block !== '-' ? `Block ${run.block} · ` : ''}Row ${run.row} · ${seats}`
+}
+
+/** JSON with object keys sorted — Postgres jsonb reorders keys, so compare this way. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  )
 }
 
 export function eur(cents: number | null | undefined, currency = 'EUR'): string {

@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
 import { SEAT_SALE_MODES, type SeatSaleMode } from '@/lib/seats/types'
 import { consoleCall, errorText, type ConsoleData } from './consoleShared'
 import PaymentSettings from './PaymentSettings'
+import ProtectionSettings from './ProtectionSettings'
 
 const INPUT =
   'h-10 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-flame-500/40 focus:outline-none'
@@ -193,6 +194,10 @@ export default function SettingsPanel({ data }: { data: ConsoleData }) {
           </span>
         )}
         {error && <span className="text-xs text-flame-200">{error}</span>}
+      </div>
+
+      <div className="border-t border-white/[0.07] pt-6">
+        <ProtectionSettings data={data} />
       </div>
 
       <PaymentSettings data={data} />

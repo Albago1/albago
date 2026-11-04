@@ -1,10 +1,12 @@
+import { bestRun, type RuleContext } from './protection'
 import type { FreeRun } from './types'
 
 // On-screen preview of which seats a group would get — the same rules as the
-// seat_pick RPC (docs/seeds/phase-43-seat-sales.sql, keep in sync):
+// seat_pick RPC (keep in sync):
 //   1st: a run that fits exactly · 2nd: the smallest run leaving ≥2 seats ·
 //   last resort: a run leaving exactly 1 seat; seats taken from the low end.
-// The RPC stays the authority; this only drives the stadium-map highlight.
+// With a RuleContext, runs the day's single-seat protection doesn't allow
+// are skipped (phase 46). The RPC stays the authority.
 
 export type BlockRef = { area: string; block: string }
 
@@ -35,7 +37,21 @@ export function pickSeats(
   category: string,
   quantity: number,
   block?: BlockRef | null,
+  rules?: RuleContext,
 ): SeatPick | null {
+  if (rules) {
+    const run = quantity >= 1 ? bestRun(runs, category, quantity, rules, block ?? undefined) : null
+    return run
+      ? {
+          area: run.area,
+          block: run.block,
+          row: run.row,
+          runFirst: run.first,
+          runLen: run.len,
+          seats: Array.from({ length: quantity }, (_, i) => run.first + i),
+        }
+      : null
+  }
   const candidates = runs.filter(
     (r) =>
       r.category === category &&
@@ -108,19 +124,21 @@ export function rowsOf<T extends { row: string; seat: number }>(seats: T[]): Sea
 }
 
 /** The best seats for `quantity` inside one block, as seat keys — what the
- *  close-up pre-selects. Falls back to the biggest group that still fits. */
+ *  close-up pre-selects. Falls back to the biggest group that still fits
+ *  (and that the day's rules allow). */
 export function bestKeysInBlock(
   runs: FreeRun[],
   category: string,
   quantity: number,
   block: BlockRef,
+  rules?: RuleContext,
 ): string[] {
-  const fit = Math.min(quantity, maxTogetherInBlock(runs, block))
-  if (fit < 1) return []
-  const pick = pickSeats(runs, category, fit, block)
-  return pick
-    ? pick.seats.map((seat) => seatKeyOf({ area: pick.area, block: pick.block, row: pick.row, seat }))
-    : []
+  for (let fit = Math.min(quantity, maxTogetherInBlock(runs, block)); fit >= 1; fit--) {
+    const pick = pickSeats(runs, category, fit, block, rules)
+    if (pick) return pick.seats.map((seat) => seatKeyOf({ area: pick.area, block: pick.block, row: pick.row, seat }))
+    if (!rules) return []
+  }
+  return []
 }
 
 export function freeInBlock(runs: FreeRun[], block: BlockRef): number {

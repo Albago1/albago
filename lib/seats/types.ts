@@ -2,6 +2,8 @@
 // event ticketed elsewhere (Eventim). The rules live in the SQL RPCs
 // (docs/seeds/phase-43-seat-sales.sql); these types mirror their JSON.
 
+import type { QuantityOverride, SeatRules } from './protection'
+
 export type SeatSaleMode = 'draft' | 'waitlist' | 'live' | 'closed'
 
 export const SEAT_SALE_MODES: SeatSaleMode[] = ['draft', 'waitlist', 'live', 'closed']
@@ -91,6 +93,8 @@ export type PublicSeatSale = {
   blocks?: PublicSeatBlock[]
   runs?: FreeRun[]
   seats?: PublicSeat[]
+  /** Single-seat protection, with today's phase (absent before phase 46). */
+  rules?: SeatRules
 }
 
 /** seat_reserve() / seat_admin_manual_sale() result. */
@@ -149,6 +153,11 @@ export type SeatSaleRow = {
   seller_name: string | null
   public_note: string | null
   show_face_value: boolean
+  /** Single-seat protection (phase 46). */
+  protect_singles: boolean
+  flexible_from: string | null
+  final_from: string | null
+  quantity_overrides: QuantityOverride[]
 }
 
 export type SeatCategoryRow = {
@@ -169,7 +178,19 @@ export type SeatStockRow = {
   row_label: string
   seat_number: number
   withdrawn: boolean
+  /** Why it's off sale: kept back by the seller, or sold elsewhere (Viagogo…). */
+  withdrawn_reason?: 'kept' | 'external' | null
+  withdrawn_note?: string | null
   reservation_id: string | null
+}
+
+/** One line of the seat console's activity log (seat_admin_log). */
+export type SeatAdminLogRow = {
+  id: string
+  actor: string | null
+  action: string
+  detail: Record<string, unknown>
+  created_at: string
 }
 
 export type SeatWaitlistRow = {

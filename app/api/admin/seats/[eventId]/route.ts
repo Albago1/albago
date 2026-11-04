@@ -15,6 +15,7 @@ import {
   type SeatPaymentSettings,
 } from '@/lib/seats/payment'
 import { normalizeWhatsApp } from '@/lib/seats/whatsapp'
+import type { QuantityOverride } from '@/lib/seats/protection'
 import {
   ADMIN_RESERVATION_ACTIONS,
   PAYMENT_METHODS,
@@ -34,15 +35,17 @@ export const maxDuration = 20
  * Seat console API (phase 43). Admin session on every verb; table writes go
  * through the admin RLS policies, reservation moves through the
  * seat_admin_update state machine.
- *   PATCH { mode?, deliverBy?, holdMinutes?, maxPerOrder?, sellerName?, publicNote?, showFaceValue? }
+ *   PATCH { mode?, deliverBy?, holdMinutes?, maxPerOrder?, sellerName?, publicNote?, showFaceValue?,
+ *           protectSingles?, flexibleFrom?, finalFrom?, quantityOverrides? }   (single-seat protection, phase 46)
  *   POST  { op: 'import', text }
  *         { op: 'category', code, label?, faceValueCents?, priceCents?, sortOrder? }
- *         { op: 'seat', seatId, withdrawn }            (free seats only)
+ *         { op: 'seat', seatId, status: 'available'|'kept'|'external', note? }   (free seats only)
  *         { op: 'delete_seat', seatId }                 (never-sold seats only)
  *         { op: 'reservation', reservationId, action, paymentMethod?, paymentRef?, adminNote?, release?, notify? }
  *         { op: 'manual_sale', category, quantity, buyerName, buyerEmail, eventimEmail?, phone?, note?, paid, paymentMethod?, notify? }
  *         { op: 'delete_waitlist', id }
  *         { op: 'payment', bankHolder?, iban?, bic?, paypalMe?, whatsapp?, whatsappPublic? }   (private payment + contact)
+ * Every change to stock, prices, rules or orders is written to seat_admin_log.
  */
 
 type Params = { params: Promise<{ eventId: string }> }
@@ -63,6 +66,60 @@ function rpcFailure(message: string, where: string) {
   if (known) return NextResponse.json({ ok: false, error: known.code }, { status: known.status })
   console.error(`[admin/seats] ${where} failed:`, message)
   return NextResponse.json({ ok: false, error: `${where}_failed` }, { status: 500 })
+}
+
+type Db = Awaited<ReturnType<typeof createClient>>
+
+/** Append to the admin activity log. Never fails the request it describes. */
+async function logAdmin(supabase: Db, eventId: string, action: string, detail: Record<string, unknown>) {
+  const { error } = await supabase.from('seat_admin_log').insert({ event_id: eventId, action, detail })
+  if (error) console.error('[admin/seats] log failed:', error.message)
+}
+
+const seatName = (s: { block: string; row_label: string; seat_number: number }) =>
+  `${s.block !== '-' ? `Block ${s.block} · ` : ''}Row ${s.row_label} · Seat ${s.seat_number}`
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function dateOrNull(value: unknown): string | null | undefined {
+  if (value === null || value === '') return null
+  return typeof value === 'string' && DATE_RE.test(value) && !Number.isNaN(Date.parse(value)) ? value : undefined
+}
+
+/** Group limits from the console: same shape the SQL reads (seat_run_allows). */
+function parseOverrides(value: unknown): QuantityOverride[] | null {
+  if (!Array.isArray(value) || value.length > 200) return null
+  const out: QuantityOverride[] = []
+  const text = (v: unknown, max: number) => (typeof v === 'string' && v.length > 0 && v.length <= max ? v : null)
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const o = item as Record<string, unknown>
+    const area = text(o.area, 80)
+    const block = text(o.block, 20)
+    const row = text(o.row, 20)
+    const from = o.from
+    const to = o.to
+    const qs = o.quantities
+    if (!area || !block || !row) return null
+    if (typeof from !== 'number' || typeof to !== 'number' || !Number.isInteger(from) || !Number.isInteger(to)) return null
+    if (from < 0 || to < from || to > 100_000) return null
+    if (!Array.isArray(qs) || qs.length === 0 || qs.length > 20) return null
+    if (!qs.every((q) => typeof q === 'number' && Number.isInteger(q) && q >= 1 && q <= 20)) return null
+    out.push({ area, block, row, from, to, quantities: [...new Set(qs as number[])].sort((a, b) => a - b) })
+  }
+  return out
+}
+
+const SEAT_STATUSES = ['available', 'kept', 'external'] as const
+type SeatStatus = (typeof SEAT_STATUSES)[number]
+
+/** JSON with object keys sorted — jsonb comes back with its own key order. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  )
 }
 
 function intOrNull(value: unknown, min: number, max: number): number | null | undefined {
@@ -107,11 +164,44 @@ export async function PATCH(request: Request, { params }: Params) {
   if (body.sellerName !== undefined) patch.seller_name = cleanText(body.sellerName, 120)
   if (body.publicNote !== undefined) patch.public_note = cleanText(body.publicNote, 600)
   if (body.showFaceValue !== undefined) patch.show_face_value = body.showFaceValue === true
+  if (body.protectSingles !== undefined) {
+    if (typeof body.protectSingles !== 'boolean') return bad('bad_rules')
+    patch.protect_singles = body.protectSingles
+  }
+  if (body.flexibleFrom !== undefined) {
+    const v = dateOrNull(body.flexibleFrom)
+    if (v === undefined) return bad('bad_dates')
+    patch.flexible_from = v
+  }
+  if (body.finalFrom !== undefined) {
+    const v = dateOrNull(body.finalFrom)
+    if (v === undefined) return bad('bad_dates')
+    patch.final_from = v
+  }
+  if (body.quantityOverrides !== undefined) {
+    const v = parseOverrides(body.quantityOverrides)
+    if (!v) return bad('bad_overrides')
+    patch.quantity_overrides = v
+  }
   if (Object.keys(patch).length === 0) return bad('nothing_to_update')
 
   const supabase = await createClient()
+  const { data: current } = await supabase.from('seat_sales').select('*').eq('event_id', eventId).maybeSingle()
+  const before = (current ?? {}) as Record<string, unknown>
+  const flexibleFrom = 'flexible_from' in patch ? patch.flexible_from : before.flexible_from
+  const finalFrom = 'final_from' in patch ? patch.final_from : before.final_from
+  if (typeof flexibleFrom === 'string' && typeof finalFrom === 'string' && flexibleFrom > finalFrom) return bad('bad_dates')
+
   const { error } = await supabase.from('seat_sales').update(patch).eq('event_id', eventId)
   if (error) return rpcFailure(error.message, 'settings')
+
+  // Log only what actually changed (the console sends whole forms).
+  const changes: Record<string, { from: unknown; to: unknown }> = {}
+  for (const [key, to] of Object.entries(patch)) {
+    const from = before[key] ?? null
+    if (canonicalJson(from) !== canonicalJson(to)) changes[key] = { from, to }
+  }
+  if (Object.keys(changes).length > 0) await logAdmin(supabase, eventId, 'settings', { changes })
   return NextResponse.json({ ok: true })
 }
 
@@ -164,6 +254,7 @@ export async function POST(request: Request, { params }: Params) {
         .select('id')
       if (seatError) return rpcFailure(seatError.message, 'import_seats')
       const added = inserted?.length ?? 0
+      if (added > 0) await logAdmin(supabase, eventId, 'import', { added })
       return NextResponse.json({
         ok: true,
         added,
@@ -203,22 +294,45 @@ export async function POST(request: Request, { params }: Params) {
         .eq('event_id', eventId)
         .eq('code', code)
       if (error) return rpcFailure(error.message, 'category')
+      await logAdmin(supabase, eventId, 'category', { code, ...patch })
       return NextResponse.json({ ok: true })
     }
 
     case 'seat': {
       const seatId = typeof body.seatId === 'string' ? body.seatId : ''
-      if (!UUID_RE.test(seatId) || typeof body.withdrawn !== 'boolean') return bad('bad_seat')
-      // Only a seat nobody holds can be kept back or returned to sale.
+      // `withdrawn` is the pre-phase-46 form of the same call.
+      const status: unknown =
+        body.status ?? (typeof body.withdrawn === 'boolean' ? (body.withdrawn ? 'kept' : 'available') : undefined)
+      if (!UUID_RE.test(seatId)) return bad('bad_seat')
+      if (!SEAT_STATUSES.includes(status as SeatStatus)) return bad('bad_seat_status')
+      const next = status as SeatStatus
+      const note = next === 'available' ? null : cleanText(body.note, 200)
+
+      const { data: before } = await supabase
+        .from('seat_stock')
+        .select('block, row_label, seat_number, withdrawn, withdrawn_reason')
+        .eq('id', seatId)
+        .eq('event_id', eventId)
+        .maybeSingle()
+      // Only a seat nobody holds can be kept back, marked sold elsewhere or
+      // returned to sale — sold and held seats stay as they are.
       const { data, error } = await supabase
         .from('seat_stock')
-        .update({ withdrawn: body.withdrawn })
+        .update({
+          withdrawn: next !== 'available',
+          withdrawn_reason: next === 'available' ? null : next,
+          withdrawn_note: note,
+        })
         .eq('id', seatId)
         .eq('event_id', eventId)
         .is('reservation_id', null)
         .select('id')
       if (error) return rpcFailure(error.message, 'seat')
-      if (!data?.length) return NextResponse.json({ ok: false, error: 'seat_taken' }, { status: 409 })
+      if (!data?.length || !before) return NextResponse.json({ ok: false, error: 'seat_taken' }, { status: 409 })
+      const was = before.withdrawn ? (before.withdrawn_reason === 'external' ? 'external' : 'kept') : 'available'
+      if (was !== next || note) {
+        await logAdmin(supabase, eventId, 'seat_status', { seat: seatName(before), from: was, to: next, note })
+      }
       return NextResponse.json({ ok: true })
     }
 
@@ -231,9 +345,10 @@ export async function POST(request: Request, { params }: Params) {
         .eq('id', seatId)
         .eq('event_id', eventId)
         .is('reservation_id', null)
-        .select('id')
+        .select('block, row_label, seat_number')
       if (error) return rpcFailure(error.message, 'delete_seat')
       if (!data?.length) return NextResponse.json({ ok: false, error: 'seat_taken' }, { status: 409 })
+      await logAdmin(supabase, eventId, 'delete_seat', { seat: seatName(data[0]) })
       return NextResponse.json({ ok: true })
     }
 
@@ -262,6 +377,12 @@ export async function POST(request: Request, { params }: Params) {
       if (error) return rpcFailure(error.message, 'reservation')
 
       const row = data as SeatReservationRow
+      await logAdmin(supabase, eventId, 'reservation', {
+        reference: row.reference,
+        action,
+        quantity: row.quantity,
+        released: body.release === true,
+      })
       const kind = ACTION_EMAIL[action]
       let emailed = false
       if (kind && body.notify !== false && row.event_id === eventId) {
@@ -295,6 +416,13 @@ export async function POST(request: Request, { params }: Params) {
       if (error) return rpcFailure(error.message, 'manual_sale')
 
       const result = data as ReservationResult
+      await logAdmin(supabase, eventId, 'manual_sale', {
+        reference: result.reference,
+        category,
+        quantity,
+        paid,
+        seats: (result.seats ?? []).map((s) => `${s.block}/${s.row}/${s.seat}`),
+      })
       let emailed = false
       if (body.notify !== false) {
         const { data: row } = await supabase
@@ -363,6 +491,9 @@ export async function POST(request: Request, { params }: Params) {
         .from('seat_payment_settings')
         .upsert({ event_id: eventId, ...next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
       if (error) return rpcFailure(error.message, 'payment')
+      const before = (current ?? {}) as Record<string, unknown>
+      const fields = Object.keys(next).filter((k) => (before[k] ?? null) !== (next as Record<string, unknown>)[k])
+      if (fields.length > 0) await logAdmin(supabase, eventId, 'payment', { fields })
       return NextResponse.json({ ok: true })
     }
 
