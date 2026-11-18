@@ -14,6 +14,18 @@ const FIGHT_LINKS: Array<[string, string | null]> = [
   ["/fight/wa", "whatsapp"],
 ];
 
+// Same idea for Merry Christmas Berlin (ADHR Events, 25 Dec 2026): albago.org/christmas.
+const XMAS_PAGE = "/events/merry-christmas-berlin-rovena-ibrahimi-vani-gjuzi-33ed35f3";
+const xmasLink = (source: string | null) =>
+  `${XMAS_PAGE}?${source ? `utm_source=${source}&utm_medium=social` : "utm_medium=short_link"}&utm_campaign=christmas-berlin`;
+const XMAS_LINKS: Array<[string, string | null]> = [
+  ["/christmas", null],
+  ["/christmas/ig", "instagram"],
+  ["/christmas/tt", "tiktok"],
+  ["/christmas/fb", "facebook"],
+  ["/christmas/wa", "whatsapp"],
+];
+
 const nextConfig: NextConfig = {
   // Allow next/image to optimize photos served from Supabase Storage
   // (event-covers bucket). Other origins are blocked so a stray
@@ -42,6 +54,7 @@ const nextConfig: NextConfig = {
       { source: "/volunteer", destination: "/events", permanent: false },
       // Temporary, so a short link can be pointed elsewhere later.
       ...FIGHT_LINKS.map(([source, utm]) => ({ source, destination: fightLink(utm), permanent: false })),
+      ...XMAS_LINKS.map(([source, utm]) => ({ source, destination: xmasLink(utm), permanent: false })),
     ];
   },
 };

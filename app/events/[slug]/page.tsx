@@ -15,6 +15,7 @@ import {
   Phone,
   Repeat,
   ShieldAlert,
+  Snowflake,
   Sparkles,
   Ticket,
 } from 'lucide-react'
@@ -32,6 +33,10 @@ import TierPicker, { type TierView } from '@/components/events/TierPicker'
 import SeatSalePanel from '@/components/seats/SeatSalePanel'
 import FightPoll from '@/components/polls/FightPoll'
 import { isPollClosed, pollForEvent } from '@/lib/polls'
+import ShowcaseReserve from '@/components/events/showcase/ShowcaseReserve'
+import ShowcaseLineup from '@/components/events/showcase/ShowcaseLineup'
+import Snowfall from '@/components/events/showcase/Snowfall'
+import { showcaseForEvent } from '@/lib/eventShowcase'
 import { sellerOptions } from '@/lib/seats/sellerContact'
 import type { PublicSeatSale } from '@/lib/seats/types'
 import { venueMapFor } from '@/lib/seats/venueMaps'
@@ -547,6 +552,10 @@ export default async function EventDetailPage(
   const poll = pollForEvent(event.id)
   const ticketTiers = salesOpen && !seatSale ? await fetchTicketTiers(event.id) : []
   const hasNativeTickets = ticketTiers.length > 0 || !!seatSale
+  // Showcase nights (lib/eventShowcase.ts): lineup photos, what the ticket
+  // includes, and a reserve-your-table card in place of the plain price row.
+  const showcase = showcaseForEvent(event.id)
+  const showReserve = !!showcase && salesOpen && !hasNativeTickets
 
   // External ticketing (structured fields on events). Native tiers from the
   // TIX track supersede these per-event.
@@ -718,9 +727,11 @@ export default async function EventDetailPage(
                 sizes="100vw"
                 unoptimized={!isOwnImage(heroImage)}
                 className="object-cover"
+                style={showcase?.heroFocus ? { objectPosition: showcase.heroFocus } : undefined}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/45 to-ink-950/70" />
               <div className="absolute inset-0 bg-gradient-to-r from-ink-950/60 via-transparent to-ink-950/35" />
+              {showcase?.theme === 'christmas' && !hasEnded && <Snowfall />}
             </>
           ) : (
             <>
@@ -768,6 +779,13 @@ export default async function EventDetailPage(
                   <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
                     <Flame className="h-3 w-3" />
                     Hot
+                  </span>
+                )}
+
+                {showcase?.theme === 'christmas' && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-md">
+                    <Snowflake className="h-3 w-3" />
+                    Christmas night
                   </span>
                 )}
 
@@ -1006,7 +1024,17 @@ export default async function EventDetailPage(
                 />
               )}
 
-              {!hasNativeTickets && (priceFromLabel || displayPrice(event.price)) && (
+              {showReserve && showcase && (
+                <ShowcaseReserve
+                  showcase={showcase}
+                  date={event.date}
+                  time={event.time}
+                  city={event.location_slug}
+                  country={event.country}
+                />
+              )}
+
+              {!hasNativeTickets && !showReserve && (priceFromLabel || displayPrice(event.price)) && (
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:mt-7 lg:p-5">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45 lg:text-xs">
@@ -1095,6 +1123,7 @@ export default async function EventDetailPage(
                     address={event.address ?? venue?.address ?? null}
                     variant={
                       !hasNativeTickets &&
+                      !showReserve &&
                       !ticketUrl &&
                       !officialUrl &&
                       !(event.is_online && event.online_url)
@@ -1201,6 +1230,16 @@ export default async function EventDetailPage(
               <div className={`max-w-2xl ${event.description ? 'mt-10' : ''}`}>
                 <FightPoll poll={poll} closed={hasEnded || isPollClosed(poll)} />
               </div>
+            )}
+
+            {showcase && (
+              <ShowcaseLineup
+                showcase={showcase}
+                date={event.date}
+                time={event.time}
+                address={event.address ?? venue?.address ?? null}
+                title={event.title}
+              />
             )}
 
             {practicalEntries.length > 0 && (
