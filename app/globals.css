@@ -328,11 +328,41 @@ select:focus-visible,
   100% { background-position: -35% 0; }
 }
 
+/* Showcase snow (components/events/showcase/Snowfall.tsx): flakes fall
+   through the event hero band and fade out as it fades into the page. */
+.snowfall {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+.snowfall i {
+  position: absolute;
+  top: -12px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
+  animation-name: snow-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes snow-fall {
+  to { transform: translate3d(var(--drift, 0px), 30rem, 0); }
+}
+
+/* "Free entry" badge on the showcase reserve card — readable in both themes. */
+.showcase-free-badge { background-color: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+[data-theme="light"] .showcase-free-badge { background-color: rgba(16, 185, 129, 0.12); color: #047857; }
+
 @media (prefers-reduced-motion: reduce) {
   .shine-text, .animate-ping-soft, .animate-marquee,
   .poster-drift-up, .poster-drift-down, .liquid-glass__sheen {
     animation: none !important;
   }
+  .snowfall { display: none; }
 }
 
 /* ────────────────────────────────────────────────────────────────────
