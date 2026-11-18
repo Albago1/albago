@@ -4,7 +4,6 @@ import { useState, useSyncExternalStore } from 'react'
 import {
   Baby,
   CupSoda,
-  MessageCircle,
   Minus,
   Phone,
   Plus,
@@ -15,6 +14,8 @@ import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import type { Language } from '@/lib/i18n/config'
 import { asWaLang } from '@/lib/seats/whatsapp'
 import { trackInteraction } from '@/lib/track'
+import { OrganizerLogoTile } from '@/components/events/showcase/ShowcaseContact'
+import { WhatsAppGlyph } from '@/components/icons/BrandGlyphs'
 import {
   PARTY_LIMITS,
   formatEuro,
@@ -268,7 +269,7 @@ export default function ShowcaseReserve({ showcase, date, time, city, country }:
             onClick={() => track('showcase_whatsapp')}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-flame-400 to-flame-600 px-5 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(238,28,37,0.6)] ring-1 ring-inset ring-white/15 transition hover:-translate-y-0.5 hover:from-flame-300 hover:to-flame-500 hover:shadow-[0_16px_44px_-10px_rgba(238,28,37,0.78)]"
           >
-            <MessageCircle className="h-4 w-4" />
+            <WhatsAppGlyph className="h-[18px] w-[18px]" />
             {c.reserveWa}
           </a>
         )}
@@ -283,9 +284,10 @@ export default function ShowcaseReserve({ showcase, date, time, city, country }:
         </a>
       </div>
 
-      <p className="relative mt-3 text-center text-[11px] leading-snug text-white/45">
-        {c.note(showcase.organizer)}
-      </p>
+      <div className="relative mt-4 flex items-center gap-3 border-t border-white/10 pt-4">
+        <OrganizerLogoTile showcase={showcase} size="sm" />
+        <p className="text-xs leading-snug text-white/55">{c.note(showcase.organizer)}</p>
+      </div>
     </div>
   )
 }

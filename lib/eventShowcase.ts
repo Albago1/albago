@@ -26,6 +26,10 @@ export type EventShowcase = {
   name: string
   venue: string
   organizer: string
+  /** Organizer's logo — light artwork on a transparent background, shown on a dark tile. */
+  organizerLogo?: string
+  /** Line under the organizer's name ("Berlin"). */
+  organizerCity?: string
   headliners: ShowcaseArtist[]
   band: ShowcaseArtist[]
   /** A folk dance group on the bill. */
@@ -47,8 +51,9 @@ export type EventShowcase = {
   heroFocus?: string
 }
 
-const ADHR_XMAS_MEDIA =
-  'https://stvjpcqcpmhngihfjhga.supabase.co/storage/v1/object/public/event-covers/adhr-events/merry-christmas-berlin-2026'
+const ADHR_MEDIA =
+  'https://stvjpcqcpmhngihfjhga.supabase.co/storage/v1/object/public/event-covers/adhr-events'
+const ADHR_XMAS_MEDIA = `${ADHR_MEDIA}/merry-christmas-berlin-2026`
 
 export const SHOWCASES: EventShowcase[] = [
   {
@@ -58,6 +63,9 @@ export const SHOWCASES: EventShowcase[] = [
     name: 'Merry Christmas Berlin',
     venue: 'Grand Gala Berlin',
     organizer: 'ADHR Events',
+    // Cut out of the poster; ask ADHR for the original file to sharpen it.
+    organizerLogo: `${ADHR_MEDIA}/adhr-logo.png`,
+    organizerCity: 'Berlin',
     headliners: [
       { name: 'Rovena Ibrahimi', role: 'vocals', photo: `${ADHR_XMAS_MEDIA}/rovena.jpg` },
       { name: 'Vani Gjuzi', role: 'vocals', photo: `${ADHR_XMAS_MEDIA}/vani.jpg` },
@@ -209,6 +217,22 @@ export function reservationWhatsAppHref(
   const digits = normalizeWhatsApp(showcase.reservationPhone)
   if (!digits) return null
   return waLink(digits, reservationMessage(showcase, lang, when, adults, kids))
+}
+
+const QUESTION: Record<WaLang, (org: string, name: string, when: string) => string> = {
+  sq: (o, e, w) => `Përshëndetje ${o}! Kam një pyetje për ${e} (${w}):`,
+  en: (o, e, w) => `Hi ${o}! I have a question about ${e} (${w}):`,
+  de: (o, e, w) => `Hallo ${o}! Ich habe eine Frage zu ${e} (${w}):`,
+  es: (o, e, w) => `¡Hola ${o}! Tengo una pregunta sobre ${e} (${w}):`,
+}
+
+/** wa.me link for a general question to the organizer (the contact card). */
+export function questionWhatsAppHref(showcase: EventShowcase, lang: WaLang, when: string): string | null {
+  if (!showcase.whatsapp) return null
+  const digits = normalizeWhatsApp(showcase.reservationPhone)
+  if (!digits) return null
+  const text = [QUESTION[lang](showcase.organizer, showcase.name, when), '', '', MESSAGE[lang].via].join('\n')
+  return waLink(digits, text)
 }
 
 /** tel: link — digits only, with the leading +. */

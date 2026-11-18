@@ -35,6 +35,7 @@ import FightPoll from '@/components/polls/FightPoll'
 import { isPollClosed, pollForEvent } from '@/lib/polls'
 import ShowcaseReserve from '@/components/events/showcase/ShowcaseReserve'
 import ShowcaseLineup from '@/components/events/showcase/ShowcaseLineup'
+import ShowcaseContact from '@/components/events/showcase/ShowcaseContact'
 import Snowfall from '@/components/events/showcase/Snowfall'
 import { showcaseForEvent } from '@/lib/eventShowcase'
 import { sellerOptions } from '@/lib/seats/sellerContact'
@@ -1232,6 +1233,24 @@ export default async function EventDetailPage(
               </div>
             )}
 
+            {/* Showcase: the organizer's contact card sits right under the
+                description, ahead of the lineup — not at the page bottom. */}
+            {showcase && (
+              <ShowcaseContact
+                showcase={showcase}
+                date={event.date}
+                time={event.time}
+                socials={Object.entries(event.organizer_socials ?? {})
+                  .filter(([, v]) => typeof v === 'string' && v.trim())
+                  .map(([platform, handle]) => ({
+                    platform,
+                    href: socialHref(platform, handle as string),
+                  }))}
+                city={event.location_slug}
+                country={event.country}
+              />
+            )}
+
             {showcase && (
               <ShowcaseLineup
                 showcase={showcase}
@@ -1291,7 +1310,9 @@ export default async function EventDetailPage(
 
             {/* Tags — supplementary metadata, kept quiet and low on the page
                 rather than competing with the title in the hero. */}
-            {event.tags && event.tags.length > 0 && (
+            {/* Showcase pages skip the tag cloud — the tags still feed search
+                keywords in the page metadata. */}
+            {!showcase && event.tags && event.tags.length > 0 && (
               <div className="mt-10">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
                   Tags
@@ -1323,7 +1344,8 @@ export default async function EventDetailPage(
               </div>
             )}
 
-          {(event.organizer_name ||
+          {/* Showcase pages show the organizer in ShowcaseContact instead. */}
+          {!showcase && (event.organizer_name ||
             event.organizer_phone ||
             event.organizer_website ||
             event.organizer_socials) && (
