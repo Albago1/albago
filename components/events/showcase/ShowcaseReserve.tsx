@@ -1,35 +1,30 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
-import {
-  Baby,
-  CupSoda,
-  Minus,
-  Phone,
-  Plus,
-  Snowflake,
-  UtensilsCrossed,
-} from 'lucide-react'
+import { useSyncExternalStore } from 'react'
+import { Baby, CupSoda, Phone, Snowflake, UtensilsCrossed } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageProvider'
 import type { Language } from '@/lib/i18n/config'
 import { asWaLang } from '@/lib/seats/whatsapp'
 import { trackInteraction } from '@/lib/track'
-import { OrganizerLogoTile } from '@/components/events/showcase/ShowcaseContact'
+import {
+  OrganizerLogoTile,
+  SOCIAL_PLATFORMS,
+  showcaseSocials,
+  type SocialLink,
+} from '@/components/events/showcase/ShowcaseContact'
 import { WhatsAppGlyph } from '@/components/icons/BrandGlyphs'
 import {
-  PARTY_LIMITS,
   formatEuro,
   formatShowcaseDate,
-  partyTotalCents,
   reservationWhatsAppHref,
   telHref,
   type EventShowcase,
 } from '@/lib/eventShowcase'
 
 /**
- * "Reserve your table" — the price, what it includes, a little party
- * counter (paying guests + free kids) with the running total, and the
- * organizer's WhatsApp with the whole reservation already written.
+ * The ticket card: the price, what it includes, and — for now — simply
+ * the organizer's contacts to reserve with: WhatsApp (a short reservation
+ * request already written), phone, and their social pages.
  */
 
 type Copy = {
@@ -40,18 +35,10 @@ type Copy = {
   included: string
   kids: (age: number) => string
   free: string
-  yourTable: string
-  adults: string
-  adultsHint: (age: number) => string
-  children: string
-  childrenHint: (age: number) => string
-  total: string
-  breakdown: (adults: number, each: string, kids: number) => string
+  reserveTitle: string
   reserveWa: string
   call: string
   note: (org: string) => string
-  less: string
-  more: string
 }
 
 const COPY: Record<Language, Copy> = {
@@ -63,18 +50,10 @@ const COPY: Record<Language, Copy> = {
     included: 'Included',
     kids: (a) => `Kids ${a} & under`,
     free: 'Free entry',
-    yourTable: 'Your table',
-    adults: 'Guests',
-    adultsHint: (a) => `Age ${a + 1}+`,
-    children: 'Kids',
-    childrenHint: (a) => `${a} & under · free`,
-    total: 'Total',
-    breakdown: (n, each, k) => `${n} × ${each}${k > 0 ? ` · ${k} ${k === 1 ? 'kid' : 'kids'} free` : ''}`,
+    reserveTitle: 'Reserve with the organizer',
     reserveWa: 'Reserve on WhatsApp',
     call: 'Call',
     note: (o) => `Your reservation goes straight to the organizer, ${o}.`,
-    less: 'One less',
-    more: 'One more',
   },
   sq: {
     kicker: 'Darkë & show live',
@@ -84,18 +63,10 @@ const COPY: Record<Language, Copy> = {
     included: 'Përfshirë',
     kids: (a) => `Fëmijët deri ${a} vjeç`,
     free: 'Hyrje falas',
-    yourTable: 'Tavolina jote',
-    adults: 'Të ftuar',
-    adultsHint: (a) => `Mbi ${a} vjeç`,
-    children: 'Fëmijë',
-    childrenHint: (a) => `deri ${a} vjeç · falas`,
-    total: 'Totali',
-    breakdown: (n, each, k) => `${n} × ${each}${k > 0 ? ` · ${k} fëmijë falas` : ''}`,
+    reserveTitle: 'Rezervo te organizatori',
     reserveWa: 'Rezervo në WhatsApp',
     call: 'Telefono',
     note: (o) => `Rezervimi shkon direkt te organizatori, ${o}.`,
-    less: 'Një më pak',
-    more: 'Një më shumë',
   },
   de: {
     kicker: 'Dinner & Live-Show',
@@ -105,18 +76,10 @@ const COPY: Record<Language, Copy> = {
     included: 'Inklusive',
     kids: (a) => `Kinder bis ${a} Jahre`,
     free: 'Eintritt frei',
-    yourTable: 'Dein Tisch',
-    adults: 'Gäste',
-    adultsHint: (a) => `Ab ${a + 1} Jahren`,
-    children: 'Kinder',
-    childrenHint: (a) => `bis ${a} Jahre · frei`,
-    total: 'Gesamt',
-    breakdown: (n, each, k) => `${n} × ${each}${k > 0 ? ` · ${k} ${k === 1 ? 'Kind' : 'Kinder'} frei` : ''}`,
+    reserveTitle: 'Beim Veranstalter reservieren',
     reserveWa: 'Per WhatsApp reservieren',
     call: 'Anrufen',
     note: (o) => `Deine Reservierung geht direkt an den Veranstalter, ${o}.`,
-    less: 'Eine Person weniger',
-    more: 'Eine Person mehr',
   },
   es: {
     kicker: 'Cena y show en directo',
@@ -126,18 +89,10 @@ const COPY: Record<Language, Copy> = {
     included: 'Incluido',
     kids: (a) => `Niños hasta ${a} años`,
     free: 'Entrada gratis',
-    yourTable: 'Tu mesa',
-    adults: 'Invitados',
-    adultsHint: (a) => `Desde ${a + 1} años`,
-    children: 'Niños',
-    childrenHint: (a) => `hasta ${a} años · gratis`,
-    total: 'Total',
-    breakdown: (n, each, k) => `${n} × ${each}${k > 0 ? ` · ${k} ${k === 1 ? 'niño' : 'niños'} gratis` : ''}`,
+    reserveTitle: 'Reserva con el organizador',
     reserveWa: 'Reservar por WhatsApp',
     call: 'Llamar',
     note: (o) => `Tu reserva va directamente al organizador, ${o}.`,
-    less: 'Uno menos',
-    more: 'Uno más',
   },
 }
 
@@ -152,27 +107,24 @@ type Props = {
   /** Event date (YYYY-MM-DD) and start time (HH:MM[:SS]) for the message. */
   date: string
   time: string
+  /** The organizer's social pages (from the event's organizer_socials). */
+  socials: SocialLink[]
   city?: string | null
   country?: string | null
 }
 
-export default function ShowcaseReserve({ showcase, date, time, city, country }: Props) {
+export default function ShowcaseReserve({ showcase, date, time, socials, city, country }: Props) {
   const { language } = useLanguage()
   const hydrated = useHydrated()
   // English on the server and first paint (no hydration mismatch); then the visitor's language.
   const lang: Language = hydrated ? language : 'en'
   const c = COPY[lang]
-  const priceLocale = lang === 'en' ? 'en-GB' : 'de-DE'
-
-  const [adults, setAdults] = useState(2)
-  const [kids, setKids] = useState(0)
 
   const { priceCents, kidsFreeUpToAge, includes } = showcase.admission
-  const each = formatEuro(priceCents, priceLocale)
-  const total = formatEuro(partyTotalCents(priceCents, adults), priceLocale)
-
+  const each = formatEuro(priceCents, lang === 'en' ? 'en-GB' : 'de-DE')
   const when = `${formatShowcaseDate(date, asWaLang(lang))}, ${time.slice(0, 5)}`
-  const waHref = reservationWhatsAppHref(showcase, asWaLang(lang), when, adults, kids)
+  const waHref = reservationWhatsAppHref(showcase, asWaLang(lang), when)
+  const known = showcaseSocials(socials)
 
   const track = (source: string) =>
     trackInteraction('outbound_click', {
@@ -181,7 +133,6 @@ export default function ShowcaseReserve({ showcase, date, time, city, country }:
       city,
       country,
       source,
-      meta: { adults, kids },
     })
 
   return (
@@ -218,49 +169,10 @@ export default function ShowcaseReserve({ showcase, date, time, city, country }:
         />
       </ul>
 
-      <div className="relative mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
-          {c.yourTable}
-        </p>
-        <div className="mt-3 space-y-3">
-          <Stepper
-            label={c.adults}
-            hint={c.adultsHint(kidsFreeUpToAge)}
-            value={adults}
-            min={PARTY_LIMITS.adultsMin}
-            max={PARTY_LIMITS.adultsMax}
-            onChange={setAdults}
-            less={c.less}
-            more={c.more}
-          />
-          <Stepper
-            label={c.children}
-            hint={c.childrenHint(kidsFreeUpToAge)}
-            value={kids}
-            min={PARTY_LIMITS.kidsMin}
-            max={PARTY_LIMITS.kidsMax}
-            onChange={setKids}
-            less={c.less}
-            more={c.more}
-          />
-        </div>
-        <div className="mt-4 flex items-end justify-between gap-3 border-t border-white/10 pt-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white">{c.total}</p>
-            <p className="mt-0.5 text-xs tabular-nums text-white/50">
-              {c.breakdown(adults, each, kids)}
-            </p>
-          </div>
-          <p
-            aria-live="polite"
-            className="font-display text-4xl leading-none tabular-nums text-white"
-          >
-            {total}
-          </p>
-        </div>
-      </div>
-
-      <div className="relative mt-4 space-y-2.5">
+      <p className="relative mt-6 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
+        {c.reserveTitle}
+      </p>
+      <div className="relative mt-3 space-y-2.5">
         {waHref && (
           <a
             href={waHref}
@@ -282,6 +194,26 @@ export default function ShowcaseReserve({ showcase, date, time, city, country }:
           <Phone className="h-4 w-4 flex-shrink-0" />
           {showcase.reservationPhone}
         </a>
+        {known.length > 0 && (
+          <div className={`grid gap-2.5 ${known.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {known.map(({ platform, href }) => {
+              const { label, Glyph } = SOCIAL_PLATFORMS[platform]
+              return (
+                <a
+                  key={platform}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => track(`showcase_reserve_${platform}`)}
+                  className="flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-flame-500/40 hover:bg-flame-500/10 hover:text-white"
+                >
+                  <Glyph className="h-4 w-4 flex-shrink-0" />
+                  {label}
+                </a>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="relative mt-4 flex items-center gap-3 border-t border-white/10 pt-4">
@@ -319,57 +251,5 @@ function IncludedRow({
         {badge}
       </span>
     </li>
-  )
-}
-
-function Stepper({
-  label,
-  hint,
-  value,
-  min,
-  max,
-  onChange,
-  less,
-  more,
-}: {
-  label: string
-  hint: string
-  value: number
-  min: number
-  max: number
-  onChange: (n: number) => void
-  less: string
-  more: string
-}) {
-  const button =
-    'flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-white transition hover:border-flame-500/50 hover:bg-flame-500/15 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-white/15 disabled:hover:bg-white/[0.05]'
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-white">{label}</p>
-        <p className="text-xs text-white/50">{hint}</p>
-      </div>
-      <div className="flex flex-shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(min, value - 1))}
-          disabled={value <= min}
-          aria-label={`${less} — ${label}`}
-          className={button}
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-        <span className="w-7 text-center text-lg font-semibold tabular-nums text-white">{value}</span>
-        <button
-          type="button"
-          onClick={() => onChange(Math.min(max, value + 1))}
-          disabled={value >= max}
-          aria-label={`${more} — ${label}`}
-          className={button}
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
   )
 }

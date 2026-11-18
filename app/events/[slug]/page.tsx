@@ -557,6 +557,10 @@ export default async function EventDetailPage(
   // includes, and a reserve-your-table card in place of the plain price row.
   const showcase = showcaseForEvent(event.id)
   const showReserve = !!showcase && salesOpen && !hasNativeTickets
+  // The organizer's social pages for the showcase cards (Instagram, TikTok…).
+  const organizerSocialLinks = Object.entries(event.organizer_socials ?? {})
+    .filter(([, v]) => typeof v === 'string' && v.trim())
+    .map(([platform, handle]) => ({ platform, href: socialHref(platform, handle as string) }))
 
   // External ticketing (structured fields on events). Native tiers from the
   // TIX track supersede these per-event.
@@ -1030,6 +1034,7 @@ export default async function EventDetailPage(
                   showcase={showcase}
                   date={event.date}
                   time={event.time}
+                  socials={organizerSocialLinks}
                   city={event.location_slug}
                   country={event.country}
                 />
@@ -1240,12 +1245,7 @@ export default async function EventDetailPage(
                 showcase={showcase}
                 date={event.date}
                 time={event.time}
-                socials={Object.entries(event.organizer_socials ?? {})
-                  .filter(([, v]) => typeof v === 'string' && v.trim())
-                  .map(([platform, handle]) => ({
-                    platform,
-                    href: socialHref(platform, handle as string),
-                  }))}
+                socials={organizerSocialLinks}
                 city={event.location_slug}
                 country={event.country}
               />

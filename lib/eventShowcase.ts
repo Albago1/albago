@@ -92,13 +92,6 @@ export function showcaseForEvent(eventId: string): EventShowcase | null {
   return SHOWCASES.find((s) => s.eventId === eventId) ?? null
 }
 
-export const PARTY_LIMITS = { adultsMin: 1, adultsMax: 30, kidsMin: 0, kidsMax: 20 } as const
-
-/** Only paying guests count; children up to the free age come along free. */
-export function partyTotalCents(priceCents: number, adults: number): number {
-  return Math.max(0, Math.floor(adults)) * priceCents
-}
-
 // Albanian names written out: plenty of browsers ship without Albanian date
 // data and would quietly print "25 December" on an Albanian page.
 const SQ_MONTHS = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor']
@@ -134,9 +127,7 @@ export function formatEuro(cents: number, locale = 'de-DE'): string {
 type MessageWords = {
   hello: (org: string) => string
   want: (name: string, when: string) => string
-  adults: (n: number, each: string) => string
-  kids: (n: number, age: number) => string
-  total: (sum: string) => string
+  people: string
   name: string
   via: string
 }
@@ -144,79 +135,54 @@ type MessageWords = {
 const MESSAGE: Record<WaLang, MessageWords> = {
   sq: {
     hello: (o) => `Përshëndetje ${o}!`,
-    want: (e, w) => `Dua të rezervoj për ${e} (${w}):`,
-    adults: (n, each) => `• ${n} ${n === 1 ? 'i rritur' : 'të rritur'} (${each} secili)`,
-    kids: (n, a) => `• ${n} fëmijë deri ${a} vjeç (falas)`,
-    total: (s) => `Totali: ${s}`,
+    want: (e, w) => `Dua të rezervoj për ${e} (${w}).`,
+    people: 'Numri i personave:',
     name: 'Emri:',
     via: '(E gjeta në AlbaGo)',
   },
   en: {
     hello: (o) => `Hi ${o}!`,
-    want: (e, w) => `I'd like to reserve for ${e} (${w}):`,
-    adults: (n, each) => `• ${n} ${n === 1 ? 'adult' : 'adults'} (${each} each)`,
-    kids: (n, a) => `• ${n} ${n === 1 ? 'child' : 'children'} aged ${a} or under (free)`,
-    total: (s) => `Total: ${s}`,
+    want: (e, w) => `I'd like to reserve for ${e} (${w}).`,
+    people: 'Number of people:',
     name: 'Name:',
     via: '(Found it on AlbaGo)',
   },
   de: {
     hello: (o) => `Hallo ${o}!`,
-    want: (e, w) => `Ich möchte für ${e} (${w}) reservieren:`,
-    adults: (n, each) => `• ${n} ${n === 1 ? 'Erwachsener' : 'Erwachsene'} (je ${each})`,
-    kids: (n, a) => `• ${n} ${n === 1 ? 'Kind' : 'Kinder'} bis ${a} Jahre (frei)`,
-    total: (s) => `Gesamt: ${s}`,
+    want: (e, w) => `Ich möchte für ${e} (${w}) reservieren.`,
+    people: 'Anzahl Personen:',
     name: 'Name:',
     via: '(Über AlbaGo gefunden)',
   },
   es: {
     hello: (o) => `¡Hola ${o}!`,
-    want: (e, w) => `Quisiera reservar para ${e} (${w}):`,
-    adults: (n, each) => `• ${n} ${n === 1 ? 'adulto' : 'adultos'} (${each} cada uno)`,
-    kids: (n, a) => `• ${n} ${n === 1 ? 'niño' : 'niños'} de hasta ${a} años (gratis)`,
-    total: (s) => `Total: ${s}`,
+    want: (e, w) => `Quisiera reservar para ${e} (${w}).`,
+    people: 'Número de personas:',
     name: 'Nombre:',
     via: '(Lo encontré en AlbaGo)',
   },
 }
 
-/** The ready-to-send WhatsApp text: who's coming, what it costs, a line for the name. */
-export function reservationMessage(
-  showcase: EventShowcase,
-  lang: WaLang,
-  when: string,
-  adults: number,
-  kids: number,
-): string {
+/** The ready-to-send WhatsApp text: a reservation request with blanks for party size and name. */
+export function reservationMessage(showcase: EventShowcase, lang: WaLang, when: string): string {
   const w = MESSAGE[lang]
-  const locale = lang === 'en' ? 'en-GB' : 'de-DE'
-  const { priceCents, kidsFreeUpToAge } = showcase.admission
-  const lines = [
+  return [
     w.hello(showcase.organizer),
     w.want(showcase.name, when),
-    w.adults(adults, formatEuro(priceCents, locale)),
-    ...(kids > 0 ? [w.kids(kids, kidsFreeUpToAge)] : []),
-    w.total(formatEuro(partyTotalCents(priceCents, adults), locale)),
     '',
+    w.people,
     w.name,
     '',
     w.via,
-  ]
-  return lines.join('\n')
+  ].join('\n')
 }
 
 /** wa.me link to the organizer with the message filled in; null without a usable number. */
-export function reservationWhatsAppHref(
-  showcase: EventShowcase,
-  lang: WaLang,
-  when: string,
-  adults: number,
-  kids: number,
-): string | null {
+export function reservationWhatsAppHref(showcase: EventShowcase, lang: WaLang, when: string): string | null {
   if (!showcase.whatsapp) return null
   const digits = normalizeWhatsApp(showcase.reservationPhone)
   if (!digits) return null
-  return waLink(digits, reservationMessage(showcase, lang, when, adults, kids))
+  return waLink(digits, reservationMessage(showcase, lang, when))
 }
 
 const QUESTION: Record<WaLang, (org: string, name: string, when: string) => string> = {

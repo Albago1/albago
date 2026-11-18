@@ -4,7 +4,6 @@ import { useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { ExternalLink, Phone } from 'lucide-react'
 import {
-  FacebookGlyph,
   InstagramGlyph,
   TikTokGlyph,
   WhatsAppGlyph,
@@ -44,10 +43,18 @@ const COPY: Record<Language, Copy> = {
   es: { kicker: 'Organizador · entradas e info', sub: 'Info y reservas', whatsapp: 'WhatsApp', call: 'Llamar', follow: 'Seguir' },
 }
 
-const SOCIAL: Record<string, { label: string; Glyph: (p: { className?: string }) => React.ReactElement }> = {
+/** Social pages a showcase shows, in this order of preference. */
+export const SOCIAL_PLATFORMS: Record<string, { label: string; Glyph: (p: { className?: string }) => React.ReactElement }> = {
   instagram: { label: 'Instagram', Glyph: InstagramGlyph },
-  facebook: { label: 'Facebook', Glyph: FacebookGlyph },
   tiktok: { label: 'TikTok', Glyph: TikTokGlyph },
+}
+
+/** The links we have a button for, in SOCIAL_PLATFORMS order (the DB's jsonb key order is not ours). */
+export function showcaseSocials(socials: SocialLink[]): SocialLink[] {
+  const order = Object.keys(SOCIAL_PLATFORMS)
+  return socials
+    .filter((s) => SOCIAL_PLATFORMS[s.platform])
+    .sort((a, b) => order.indexOf(a.platform) - order.indexOf(b.platform))
 }
 
 const noopSubscribe = () => () => {}
@@ -103,7 +110,7 @@ export default function ShowcaseContact({ showcase, date, time, socials, city, c
 
   const when = `${formatShowcaseDate(date, asWaLang(lang))}, ${time.slice(0, 5)}`
   const waHref = questionWhatsAppHref(showcase, asWaLang(lang), when)
-  const known = socials.filter((s) => SOCIAL[s.platform])
+  const known = showcaseSocials(socials)
 
   const track = (source: string) =>
     trackInteraction('outbound_click', {
@@ -168,7 +175,7 @@ export default function ShowcaseContact({ showcase, date, time, socials, city, c
             {c.follow}
           </span>
           {known.map(({ platform, href }) => {
-            const { label, Glyph } = SOCIAL[platform]
+            const { label, Glyph } = SOCIAL_PLATFORMS[platform]
             return (
               <a
                 key={platform}
