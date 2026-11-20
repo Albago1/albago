@@ -13,6 +13,7 @@ import {
   Search,
   TriangleAlert,
 } from 'lucide-react'
+import { consecutiveSeats } from '@/lib/seats/allocations'
 import { effectiveStatus, seatsLine, toCsv } from '@/lib/seats/format'
 import { normalizeWhatsApp, sellerReply, waLink, type SellerReplyLang, type SellerReplyStep } from '@/lib/seats/whatsapp'
 import {
@@ -20,6 +21,7 @@ import {
   type AdminReservationAction,
   type PaymentMethod,
   type ReservationStatus,
+  type SeatAllocationRow,
   type SeatReservationRow,
 } from '@/lib/seats/types'
 import {
@@ -57,7 +59,7 @@ const INPUT =
   'h-9 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-flame-500/40 focus:outline-none'
 
 export default function ReservationsPanel({ data }: { data: ConsoleData }) {
-  const { reservations, stock } = data
+  const { reservations, stock, allocations } = data
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [showManual, setShowManual] = useState(false)
@@ -74,6 +76,7 @@ export default function ReservationsPanel({ data }: { data: ConsoleData }) {
     }
     return c
   }, [rows])
+  const allocationById = useMemo(() => new Map(allocations.map((a) => [a.id, a])), [allocations])
   const attached = useMemo(() => {
     const ids = new Set<string>()
     for (const s of stock) if (s.reservation_id) ids.add(s.reservation_id)
@@ -101,7 +104,7 @@ export default function ReservationsPanel({ data }: { data: ConsoleData }) {
         r.phone ?? '',
         r.category_label,
         String(r.quantity),
-        seatsLine(r.seats),
+        r.seats.length ? seatsLine(r.seats) : r.allocation_id ? 'On request (not assigned yet)' : '',
         (r.total_cents / 100).toFixed(2),
         r.payment_method ? PAYMENT_LABEL[r.payment_method] : '',
         r.payment_ref ?? '',
@@ -171,6 +174,7 @@ export default function ReservationsPanel({ data }: { data: ConsoleData }) {
               currency={data.sale.currency}
               reservation={r}
               seatsAttached={attached.has(r.id)}
+              allocation={r.allocation_id ? allocationById.get(r.allocation_id) : undefined}
             />
           ))}
         </ul>
@@ -248,12 +252,15 @@ function ReservationItem({
   currency,
   reservation: r,
   seatsAttached,
+  allocation,
 }: {
   eventId: string
   eventTitle: string
   currency: string
   reservation: SeatReservationRow
   seatsAttached: boolean
+  /** The tickets-on-request block this order came from (phase 47). */
+  allocation?: SeatAllocationRow
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(r.status === 'paid')
@@ -298,6 +305,8 @@ function ReservationItem({
   }
 
   const left = r.status === 'held' ? timeLeft(r.expires_at) : null
+  const onRequest = !!r.allocation_id
+  const toAssign = onRequest && r.seats.length === 0 && ASSIGNABLE.has(r.status)
 
   return (
     <li className="rounded-2xl border border-white/[0.07] bg-white/[0.02]">
@@ -311,6 +320,11 @@ function ReservationItem({
           {STATUS_LABEL[r.status]}
         </span>
         {left && <span className="text-[11px] text-amber-200/80">expires {left}</span>}
+        {toAssign && (
+          <span className="rounded-full border border-dashed border-amber-400/50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-200">
+            Seats to assign
+          </span>
+        )}
         <span className="min-w-0 flex-1 truncate text-sm text-white/75">
           {r.buyer_name} · {r.quantity} × {r.category_label}
         </span>
@@ -321,7 +335,11 @@ function ReservationItem({
       {open && (
         <div className="border-t border-white/[0.06] px-4 py-4">
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            <Field label="Seats" value={seatsLine(r.seats)} wide />
+            <Field
+              label="Seats"
+              value={r.seats.length ? seatsLine(r.seats) : onRequest ? 'On request — not assigned yet' : '—'}
+              wide
+            />
             <Field label="Buyer email" value={r.buyer_email} copy />
             <Field label="Eventim email (transfer to)" value={r.eventim_email} copy strong />
             {r.phone && <Field label="Phone" value={r.phone} copy />}
@@ -339,6 +357,10 @@ function ReservationItem({
           </dl>
 
           <div className="mt-4 space-y-3">
+            {onRequest && ASSIGNABLE.has(r.status) && (
+              <AssignSeats eventId={eventId} reservation={r} allocation={allocation} />
+            )}
+
             {r.status === 'held' && (
               <div className="flex flex-wrap items-end gap-2">
                 <label className="w-40">
@@ -380,6 +402,11 @@ function ReservationItem({
                 <span className="text-[11px] text-white/45">
                   Transfer {r.quantity} ticket{r.quantity === 1 ? '' : 's'} in the Eventim app to {r.eventim_email}, then click.
                 </span>
+                {toAssign && (
+                  <span className="w-full text-[11px] text-amber-200/85">
+                    Assign the seats above first, so the buyer sees which seats they get.
+                  </span>
+                )}
               </div>
             )}
 
@@ -396,18 +423,25 @@ function ReservationItem({
 
             {(r.status === 'paid' || r.status === 'transfer_sent' || r.status === 'delivered') && (
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/15 bg-red-500/[0.04] px-3 py-2.5">
-                <label className="inline-flex items-center gap-2 text-xs text-white/65">
-                  <input
-                    type="checkbox"
-                    checked={releaseOnRefund}
-                    onChange={(e) => setReleaseOnRefund(e.target.checked)}
-                    className="accent-flame-500"
-                  />
-                  Seats are back in my Eventim account — put them on sale again
-                </label>
+                {onRequest ? (
+                  <span className="text-xs text-white/55">
+                    The {r.quantity} ticket{r.quantity === 1 ? '' : 's'} count as available again — lower the number under
+                    Stock if they are not back in your account.
+                  </span>
+                ) : (
+                  <label className="inline-flex items-center gap-2 text-xs text-white/65">
+                    <input
+                      type="checkbox"
+                      checked={releaseOnRefund}
+                      onChange={(e) => setReleaseOnRefund(e.target.checked)}
+                      className="accent-flame-500"
+                    />
+                    Seats are back in my Eventim account — put them on sale again
+                  </label>
+                )}
                 <button
                   type="button"
-                  onClick={() => void run('refund', { release: releaseOnRefund })}
+                  onClick={() => void run('refund', { release: !onRequest && releaseOnRefund })}
                   disabled={!!busy}
                   className={BTN_DANGER}
                 >
@@ -458,6 +492,184 @@ function ReservationItem({
         </div>
       )}
     </li>
+  )
+}
+
+const ASSIGNABLE = new Set<ReservationStatus>(['held', 'paid', 'transfer_sent', 'delivered'])
+
+type SeatLine = { block: string; row: string; seat: string }
+
+/** Seats for a tickets-on-request order: quick "side by side" fill, then per ticket. */
+function AssignSeats({
+  eventId,
+  reservation: r,
+  allocation,
+}: {
+  eventId: string
+  reservation: SeatReservationRow
+  allocation?: SeatAllocationRow
+}) {
+  const router = useRouter()
+  const blocks = allocation?.blocks ?? []
+  const assigned = r.seats.length === r.quantity
+  const [open, setOpen] = useState(!assigned)
+  const [area, setArea] = useState(r.seats[0]?.area ?? allocation?.area ?? '')
+  const [lines, setLines] = useState<SeatLine[]>(() =>
+    assigned
+      ? r.seats.map((s) => ({ block: s.block, row: s.row, seat: String(s.seat) }))
+      : Array.from({ length: r.quantity }, () => ({ block: blocks[0] ?? '', row: '', seat: '' })),
+  )
+  const [fill, setFill] = useState({ block: blocks[0] ?? '', row: '', first: '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const seats = lines.map((l) => ({ area: area.trim(), block: l.block.trim(), row: l.row.trim(), seat: Number(l.seat) }))
+  const complete = !!area.trim() && seats.every((s) => s.block && s.row && Number.isInteger(s.seat) && s.seat >= 1)
+  const unique = new Set(seats.map((s) => `${s.block}|${s.row}|${s.seat}`)).size === seats.length
+  const firstSeat = Number(fill.first)
+  const canFill = !!fill.block.trim() && !!fill.row.trim() && Number.isInteger(firstSeat) && firstSeat >= 1
+  const listId = `alloc-blocks-${r.id}`
+
+  const applyFill = () => {
+    if (!canFill) return
+    setLines(
+      consecutiveSeats(area, fill.block.trim(), fill.row.trim(), firstSeat, r.quantity).map((s) => ({
+        block: s.block,
+        row: s.row,
+        seat: String(s.seat),
+      })),
+    )
+  }
+
+  const setLine = (i: number, key: keyof SeatLine, value: string) =>
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [key]: value } : l)))
+
+  const save = async () => {
+    if (!complete || !unique || busy) return
+    setBusy(true)
+    setError(null)
+    const result = await consoleCall(eventId, 'POST', { op: 'assign_seats', reservationId: r.id, seats })
+    setBusy(false)
+    if (!result.ok) {
+      setError(errorText(result.error))
+      return
+    }
+    setOpen(false)
+    router.refresh()
+  }
+
+  if (!open) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setOpen(true)} className={BTN_GHOST}>
+          Change seats
+        </button>
+        <span className="text-[11px] text-white/45">Seats are assigned — the buyer sees them under My seats.</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-3">
+      <p className="text-sm font-semibold text-white">Assign {r.quantity} seat{r.quantity === 1 ? '' : 's'}</p>
+      <p className="mt-0.5 text-[11px] text-white/50">
+        {allocation ? `${allocation.label}${allocation.rows_label ? ` · rows ${allocation.rows_label}` : ''}. ` : ''}
+        Seat them together where possible. The buyer sees the seats under My seats.
+      </p>
+      <datalist id={listId}>
+        {blocks.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1.4fr_1fr_1fr_1fr_auto] sm:items-end">
+        <label>
+          <span className="mb-1 block text-[11px] text-white/45">Area</span>
+          <input value={area} onChange={(e) => setArea(e.target.value)} maxLength={80} className={INPUT} />
+        </label>
+        <label>
+          <span className="mb-1 block text-[11px] text-white/45">Block</span>
+          <input
+            value={fill.block}
+            onChange={(e) => setFill((f) => ({ ...f, block: e.target.value }))}
+            list={listId}
+            maxLength={20}
+            className={INPUT}
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-[11px] text-white/45">Row</span>
+          <input
+            value={fill.row}
+            onChange={(e) => setFill((f) => ({ ...f, row: e.target.value }))}
+            maxLength={20}
+            className={INPUT}
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-[11px] text-white/45">First seat</span>
+          <input
+            value={fill.first}
+            onChange={(e) => setFill((f) => ({ ...f, first: e.target.value }))}
+            inputMode="numeric"
+            className={INPUT}
+          />
+        </label>
+        <button type="button" onClick={applyFill} disabled={!canFill} className={BTN_GHOST}>
+          Fill {r.quantity} side by side
+        </button>
+      </div>
+
+      <ol className="mt-3 space-y-1.5">
+        {lines.map((l, i) => (
+          <li key={i} className="grid grid-cols-[2rem_1fr_1fr_1fr] items-center gap-2">
+            <span className="text-[11px] tabular-nums text-white/40">#{i + 1}</span>
+            <input
+              value={l.block}
+              onChange={(e) => setLine(i, 'block', e.target.value)}
+              list={listId}
+              placeholder="Block"
+              aria-label={`Ticket ${i + 1} block`}
+              maxLength={20}
+              className={INPUT}
+            />
+            <input
+              value={l.row}
+              onChange={(e) => setLine(i, 'row', e.target.value)}
+              placeholder="Row"
+              aria-label={`Ticket ${i + 1} row`}
+              maxLength={20}
+              className={INPUT}
+            />
+            <input
+              value={l.seat}
+              onChange={(e) => setLine(i, 'seat', e.target.value)}
+              placeholder="Seat"
+              aria-label={`Ticket ${i + 1} seat`}
+              inputMode="numeric"
+              className={INPUT}
+            />
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => void save()} disabled={!complete || !unique || busy} className={BTN_PRIMARY}>
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Save seats
+        </button>
+        {assigned && (
+          <button type="button" onClick={() => setOpen(false)} disabled={busy} className={BTN_GHOST}>
+            Cancel
+          </button>
+        )}
+        {complete && !unique && <span className="text-[11px] text-amber-200/90">The same seat is in the list twice.</span>}
+      </div>
+      {error && (
+        <p className="mt-2 flex items-start gap-2 text-sm text-flame-200">
+          <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" /> {error}
+        </p>
+      )}
+    </div>
   )
 }
 

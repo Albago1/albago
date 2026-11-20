@@ -25,10 +25,10 @@ import { formatMoney, groupSeats } from '@/lib/seats/format'
 import { blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@/lib/seats/pick'
 import { allowedQuantities, assignSeats, checkSelection, ruleContext } from '@/lib/seats/protection'
 import { allBlocks, venueMapById } from '@/lib/seats/venueMaps'
-import type { FreeRun, PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
+import type { FreeRun, PublicSeatAllocation, PublicSeatCategory, PublicSeatSale } from '@/lib/seats/types'
 import SeatMapPicker from './SeatMapPicker'
 import PayPalLogo from './PayPalLogo'
-import { StadiumPreview, stockOnMap } from './StadiumMap'
+import { requestBlocksOnMap, StadiumPreview, stockOnMap } from './StadiumMap'
 
 // Seat sales on the event page (phase 43). Presentation + honest error states
 // only — availability, "sits together", caps and holds are all enforced by
@@ -117,10 +117,15 @@ export default function SeatSalePanel({
   const money = (cents: number) => formatMoney(cents, sale.currency, locale)
 
   const sellable = sale.categories.filter((c) => c.available > 0 && c.max_together > 0)
-  const soldOut = sale.mode === 'live' && sellable.length === 0
+  // Seats-on-request stock (phase 47): a count per block, seats assigned later.
+  const allocations = useMemo<PublicSeatAllocation[]>(() => sale.allocations ?? [], [sale.allocations])
+  const soldOut = sale.mode === 'live' && sellable.length === 0 && !allocations.some((a) => a.available > 0)
   const [code, setCode] = useState<string | null>(sellable[0]?.code ?? null)
   const [quantity, setQuantity] = useState(2)
   const [step, setStep] = useState<'pick' | 'details'>('pick')
+  // The allocation being bought (tickets on request) and each card's quantity.
+  const [allocPick, setAllocPick] = useState<{ id: string; qty: number } | null>(null)
+  const [allocQty, setAllocQty] = useState<Record<string, number>>({})
   const [picked, setPicked] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerFilter, setPickerFilter] = useState<string | null>(null)
@@ -162,6 +167,13 @@ export default function SeatSalePanel({
   const stock = useMemo(
     () => (venueMap ? stockOnMap(venueMap, allBlocks(venueMap), sale.blocks ?? [], runs) : []),
     [venueMap, sale.blocks, runs],
+  )
+  const requestBlocks = useMemo(
+    () =>
+      venueMap
+        ? requestBlocksOnMap(venueMap, allBlocks(venueMap), allocations.filter((a) => a.available > 0), (i) => allocations.filter((a) => a.available > 0)[i].label)
+        : [],
+    [venueMap, allocations],
   )
 
   // Exact seats (map flow). A seat someone else took since the page loaded
@@ -234,10 +246,11 @@ export default function SeatSalePanel({
   const preview = !mapFlow && code ? pickSeats(runs, code, qty, null, rules) : null
   const seatCount = mapFlow ? activePicked.length : qty
 
-  const lowest = sale.categories.reduce<number | null>(
-    (min, c) => (min === null || c.price_cents < min ? c.price_cents : min),
-    null,
-  )
+  const lowest = [
+    ...sale.categories.map((c) => c.price_cents),
+    ...allocations.filter((a) => a.available > 0).map((a) => a.price_cents),
+  ].reduce<number | null>((min, p) => (min === null || p < min ? p : min), null)
+  const allocSel = allocPick ? (allocations.find((a) => a.id === allocPick.id) ?? null) : null
   const deliverBy = sale.deliver_by
     ? new Date(`${sale.deliver_by}T12:00:00`).toLocaleDateString(locale, {
         day: 'numeric',
@@ -347,8 +360,21 @@ export default function SeatSalePanel({
     setStep('details')
   }
 
+  // Tickets on request: straight to the details step (sign in first).
+  const startAllocation = (a: PublicSeatAllocation, q: number) => {
+    if (busy || a.available <= 0) return
+    setErrorKey(null)
+    if (!isAuthenticated) {
+      goSignIn(`/events/${slug}`)
+      return
+    }
+    setPicked([])
+    setAllocPick({ id: a.id, qty: q })
+    setStep('details')
+  }
+
   const reserve = async () => {
-    if (!selected || busy || !consent) return
+    if ((!selected && !allocSel) || busy || !consent) return
     setBusy(true)
     setErrorKey(null)
     try {
@@ -356,11 +382,13 @@ export default function SeatSalePanel({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          exact
+          allocSel && allocPick
+            ? { eventId, allocationId: allocSel.id, quantity: allocPick.qty, buyerName: name, eventimEmail, phone, note }
+            : exact
             ? { eventId, seats: pickedSeats, buyerName: name, eventimEmail, phone, note }
             : {
                 eventId,
-                category: selected.code,
+                category: selected!.code,
                 quantity: qty,
                 area: null,
                 block: null,
@@ -380,7 +408,9 @@ export default function SeatSalePanel({
           entityId: eventId,
           city,
           country,
-          meta: { kind: 'seats', quantity: seatCount, category: selected.code, exact },
+          meta: allocSel && allocPick
+            ? { kind: 'allocation', quantity: allocPick.qty, category: 'allocation', allocation: allocSel.label }
+            : { kind: 'seats', quantity: seatCount, category: selected!.code, exact },
         })
         try {
           window.sessionStorage.removeItem(storeKey)
@@ -621,6 +651,7 @@ export default function SeatSalePanel({
         colorFor={colorFor}
         counts={counted ? counts : undefined}
         labels={{ floor: t('seat_floor'), ring: t('seat_ring') }}
+        requests={requestBlocks}
       />
     ) : null
 
@@ -740,8 +771,14 @@ export default function SeatSalePanel({
   )
 
   const checkout = (inPicker: boolean) => {
-    if (!selected) return null
-    const total = selected.price_cents * seatCount
+    const line =
+      allocSel && allocPick
+        ? { label: allocSel.label, unit: allocSel.price_cents, count: allocPick.qty }
+        : selected
+          ? { label: selected.label, unit: selected.price_cents, count: seatCount }
+          : null
+    if (!line) return null
+    const total = line.unit * line.count
     const canSubmit =
       consent && name.trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(eventimEmail.trim())
     return (
@@ -749,7 +786,10 @@ export default function SeatSalePanel({
         {!inPicker && (
           <button
             type="button"
-            onClick={() => setStep('pick')}
+            onClick={() => {
+              setStep('pick')
+              setAllocPick(null)
+            }}
             disabled={busy}
             className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-white/55 transition hover:text-white"
           >
@@ -761,12 +801,14 @@ export default function SeatSalePanel({
         <div className="rounded-2xl border border-flame-500/30 bg-flame-500/[0.07] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-white">
-              {seatCount} × {selected.label}
+              {line.count} × {line.label}
             </span>
             <span className="text-base font-bold text-white">{money(total)}</span>
           </div>
           <p className="mt-1 text-xs text-white/55">
-            {exact
+            {allocSel
+              ? t('seat_alloc_on_request')
+              : exact
               ? groupSeats(pickedSeats)
                   .map((g) => `${t('seat_block')} ${g.block} · ${t('seat_row')} ${g.row} · ${t('seat_seats')} ${g.seats}`)
                   .join(' | ')
@@ -858,6 +900,90 @@ export default function SeatSalePanel({
     )
   }
 
+  // Tickets on request (phase 47): one card per allocation with a quantity
+  // stepper; reserving goes to the same details step and payment flow.
+  const allocationList =
+    allocations.length > 0 ? (
+      <div className="mt-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">{t('seat_alloc_title')}</p>
+        <p className="mt-1 text-xs leading-snug text-white/50">{t('seat_alloc_sub')}</p>
+        <div className="mt-2 space-y-2">
+          {allocations.map((a) => {
+            const gone = a.available <= 0
+            const max = Math.max(1, Math.min(a.available, sale.max_per_order))
+            const q = Math.min(Math.max(1, allocQty[a.id] ?? 2), max)
+            const setQ = (n: number) => setAllocQty((prev) => ({ ...prev, [a.id]: Math.min(Math.max(1, n), max) }))
+            return (
+              <div
+                key={a.id}
+                className={`rounded-2xl border px-4 py-3 ${gone ? 'border-white/[0.06] bg-white/[0.02] opacity-60' : 'border-amber-300/25 bg-amber-300/[0.04]'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug text-white">{a.label}</p>
+                    <p className="mt-0.5 text-xs text-white/50">
+                      {[
+                        a.area,
+                        a.rows ? fill(t('seat_alloc_rows'), { rows: a.rows }) : t('seat_alloc_rows_tbc'),
+                        gone ? t('seat_sold_out') : fill(t('seat_left'), { n: a.available }),
+                      ].join(' · ')}
+                    </p>
+                    {a.note && <p className="mt-1 text-[11px] font-semibold text-amber-200/90">{a.note}</p>}
+                  </div>
+                  <p className="flex-shrink-0 text-right text-sm font-semibold text-white">{fill(t('seat_per_seat'), { price: money(a.price_cents) })}</p>
+                </div>
+                {!gone && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <div className="flex h-10 flex-shrink-0 items-center gap-1 rounded-full border border-white/12 bg-white/[0.04] px-1">
+                      <button
+                        type="button"
+                        onClick={() => setQ(q - 1)}
+                        disabled={q <= 1 || busy}
+                        aria-label="−1"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-5 text-center text-sm font-bold tabular-nums text-white">{q}</span>
+                      <button
+                        type="button"
+                        onClick={() => setQ(q + 1)}
+                        disabled={q >= max || busy}
+                        aria-label="+1"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startAllocation(a, q)}
+                      disabled={busy}
+                      className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-flame-500 px-4 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 disabled:opacity-45"
+                    >
+                      <span className="truncate">
+                        {fill(t('seat_alloc_reserve'), { n: q })} · {money(a.price_cents * q)}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    ) : null
+
+  // Details step for tickets on request (in the page, not the map picker).
+  if (step === 'details' && allocSel) {
+    return (
+      <div className="mt-5 border-t border-white/[0.08] pt-5">
+        {draftBadge}
+        {checkout(false)}
+      </div>
+    )
+  }
+
   // ---- with a venue map: stadium card + full-screen picker ------------------
   if (mapFlow && venueMap) {
     const total = selected ? selected.price_cents * activePicked.length : 0
@@ -940,6 +1066,8 @@ export default function SeatSalePanel({
             )
           })}
         </div>
+
+        {allocationList}
 
         {exact && selected && (
           <div className="mt-3 rounded-2xl border border-flame-500/30 bg-flame-500/[0.07] px-4 py-3">
@@ -1049,6 +1177,7 @@ export default function SeatSalePanel({
       {categoryList}
       {quantityRow}
       {previewStrip}
+      {allocationList}
       {trust}
       {howToPay}
       {errorBox}

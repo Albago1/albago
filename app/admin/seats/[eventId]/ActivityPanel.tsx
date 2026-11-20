@@ -50,7 +50,27 @@ const PAYMENT_FIELD: Record<string, string> = {
   whatsapp_public: 'WhatsApp button',
 }
 
+const ALLOCATION_FIELD: Record<string, string> = {
+  label: 'name',
+  area: 'area',
+  blocks: 'blocks',
+  rows_label: 'rows',
+  quantity: 'tickets',
+  price_cents: 'price',
+  note: 'note',
+  active: 'status',
+  sort_order: 'order',
+}
+
 const str = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '')
+
+function allocationValue(key: string, v: unknown): string {
+  if (key === 'active') return v ? 'on sale' : 'paused'
+  if (v === null || v === undefined || v === '') return '—'
+  if (key === 'price_cents' && typeof v === 'number') return eur(v)
+  if (Array.isArray(v)) return v.map(str).join(', ') || '—'
+  return str(v) || 'changed'
+}
 
 function settingValue(key: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '—'
@@ -94,6 +114,20 @@ export function describe(entry: SeatAdminLogRow): string {
       return `Order ${str(d.reference)}: ${RESERVATION_ACTION[str(d.action)] ?? str(d.action)}${d.released ? ', seats back on sale' : ''}`
     case 'manual_sale':
       return `Manual sale ${str(d.reference)}: ${str(d.quantity)} × ${str(d.category)}${d.paid ? ' (paid)' : ''}`
+    case 'allocation': {
+      if (d.created) {
+        return `Tickets on request “${str(d.label)}” added: ${str(d.quantity)} × ${typeof d.price_cents === 'number' ? eur(d.price_cents) : '—'}`
+      }
+      const changes = (d.changes ?? {}) as Record<string, { from: unknown; to: unknown }>
+      const parts = Object.entries(changes).map(
+        ([key, c]) => `${ALLOCATION_FIELD[key] ?? key} ${allocationValue(key, c.from)} → ${allocationValue(key, c.to)}`,
+      )
+      return `Tickets on request “${str(d.label)}”: ${parts.join(' · ') || 'saved'}`
+    }
+    case 'assign_seats': {
+      const seats = Array.isArray(d.seats) ? (d.seats as unknown[]).map(str).join(', ') : ''
+      return `Order ${str(d.reference)}: seats assigned${seats ? ` (${seats})` : ''}`
+    }
     case 'payment': {
       const fields = Array.isArray(d.fields) ? (d.fields as unknown[]).map((f) => PAYMENT_FIELD[str(f)] ?? str(f)) : []
       return `Payment details changed${fields.length ? ` (${fields.join(', ')})` : ''}`
