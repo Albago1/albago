@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isRequestAdmin } from '@/lib/admin/apiAuth'
+import { allocationTaken, parseAllocationInput, parseAssignedSeats } from '@/lib/seats/allocations'
 import { createClient } from '@/lib/supabase/server'
 import { cleanText, seatRpcError, UUID_RE } from '@/lib/seats/errors'
 import { parseEventimSeats, suggestCategories } from '@/lib/seats/parseEventimSeats'
@@ -45,6 +46,9 @@ export const maxDuration = 20
  *         { op: 'manual_sale', category, quantity, buyerName, buyerEmail, eventimEmail?, phone?, note?, paid, paymentMethod?, notify? }
  *         { op: 'delete_waitlist', id }
  *         { op: 'payment', bankHolder?, iban?, bic?, paypalMe?, whatsapp?, whatsappPublic? }   (private payment + contact)
+ *         { op: 'allocation', id?, label, area, blocks, rows?, quantity, priceCents, note?, active?, sortOrder? }
+ *                                                        (tickets on request, phase 47: create without id, else update)
+ *         { op: 'assign_seats', reservationId, seats: [{ area, block, row, seat }] }   (seats for a tickets-on-request order)
  * Every change to stock, prices, rules or orders is written to seat_admin_log.
  */
 
@@ -495,6 +499,93 @@ export async function POST(request: Request, { params }: Params) {
       const fields = Object.keys(next).filter((k) => (before[k] ?? null) !== (next as Record<string, unknown>)[k])
       if (fields.length > 0) await logAdmin(supabase, eventId, 'payment', { fields })
       return NextResponse.json({ ok: true })
+    }
+
+    case 'allocation': {
+      const id =
+        body.id === undefined || body.id === null
+          ? null
+          : typeof body.id === 'string' && UUID_RE.test(body.id)
+            ? body.id
+            : undefined
+      if (id === undefined) return bad('bad_id')
+      const input = parseAllocationInput(body)
+      if ('error' in input) return bad(input.error)
+
+      if (!id) {
+        const { data, error } = await supabase
+          .from('seat_allocations')
+          .insert({ event_id: eventId, ...input })
+          .select('id')
+          .single()
+        if (error) return rpcFailure(error.message, 'allocation')
+        await logAdmin(supabase, eventId, 'allocation', {
+          label: input.label,
+          created: true,
+          quantity: input.quantity,
+          price_cents: input.price_cents,
+        })
+        return NextResponse.json({ ok: true, id: (data as { id: string }).id })
+      }
+
+      const [{ data: before }, { data: orders }] = await Promise.all([
+        supabase.from('seat_allocations').select('*').eq('id', id).eq('event_id', eventId).maybeSingle(),
+        supabase
+          .from('seat_reservations')
+          .select('allocation_id, status, quantity, expires_at')
+          .eq('event_id', eventId)
+          .eq('allocation_id', id),
+      ])
+      if (!before) return bad('bad_id')
+      // Never below what buyers already have (the reserve RPC re-checks under lock).
+      const taken = allocationTaken(id, (orders as SeatReservationRow[] | null) ?? [])
+      if (input.quantity < taken.sold + taken.held) {
+        return NextResponse.json({ ok: false, error: 'below_sold' }, { status: 409 })
+      }
+      const { error } = await supabase
+        .from('seat_allocations')
+        .update({ ...input, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('event_id', eventId)
+      if (error) return rpcFailure(error.message, 'allocation')
+
+      const prev = before as Record<string, unknown>
+      const changes: Record<string, { from: unknown; to: unknown }> = {}
+      for (const [key, to] of Object.entries(input)) {
+        const from = prev[key] ?? null
+        if (canonicalJson(from) !== canonicalJson(to)) changes[key] = { from, to }
+      }
+      if (Object.keys(changes).length > 0) {
+        await logAdmin(supabase, eventId, 'allocation', { label: input.label, changes })
+      }
+      return NextResponse.json({ ok: true, id })
+    }
+
+    case 'assign_seats': {
+      const reservationId = typeof body.reservationId === 'string' ? body.reservationId : ''
+      if (!UUID_RE.test(reservationId)) return bad('bad_reservation')
+      const { data: order } = await supabase
+        .from('seat_reservations')
+        .select('id, reference, quantity, allocation_id')
+        .eq('id', reservationId)
+        .eq('event_id', eventId)
+        .maybeSingle()
+      const row = order as Pick<SeatReservationRow, 'id' | 'reference' | 'quantity' | 'allocation_id'> | null
+      if (!row) return NextResponse.json({ ok: false, error: 'reservation_not_found' }, { status: 404 })
+      if (!row.allocation_id) return bad('bad_action')
+      const seats = parseAssignedSeats(body.seats, row.quantity)
+      if (!seats) return bad('bad_details')
+
+      const { data, error } = await supabase.rpc('seat_admin_assign_seats', {
+        p_reservation_id: reservationId,
+        p_seats: seats,
+      })
+      if (error) return rpcFailure(error.message, 'assign_seats')
+      await logAdmin(supabase, eventId, 'assign_seats', {
+        reference: row.reference,
+        seats: seats.map((s) => `${s.block}/${s.row}/${s.seat}`),
+      })
+      return NextResponse.json({ ok: true, reservation: data as SeatReservationRow })
     }
 
     default:

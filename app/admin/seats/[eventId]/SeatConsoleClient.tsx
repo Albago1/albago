@@ -6,6 +6,7 @@ import { Armchair, ArrowLeft, ExternalLink } from 'lucide-react'
 import { effectiveStatus } from '@/lib/seats/format'
 import type { SeatSaleMode } from '@/lib/seats/types'
 import ActivityPanel from './ActivityPanel'
+import AllocationsPanel from './AllocationsPanel'
 import ReservationsPanel from './ReservationsPanel'
 import SettingsPanel from './SettingsPanel'
 import StockPanel from './StockPanel'
@@ -29,7 +30,7 @@ const MODE_PILL: Record<SeatSaleMode, string> = {
 }
 
 export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
-  const { event, sale, categories, stock, reservations, waitlist } = data
+  const { event, sale, categories, stock, reservations, waitlist, allocations } = data
   const [tab, setTab] = useState<Tab>(stock.length === 0 ? 'stock' : 'orders')
 
   const kpis = useMemo(() => {
@@ -38,7 +39,10 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
     const held = live.filter((r) => r.status === 'held')
     const faceByCat = new Map(categories.map((c) => [c.code, c.face_value_cents ?? 0]))
     return {
-      seats: stock.filter((s) => !s.withdrawn).length,
+      // Exact seats plus tickets on request (paused blocks keep the ones they sold).
+      seats:
+        stock.filter((s) => !s.withdrawn).length +
+        allocations.reduce((n, a) => n + (a.active ? a.quantity : 0), 0),
       soldElsewhere: stock.filter((s) => s.withdrawn && s.withdrawn_reason === 'external').length,
       seatsSold: sold.reduce((n, r) => n + r.quantity, 0),
       seatsHeld: held.reduce((n, r) => n + r.quantity, 0),
@@ -48,7 +52,7 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
       delivered: live.filter((r) => r.status === 'delivered').reduce((n, r) => n + r.quantity, 0),
       stockFace: stock.reduce((n, s) => n + (faceByCat.get(s.category) ?? 0), 0),
     }
-  }, [reservations, stock, categories])
+  }, [reservations, stock, categories, allocations])
 
   const tabs: Array<{ id: Tab; label: string; badge?: number }> = [
     { id: 'orders', label: 'Orders', badge: kpis.toTransfer || undefined },
@@ -128,7 +132,12 @@ export default function SeatConsoleClient({ data }: { data: ConsoleData }) {
 
       <div className="mt-5">
         {tab === 'orders' && <ReservationsPanel data={data} />}
-        {tab === 'stock' && <StockPanel data={data} />}
+        {tab === 'stock' && (
+          <div className="space-y-8">
+            <AllocationsPanel data={data} />
+            <StockPanel data={data} />
+          </div>
+        )}
         {tab === 'settings' && <SettingsPanel data={data} />}
         {tab === 'waitlist' && <WaitlistPanel data={data} />}
         {tab === 'activity' && <ActivityPanel data={data} />}

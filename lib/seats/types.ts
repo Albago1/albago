@@ -53,6 +53,19 @@ export type PublicSeatCategory = {
   max_together: number
 }
 
+/** Tickets sold by count per block, exact seats assigned later (phase 47). */
+export type PublicSeatAllocation = {
+  id: string
+  label: string
+  area: string
+  blocks: string[]
+  /** Row range as given by the seller ("1–5"), or null when not known yet. */
+  rows: string | null
+  price_cents: number
+  note: string | null
+  available: number
+}
+
 /** A block that has seats on sale (sold-out ones included — drawn dimmed). */
 export type PublicSeatBlock = {
   category: string
@@ -95,6 +108,8 @@ export type PublicSeatSale = {
   seats?: PublicSeat[]
   /** Single-seat protection, with today's phase (absent before phase 46). */
   rules?: SeatRules
+  /** Seats-on-request stock (absent before phase 47). */
+  allocations?: PublicSeatAllocation[]
 }
 
 /** seat_reserve() / seat_admin_manual_sale() result. */
@@ -109,6 +124,8 @@ export type ReservationResult = {
   currency: string
   seats: SeatRef[]
   expires_at: string | null
+  /** Set for seats-on-request orders (phase 47). */
+  allocation_id?: string | null
 }
 
 /** A seat_reservations row (buyer reads own via RLS; admins read all). */
@@ -141,6 +158,25 @@ export type SeatReservationRow = {
   cancelled_at: string | null
   refunded_at: string | null
   created_at: string
+  /** Set for seats-on-request orders (phase 47); their seats are assigned later. */
+  allocation_id?: string | null
+}
+
+/** seat_allocations — tickets sold by count per block (phase 47, admin RLS). */
+export type SeatAllocationRow = {
+  id: string
+  event_id: string
+  label: string
+  area: string
+  blocks: string[]
+  rows_label: string | null
+  quantity: number
+  price_cents: number
+  note: string | null
+  active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
 }
 
 export type SeatSaleRow = {

@@ -2,6 +2,7 @@ import type {
   FreeRun,
   PaymentMethod,
   ReservationStatus,
+  SeatAllocationRow,
   SeatCategoryRow,
   SeatAdminLogRow,
   SeatReservationRow,
@@ -25,6 +26,8 @@ export type ConsoleData = {
   sale: SeatSaleRow
   categories: SeatCategoryRow[]
   stock: SeatStockRow[]
+  /** Tickets on request (phase 47); empty before the migration. */
+  allocations: SeatAllocationRow[]
   reservations: SeatReservationRow[]
   waitlist: SeatWaitlistRow[]
   /** Private payment details (admin RLS, IBAN masked); null until set. */
@@ -78,6 +81,15 @@ const ERROR_TEXT: Record<string, string> = {
   splits_group: 'Those seats would split a group — start at one end of the row.',
   strands_seat: 'That would leave one seat on its own.',
   quantity_not_allowed: 'That number of seats is not allowed for this group.',
+  bad_label: 'Give the tickets a name, e.g. "Block 14 / 17".',
+  bad_area: 'Write the area, e.g. "Innenraum".',
+  bad_blocks: 'Blocks: up to 10, separated by commas (e.g. 14, 17).',
+  bad_rows: 'Rows: keep it short, e.g. 1–5.',
+  bad_price: 'Check the price.',
+  bad_note: 'The note is too long (200 characters max).',
+  below_sold: 'That is fewer tickets than are already sold or held for this block.',
+  bad_action: 'That only works for tickets on request.',
+  reservation_not_found: 'That order no longer exists — refresh the page.',
 }
 
 export function errorText(code: string | undefined): string {

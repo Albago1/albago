@@ -76,7 +76,9 @@ export async function sendSeatEmail(
       buyerName: reservation.buyer_name,
       categoryLabel: reservation.category_label,
       quantity: reservation.quantity,
-      seatsLine: seatsLine(reservation.seats),
+      seatsLine: reservation.seats.length
+        ? seatsLine(reservation.seats)
+        : 'Seats on request — confirmed before the transfer (together where possible)',
       totalLabel: formatMoney(reservation.total_cents, reservation.currency),
       eventimEmail: reservation.eventim_email,
       holdUntilLabel: reservation.expires_at ? berlinLabel(reservation.expires_at, true) : null,

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { UUID_RE } from '@/lib/seats/errors'
 import type {
   SeatAdminLogRow,
+  SeatAllocationRow,
   SeatCategoryRow,
   SeatReservationRow,
   SeatSaleRow,
@@ -31,7 +32,7 @@ export default async function SeatConsolePage({
   if (!UUID_RE.test(eventId)) notFound()
 
   const supabase = await createClient()
-  const [eventRes, saleRes, catRes, stockRes, resRes, waitRes, payRes, logRes, userRes] = await Promise.all([
+  const [eventRes, saleRes, catRes, stockRes, resRes, waitRes, payRes, logRes, userRes, allocRes] = await Promise.all([
     supabase.from('events').select('id, slug, title, date, time, status').eq('id', eventId).maybeSingle(),
     supabase.from('seat_sales').select('*').eq('event_id', eventId).maybeSingle(),
     supabase.from('seat_categories').select('*').eq('event_id', eventId).order('sort_order').order('code'),
@@ -53,6 +54,8 @@ export default async function SeatConsolePage({
       .order('created_at', { ascending: false })
       .limit(60),
     supabase.auth.getUser(),
+    // Phase 47; errors (table not there yet) read as "no allocations".
+    supabase.from('seat_allocations').select('*').eq('event_id', eventId).order('sort_order').order('created_at'),
   ])
 
   if (!eventRes.data || !saleRes.data) notFound()
@@ -76,6 +79,7 @@ export default async function SeatConsolePage({
           sale: saleRes.data as SeatSaleRow,
           categories: (catRes.data as SeatCategoryRow[] | null) ?? [],
           stock: (stockRes.data as SeatStockRow[] | null) ?? [],
+          allocations: (allocRes.data as SeatAllocationRow[] | null) ?? [],
           reservations: (resRes.data as SeatReservationRow[] | null) ?? [],
           waitlist: (waitRes.data as SeatWaitlistRow[] | null) ?? [],
           // The full IBAN stays on the server; the console only shows it masked.

@@ -196,6 +196,9 @@ function SeatCard({ card, highlight }: { card: MySeatCard; highlight: boolean })
           </p>
           <p className="text-base font-bold text-white">{formatMoney(r.total_cents, r.currency, locale)}</p>
         </div>
+        {r.seats.length === 0 && (
+          <p className="mt-2 text-xs leading-snug text-amber-200/90">{t('seat_alloc_pending')}</p>
+        )}
         <ul className="mt-2 space-y-1">
           {groupSeats(r.seats).map((g) => (
             <li key={`${g.area}-${g.block}-${g.row}`} className="text-xs text-white/60">

@@ -11,10 +11,11 @@ export const maxDuration = 20
 // Seat reservation (phase 43). All correctness lives in seat_reserve: one
 // transaction under the seat_sales row lock, seats picked so a group always
 // sits together. This route only authenticates, validates shape, and maps RPC
-// codes to stable JSON. Two shapes: { category, quantity, area?, block? }
-// (best available, optionally inside one block) or { seats: [...] } (the
-// exact seats tapped on the stadium map). No payment happens here — the
-// reservation is 'held' until the seller confirms payment.
+// codes to stable JSON. Three shapes: { category, quantity, area?, block? }
+// (best available, optionally inside one block), { seats: [...] } (the
+// exact seats tapped on the stadium map), or { allocationId, quantity }
+// (tickets on request, seats assigned later — phase 47). No payment happens
+// here — the reservation is 'held' until the seller confirms payment.
 
 const limited = createRateLimiter(10 * 60_000, 12)
 
@@ -49,10 +50,12 @@ export async function POST(request: Request) {
   const seats = exactSeats(body.seats)
   const category = cleanText(body.category, 40)
   const quantity = typeof body.quantity === 'number' ? body.quantity : NaN
-  if (!UUID_RE.test(eventId) || seats === 'invalid') {
+  const allocationId = typeof body.allocationId === 'string' ? body.allocationId : null
+  if (!UUID_RE.test(eventId) || seats === 'invalid' || (allocationId !== null && !UUID_RE.test(allocationId))) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }
-  if (!seats && (!category || !Number.isInteger(quantity) || quantity < 1 || quantity > 20)) {
+  const validQty = Number.isInteger(quantity) && quantity >= 1 && quantity <= 20
+  if (!seats && !(allocationId ? validQty : category && validQty)) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }
 
@@ -78,7 +81,14 @@ export async function POST(request: Request) {
   const block = cleanText(body.block, 20)
   const { data, error } = seats
     ? await supabase.rpc('seat_reserve_seats', { p_event_id: eventId, p_seats: seats, ...buyer })
-    : await supabase.rpc('seat_reserve', {
+    : allocationId
+      ? await supabase.rpc('seat_reserve_allocation', {
+          p_event_id: eventId,
+          p_allocation_id: allocationId,
+          p_quantity: quantity,
+          ...buyer,
+        })
+      : await supabase.rpc('seat_reserve', {
         p_event_id: eventId,
         p_category: category,
         p_quantity: quantity,

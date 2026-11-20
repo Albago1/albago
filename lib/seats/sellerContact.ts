@@ -20,7 +20,16 @@ export type SellerOptions = {
 export async function sellerOptions(eventIds: string[]): Promise<Map<string, SellerOptions>> {
   const out = new Map<string, SellerOptions>()
   if (eventIds.length === 0) return out
-  const { data } = await createAdminClient()
+  // Without the service key (e.g. a local checkout) the page still renders,
+  // just without the seller's payment / WhatsApp hints.
+  let admin: ReturnType<typeof createAdminClient>
+  try {
+    admin = createAdminClient()
+  } catch (error) {
+    console.error('[seats] seller options unavailable:', (error as Error).message)
+    return out
+  }
+  const { data } = await admin
     .from('seat_payment_settings')
     .select('event_id, whatsapp, whatsapp_public, iban, paypal_me')
     .in('event_id', eventIds)

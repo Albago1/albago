@@ -8,7 +8,7 @@ import { bestKeysInBlock, blockKey, parseSeatKey, pickSeats, seatKeyOf } from '@
 import { ruleContext } from '@/lib/seats/protection'
 import type { PublicSeat, PublicSeatSale } from '@/lib/seats/types'
 import { allBlocks, type VenueMap } from '@/lib/seats/venueMaps'
-import StadiumMap, { stockOnMap, type StockBlock } from './StadiumMap'
+import StadiumMap, { requestBlocksOnMap, stockOnMap, type StockBlock } from './StadiumMap'
 
 // Full-screen seat picker (phase 43), the way the big ticket shops do it:
 //   1. the whole stadium — filter by price, pinch / scroll / tap to zoom
@@ -82,6 +82,13 @@ export default function SeatMapPicker({
   const seats = useMemo(() => sale.seats ?? [], [sale.seats])
   const all = useMemo(() => allBlocks(map), [map])
   const stock = useMemo(() => stockOnMap(map, all, sale.blocks ?? [], runs), [map, all, sale.blocks, runs])
+  // Tickets on request (phase 47): highlighted blocks; a tap explains them.
+  const requests = useMemo(() => {
+    const open = (sale.allocations ?? []).filter((a) => a.available > 0)
+    return requestBlocksOnMap(map, all, open, (i) =>
+      [open[i].label, t('seat_alloc_map'), fill(t('seat_per_seat'), { price: money(open[i].price_cents) })].join(' · '),
+    )
+  }, [map, all, sale.allocations, t, money])
   const categories = sale.categories
   const catOf = (code: string) => categories.find((c) => c.code === code) ?? null
 
@@ -459,6 +466,7 @@ export default function SeatMapPicker({
                   fly={fly}
                   onToggleSeat={toggle}
                   onOther={sayOther}
+                  requests={requests}
                   onViewBlock={setViewKey}
                   disabled={busy}
                   labels={{
