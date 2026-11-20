@@ -22,7 +22,6 @@ const COPY: Record<Lang, {
   chip: string
   role: Record<PollOption['role'], string>
   tap: string
-  votes: (n: number) => string
   yourPick: (name: string) => string
   change: string
   closed: string
@@ -34,7 +33,6 @@ const COPY: Record<Lang, {
     chip: 'Fan poll',
     role: { champion: 'WBC champion', challenger: 'Challenger' },
     tap: 'Tap to vote',
-    votes: (n) => (n === 1 ? '1 vote' : `${n.toLocaleString('en-GB')} votes`),
     yourPick: (n) => `Your pick: ${n}`,
     change: 'Tap the other fighter to change it.',
     closed: 'Voting has closed — the fans’ verdict.',
@@ -46,7 +44,6 @@ const COPY: Record<Lang, {
     chip: 'Sondazh',
     role: { champion: 'Kampion WBC', challenger: 'Sfidues' },
     tap: 'Prek për të votuar',
-    votes: (n) => (n === 1 ? '1 votë' : `${n.toLocaleString('de-DE')} vota`),
     yourPick: (n) => `Zgjedhja jote: ${n}`,
     change: 'Prek boksierin tjetër për ta ndryshuar.',
     closed: 'Votimi u mbyll — vendimi i tifozëve.',
@@ -58,7 +55,6 @@ const COPY: Record<Lang, {
     chip: 'Fan-Umfrage',
     role: { champion: 'WBC-Weltmeister', challenger: 'Herausforderer' },
     tap: 'Tippen zum Abstimmen',
-    votes: (n) => (n === 1 ? '1 Stimme' : `${n.toLocaleString('de-DE')} Stimmen`),
     yourPick: (n) => `Dein Tipp: ${n}`,
     change: 'Tippe auf den anderen Boxer, um ihn zu ändern.',
     closed: 'Die Abstimmung ist beendet — das Urteil der Fans.',
@@ -70,7 +66,6 @@ const COPY: Record<Lang, {
     chip: 'Encuesta',
     role: { champion: 'Campeón WBC', challenger: 'Aspirante' },
     tap: 'Toca para votar',
-    votes: (n) => (n === 1 ? '1 voto' : `${n.toLocaleString('es-ES')} votos`),
     yourPick: (n) => `Tu elección: ${n}`,
     change: 'Toca al otro boxeador para cambiarla.',
     closed: 'La votación ha terminado — el veredicto de la afición.',
@@ -175,7 +170,6 @@ export default function FightPoll({ poll, closed }: { poll: Poll; closed: boolea
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80">
           <Vote className="h-3 w-3 text-flame-300" />
           {c.chip}
-          {data && data.total > 0 && <span className="text-white/50">· {c.votes(data.total)}</span>}
         </span>
       </div>
       <p className="mt-1.5 text-sm text-white/60">{c.sub}</p>
