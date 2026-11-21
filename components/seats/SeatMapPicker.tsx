@@ -17,6 +17,8 @@ import StadiumMap, { requestBlocksOnMap, stockOnMap, type StockBlock } from './S
 //   3. tap seats; they collect in the selection (bottom sheet on phones,
 //      sidebar on desktop) with the total — or let us pick the best ones
 //   4. Continue → the checkout step renders inside the picker
+//   Striped blocks are tickets on request (phase 47): tap one, choose how
+//   many, Continue — the seller assigns the exact seats later.
 // Selection state lives in the event-page panel, so it survives closing.
 
 type Props = {
@@ -30,6 +32,9 @@ type Props = {
   /** Picked seat keys (still free). */
   picked: string[]
   onPickedChange: (keys: string[]) => void
+  /** Selected tickets-on-request zone and how many (phase 47). */
+  zone: Zone | null
+  onZoneChange: (zone: Zone | null) => void
   initialFilter: string | null
   onContinue: () => void
   /** Checkout step; shown instead of the map when set. */
@@ -41,6 +46,8 @@ type Props = {
   ruleNotice?: string | null
   busy: boolean
 }
+
+export type Zone = { id: string; qty: number }
 
 const fill = (text: string, values: Record<string, string | number>) =>
   text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ''))
@@ -57,6 +64,8 @@ export default function SeatMapPicker({
   money,
   picked,
   onPickedChange,
+  zone,
+  onZoneChange,
   initialFilter,
   onContinue,
   checkout,
@@ -82,13 +91,18 @@ export default function SeatMapPicker({
   const seats = useMemo(() => sale.seats ?? [], [sale.seats])
   const all = useMemo(() => allBlocks(map), [map])
   const stock = useMemo(() => stockOnMap(map, all, sale.blocks ?? [], runs), [map, all, sale.blocks, runs])
-  // Tickets on request (phase 47): highlighted blocks; a tap explains them.
-  const requests = useMemo(() => {
-    const open = (sale.allocations ?? []).filter((a) => a.available > 0)
-    return requestBlocksOnMap(map, all, open, (i) =>
-      [open[i].label, t('seat_alloc_map'), fill(t('seat_per_seat'), { price: money(open[i].price_cents) })].join(' · '),
-    )
-  }, [map, all, sale.allocations, t, money])
+  // Tickets on request (phase 47): striped blocks; a tap selects the zone.
+  const zones = useMemo(() => (sale.allocations ?? []).filter((a) => a.available > 0), [sale.allocations])
+  const requests = useMemo(
+    () =>
+      requestBlocksOnMap(map, all, zones, (i) =>
+        [zones[i].label, t('seat_alloc_map'), fill(t('seat_per_seat'), { price: money(zones[i].price_cents) })].join(' · '),
+      ),
+    [map, all, zones, t, money],
+  )
+  const zoneSel = zone ? (zones.find((a) => a.id === zone.id) ?? null) : null
+  const zoneMax = zoneSel ? Math.max(1, Math.min(zoneSel.available, sale.max_per_order)) : 1
+  const zoneQty = zone ? Math.min(Math.max(1, zone.qty), zoneMax) : 1
   const categories = sale.categories
   const catOf = (code: string) => categories.find((c) => c.code === code) ?? null
 
@@ -159,7 +173,16 @@ export default function SeatMapPicker({
     if (ready.current) say(text)
   }
 
+  // Selecting a zone replaces any seats picked (one kind of ticket per order).
+  const pickZone = (id: string) => {
+    const a = zones.find((z) => z.id === id)
+    if (!a || busy) return
+    if (zone?.id === id) return
+    onZoneChange({ id, qty: Math.min(2, Math.max(1, Math.min(a.available, sale.max_per_order))) })
+  }
+
   const toggle = (seat: PublicSeat) => {
+    if (zone) onZoneChange(null)
     const key = seatKeyOf(seat)
     if (pickedSet.has(key)) {
       onPickedChange(picked.filter((k) => k !== key))
@@ -279,6 +302,36 @@ export default function SeatMapPicker({
             )
           })}
         </div>
+        {zones.length > 0 && (
+          <>
+            <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200/70">{t('seat_alloc_legend')}</p>
+            <div className="mt-2.5 space-y-1.5">
+              {zones.map((a) => {
+                const active = zone?.id === a.id
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => (active ? onZoneChange(null) : pickZone(a.id))}
+                    aria-pressed={active}
+                    className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition ${
+                      active ? 'border-amber-300/70 bg-amber-400/[0.12]' : 'border-amber-300/20 bg-amber-300/[0.03] hover:border-amber-300/45'
+                    }`}
+                  >
+                    <span className="h-3 w-3 flex-shrink-0 rounded-sm border border-amber-300 bg-amber-400/60" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-white">{a.label}</span>
+                      <span className="block truncate text-[11px] text-white/45">
+                        {a.area} · {fill(t('seat_left'), { n: a.available })}
+                      </span>
+                    </span>
+                    <span className="text-sm font-bold text-white">{money(a.price_cents)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
         <div className="my-5 h-px bg-white/[0.08]" />
       </div>
 
@@ -288,7 +341,73 @@ export default function SeatMapPicker({
         </p>
       )}
 
-      {pickedSeats.length === 0 ? (
+      {zoneSel && pickedSeats.length === 0 ? (
+        <div className="lg:flex lg:flex-1 lg:flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-sm border border-amber-300 bg-amber-400/70" aria-hidden />
+                <span className="truncate">{zoneSel.label}</span>
+              </p>
+              <p className="mt-0.5 pl-[18px] text-xs text-white/55">
+                {[
+                  zoneSel.area,
+                  zoneSel.rows ? fill(t('seat_alloc_rows'), { rows: zoneSel.rows }) : t('seat_alloc_rows_tbc'),
+                  fill(t('seat_left'), { n: zoneSel.available }),
+                ].join(' · ')}
+              </p>
+              {zoneSel.note && <p className="mt-1 pl-[18px] text-[11px] font-semibold text-amber-200/90">{zoneSel.note}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => onZoneChange(null)}
+              aria-label={t('seat_clear')}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-white/50">{t('seat_alloc_sub')}</p>
+          <div className="mt-3 flex items-center gap-3 lg:mt-auto lg:pt-5">
+            <div className="flex h-12 flex-shrink-0 items-center gap-1 rounded-full border border-white/12 bg-white/[0.04] px-1">
+              <button
+                type="button"
+                onClick={() => onZoneChange({ id: zoneSel.id, qty: zoneQty - 1 })}
+                disabled={zoneQty <= 1 || busy}
+                aria-label="−1"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="w-5 text-center text-base font-bold tabular-nums text-white">{zoneQty}</span>
+              <button
+                type="button"
+                onClick={() => onZoneChange({ id: zoneSel.id, qty: zoneQty + 1 })}
+                disabled={zoneQty >= zoneMax || busy}
+                aria-label="+1"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xl font-bold leading-tight text-white">{money(zoneSel.price_cents * zoneQty)}</p>
+              <p className="truncate text-[11px] text-white/50">
+                {countLabel(zoneQty)} × {money(zoneSel.price_cents)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onContinue}
+              disabled={busy}
+              className="inline-flex h-12 flex-shrink-0 items-center gap-1.5 rounded-full bg-flame-500 pl-6 pr-4 text-sm font-semibold text-white shadow-glow-flame transition hover:bg-flame-400 disabled:opacity-45"
+            >
+              {t('seat_continue')}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : pickedSeats.length === 0 ? (
         <div>
           {open && openCat ? (
             <>
@@ -304,6 +423,15 @@ export default function SeatMapPicker({
             </>
           ) : (
             <p className="text-[13px] leading-snug text-white/65">{t('seat_tap_block')}</p>
+          )}
+          {zones.length > 0 && !open && (
+            <p className="mt-1.5 flex items-start gap-2 text-[12px] leading-snug text-amber-100/85">
+              <span
+                className="mt-[3px] h-2.5 w-2.5 flex-shrink-0 rounded-sm border border-amber-400 bg-[repeating-linear-gradient(45deg,rgba(251,191,36,0.6)_0_1.5px,transparent_1.5px_3.5px)]"
+                aria-hidden
+              />
+              {t('seat_alloc_tap')}
+            </p>
           )}
           <div className="mt-3 flex items-center gap-2">
             {stepper}
@@ -452,6 +580,25 @@ export default function SeatMapPicker({
                     </button>
                   )
                 })}
+                {zones.map((a) => {
+                  const active = zone?.id === a.id
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => (active ? onZoneChange(null) : pickZone(a.id))}
+                      aria-pressed={active}
+                      className={`inline-flex h-9 flex-shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold transition ${
+                        active
+                          ? 'border-amber-300 bg-amber-300 text-ink-950'
+                          : 'border-amber-300/35 bg-amber-300/[0.07] text-amber-50 hover:border-amber-300/60'
+                      }`}
+                    >
+                      {a.label}
+                      <span className={active ? 'text-ink-950/70' : 'text-amber-100/60'}>{money(a.price_cents)}</span>
+                    </button>
+                  )
+                })}
               </div>
 
               <div className="relative min-h-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_center,rgba(238,28,37,0.07),transparent_65%)]">
@@ -467,6 +614,8 @@ export default function SeatMapPicker({
                   onToggleSeat={toggle}
                   onOther={sayOther}
                   requests={requests}
+                  activeRequest={zoneSel?.id ?? null}
+                  onRequest={pickZone}
                   onViewBlock={setViewKey}
                   disabled={busy}
                   labels={{
@@ -482,6 +631,7 @@ export default function SeatMapPicker({
                     legendPicked: t('seat_legend_picked'),
                     legendTaken: t('seat_legend_taken'),
                     legendNotOnSale: t('seat_legend_other'),
+                    legendRequest: t('seat_alloc_legend'),
                     block: t('seat_block'),
                     describe,
                     describeOther: (label) => `${t('seat_block')} ${label} · ${t('seat_legend_not_here')}`,

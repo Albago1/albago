@@ -18,21 +18,21 @@ import { ZoomControls } from './ZoomControls'
 
 export type StockBlock = { block: PublicSeatBlock; shape: MapBlock; free: number }
 
-/** A block sold as "tickets on request" (phase 47), with its tooltip text. */
-export type RequestBlock = { shape: MapBlock; text: string }
+/** A block sold as "tickets on request" (phase 47): its allocation and tooltip text. */
+export type RequestBlock = { shape: MapBlock; text: string; id: string }
 
 /** The map blocks of seats-on-request allocations; `describe` writes the tooltip. */
 export function requestBlocksOnMap(
   map: VenueMap,
   all: MapBlock[],
-  allocations: Array<{ area: string; blocks: string[] }>,
+  allocations: Array<{ id: string; area: string; blocks: string[] }>,
   describe: (index: number) => string,
 ): RequestBlock[] {
   const out: RequestBlock[] = []
   allocations.forEach((a, i) => {
     for (const block of a.blocks) {
       const shape = findBlock(map, all, a.area, block)
-      if (shape && !out.some((r) => r.shape === shape)) out.push({ shape, text: describe(i) })
+      if (shape && !out.some((r) => r.shape === shape)) out.push({ shape, text: describe(i), id: a.id })
     }
   })
   return out
@@ -71,6 +71,8 @@ type Hover = { text: string; clientX: number; clientY: number; kind: 'block' | '
 type Interaction = {
   onBlock: (s: StockBlock) => void
   onOther: (text: string) => void
+  /** Tap on a tickets-on-request block (selects its allocation). */
+  onRequest?: (id: string) => void
   onHover: (info: Hover) => void
   describe: (s: StockBlock) => string
   describeOther: (label: string) => string
@@ -98,6 +100,10 @@ type ArtProps = {
   disabled?: boolean
   /** Blocks sold as tickets on request: hatched, with a tooltip. */
   requests?: RequestBlock[]
+  /** Allocation whose blocks are selected (drawn solid). */
+  activeRequest?: string | null
+  /** Tap on a request block without the full interaction (static preview). */
+  onRequest?: (id: string) => void
 }
 
 /** The stadium drawing: field, ring and every block, in map units. */
@@ -116,9 +122,12 @@ export const StadiumArt = memo(function StadiumArt({
   labelSize = 3,
   disabled,
   requests,
+  activeRequest,
+  onRequest,
 }: ArtProps) {
   const stockShapes = new Set(stock.map((s) => s.shape))
-  const requestText = new Map((requests ?? []).map((r) => [r.shape, r.text]))
+  const requestOf = new Map((requests ?? []).map((r) => [r.shape, r]))
+  const tapRequest = onRequest ?? interaction?.onRequest
   const ringHalf = map.ring.size / 2
   const { field } = map
   const hover = (text: string) => (e: React.PointerEvent) => {
@@ -161,7 +170,7 @@ export const StadiumArt = memo(function StadiumArt({
         </text>
       )}
 
-      {requestText.size > 0 && (
+      {requestOf.size > 0 && (
         <defs>
           <pattern id="albago-request-hatch" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width="2.4" height="2.4" fill="rgba(251,191,36,0.16)" />
@@ -173,8 +182,12 @@ export const StadiumArt = memo(function StadiumArt({
       {/* Every block of the venue */}
       {all.map((b, i) => {
         if (stockShapes.has(b)) return null
-        const request = requestText.get(b)
-        const common = request
+        const req = requestOf.get(b)
+        const request = req?.text
+        const picked = !!req && req.id === activeRequest
+        const common = picked
+          ? { fill: 'rgba(251,191,36,0.55)', stroke: '#fff7d6', strokeWidth: seatLevel ? 0.4 : 1.4 }
+          : req
           ? { fill: 'url(#albago-request-hatch)', stroke: '#fbbf24', strokeWidth: seatLevel ? 0.2 : 0.8, strokeDasharray: seatLevel ? undefined : '2 1.2' }
           : seatLevel
             ? { fill: 'rgba(255,255,255,0.02)', stroke: 'rgba(255,255,255,0.12)', strokeWidth: 0.12 }
@@ -185,18 +198,26 @@ export const StadiumArt = memo(function StadiumArt({
         const text = interaction
           ? request ?? (b.label && !seatLevel ? interaction.describeOther(b.label) : null)
           : null
+        // A tickets-on-request block selects its allocation when tapped.
+        const tap = req && tapRequest ? tapRequest : null
         return (
           <g
             key={`b${i}`}
-            pointerEvents={text ? undefined : 'none'}
+            className={tap ? 'cursor-pointer' : undefined}
+            pointerEvents={text || tap ? undefined : 'none'}
             onPointerEnter={text ? hover(text) : undefined}
             onPointerLeave={text ? unhover : undefined}
             onClick={
-              text
-                ? () => {
-                    if (!interaction!.suppressClick.current) interaction!.onOther(text)
+              tap
+                ? (e) => {
+                    e.stopPropagation()
+                    if (!interaction?.suppressClick.current) tap(req!.id)
                   }
-                : undefined
+                : text
+                  ? () => {
+                      if (!interaction!.suppressClick.current) interaction!.onOther(text)
+                    }
+                  : undefined
             }
           >
             {b.d && <path d={b.d} {...common} />}
@@ -206,7 +227,7 @@ export const StadiumArt = memo(function StadiumArt({
               (seatLevel ? (
                 seatLabel(b.cx, b.cy, b.label, 'rgba(255,255,255,0.4)')
               ) : (
-                <text x={b.cx} y={b.cy + (b.rect ? 1.5 : 2)} textAnchor="middle" fontSize={b.rect ? 3.8 : 5.6} fontWeight={request ? 800 : undefined} fill={request ? '#fde68a' : 'rgba(255,255,255,0.3)'} pointerEvents="none">
+                <text x={b.cx} y={b.cy + (b.rect ? 1.5 : 2)} textAnchor="middle" fontSize={b.rect ? 3.8 : 5.6} fontWeight={request ? 800 : undefined} fill={picked ? '#ffffff' : request ? '#fde68a' : 'rgba(255,255,255,0.3)'} pointerEvents="none">
                   {b.label}
                 </text>
               ))}
@@ -503,7 +524,7 @@ export function StadiumPreview({ className, ...props }: PreviewProps) {
   const all = useMemo(() => allBlocks(props.map), [props.map])
   const { w, h } = props.map.viewBox
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className={className ?? 'h-auto w-full'} style={{ aspectRatio: `${w} / ${h}` }} aria-hidden>
+    <svg viewBox={`0 0 ${w} ${h}`} className={className ?? 'h-auto w-full'} style={{ aspectRatio: `${w} / ${h}` }} aria-hidden={!props.onRequest}>
       <StadiumArt {...props} all={all} />
     </svg>
   )
@@ -522,6 +543,8 @@ export type MapLabels = {
   legendPicked: string
   legendTaken: string
   legendNotOnSale: string
+  /** Legend entry for tickets-on-request blocks (phase 47). */
+  legendRequest?: string
   block: string
   describe: (s: StockBlock) => string
   describeOther: (label: string) => string
@@ -546,6 +569,10 @@ type MapProps = {
   disabled?: boolean
   /** Blocks sold as tickets on request (phase 47). */
   requests?: RequestBlock[]
+  /** Selected tickets-on-request allocation (drawn solid). */
+  activeRequest?: string | null
+  /** Tap on a tickets-on-request block. */
+  onRequest?: (id: string) => void
 }
 
 /** Interactive map; fills its parent. */
@@ -564,6 +591,8 @@ export default function StadiumMap({
   labels,
   disabled,
   requests,
+  activeRequest,
+  onRequest,
 }: MapProps) {
   const all = useMemo(() => allBlocks(map), [map])
   const content = useMemo<Box>(() => ({ x: 0, y: 0, w: map.viewBox.w, h: map.viewBox.h }), [map])
@@ -572,10 +601,11 @@ export default function StadiumMap({
   const [tip, setTip] = useState<{ text: string; x: number; y: number; kind: 'block' | 'seat' } | null>(null)
 
   // Latest callbacks, so the memoised layers never need new props for them.
-  const cb = useRef({ onToggleSeat, onOther, onViewBlock, labels })
+  const cb = useRef({ onToggleSeat, onOther, onViewBlock, labels, onRequest })
   useEffect(() => {
-    cb.current = { onToggleSeat, onOther, onViewBlock, labels }
+    cb.current = { onToggleSeat, onOther, onViewBlock, labels, onRequest }
   })
+  const takesRequests = !!onRequest
 
   const laid = useMemo<Laid[]>(
     () =>
@@ -590,6 +620,8 @@ export default function StadiumMap({
     [map, stock, seats],
   )
   const stockShapes = useMemo(() => new Set(stock.map((s) => s.shape)), [stock])
+  // Tickets-on-request blocks stay hatched when zoomed in (no grey seats).
+  const requestShapes = useMemo(() => new Set((requests ?? []).map((r) => r.shape)), [requests])
 
   const { view, pxPerUnit: ppu, flyTo, reset, suppressClick } = pz
   const seatLevel = ppu >= SEAT_PPU
@@ -604,7 +636,9 @@ export default function StadiumMap({
   const margin = view.w * 0.15
   const inView = (b: MapBlock) =>
     b.box.x1 >= view.x - margin && b.box.x0 <= view.x + view.w + margin && b.box.y1 >= view.y - margin && b.box.y0 <= view.y + view.h + margin
-  const visibleKey = seatLevel ? all.map((b, i) => (!stockShapes.has(b) && inView(b) ? i : -1)).filter((i) => i >= 0).join(',') : ''
+  const visibleKey = seatLevel
+    ? all.map((b, i) => (!stockShapes.has(b) && !requestShapes.has(b) && inView(b) ? i : -1)).filter((i) => i >= 0).join(',')
+    : ''
   const visible = useMemo(() => (visibleKey ? visibleKey.split(',').map((i) => all[Number(i)]) : []), [visibleKey, all])
 
   // The block in the middle of the view — shown as a chip when zoomed in.
@@ -651,12 +685,13 @@ export default function StadiumMap({
     () => ({
       onBlock: (s) => onFly(s),
       onOther: (text) => cb.current.onOther(text),
+      onRequest: takesRequests ? (id: string) => cb.current.onRequest?.(id) : undefined,
       onHover,
       describe: (s) => cb.current.labels.describe(s),
       describeOther: (label) => cb.current.labels.describeOther(label),
       suppressClick,
     }),
-    [onFly, onHover, suppressClick],
+    [onFly, onHover, suppressClick, takesRequests],
   )
   const onSeat = useMemo(() => (seat: PublicSeat) => cb.current.onToggleSeat(seat), [])
   const describeSeat = useMemo(() => (seat: PublicSeat, n: number) => cb.current.labels.describeSeat(seat, n), [])
@@ -664,10 +699,13 @@ export default function StadiumMap({
 
   const zoomedIn = pz.zoom > 1.01
   const { w: W, h: H } = map.viewBox
+  const centreRequest = centre ? (requests ?? []).find((r) => r.shape === centre) : undefined
   const centreText = centre
     ? centreStock
       ? labels.describe(centreStock)
-      : centre.label
+      : centreRequest
+        ? centreRequest.text
+        : centre.label
         ? labels.describeOther(centre.label)
         : null
     : null
@@ -694,6 +732,7 @@ export default function StadiumMap({
           labelSize={labelSize}
           disabled={disabled || tappable}
           requests={requests}
+          activeRequest={activeRequest}
         />
         {seatLevel && <SeatTexture map={map} blocks={visible} />}
         {seatLevel && (
@@ -793,6 +832,15 @@ export default function StadiumMap({
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-sm bg-white/10" aria-hidden /> {labels.legendOther}
             </span>
+            {!!requests?.length && labels.legendRequest && (
+              <span className="inline-flex items-center gap-1.5 text-amber-100/80">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm border border-amber-400 bg-[repeating-linear-gradient(45deg,rgba(251,191,36,0.6)_0_1.5px,transparent_1.5px_3.5px)]"
+                  aria-hidden
+                />{' '}
+                {labels.legendRequest}
+              </span>
+            )}
           </>
         )}
       </div>

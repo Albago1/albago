@@ -234,6 +234,7 @@ export default function SeatSalePanel({
   const chooseGroup = (run: FreeRun, q: number) => {
     setErrorKey(null)
     setStep('pick')
+    setAllocPick(null)
     setPicked(assignSeats(run, q).map((seat) => seatKeyOf({ area: run.area, block: run.block, row: run.row, seat })))
   }
 
@@ -250,7 +251,8 @@ export default function SeatSalePanel({
     ...sale.categories.map((c) => c.price_cents),
     ...allocations.filter((a) => a.available > 0).map((a) => a.price_cents),
   ].reduce<number | null>((min, p) => (min === null || p < min ? p : min), null)
-  const allocSel = allocPick ? (allocations.find((a) => a.id === allocPick.id) ?? null) : null
+  const allocSel =
+    allocPick && activePicked.length === 0 ? (allocations.find((a) => a.id === allocPick.id) ?? null) : null
   const deliverBy = sale.deliver_by
     ? new Date(`${sale.deliver_by}T12:00:00`).toLocaleDateString(locale, {
         day: 'numeric',
@@ -258,6 +260,7 @@ export default function SeatSalePanel({
       })
     : null
   const storeKey = `albago:seat-pick:${eventId}`
+  const zoneKey = `albago:zone-pick:${eventId}`
 
   // ---- picker open / close, in step with the browser's Back button ---------
   const pushed = useRef(false)
@@ -312,8 +315,16 @@ export default function SeatSalePanel({
     } catch {
       /* nothing saved */
     }
+    let zone: { id: string; qty: number } | null = null
+    try {
+      const raw = JSON.parse(window.sessionStorage.getItem(zoneKey) ?? 'null')
+      if (raw && typeof raw.id === 'string' && Number.isInteger(raw.qty)) zone = { id: raw.id, qty: raw.qty }
+    } catch {
+      /* nothing saved */
+    }
     // One-off restore from the URL + session storage after the redirect.
-    setPicked(saved)
+    setPicked(zone ? [] : saved)
+    setAllocPick(zone)
     setPickerOpen(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -323,11 +334,12 @@ export default function SeatSalePanel({
   }
 
   const continueFromPicker = () => {
-    if (!exact || busy) return
+    if ((!exact && !allocSel) || busy) return
     setErrorKey(null)
     if (!isAuthenticated) {
       try {
         window.sessionStorage.setItem(storeKey, JSON.stringify(activePicked))
+        window.sessionStorage.setItem(zoneKey, JSON.stringify(allocSel ? allocPick : null))
       } catch {
         /* private mode — the buyer picks again after signing in */
       }
@@ -358,6 +370,16 @@ export default function SeatSalePanel({
     }
     setErrorKey(null)
     setStep('details')
+  }
+
+  // A striped block tapped on the page map: the big map opens with it selected.
+  const openZone = (id: string) => {
+    const a = allocations.find((x) => x.id === id)
+    if (!a || a.available <= 0 || busy) return
+    setPicked([])
+    setStep('pick')
+    setAllocPick({ id, qty: Math.min(2, Math.max(1, Math.min(a.available, sale.max_per_order))) })
+    openPicker(null)
   }
 
   // Tickets on request: straight to the details step (sign in first).
@@ -414,6 +436,7 @@ export default function SeatSalePanel({
         })
         try {
           window.sessionStorage.removeItem(storeKey)
+          window.sessionStorage.removeItem(zoneKey)
         } catch {
           /* ignore */
         }
@@ -652,6 +675,8 @@ export default function SeatSalePanel({
         counts={counted ? counts : undefined}
         labels={{ floor: t('seat_floor'), ring: t('seat_ring') }}
         requests={requestBlocks}
+        activeRequest={allocSel?.id ?? null}
+        onRequest={counted && mapFlow ? openZone : undefined}
       />
     ) : null
 
@@ -975,7 +1000,7 @@ export default function SeatSalePanel({
     ) : null
 
   // Details step for tickets on request (in the page, not the map picker).
-  if (step === 'details' && allocSel) {
+  if (step === 'details' && allocSel && !pickerOpen) {
     return (
       <div className="mt-5 border-t border-white/[0.08] pt-5">
         {draftBadge}
@@ -1012,6 +1037,8 @@ export default function SeatSalePanel({
             </span>
           </span>
         </button>
+
+        {allocationList}
 
         {/* Every group of seats side by side, with the quantities it can be
             bought in today — tap one and the seats are picked from the end. */}
@@ -1067,8 +1094,6 @@ export default function SeatSalePanel({
           })}
         </div>
 
-        {allocationList}
-
         {exact && selected && (
           <div className="mt-3 rounded-2xl border border-flame-500/30 bg-flame-500/[0.07] px-4 py-3">
             <div className="flex items-center justify-between gap-3">
@@ -1114,11 +1139,18 @@ export default function SeatSalePanel({
             picked={activePicked}
             onPickedChange={(keys) => {
               setErrorKey(null)
+              if (keys.length) setAllocPick(null)
               setPicked(keys)
+            }}
+            zone={allocSel && allocPick ? allocPick : null}
+            onZoneChange={(zone) => {
+              setErrorKey(null)
+              setAllocPick(zone)
+              if (zone) setPicked([])
             }}
             initialFilter={pickerFilter}
             onContinue={continueFromPicker}
-            checkout={step === 'details' && exact && selection.ok ? checkout(true) : null}
+            checkout={step === 'details' && ((exact && selection.ok) || !!allocSel) ? checkout(true) : null}
             onBackFromCheckout={() => setStep('pick')}
             notice={errorKey && step === 'pick' ? t(errorKey) : null}
             ruleNotice={exact ? ruleText : null}
